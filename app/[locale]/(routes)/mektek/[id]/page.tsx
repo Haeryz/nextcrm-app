@@ -3,7 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { notFound } from "next/navigation";
-import { getMektekServiceOrderById } from "@/actions/mektek/service-orders";
+import {
+  getMektekCustomerTrackingLink,
+  getMektekServiceOrderById,
+} from "@/actions/mektek/service-orders";
+import { getServerSession } from "@/lib/session";
+import { authOptions } from "@/lib/auth";
+import AddTimelineEntryForm from "./_components/AddTimelineEntryForm";
+import CustomerTrackingLinkCard from "./_components/CustomerTrackingLinkCard";
 
 const statusMap: Record<string, { label: string; progress: number }> = {
   ACTIVE: { label: "In Progress", progress: 65 },
@@ -17,6 +24,8 @@ interface Props {
 
 export default async function MektekDetailPage({ params }: Props) {
   const { id } = await params;
+  const session = await getServerSession(authOptions);
+  const isAdmin = !!session?.user?.isAdmin;
   const order = await getMektekServiceOrderById(id);
 
   if (!order) notFound();
@@ -32,26 +41,48 @@ export default async function MektekDetailPage({ params }: Props) {
     typeof tags.address === "string" ? tags.address : order.crm_accounts?.billing_street;
   const statusData = statusMap[order.taskStatus ?? "ACTIVE"] ?? statusMap.ACTIVE;
 
-  const timeline = [
-    {
-      id: "intake",
-      date: order.createdAt,
-      description: "Input kerusakan diterima dari CS",
-      completed: true,
-    },
-    {
-      id: "diagnosis",
-      date: order.updatedAt ?? order.createdAt,
-      description: order.content || "Menunggu catatan kerusakan",
-      completed: statusData.label !== "Pending",
-    },
-    {
-      id: "complete",
-      date: order.dueDateAt ?? null,
-      description: "Estimasi selesai",
-      completed: statusData.label === "Completed",
-    },
-  ];
+  const timelineFromTags = Array.isArray(tags.timeline)
+    ? tags.timeline
+        .map((item) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+          const row = item as Record<string, unknown>;
+          const description =
+            typeof row.description === "string" ? row.description.trim() : "";
+          const createdAtValue =
+            typeof row.createdAt === "string" ? row.createdAt : new Date().toISOString();
+          const createdAt = new Date(createdAtValue);
+          const completed = typeof row.completed === "boolean" ? row.completed : true;
+          const timelineId =
+            typeof row.id === "string" ? row.id : `${createdAtValue}-${description}`;
+
+          if (!description || Number.isNaN(createdAt.getTime())) return null;
+          return {
+            id: timelineId,
+            date: createdAt,
+            description,
+            completed,
+          };
+        })
+        .filter(
+          (entry): entry is { id: string; date: Date; description: string; completed: boolean } =>
+            !!entry
+        )
+    : [];
+
+  const trackingResult = await getMektekCustomerTrackingLink(order.id);
+  const customerTrackingLink = trackingResult?.data?.link;
+
+  const timeline = timelineFromTags.length
+    ? timelineFromTags
+    : [
+        {
+          id: "intake",
+          date: order.createdAt ?? new Date(),
+          description:
+            "Layanan Anda telah terbuat. Tim kami sedang menyiapkan pemeriksaan awal kendaraan.",
+          completed: true,
+        },
+      ];
 
   return (
     <Container
@@ -144,6 +175,12 @@ export default async function MektekDetailPage({ params }: Props) {
 
         {/* ── Right column: PESANAN timeline ── */}
         <div className="lg:col-span-2 flex flex-col gap-6">
+          {isAdmin && customerTrackingLink && (
+            <CustomerTrackingLinkCard link={customerTrackingLink} />
+          )}
+
+          {isAdmin && <AddTimelineEntryForm serviceOrderId={order.id} />}
+
           <Card className="border shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground">
@@ -155,7 +192,7 @@ export default async function MektekDetailPage({ params }: Props) {
                 {/* Dashed vertical connector line */}
                 {timeline.length > 1 && (
                   <div
-                    className="absolute left-[7px] top-5 border-l-2 border-dashed border-border"
+                    className="absolute left-1.75 top-5 border-l-2 border-dashed border-border"
                     style={{
                       height: `calc(100% - 2.5rem)`,
                     }}

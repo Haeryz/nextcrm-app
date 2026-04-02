@@ -57,10 +57,11 @@ export default async function MektekPage() {
                 : "Unknown vehicle";
 
             const statusData = statusMap[order.taskStatus ?? "ACTIVE"] ?? statusMap.ACTIVE;
+            const timelineCount = Array.isArray(tags.timeline) ? tags.timeline.length : 1;
 
             return (
               <Link key={order.id} href={`/mektek/${order.id}`}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer border">
+            <Card className="hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer border bg-card">
               <CardContent className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   {/* Left: customer info */}
@@ -81,9 +82,17 @@ export default async function MektekPage() {
                     <p className="text-sm text-muted-foreground">
                       {vehicle}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-xs text-muted-foreground mt-1 mb-2">
                       Last updated: {order.updatedAt?.toLocaleDateString()}
                     </p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="text-[11px] rounded-full bg-muted px-2 py-1 text-muted-foreground">
+                        {timelineCount} timeline updates
+                      </span>
+                      <span className="text-[11px] rounded-full bg-muted px-2 py-1 text-muted-foreground">
+                        AC Service
+                      </span>
+                    </div>
                   </div>
 
                   {/* Right: progress */}
@@ -106,7 +115,7 @@ export default async function MektekPage() {
                 {/* Order count + estimated done */}
                 <div className="mt-4 pt-4 border-t flex items-center justify-between">
                   <p className="text-xs text-muted-foreground">
-                    1 order step tracked
+                    {timelineCount} order step{timelineCount === 1 ? "" : "s"} tracked
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Est. done:{" "}

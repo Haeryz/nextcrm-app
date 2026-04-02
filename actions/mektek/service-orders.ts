@@ -7,6 +7,50 @@ import { revalidatePath } from "next/cache";
 import crypto from "crypto";
 
 const MEKTEK_TITLE_PREFIX = "MEKTEK AC -";
+const DEFAULT_TIMELINE_MESSAGE =
+  "Layanan Anda telah terbuat. Tim kami sedang menyiapkan pemeriksaan awal kendaraan.";
+
+type MektekTimelineEntry = {
+  id: string;
+  description: string;
+  createdAt: string;
+  completed: boolean;
+};
+
+const parseTagsObject = (tags: unknown): Record<string, unknown> => {
+  if (!tags || typeof tags !== "object" || Array.isArray(tags)) {
+    return {};
+  }
+  return tags as Record<string, unknown>;
+};
+
+const parseTimeline = (tags: unknown): MektekTimelineEntry[] => {
+  const tagsObject = parseTagsObject(tags);
+  const timeline = tagsObject.timeline;
+  if (!Array.isArray(timeline)) return [];
+
+  return timeline
+    .map((item) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+      const row = item as Record<string, unknown>;
+      const description = typeof row.description === "string" ? row.description.trim() : "";
+      const createdAt = typeof row.createdAt === "string" ? row.createdAt : new Date().toISOString();
+      const completed = typeof row.completed === "boolean" ? row.completed : true;
+      const id = typeof row.id === "string" ? row.id : crypto.randomUUID();
+
+      if (!description) return null;
+      return { id, description, createdAt, completed };
+    })
+    .filter((row): row is MektekTimelineEntry => !!row)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+};
+
+const buildCustomerTrackingLink = (taskId: string, token: string, locale?: string) => {
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+  const safeLocale = locale || "en";
+  return `${appUrl}/${safeLocale}/service-status/${taskId}?token=${token}`;
+};
 
 type CreateMektekServiceOrderInput = {
   customerName: string;
@@ -49,7 +93,6 @@ export const createMektekServiceOrder = async (
   }
 
   const customerToken = crypto.randomBytes(20).toString("hex");
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
   const locale = session.user.userLanguage || "en";
   let accountId: string | undefined;
 
@@ -96,6 +139,14 @@ export const createMektekServiceOrder = async (
           customerName,
           phone: phone || null,
           address: address || null,
+          timeline: [
+            {
+              id: crypto.randomUUID(),
+              description: DEFAULT_TIMELINE_MESSAGE,
+              createdAt: new Date().toISOString(),
+              completed: true,
+            },
+          ],
         },
       },
       include: {
@@ -114,7 +165,7 @@ export const createMektekServiceOrder = async (
       return { error: "Service order was not created" };
     }
 
-    const customerTrackingLink = `${appUrl}/${locale}/service-status/${task.id}?token=${customerToken}`;
+    const customerTrackingLink = buildCustomerTrackingLink(task.id, customerToken, locale);
 
     revalidatePath("/[locale]/(routes)/mektek", "page");
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
@@ -235,4 +286,118 @@ export const getPublicMektekServiceOrder = async (id: string, token: string) => 
   }
 
   return order;
+};
+
+export const addMektekTimelineEntry = async (data: {
+  serviceOrderId: string;
+  description: string;
+  completed: boolean;
+}) => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!session.user.isAdmin) return { error: "Forbidden: only admin can update timeline" };
+
+  const serviceOrderId = String(data?.serviceOrderId ?? "").trim();
+  const description = String(data?.description ?? "").trim();
+  const completed = !!data?.completed;
+
+  if (!serviceOrderId) return { error: "Service order ID is required" };
+  if (!description) return { error: "Timeline description is required" };
+
+  try {
+    const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
+      where: {
+        id: serviceOrderId,
+        title: { startsWith: MEKTEK_TITLE_PREFIX },
+      },
+      select: {
+        id: true,
+        tags: true,
+      },
+    });
+
+    if (!serviceOrder) return { error: "Service order not found" };
+
+    const tags = parseTagsObject(serviceOrder.tags);
+    const timeline = parseTimeline(serviceOrder.tags);
+    const nextTimeline: MektekTimelineEntry[] = [
+      ...timeline,
+      {
+        id: crypto.randomUUID(),
+        description,
+        createdAt: new Date().toISOString(),
+        completed,
+      },
+    ];
+
+    await prismadb.crm_Accounts_Tasks.update({
+      where: { id: serviceOrder.id },
+      data: {
+        tags: {
+          ...tags,
+          timeline: nextTimeline,
+        },
+        updatedBy: session.user.id,
+      },
+    });
+
+    revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
+    revalidatePath("/[locale]/service-status/[id]", "page");
+    return { data: nextTimeline };
+  } catch (error) {
+    console.log("[ADD_MEKTEK_TIMELINE_ENTRY]", error);
+    return { error: "Failed to add timeline entry" };
+  }
+};
+
+export const getMektekCustomerTrackingLink = async (serviceOrderId: string) => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "Unauthorized" };
+
+  const id = String(serviceOrderId ?? "").trim();
+  if (!id) return { error: "Service order ID is required" };
+
+  try {
+    const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
+      where: {
+        id,
+        title: { startsWith: MEKTEK_TITLE_PREFIX },
+      },
+      select: {
+        id: true,
+        tags: true,
+      },
+    });
+
+    if (!serviceOrder) return { error: "Service order not found" };
+
+    const tags = parseTagsObject(serviceOrder.tags);
+    let customerToken = typeof tags.customerToken === "string" ? tags.customerToken : "";
+
+    if (!customerToken) {
+      customerToken = crypto.randomBytes(20).toString("hex");
+      await prismadb.crm_Accounts_Tasks.update({
+        where: { id: serviceOrder.id },
+        data: {
+          tags: {
+            ...tags,
+            customerToken,
+          },
+        },
+      });
+    }
+
+    return {
+      data: {
+        link: buildCustomerTrackingLink(
+          serviceOrder.id,
+          customerToken,
+          session.user.userLanguage || "en"
+        ),
+      },
+    };
+  } catch (error) {
+    console.log("[GET_MEKTEK_CUSTOMER_TRACKING_LINK]", error);
+    return { error: "Failed to build customer tracking link" };
+  }
 };

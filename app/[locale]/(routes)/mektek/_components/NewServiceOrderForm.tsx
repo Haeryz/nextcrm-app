@@ -57,8 +57,21 @@ export default function NewServiceOrderForm() {
   };
 
   return (
-    <div className="space-y-3">
-      <form onSubmit={onSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-3 rounded-lg border p-4 bg-card">
+    <div className="space-y-4">
+      <form onSubmit={onSubmit} className="rounded-xl border bg-card p-5 md:p-6 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">
+              Service Intake
+            </p>
+            <h3 className="text-lg font-semibold">Input Service Baru</h3>
+          </div>
+          <span className="text-xs rounded-full border px-3 py-1 text-muted-foreground">
+            Admin Only
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <Input
           placeholder="Customer name"
           value={customerName}
@@ -86,12 +99,14 @@ export default function NewServiceOrderForm() {
           onChange={(event) => setEstimatedDone(event.target.value)}
           disabled={isPending}
         />
+        </div>
+
+        <div className="grid grid-cols-1 gap-3">
         <Input
           placeholder="Address"
           value={address}
           onChange={(event) => setAddress(event.target.value)}
           disabled={isPending}
-          className="md:col-span-2"
         />
         <Textarea
           placeholder="Damage/complaint details (manual input by CS)"
@@ -99,9 +114,11 @@ export default function NewServiceOrderForm() {
           onChange={(event) => setComplaint(event.target.value)}
           disabled={isPending}
           required
-          className="md:col-span-2"
+          className="min-h-28"
         />
-        <div className="md:col-span-2 flex justify-end">
+        </div>
+
+        <div className="flex justify-end">
           <Button type="submit" disabled={isPending}>
             {isPending ? "Saving..." : "Add Service"}
           </Button>
@@ -109,7 +126,7 @@ export default function NewServiceOrderForm() {
       </form>
 
       {trackingLink && (
-        <div className="rounded-lg border p-4 bg-muted/20">
+        <div className="rounded-xl border p-4 bg-muted/20">
           <p className="text-sm font-medium mb-2">Customer tracking link</p>
           <div className="flex flex-col md:flex-row gap-2">
             <Input value={trackingLink} readOnly />
