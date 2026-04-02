@@ -1,6 +1,12 @@
 import { LoginComponent } from "./components/LoginComponent";
+import { isAuthDisabled } from "@/lib/session";
+import { redirect } from "next/navigation";
 
 const SignInPage = async () => {
+  if (isAuthDisabled()) {
+    redirect("/");
+  }
+
   return (
     <div className="h-full">
       <div className="py-10">

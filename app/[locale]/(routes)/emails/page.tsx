@@ -5,7 +5,7 @@ import Link from "next/link";
 import { MailComponent } from "./components/mail";
 import Container from "../components/ui/Container";
 import EmailsSkeleton from "@/components/skeletons/emails-skeleton";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { getTranslations } from "next-intl/server";
 import { getEmailAccounts } from "@/actions/emails/accounts";

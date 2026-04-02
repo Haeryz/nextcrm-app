@@ -10,7 +10,7 @@ import DeleteProjectDialog from "./dialogs/DeleteProject";
 import { getKanbanData } from "@/actions/projects/get-kanban-data";
 import Kanban from "./components/Kanban";
 import { getBoards } from "@/actions/projects/get-boards";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { Lock } from "lucide-react";
 

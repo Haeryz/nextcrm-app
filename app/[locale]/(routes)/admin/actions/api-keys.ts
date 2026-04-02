@@ -1,11 +1,12 @@
 "use server";
 
-import { getServerSession } from "next-auth/next";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { encrypt, decrypt } from "@/lib/email-crypto";
 import { ApiKeyProvider } from "@prisma/client";
+import { areExternalApisDisabled } from "@/lib/external-apis";
 
 const PROVIDER_ENV_MAP: Record<ApiKeyProvider, string> = {
   OPENAI: "OPENAI_API_KEY",
@@ -23,6 +24,11 @@ export type ProviderStatus = {
 export async function getSystemApiKeys(): Promise<ProviderStatus[]> {
   const session = await getServerSession(authOptions);
   if (!session?.user?.isAdmin) throw new Error("Unauthorized");
+
+  if (areExternalApisDisabled()) {
+    const providers = Object.values(ApiKeyProvider) as ApiKeyProvider[];
+    return providers.map((provider) => ({ provider, source: "NOT_CONFIGURED" }));
+  }
 
   const providers = Object.values(ApiKeyProvider) as ApiKeyProvider[];
 
@@ -60,6 +66,10 @@ export async function upsertSystemApiKey(
   provider: ApiKeyProvider,
   key: string
 ): Promise<void> {
+  if (areExternalApisDisabled()) {
+    throw new Error("API keys are disabled in prototype mode.");
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.isAdmin) throw new Error("Unauthorized");
 
@@ -82,6 +92,10 @@ export async function upsertSystemApiKey(
 }
 
 export async function deleteSystemApiKey(provider: ApiKeyProvider): Promise<void> {
+  if (areExternalApisDisabled()) {
+    throw new Error("API keys are disabled in prototype mode.");
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.isAdmin) throw new Error("Unauthorized");
 

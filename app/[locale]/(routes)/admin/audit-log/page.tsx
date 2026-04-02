@@ -1,4 +1,4 @@
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getAuditLogAdmin } from "@/actions/crm/audit-log/get-audit-log-admin";

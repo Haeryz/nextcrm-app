@@ -1,6 +1,6 @@
 "use server";
 
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { render } from "@react-email/render";
 
 import { SendMailToAll } from "./schema";

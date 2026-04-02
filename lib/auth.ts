@@ -6,39 +6,63 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
 import { newUserNotify } from "./new-user-notify";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
+import { areExternalApisDisabled } from "./external-apis";
 
-function getGoogleCredentials(): { clientId: string; clientSecret: string } {
-  const clientId = process.env.GOOGLE_ID;
-  const clientSecret = process.env.GOOGLE_SECRET;
-  if (!clientId || clientId.length === 0) {
-    throw new Error("Missing GOOGLE_ID");
+const defaultAuthUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+if (!process.env.NEXTAUTH_URL) {
+  process.env.NEXTAUTH_URL = defaultAuthUrl;
+}
+
+const authSecret =
+  process.env.JWT_SECRET ||
+  process.env.NEXTAUTH_SECRET ||
+  (process.env.NODE_ENV !== "production"
+    ? "nextcrm-dev-secret-change-in-production"
+    : undefined);
+
+function getOAuthProviders() {
+  if (areExternalApisDisabled()) {
+    return [];
   }
 
-  if (!clientSecret || clientSecret.length === 0) {
-    throw new Error("Missing GOOGLE_SECRET");
+  const providers = [];
+  const googleId = process.env.GOOGLE_ID;
+  const googleSecret = process.env.GOOGLE_SECRET;
+  const githubId = process.env.GITHUB_ID;
+  const githubSecret = process.env.GITHUB_SECRET;
+
+  if (googleId && googleSecret) {
+    providers.push(
+      GoogleProvider({
+        clientId: googleId,
+        clientSecret: googleSecret,
+      })
+    );
   }
 
-  return { clientId, clientSecret };
+  if (githubId && githubSecret) {
+    providers.push(
+      GitHubProvider({
+        name: "github",
+        clientId: githubId,
+        clientSecret: githubSecret,
+      })
+    );
+  }
+
+  return providers;
 }
 
 export const authOptions: NextAuthOptions = {
-  secret: process.env.JWT_SECRET,
+  secret: authSecret,
   //adapter: PrismaAdapter(prismadb),
   session: {
     strategy: "jwt",
   },
 
   providers: [
-    GoogleProvider({
-      clientId: getGoogleCredentials().clientId,
-      clientSecret: getGoogleCredentials().clientSecret,
-    }),
-
-    GitHubProvider({
-      name: "github",
-      clientId: process.env.GITHUB_ID!,
-      clientSecret: process.env.GITHUB_SECRET!,
-    }),
+    ...getOAuthProviders(),
 
     CredentialsProvider({
       name: "credentials",

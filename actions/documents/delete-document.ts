@@ -2,9 +2,9 @@
 
 import { authOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { DeleteObjectCommand } from "@aws-sdk/client-s3";
-import { minioClient, MINIO_BUCKET } from "@/lib/minio";
+import { minioClient, MINIO_BUCKET, isMinioEnabled } from "@/lib/minio";
 
 export async function deleteDocument(documentId: string) {
   const session = await getServerSession(authOptions);
@@ -20,7 +20,7 @@ export async function deleteDocument(documentId: string) {
 
   await prismadb.documents.delete({ where: { id: documentId } });
 
-  if (document.key) {
+  if (document.key && isMinioEnabled && minioClient) {
     await minioClient.send(
       new DeleteObjectCommand({
         Bucket: MINIO_BUCKET,

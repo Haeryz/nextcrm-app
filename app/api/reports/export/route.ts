@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { parseSearchParamsToFilters } from "@/actions/reports/types";
 import { generateCSV } from "@/actions/reports/export-csv";

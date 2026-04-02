@@ -26,7 +26,7 @@ import {
 import { Calendar, Shield, User } from "lucide-react";
 import { prismadb } from "@/lib/prisma";
 import { getBoards } from "@/actions/projects/get-boards";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 
 type TaskPageProps = {

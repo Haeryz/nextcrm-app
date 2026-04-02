@@ -1,6 +1,6 @@
 import { getSystemApiKeys } from "../actions/api-keys";
 import { ProviderKeyCard } from "./ProviderKeyCard";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import Container from "../../components/ui/Container";
 import { getTranslations } from "next-intl/server";

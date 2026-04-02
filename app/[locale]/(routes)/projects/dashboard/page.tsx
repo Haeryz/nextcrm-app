@@ -3,7 +3,7 @@ import Container from "../../components/ui/Container";
 import ProjectDashboardCockpit from "./components/ProjectDasboard";
 import { getTasksPastDue } from "@/actions/projects/get-tasks-past-due";
 import { getBoards } from "@/actions/projects/get-boards";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { getSections } from "@/actions/projects/get-sections";
 import { Sections } from "@prisma/client";

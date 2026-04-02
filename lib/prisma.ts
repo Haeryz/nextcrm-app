@@ -6,8 +6,38 @@ declare global {
   var cachedPrisma: PrismaClient | undefined;
 }
 
+function createMockPrisma(): PrismaClient {
+  const modelProxy = new Proxy(
+    {},
+    {
+      get(_t, method: string) {
+        if (method === "count") return () => Promise.resolve(0);
+        if (method === "findMany") return () => Promise.resolve([]);
+        if (method === "aggregate") return () => Promise.resolve({ _count: 0, _sum: {}, _avg: {}, _min: {}, _max: {} });
+        // findFirst, findUnique, create, update, delete, upsert, etc.
+        return () => Promise.resolve(null);
+      },
+    }
+  );
+  return new Proxy({} as PrismaClient, {
+    get(_t, prop: string) {
+      if (prop === "$connect" || prop === "$disconnect") return () => Promise.resolve();
+      if (prop === "$transaction") {
+        return (arg: unknown) =>
+          Array.isArray(arg) ? Promise.resolve(arg.map(() => null)) : Promise.resolve(null);
+      }
+      return modelProxy;
+    },
+  });
+}
+
 // Prisma Client configuration with connection pooling and lifecycle management
 const prismaClientSingleton = () => {
+  if (!process.env.DATABASE_URL) {
+    console.warn("[prisma] DATABASE_URL not set — using mock client (prototype mode)");
+    return createMockPrisma();
+  }
+
   const connectionString = `${process.env.DATABASE_URL}`;
   const pool = new Pool({ connectionString });
   const adapter = new PrismaPg(pool);

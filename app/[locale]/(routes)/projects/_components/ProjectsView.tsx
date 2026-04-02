@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 
 import { getBoards } from "@/actions/projects/get-boards";
 

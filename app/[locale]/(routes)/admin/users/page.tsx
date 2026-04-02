@@ -4,7 +4,7 @@ import Container from "../../components/ui/Container";
 import { InviteForm } from "./components/IviteForm";
 import { Separator } from "@/components/ui/separator";
 
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { AdminUserDataTable } from "./table-components/data-table";
 import { columns } from "./table-components/columns";

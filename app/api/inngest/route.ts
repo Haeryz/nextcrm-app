@@ -1,5 +1,6 @@
 import { serve } from "inngest/next";
 import { inngest } from "@/inngest/client";
+import { NextResponse } from "next/server";
 import { embedAccount } from "@/inngest/functions/embed-account";
 import { embedContact } from "@/inngest/functions/embed-contact";
 import { embedLead } from "@/inngest/functions/embed-lead";
@@ -19,28 +20,43 @@ import { campaignSendStep } from "@/inngest/functions/campaigns/send-step";
 import { campaignProcessFollowUp } from "@/inngest/functions/campaigns/process-follow-up";
 import { campaignSendNow } from "@/inngest/functions/campaigns/send-now";
 import { reportSendScheduled } from "@/inngest/functions/reports/send-scheduled";
+import { areExternalApisDisabled } from "@/lib/external-apis";
 
-export const { GET, POST, PUT } = serve({
-  client: inngest,
-  functions: [
-    embedAccount,
-    embedContact,
-    embedLead,
-    embedOpportunity,
-    embedBackfill,
-    emailSyncAll,
-    emailSyncAccount,
-    embedEmail,
-    emailLinkCrm,
-    enrichContact,
-    enrichContactsBulk,
-    enrichTarget,
-    enrichTargetsBulk,
-    enrichTargetContact,
-    campaignScheduleSend,
-    campaignSendStep,
-    campaignProcessFollowUp,
-    campaignSendNow,
-    reportSendScheduled,
-  ],
-});
+const disabledHandler = async () =>
+  NextResponse.json(
+    { error: "Inngest endpoints are disabled in prototype mode." },
+    { status: 503 }
+  );
+
+const handlers = areExternalApisDisabled()
+  ? {
+      GET: disabledHandler,
+      POST: disabledHandler,
+      PUT: disabledHandler,
+    }
+  : serve({
+      client: inngest,
+      functions: [
+        embedAccount,
+        embedContact,
+        embedLead,
+        embedOpportunity,
+        embedBackfill,
+        emailSyncAll,
+        emailSyncAccount,
+        embedEmail,
+        emailLinkCrm,
+        enrichContact,
+        enrichContactsBulk,
+        enrichTarget,
+        enrichTargetsBulk,
+        enrichTargetContact,
+        campaignScheduleSend,
+        campaignSendStep,
+        campaignProcessFollowUp,
+        campaignSendNow,
+        reportSendScheduled,
+      ],
+    });
+
+export const { GET, POST, PUT } = handlers;

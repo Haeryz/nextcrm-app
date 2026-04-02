@@ -1,10 +1,11 @@
 "use server";
 
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
 import { encrypt } from "@/lib/email-crypto";
 import Imap from "imap";
+import { areExternalApisDisabled } from "@/lib/external-apis";
 
 async function requireSession() {
   const session = await getServerSession(authOptions);
@@ -49,6 +50,10 @@ type CreateInput = {
 };
 
 export async function createEmailAccount(input: CreateInput) {
+  if (areExternalApisDisabled()) {
+    throw new Error("Email integrations are disabled in prototype mode.");
+  }
+
   const userId = await requireSession();
 
   // Validate required string fields
@@ -104,6 +109,10 @@ type TestInput = {
 export async function testEmailConnection(
   input: TestInput
 ): Promise<{ ok: boolean; error?: string }> {
+  if (areExternalApisDisabled()) {
+    return { ok: false, error: "Email integrations are disabled in prototype mode." };
+  }
+
   await requireSession();
 
   const connectionPromise = new Promise<{ ok: boolean; error?: string }>((resolve) => {
@@ -146,6 +155,10 @@ type ListFoldersInput = {
 export async function listImapFolders(
   input: ListFoldersInput
 ): Promise<{ ok: true; folders: string[] } | { ok: false; error: string }> {
+  if (areExternalApisDisabled()) {
+    return { ok: false, error: "Email integrations are disabled in prototype mode." };
+  }
+
   await requireSession();
 
   return new Promise((resolve) => {

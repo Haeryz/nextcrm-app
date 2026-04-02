@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { authOptions } from "@/lib/auth";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import {
   CoinsIcon,
   Contact,

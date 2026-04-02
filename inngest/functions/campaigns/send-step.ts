@@ -2,8 +2,7 @@ import { inngest } from "@/inngest/client";
 import { prismadb } from "@/lib/prisma";
 import { Resend } from "resend";
 import { resolveMergeTags } from "@/lib/campaigns/merge-tags";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { areExternalApisDisabled } from "@/lib/external-apis";
 
 export const campaignSendStep = inngest.createFunction(
   {
@@ -12,6 +11,16 @@ export const campaignSendStep = inngest.createFunction(
     triggers: [{ event: "campaigns/send-step" }],
   },
   async ({ event, step }) => {
+    if (areExternalApisDisabled()) {
+      return { skipped: true, reason: "external APIs disabled" };
+    }
+
+    if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+      return { skipped: true, reason: "resend not configured" };
+    }
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
     const { sendId, campaignId } = event.data as {
       sendId: string;
       campaignId: string;
@@ -32,10 +41,11 @@ export const campaignSendStep = inngest.createFunction(
     if (sendRecord.campaign.status === "paused") return { skipped: true, reason: "paused" };
 
     const html = resolveMergeTags(sendRecord.step.template.content_html, sendRecord.target);
+    const fromEmail = process.env.RESEND_FROM_EMAIL;
 
     const fromAddress = sendRecord.campaign.from_name
-      ? `${sendRecord.campaign.from_name} <${process.env.RESEND_FROM_EMAIL}>`
-      : process.env.RESEND_FROM_EMAIL!;
+      ? `${sendRecord.campaign.from_name} <${fromEmail}>`
+      : fromEmail;
 
     const result = await step.run("send-email", async () => {
       return resend.emails.send({

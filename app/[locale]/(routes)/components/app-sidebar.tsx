@@ -20,6 +20,7 @@ import getReportsMenuItem from "./menu-items/Reports";
 import getDocumentsMenuItem from "./menu-items/Documents";
 import getAdministrationMenuItem from "./menu-items/Administration";
 import getCampaignsMenuItem from "./menu-items/Campaigns";
+import getMektekMenuItem from "./menu-items/Mektek";
 
 /**
  * AppSidebar Component - Task Groups 1.2, 2.2-2.7, 3.1, 5.3, 5.4
@@ -106,6 +107,7 @@ export function AppSidebar({
     getEmailsMenuItem({ title: dict?.emails || "Emails" }),
     getReportsMenuItem({ title: dict?.reports || "Reports" }),
     getDocumentsMenuItem({ title: dict?.documents || "Documents" }),
+    getMektekMenuItem({ title: "Mektek" }),
   ];
 
   // Administration: admin users only

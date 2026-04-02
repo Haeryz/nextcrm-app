@@ -18,6 +18,18 @@ type Props = {
   params: Promise<{ locale: string }>;
 };
 
+function resolveMetadataBase(): URL {
+  const fallback = "http://localhost:3000";
+  const rawUrl =
+    process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || fallback;
+
+  try {
+    return new URL(rawUrl);
+  } catch {
+    return new URL(fallback);
+  }
+}
+
 export async function generateMetadata(props: Props) {
   const params = await props.params;
 
@@ -26,7 +38,7 @@ export async function generateMetadata(props: Props) {
   const t = await getTranslations({ locale, namespace: "RootLayout" });
 
   return {
-    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL!),
+    metadataBase: resolveMetadataBase(),
     title: t("title"),
     description: t("description"),
     openGraph: {

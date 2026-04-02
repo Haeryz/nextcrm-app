@@ -1,7 +1,7 @@
 import React, { Suspense } from "react";
 import Container from "../components/ui/Container";
 
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Session } from "next-auth";

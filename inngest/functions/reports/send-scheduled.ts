@@ -9,8 +9,7 @@ import * as accountsActions from "@/actions/reports/accounts";
 import * as activityActions from "@/actions/reports/activity";
 import * as campaignsActions from "@/actions/reports/campaigns";
 import * as usersActions from "@/actions/reports/users";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { areExternalApisDisabled } from "@/lib/external-apis";
 
 async function getReportData(category: string, filters: any) {
   switch (category) {
@@ -43,6 +42,16 @@ export const reportSendScheduled = inngest.createFunction(
     triggers: [{ cron: "*/15 * * * *" }],
   },
   async ({ step }: { step: any }) => {
+    if (areExternalApisDisabled()) {
+      return { processed: 0, skipped: true, reason: "external APIs disabled" };
+    }
+
+    if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM_EMAIL) {
+      return { processed: 0, skipped: true, reason: "resend not configured" };
+    }
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
     const schedules = await step.run("find-due-schedules", async () => {
       return prismadb.crm_Report_Schedule.findMany({
         where: { isActive: true },

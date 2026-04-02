@@ -1,9 +1,15 @@
 import axios, { AxiosResponse } from "axios";
 import build from "@/buildCount.json";
+import { areExternalApisDisabled } from "@/lib/external-apis";
 
 export default async function getAllCommits(): Promise<number> {
   const perPage = 100;
   const buildCount = build.build;
+
+  if (areExternalApisDisabled()) {
+    return buildCount;
+  }
+
   try {
     /* let commitsCount = 0;
     let page = 1;

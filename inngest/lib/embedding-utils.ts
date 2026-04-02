@@ -1,7 +1,12 @@
 import { createHash } from "crypto";
 import OpenAI from "openai";
+import { areExternalApisDisabled } from "@/lib/external-apis";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const EMBEDDING_DIMENSION = 1536;
+
+function zeroEmbedding(): number[] {
+  return Array.from({ length: EMBEDDING_DIMENSION }, () => 0);
+}
 
 /**
  * Concatenate non-null text fields into a single embedding string.
@@ -25,6 +30,11 @@ export function computeContentHash(text: string): string {
  * Returns a float array of 1536 dimensions.
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
+  if (areExternalApisDisabled() || !process.env.OPENAI_API_KEY) {
+    return zeroEmbedding();
+  }
+
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const response = await openai.embeddings.create({
     model: "text-embedding-3-small",
     input: text,

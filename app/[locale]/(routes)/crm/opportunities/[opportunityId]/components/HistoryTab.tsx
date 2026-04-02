@@ -1,5 +1,5 @@
 import { getAuditLogByEntity } from "@/actions/crm/audit-log/get-audit-log-by-entity";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { AuditTimeline } from "@/components/crm/audit-log/Timeline";
 

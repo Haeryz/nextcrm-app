@@ -1,10 +1,15 @@
 import OpenAI from "openai";
 import { getApiKey } from "./api-keys";
+import { areExternalApisDisabled } from "./external-apis";
 
 //Check if the openai key is in the database
 //If not, use the env variable
 
 export async function openAiHelper(userId: string) {
+  if (areExternalApisDisabled()) {
+    return null;
+  }
+
   const apiKey = await getApiKey("OPENAI", userId);
 
   if (!apiKey) {

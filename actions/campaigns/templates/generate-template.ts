@@ -1,7 +1,8 @@
 "use server";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { getApiKey } from "@/lib/api-keys";
+import { areExternalApisDisabled } from "@/lib/external-apis";
 
 export const generateTemplate = async (
   prompt: string
@@ -10,6 +11,10 @@ export const generateTemplate = async (
   json: object;
   subject: string;
 }> => {
+  if (areExternalApisDisabled()) {
+    throw new Error("Campaign template generation is disabled in prototype mode.");
+  }
+
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) throw new Error("Unauthorized");
 

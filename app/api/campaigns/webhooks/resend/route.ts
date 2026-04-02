@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prismadb } from "@/lib/prisma";
 import { createHmac } from "crypto";
+import { areExternalApisDisabled } from "@/lib/external-apis";
 
 function verifyResendSignature(body: string, signature: string | null): boolean {
   if (!signature || !process.env.RESEND_WEBHOOK_SECRET) return false;
@@ -11,6 +12,10 @@ function verifyResendSignature(body: string, signature: string | null): boolean 
 }
 
 export async function POST(req: NextRequest) {
+  if (areExternalApisDisabled()) {
+    return NextResponse.json({ ok: false, message: "Resend webhook is disabled in prototype mode." }, { status: 503 });
+  }
+
   const body = await req.text();
   const signature = req.headers.get("Resend-Signature");
 

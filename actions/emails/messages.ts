@@ -1,11 +1,12 @@
 "use server";
 
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
 import { decrypt } from "@/lib/email-crypto";
 import nodemailer from "nodemailer";
 import { EmailFolder } from "@prisma/client";
+import { areExternalApisDisabled } from "@/lib/external-apis";
 
 const PAGE_SIZE = 50;
 const MAX_COUNT = 10_000;
@@ -79,7 +80,7 @@ export async function getEmail(id: string) {
   if (!email) throw new Error("Not found");
 
   // Lazy body fetch for emails not yet CRM-linked at sync time
-  if (!email.bodyText && !email.bodyHtml && email.imapUid) {
+  if (!areExternalApisDisabled() && !email.bodyText && !email.bodyHtml && email.imapUid) {
     try {
       const account = await prismadb.emailAccount.findUnique({
         where: { id: email.emailAccountId },
@@ -156,6 +157,10 @@ type SendInput = {
 };
 
 export async function sendEmail(input: SendInput) {
+  if (areExternalApisDisabled()) {
+    throw new Error("Email sending is disabled in prototype mode.");
+  }
+
   const userId = await requireSession();
 
   const account = await prismadb.emailAccount.findFirst({

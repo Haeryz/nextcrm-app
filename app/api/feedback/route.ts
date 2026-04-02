@@ -1,6 +1,6 @@
 import { authOptions } from "@/lib/auth";
 import resendHelper from "@/lib/resend";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {

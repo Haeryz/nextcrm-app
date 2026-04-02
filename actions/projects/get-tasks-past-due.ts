@@ -1,7 +1,7 @@
 import { authOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
 import dayjs from "dayjs";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 
 export const getTasksPastDue = async () => {
   const session = await getServerSession(authOptions);

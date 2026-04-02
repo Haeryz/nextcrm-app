@@ -1,5 +1,5 @@
 import { authOptions } from "@/lib/auth";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import React from "react";
 import Container from "../../../components/ui/Container";

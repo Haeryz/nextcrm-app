@@ -16,7 +16,7 @@ jest.mock("@/lib/email-crypto", () => ({
   decrypt: jest.fn().mockReturnValue("plaintext"),
 }));
 
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import {
   getEmailAccounts,
   createEmailAccount,

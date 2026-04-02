@@ -2,7 +2,7 @@
 
 import { authOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import Papa from "papaparse";
 
 export async function importTargets(

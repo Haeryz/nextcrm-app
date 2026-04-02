@@ -4,10 +4,15 @@ import axios from "axios";
 
 import { prismadb } from "@/lib/prisma";
 import resendHelper from "@/lib/resend";
+import { areExternalApisDisabled } from "@/lib/external-apis";
 
 import AiProjectReportEmail from "@/emails/AiProjectReport";
 
 export async function getAiReport(session: any, boardId: string) {
+  if (areExternalApisDisabled()) {
+    return { message: "AI reporting is disabled in prototype mode." };
+  }
+
   /*
   Resend.com function init - this is a helper function that will be used to send emails
   */

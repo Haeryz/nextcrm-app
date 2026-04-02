@@ -4,6 +4,7 @@ import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 
 const intlMiddleware = createMiddleware(routing);
+const AUTH_DISABLED = process.env.NEXTCRM_DISABLE_AUTH !== "false";
 
 // Admin-only: require session.user.isAdmin
 const ADMIN_ONLY_PATHS = [
@@ -17,6 +18,13 @@ const ADMIN_ONLY_PATHS = [
 
 export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
+
+  if (AUTH_DISABLED) {
+    if (path.startsWith("/api")) {
+      return NextResponse.next();
+    }
+    return intlMiddleware(req);
+  }
 
   // Inngest webhook — pass through, Inngest handles its own auth via signing key
   if (path.startsWith("/api/inngest")) {

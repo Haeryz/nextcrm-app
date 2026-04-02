@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { validateApiToken } from "@/lib/api-tokens";
 

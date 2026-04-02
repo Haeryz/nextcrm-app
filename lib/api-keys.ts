@@ -1,6 +1,7 @@
 import { prismadb } from "@/lib/prisma";
 import { decrypt } from "@/lib/email-crypto";
 import type { ApiKeyProvider } from "@prisma/client";
+import { areExternalApisDisabled } from "@/lib/external-apis";
 
 export type { ApiKeyProvider };
 
@@ -22,6 +23,10 @@ export async function getApiKey(
   provider: ApiKeyProvider,
   userId?: string
 ): Promise<string | null> {
+  if (areExternalApisDisabled()) {
+    return null;
+  }
+
   // Tier 1: ENV
   const envKey = process.env[PROVIDER_ENV_MAP[provider]];
   if (envKey) return envKey;

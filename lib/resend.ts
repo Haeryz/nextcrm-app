@@ -1,7 +1,24 @@
 import { Resend } from "resend";
 import { prismadb } from "./prisma";
+import { areExternalApisDisabled } from "./external-apis";
+
+type ResendLike = {
+  emails: {
+    send: (...args: any[]) => Promise<{ data: null; error: null }>;
+  };
+};
+
+const noopResend: ResendLike = {
+  emails: {
+    send: async () => ({ data: null, error: null }),
+  },
+};
 
 export default async function resendHelper() {
+  if (areExternalApisDisabled()) {
+    return noopResend;
+  }
+
   const resendKey = await prismadb.systemServices.findFirst({
     where: {
       name: "resend_smtp",

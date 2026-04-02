@@ -4,7 +4,8 @@ import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import React from "react";
 import { TasksDataTable } from "../components/data-table";
 import { columns } from "../components/columns";
-import { Session, getServerSession } from "next-auth";
+import { Session } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 
 type TaskDetailPageProps = {

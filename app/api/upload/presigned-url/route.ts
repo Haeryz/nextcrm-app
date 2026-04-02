@@ -1,10 +1,10 @@
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { minioClient, MINIO_BUCKET, MINIO_PUBLIC_URL } from "@/lib/minio";
+import { minioClient, MINIO_BUCKET, MINIO_PUBLIC_URL, isMinioEnabled } from "@/lib/minio";
 import { randomUUID } from "crypto";
 
 const ALLOWED_FOLDERS = ["avatars", "images", "documents", "uploads"] as const;
@@ -13,6 +13,13 @@ type AllowedFolder = (typeof ALLOWED_FOLDERS)[number];
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (!isMinioEnabled || !minioClient || !MINIO_BUCKET || !MINIO_PUBLIC_URL) {
+    return NextResponse.json(
+      { error: "File uploads are disabled in prototype mode." },
+      { status: 503 }
+    );
+  }
 
   const { filename: rawFilename, contentType, folder: rawFolder = "uploads" } = await req.json();
 

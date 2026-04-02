@@ -1,6 +1,6 @@
 "use server";
 import { prismadb } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 
 export const createTemplate = async (data: {

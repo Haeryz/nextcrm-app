@@ -5,7 +5,8 @@ import { UpdateContract } from "./schema";
 import { InputType, ReturnType } from "./types";
 
 import { createSafeAction } from "@/lib/create-safe-action";
-import { getServerSession, Session } from "next-auth";
+import { Session } from "next-auth";
+import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { writeAuditLog, diffObjects } from "@/lib/audit-log";
 
