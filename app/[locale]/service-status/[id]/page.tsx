@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getPublicMektekServiceOrder } from "@/actions/mektek/service-orders";
-import { Separator } from "@/components/ui/separator";
 
 const statusMap: Record<string, { label: string; progress: number }> = {
   ACTIVE: { label: "In Progress", progress: 65 },
@@ -65,120 +64,158 @@ export default async function ServiceStatusPage({ params, searchParams }: Props)
         )
     : [];
 
+  const latestTimeline = timeline[timeline.length - 1];
+
   return (
-    <div className="min-h-screen bg-background px-4 py-6 md:px-8 md:py-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-5 rounded-xl border bg-card p-4 md:p-5">
-          <p className="text-xs text-muted-foreground">Customer</p>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground mt-1">MEKTEK</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Pantau progres servis kendaraan Anda secara real-time.
-          </p>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_10%_20%,rgba(148,163,184,0.14),transparent_35%),radial-gradient(circle_at_90%_10%,rgba(59,130,246,0.12),transparent_30%),hsl(var(--background))] px-4 py-8 md:px-8 md:py-10">
+      <div className="mx-auto max-w-5xl space-y-6">
+        <div className="rounded-2xl border bg-card/95 p-5 shadow-sm backdrop-blur md:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Customer Tracking
+              </p>
+              <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">
+                MEKTEK Service Progress
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Hai {customerName}, berikut update terkini untuk servis kendaraan Anda.
+              </p>
+            </div>
+            <Badge
+              variant={statusData.label === "Completed" ? "default" : "secondary"}
+              className="h-fit px-3 py-1 text-xs"
+            >
+              {statusData.label}
+            </Badge>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[300px_1fr]">
-          <div className="space-y-3">
-            <Card className="border shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground text-center">
-                  Identitas
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="min-h-44 space-y-2 rounded-lg border bg-muted/30 p-4">
-                <p className="text-sm">
-                  <span className="font-semibold">Nama:</span> {customerName}
-                </p>
-                <p className="text-sm">
-                  <span className="font-semibold">Kendaraan:</span> {vehicle}
-                </p>
-                <p className="text-sm">
-                  <span className="font-semibold">ID Servis:</span> {order.id.slice(0, 8)}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground text-center">
-                  Progress
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="min-h-44 space-y-3 rounded-lg border bg-muted/30 p-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-2xl font-black">{statusData.progress}%</span>
-                  <Badge variant={statusData.label === "Completed" ? "default" : "secondary"}>
-                    {statusData.label}
-                  </Badge>
-                </div>
-                <div className="h-3 w-full overflow-hidden rounded-full bg-muted">
-                  <div className="h-full bg-foreground" style={{ width: `${statusData.progress}%` }} />
-                </div>
-                <Separator />
-                <p className="text-sm">
-                  <span className="font-semibold">Estimasi selesai:</span>{" "}
-                  {order.dueDateAt?.toLocaleDateString() ?? "Belum ditentukan"}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card className="border shadow-sm">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <Card className="md:col-span-1 border shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground text-center">
-                Pesanan
+              <CardTitle className="text-xs uppercase tracking-widest text-muted-foreground">
+                Service ID
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="relative">
-                {timeline.length > 1 && (
-                  <div
-                    className="absolute left-1.75 top-5 border-l-2 border-dashed border-border"
-                    style={{ height: "calc(100% - 2.5rem)" }}
-                  />
-                )}
+              <p className="font-mono text-sm font-semibold">{order.id.slice(0, 8)}</p>
+            </CardContent>
+          </Card>
 
-                <div className="space-y-4">
-                  {timeline.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Belum ada update timeline.</p>
-                  ) : (
-                    timeline.map((item) => (
-                      <div key={item.id} className="relative flex gap-4">
-                        <div
-                          className={`mt-1 h-4 w-4 rounded-full border-2 z-10 ${
-                            item.completed
-                              ? "border-foreground bg-foreground"
-                              : "border-muted-foreground bg-background"
-                          }`}
-                        />
-                        <Card className="flex-1 border shadow-sm">
-                          <CardContent className="p-4">
-                            <div className="mb-2 flex items-center justify-between gap-3">
-                              <p className="text-xs font-semibold text-muted-foreground">
-                              {item.createdAt.toLocaleDateString()} ·{" "}
-                              {item.createdAt.toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                              </p>
-                              <Badge variant={item.completed ? "default" : "secondary"}>
-                                {item.completed ? "Done" : "Pending"}
-                              </Badge>
-                            </div>
-                            <p className="text-base font-semibold text-foreground">{item.description}</p>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+          <Card className="md:col-span-1 border shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs uppercase tracking-widest text-muted-foreground">
+                Vehicle
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm font-semibold">{vehicle}</p>
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-1 border shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs uppercase tracking-widest text-muted-foreground">
+                ETA
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm font-semibold">
+                {order.dueDateAt?.toLocaleDateString() ?? "Belum ditentukan"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="md:col-span-1 border shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs uppercase tracking-widest text-muted-foreground">
+                Progress
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-lg font-black">{statusData.progress}%</p>
             </CardContent>
           </Card>
         </div>
 
-        <Card className="mt-4 border shadow-sm">
-          <CardContent className="min-h-24 p-4 text-sm text-muted-foreground">
-            {order.content || "Catatan tambahan servis akan ditampilkan di sini."}
+        <Card className="border shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground">
+              Progress Track
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {timeline.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Belum ada update timeline.</p>
+            ) : (
+              <div className="space-y-3">
+                {timeline.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className={`rounded-xl border p-4 ${
+                      index === timeline.length - 1
+                        ? "bg-primary/5 border-primary/30"
+                        : "bg-card"
+                    }`}
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <p className="text-xs font-semibold text-muted-foreground">
+                        {item.createdAt.toLocaleDateString()} ·{" "}
+                        {item.createdAt.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                      <Badge variant={item.completed ? "default" : "secondary"}>
+                        {item.completed ? "Done" : "Pending"}
+                      </Badge>
+                    </div>
+                    <p className="text-sm font-semibold text-foreground">{item.description}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_1fr]">
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground">
+                Latest Update
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-base font-semibold text-foreground">
+                {latestTimeline?.description || "Belum ada update."}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {latestTimeline
+                  ? `${latestTimeline.createdAt.toLocaleDateString()} · ${latestTimeline.createdAt.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}`
+                  : "-"}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground">
+                Service Notes
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              {order.content || "Catatan tambahan servis akan ditampilkan di sini."}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card className="border shadow-sm">
+          <CardContent className="p-4 text-xs text-muted-foreground">
+            Halaman ini bersifat privat. Tautan ini hanya menampilkan detail untuk satu layanan servis Anda.
           </CardContent>
         </Card>
       </div>
