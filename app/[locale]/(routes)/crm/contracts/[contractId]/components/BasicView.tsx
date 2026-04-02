@@ -46,9 +46,9 @@ export async function BasicView({ data }: BasicViewProps) {
 
   const formatCurrency = (value: number | null | undefined) =>
     value != null
-      ? new Intl.NumberFormat("en-US", {
+      ? new Intl.NumberFormat("id-ID", {
           style: "currency",
-          currency: "USD",
+          currency: "IDR",
           maximumFractionDigits: 0,
         }).format(value)
       : "N/A";

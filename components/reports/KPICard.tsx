@@ -8,7 +8,7 @@ import { useTranslations } from "next-intl";
 
 function formatValue(value: number, label: string): string {
   if (label === "totalRevenue" || label === "pipelineValue") {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
+    return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
   }
   if (label === "conversionRate") return `${value}%`;
   return new Intl.NumberFormat("en-US").format(value);

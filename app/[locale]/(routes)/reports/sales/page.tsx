@@ -15,9 +15,9 @@ import {
 
 type Props = { searchParams: Promise<Record<string, string | undefined>> };
 
-const currencyFormatter = new Intl.NumberFormat("en-US", {
+const currencyFormatter = new Intl.NumberFormat("id-ID", {
   style: "currency",
-  currency: "USD",
+  currency: "IDR",
   maximumFractionDigits: 0,
 });
 

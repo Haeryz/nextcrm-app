@@ -41,6 +41,11 @@ const UserDashboardPage = async () => {
   const activeOpportunities = opportunities.filter(
     (o) => o.status === "ACTIVE"
   );
+  const currencyFormatter = new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  });
 
   return (
     <Container
@@ -188,7 +193,7 @@ const UserDashboardPage = async () => {
                         {opp.assigned_sales_stage?.name ?? "—"}
                       </TableCell>
                       <TableCell>
-                        {opp.budget ? `$${Number(opp.budget).toLocaleString()}` : "—"}
+                        {opp.budget ? currencyFormatter.format(Number(opp.budget)) : "—"}
                       </TableCell>
                     </TableRow>
                   ))}

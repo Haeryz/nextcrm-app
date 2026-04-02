@@ -277,7 +277,7 @@ export function UpdateOpportunityForm({
                       <FormControl>
                         <Input
                           disabled={form.formState.isSubmitting}
-                          placeholder="USD"
+                          placeholder="IDR"
                           {...field}
                         />
                       </FormControl>

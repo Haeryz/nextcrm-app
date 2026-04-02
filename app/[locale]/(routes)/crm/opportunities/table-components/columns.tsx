@@ -117,9 +117,10 @@ export const createColumns = (config: OpportunityConfig): ColumnDef<Opportunity>
       return (
         <div>
           {row.original.budget
-            ? Number(row.original.budget).toLocaleString("en-US", {
+            ? Number(row.original.budget).toLocaleString("id-ID", {
                 style: "currency",
-                currency: "USD",
+                currency: "IDR",
+                maximumFractionDigits: 0,
               })
             : "N/A"}
         </div>
