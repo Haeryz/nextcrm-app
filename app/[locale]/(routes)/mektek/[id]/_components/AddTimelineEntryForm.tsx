@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import WhatsAppNotifyToggle from "./WhatsAppNotifyToggle";
 
 interface AddTimelineEntryFormProps {
   serviceOrderId: string;
@@ -75,6 +76,7 @@ export default function AddTimelineEntryForm({
           </Button>
         </div>
       </div>
+      <WhatsAppNotifyToggle />
     </form>
   );
 }
