@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { createMektekServiceOrder } from "@/actions/mektek/service-orders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import DamageItemsInput, { DamageItem } from "./DamageItemsInput";
 
 export default function NewServiceOrderForm() {
   const router = useRouter();
@@ -15,7 +15,7 @@ export default function NewServiceOrderForm() {
   const [trackingLink, setTrackingLink] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [vehicle, setVehicle] = useState("");
-  const [complaint, setComplaint] = useState("");
+  const [damageItems, setDamageItems] = useState<DamageItem[]>([{ description: "", estimatedCost: "" }]);
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [estimatedDone, setEstimatedDone] = useState("");
@@ -24,10 +24,19 @@ export default function NewServiceOrderForm() {
     event.preventDefault();
 
     startTransition(async () => {
+      const complaint = damageItems
+        .filter((item) => item.description.trim())
+        .map((item) =>
+          item.estimatedCost
+            ? `${item.description.trim()} (Est. Rp ${item.estimatedCost})`
+            : item.description.trim()
+        )
+        .join("\n");
+
       const result = await createMektekServiceOrder({
         customerName,
         vehicle,
-        complaint,
+        complaint: complaint || "-",
         phone,
         address,
         estimatedDone,
@@ -42,7 +51,7 @@ export default function NewServiceOrderForm() {
       setTrackingLink(result?.data?.customerTrackingLink || "");
       setCustomerName("");
       setVehicle("");
-      setComplaint("");
+      setDamageItems([{ description: "", estimatedCost: "" }]);
       setPhone("");
       setAddress("");
       setEstimatedDone("");
@@ -108,13 +117,10 @@ export default function NewServiceOrderForm() {
           onChange={(event) => setAddress(event.target.value)}
           disabled={isPending}
         />
-        <Textarea
-          placeholder="Damage/complaint details (manual input by CS)"
-          value={complaint}
-          onChange={(event) => setComplaint(event.target.value)}
+        <DamageItemsInput
+          items={damageItems}
+          onChange={setDamageItems}
           disabled={isPending}
-          required
-          className="min-h-28"
         />
         </div>
 
