@@ -11,12 +11,11 @@ import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import AddTimelineEntryForm from "./_components/AddTimelineEntryForm";
 import CustomerTrackingLinkCard from "./_components/CustomerTrackingLinkCard";
-
-const statusMap: Record<string, { label: string; progress: number }> = {
-  ACTIVE: { label: "In Progress", progress: 65 },
-  PENDING: { label: "Pending", progress: 35 },
-  COMPLETE: { label: "Completed", progress: 100 },
-};
+import { statusMap } from "../_lib/constants";
+import TechnicianAssignCard from "../_components/TechnicianAssignCard";
+import VisitDiscountCard from "../_components/VisitDiscountCard";
+import PaymentCard from "../_components/PaymentCard";
+import WhatsAppComposer from "../_components/WhatsAppComposer";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -41,9 +40,11 @@ export default async function MektekDetailPage({ params }: Props) {
     typeof tags.address === "string" ? tags.address : order.crm_accounts?.billing_street;
   const statusData = statusMap[order.taskStatus ?? "ACTIVE"] ?? statusMap.ACTIVE;
 
-  const timelineFromTags = Array.isArray(tags.timeline)
+  type TimelineEntry = { id: string; date: Date; description: string; completed: boolean };
+
+  const timelineFromTags: TimelineEntry[] = Array.isArray(tags.timeline)
     ? tags.timeline
-        .map((item) => {
+        .map((item): TimelineEntry | null => {
           if (!item || typeof item !== "object" || Array.isArray(item)) return null;
           const row = item as Record<string, unknown>;
           const description =
@@ -54,19 +55,10 @@ export default async function MektekDetailPage({ params }: Props) {
           const completed = typeof row.completed === "boolean" ? row.completed : true;
           const timelineId =
             typeof row.id === "string" ? row.id : `${createdAtValue}-${description}`;
-
           if (!description || Number.isNaN(createdAt.getTime())) return null;
-          return {
-            id: timelineId,
-            date: createdAt,
-            description,
-            completed,
-          };
+          return { id: timelineId, date: createdAt, description, completed };
         })
-        .filter(
-          (entry): entry is { id: string; date: Date; description: string; completed: boolean } =>
-            !!entry
-        )
+        .filter((entry): entry is TimelineEntry => !!entry)
     : [];
 
   const trackingResult = await getMektekCustomerTrackingLink(order.id);
@@ -134,6 +126,9 @@ export default async function MektekDetailPage({ params }: Props) {
               </div>
             </CardContent>
           </Card>
+
+          <TechnicianAssignCard />
+          <VisitDiscountCard visitCount={1} />
 
           {/* PROGRESS */}
           <Card className="border shadow-sm">
@@ -249,6 +244,13 @@ export default async function MektekDetailPage({ params }: Props) {
               </div>
             </CardContent>
           </Card>
+
+          <PaymentCard />
+          <WhatsAppComposer
+            phone={phone ?? ""}
+            customerName={order.crm_accounts?.name ?? "Customer"}
+            trackingLink={customerTrackingLink ?? ""}
+          />
 
           {/* Notes panel */}
           <Card className="border shadow-sm">
