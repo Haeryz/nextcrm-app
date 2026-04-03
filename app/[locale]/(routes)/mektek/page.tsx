@@ -8,12 +8,9 @@ import {
 import NewServiceOrderForm from "./_components/NewServiceOrderForm";
 import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
-
-const statusMap: Record<string, { label: string; progress: number }> = {
-  ACTIVE: { label: "In Progress", progress: 65 },
-  PENDING: { label: "Pending", progress: 35 },
-  COMPLETE: { label: "Completed", progress: 100 },
-};
+import { statusMap } from "./_lib/constants";
+import MektekSubNav from "./_components/MektekSubNav";
+import ExcelExportButton from "./_components/ExcelExportButton";
 
 export default async function MektekPage() {
   const session = await getServerSession(authOptions);
@@ -26,6 +23,8 @@ export default async function MektekPage() {
       description="Service order tracking — manage and monitor all repair jobs"
     >
       <div className="space-y-6">
+        <MektekSubNav activeTab="orders" />
+
         {isAdmin ? (
           <NewServiceOrderForm />
         ) : (
@@ -35,6 +34,10 @@ export default async function MektekPage() {
             </CardContent>
           </Card>
         )}
+
+        <div className="flex justify-end">
+          <ExcelExportButton orders={orders} />
+        </div>
 
         <div className="space-y-4">
           {orders.length === 0 && (
