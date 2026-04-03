@@ -8,8 +8,11 @@ type Props = {
 const getMektekMenuItem = ({ title }: Props): NavItem => {
   return {
     title,
-    url: "/mektek",
     icon: Wrench,
+    items: [
+      { title: "Orders", url: "/mektek", exact: true },
+      { title: "WhatsApp", url: "/mektek/whatsapp" },
+    ],
   };
 };
 
