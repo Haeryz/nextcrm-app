@@ -1,4 +1,11 @@
 const { execSync } = require("child_process");
+const path = require("path");
+
+// Load .env files so DATABASE_URL is available when building locally.
+// Priority: .env.local > .env (same as Next.js convention).
+// dotenv.config is a no-op if the file doesn't exist.
+require("dotenv").config({ path: path.resolve(__dirname, "../.env.local") });
+require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 
 function run(command) {
   execSync(command, {

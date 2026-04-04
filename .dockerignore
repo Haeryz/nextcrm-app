@@ -1,0 +1,38 @@
+# Dependencies (reinstalled in Docker)
+node_modules
+.pnpm-store
+
+# Next.js build output (built inside Docker)
+.next
+out
+
+# Development & test files
+.env
+.env.local
+.env.*.local
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+__tests__
+tests
+playwright-report
+test-results
+
+# Git & CI
+.git
+.gitignore
+.github
+
+# Editor & OS
+.vscode
+.idea
+*.swp
+.DS_Store
+Thumbs.db
+
+# Docs (not needed in image)
+*.md
+docs
+
+# Docker files themselves (avoid COPY . . including these)
+# (kept intentionally so build context is correct)
