@@ -97,7 +97,7 @@ async function getFallbackUser(): Promise<SessionUserLike> {
 
   const guestUser = await prismadb.users.upsert({
     where: {
-      email: GUEST_USER_EMAIL,
+      id: GUEST_USER_ID,
     },
     update: {
       name: GUEST_USER_NAME,
