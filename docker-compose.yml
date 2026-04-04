@@ -1,0 +1,172 @@
+# NextCRM — production docker-compose (no domain / direct port access)
+# -------------------------------------------------------
+# Quick start:
+#   1. Run ./setup.sh
+#   2. docker compose --env-file .env.production up -d --build
+#
+# Access:
+#   App          http://<server-ip>:3000
+#   MinIO API    http://<server-ip>:9000
+#   MinIO UI     http://<server-ip>:9001
+#   pgAdmin      http://<server-ip>:5050
+# -------------------------------------------------------
+
+services:
+
+  # ── PostgreSQL 17 + pgvector ───────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: nextcrm-postgres
+    restart: unless-stopped
+    networks:
+      - internal
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nextcrm}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-nextcrm}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nextcrm} -d ${POSTGRES_DB:-nextcrm}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # NOT exposed to host — only app container can reach it
+
+  # ── MinIO (S3-compatible object storage) ──────────────
+  minio:
+    image: minio/minio:latest
+    container_name: nextcrm-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    networks:
+      - internal
+    ports:
+      - "9000:9000"   # S3 API (used by app + direct uploads)
+      - "9001:9001"   # Web console
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-nextcrm}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ── NextCRM application ────────────────────────────────
+  nextcrm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nextcrm-app
+    restart: unless-stopped
+    networks:
+      - internal
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      # Database (internal service name)
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-nextcrm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nextcrm}?schema=public"
+
+      # NextAuth — use http:// and your server IP or localhost
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      JWT_SECRET: ${JWT_SECRET}
+
+      # Auth mode
+      NEXTCRM_DISABLE_AUTH: ${NEXTCRM_DISABLE_AUTH:-true}
+      NEXTCRM_GUEST_USER_ID: ${NEXTCRM_GUEST_USER_ID:-00000000-0000-0000-0000-000000000001}
+      NEXTCRM_GUEST_USER_EMAIL: ${NEXTCRM_GUEST_USER_EMAIL:-guest@nextcrm.local}
+      NEXTCRM_GUEST_USER_NAME: ${NEXTCRM_GUEST_USER_NAME:-NextCRM Guest}
+      NEXTCRM_GUEST_USER_LANGUAGE: ${NEXTCRM_GUEST_USER_LANGUAGE:-en}
+
+      # Encryption key (required — generate with: openssl rand -hex 32)
+      EMAIL_ENCRYPTION_KEY: ${EMAIL_ENCRYPTION_KEY}
+
+      # Public app URL (used for links in emails etc.)
+      NEXT_PUBLIC_APP_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-NextCRM}
+      NEXT_PUBLIC_APP_V: ${NEXT_PUBLIC_APP_V:-0.0.3-beta}
+
+      # MinIO — internal address for server-side calls
+      MINIO_ENDPOINT: "minio"
+      MINIO_PORT: "9000"
+      MINIO_USE_SSL: "false"
+      MINIO_BUCKET: ${MINIO_BUCKET:-nextcrm}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-nextcrm}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      # Public endpoint for presigned download URLs (http + server IP)
+      NEXT_PUBLIC_MINIO_ENDPOINT: ${NEXT_PUBLIC_MINIO_ENDPOINT:-http://localhost:9000}
+
+      # OAuth (optional — leave blank to keep no-auth mode)
+      GOOGLE_ID: ${GOOGLE_ID:-}
+      GOOGLE_SECRET: ${GOOGLE_SECRET:-}
+      GITHUB_ID: ${GITHUB_ID:-}
+      GITHUB_SECRET: ${GITHUB_SECRET:-}
+
+      # AI / enrichment (optional)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+      # Inngest background jobs (optional — https://app.inngest.com)
+      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:-}
+      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:-}
+
+      # Email sending via Resend (optional)
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
+
+      # IMAP / SMTP (optional)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+
+      CRON_SECRET: ${CRON_SECRET:-}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  # ── pgAdmin (optional DB admin UI) ────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: nextcrm-pgadmin
+    restart: unless-stopped
+    networks:
+      - internal
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+# ── Networks ───────────────────────────────────────────────
+networks:
+  internal:
+    name: nextcrm-internal
+    driver: bridge
+
+# ── Volumes ────────────────────────────────────────────────
+volumes:
+  postgres_data:
+    name: nextcrm-postgres-data
+  minio_data:
+    name: nextcrm-minio-data
+  pgadmin_data:
+    name: nextcrm-pgadmin-data
