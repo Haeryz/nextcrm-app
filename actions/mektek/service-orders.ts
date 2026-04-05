@@ -350,6 +350,49 @@ export const addMektekTimelineEntry = async (data: {
   }
 };
 
+export const updateMektekServiceOrderStatus = async (input: {
+  serviceOrderId: string;
+  newStatus: "ACTIVE" | "PENDING" | "COMPLETE";
+  markAllTimelineComplete?: boolean;
+}) => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!session.user.isAdmin) return { error: "Forbidden: only admin can change order status" };
+
+  const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
+  const newStatus = input?.newStatus;
+  if (!serviceOrderId) return { error: "Service order ID is required" };
+  if (!["ACTIVE", "PENDING", "COMPLETE"].includes(newStatus)) return { error: "Invalid status" };
+
+  try {
+    const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
+      where: { id: serviceOrderId, title: { startsWith: MEKTEK_TITLE_PREFIX } },
+      select: { id: true, tags: true },
+    });
+    if (!serviceOrder) return { error: "Service order not found" };
+
+    const tags = parseTagsObject(serviceOrder.tags);
+    let timeline = parseTimeline(serviceOrder.tags);
+
+    if (newStatus === "COMPLETE" && input?.markAllTimelineComplete && timeline.length > 0) {
+      timeline = timeline.map((e) => ({ ...e, completed: true }));
+    }
+
+    await prismadb.crm_Accounts_Tasks.update({
+      where: { id: serviceOrder.id },
+      data: { taskStatus: newStatus, tags: { ...tags, timeline }, updatedBy: session.user.id },
+    });
+
+    revalidatePath("/[locale]/(routes)/mektek", "page");
+    revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
+    revalidatePath("/[locale]/service-status/[id]", "page");
+    return { data: { status: newStatus } };
+  } catch (error) {
+    console.log("[UPDATE_MEKTEK_SERVICE_ORDER_STATUS]", error);
+    return { error: "Failed to update service order status" };
+  }
+};
+
 export const getMektekCustomerTrackingLink = async (serviceOrderId: string) => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized" };

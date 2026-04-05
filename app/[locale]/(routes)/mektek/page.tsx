@@ -8,7 +8,7 @@ import {
 import NewServiceOrderForm from "./_components/NewServiceOrderForm";
 import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
-import { statusMap } from "./_lib/constants";
+import { calculateProgress, getStatusMeta } from "./_lib/constants";
 import MektekSubNav from "./_components/MektekSubNav";
 import ExcelExportButton from "./_components/ExcelExportButton";
 
@@ -59,8 +59,14 @@ export default async function MektekPage() {
                 ? tags.vehicle
                 : "Unknown vehicle";
 
-            const statusData = statusMap[order.taskStatus ?? "ACTIVE"] ?? statusMap.ACTIVE;
-            const timelineCount = Array.isArray(tags.timeline) ? tags.timeline.length : 1;
+            const timelineItems: { completed: boolean }[] = Array.isArray(tags.timeline)
+              ? (tags.timeline as Array<Record<string, unknown>>).map((item) => ({
+                  completed: typeof item.completed === "boolean" ? item.completed : true,
+                }))
+              : [];
+            const progress = calculateProgress(timelineItems, order.taskStatus);
+            const statusMeta = getStatusMeta(order.taskStatus);
+            const timelineCount = timelineItems.length || 1;
 
             return (
               <Link key={order.id} href={`/mektek/${order.id}`}>
@@ -73,10 +79,8 @@ export default async function MektekPage() {
                       <span className="text-xs text-muted-foreground font-mono">
                         ID: {order.id.slice(0, 8)}
                       </span>
-                      <Badge
-                        variant={statusData.label === "Completed" ? "default" : "secondary"}
-                      >
-                        {statusData.label}
+                      <Badge variant={statusMeta.badgeVariant}>
+                        {statusMeta.label}
                       </Badge>
                     </div>
                     <p className="font-bold text-lg text-foreground">
@@ -101,12 +105,12 @@ export default async function MektekPage() {
                   {/* Right: progress */}
                   <div className="flex flex-col items-end gap-2 shrink-0 w-40">
                     <span className="text-sm font-bold text-foreground">
-                      {statusData.progress}%
+                      {progress}%
                     </span>
                     <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-foreground rounded-full transition-all"
-                        style={{ width: `${statusData.progress}%` }}
+                        className={`h-full ${statusMeta.barColor} rounded-full transition-all`}
+                        style={{ width: `${progress}%` }}
                       />
                     </div>
                     <span className="text-xs text-muted-foreground">

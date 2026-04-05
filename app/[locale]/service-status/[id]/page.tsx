@@ -2,12 +2,7 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getPublicMektekServiceOrder } from "@/actions/mektek/service-orders";
-
-const statusMap: Record<string, { label: string; progress: number }> = {
-  ACTIVE: { label: "In Progress", progress: 65 },
-  PENDING: { label: "Pending", progress: 35 },
-  COMPLETE: { label: "Completed", progress: 100 },
-};
+import { calculateProgress, getStatusMeta } from "@/app/[locale]/(routes)/mektek/_lib/constants";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -30,7 +25,6 @@ export default async function ServiceStatusPage({ params, searchParams }: Props)
 
   const customerName = order.crm_accounts?.name || "Customer";
   const vehicle = typeof tags.vehicle === "string" ? tags.vehicle : "Unknown vehicle";
-  const statusData = statusMap[order.taskStatus ?? "ACTIVE"] ?? statusMap.ACTIVE;
 
   const timeline = Array.isArray(tags.timeline)
     ? tags.timeline
@@ -65,6 +59,8 @@ export default async function ServiceStatusPage({ params, searchParams }: Props)
     : [];
 
   const latestTimeline = timeline[timeline.length - 1];
+  const progress = calculateProgress(timeline, order.taskStatus);
+  const statusMeta = getStatusMeta(order.taskStatus);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_10%_20%,rgba(148,163,184,0.14),transparent_35%),radial-gradient(circle_at_90%_10%,rgba(59,130,246,0.12),transparent_30%),hsl(var(--background))] px-4 py-8 md:px-8 md:py-10">
@@ -83,10 +79,10 @@ export default async function ServiceStatusPage({ params, searchParams }: Props)
               </p>
             </div>
             <Badge
-              variant={statusData.label === "Completed" ? "default" : "secondary"}
+              variant={statusMeta.badgeVariant}
               className="h-fit px-3 py-1 text-xs"
             >
-              {statusData.label}
+              {statusMeta.label}
             </Badge>
           </div>
         </div>
@@ -134,7 +130,13 @@ export default async function ServiceStatusPage({ params, searchParams }: Props)
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-lg font-black">{statusData.progress}%</p>
+              <p className="text-lg font-black">{progress}%</p>
+              <div className="h-2 w-full bg-muted rounded-full overflow-hidden mt-2">
+                <div
+                  className={`h-full ${statusMeta.barColor} rounded-full transition-all`}
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
             </CardContent>
           </Card>
         </div>
