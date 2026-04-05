@@ -11,7 +11,8 @@ import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import AddTimelineEntryForm from "./_components/AddTimelineEntryForm";
 import CustomerTrackingLinkCard from "./_components/CustomerTrackingLinkCard";
-import { statusMap } from "../_lib/constants";
+import ServiceOrderStatusControl from "./_components/ServiceOrderStatusControl";
+import { calculateProgress, getStatusMeta } from "../_lib/constants";
 import TechnicianAssignCard from "../_components/TechnicianAssignCard";
 import VisitDiscountCard from "../_components/VisitDiscountCard";
 import PaymentCard from "../_components/PaymentCard";
@@ -38,8 +39,6 @@ export default async function MektekDetailPage({ params }: Props) {
   const phone = typeof tags.phone === "string" ? tags.phone : order.crm_accounts?.office_phone;
   const address =
     typeof tags.address === "string" ? tags.address : order.crm_accounts?.billing_street;
-  const statusData = statusMap[order.taskStatus ?? "ACTIVE"] ?? statusMap.ACTIVE;
-
   type TimelineEntry = { id: string; date: Date; description: string; completed: boolean };
 
   const timelineFromTags: TimelineEntry[] = Array.isArray(tags.timeline)
@@ -75,6 +74,9 @@ export default async function MektekDetailPage({ params }: Props) {
           completed: true,
         },
       ];
+
+  const progress = calculateProgress(timelineFromTags, order.taskStatus);
+  const statusMeta = getStatusMeta(order.taskStatus);
 
   return (
     <Container
@@ -140,18 +142,16 @@ export default async function MektekDetailPage({ params }: Props) {
             <CardContent className="space-y-4">
               <div className="flex items-end justify-between">
                 <span className="text-4xl font-black text-foreground">
-                  {statusData.progress}%
+                  {progress}%
                 </span>
-                <Badge
-                  variant={statusData.label === "Completed" ? "default" : "secondary"}
-                >
-                  {statusData.label}
+                <Badge variant={statusMeta.badgeVariant}>
+                  {statusMeta.label}
                 </Badge>
               </div>
               <div className="h-3 w-full bg-muted rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-foreground rounded-full transition-all duration-500"
-                  style={{ width: `${statusData.progress}%` }}
+                  className={`h-full ${statusMeta.barColor} rounded-full transition-all duration-500`}
+                  style={{ width: `${progress}%` }}
                 />
               </div>
               <p className="text-xs text-muted-foreground">
@@ -164,6 +164,15 @@ export default async function MektekDetailPage({ params }: Props) {
                   {order.dueDateAt?.toLocaleDateString() ?? "Not set"}
                 </p>
               </div>
+              {isAdmin && (
+                <>
+                  <Separator />
+                  <ServiceOrderStatusControl
+                    serviceOrderId={order.id}
+                    currentStatus={order.taskStatus ?? "ACTIVE"}
+                  />
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
