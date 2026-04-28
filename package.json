@@ -8,8 +8,9 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev.js",
     "build": "node scripts/build.js",
+    "catalog:import": "node scripts/import-catalog-data.js",
     "build:full": "prisma generate && prisma migrate deploy && next build",
     "migrate:deploy": "pnpm exec prisma migrate deploy",
     "start": "next start",
@@ -18,6 +19,7 @@
     "validate:migration": "pnpm exec tsx scripts/validate-migration.ts",
     "test": "jest",
     "test:e2e": "playwright test",
+    "test:e2e:customer": "node scripts/test-customer-e2e.js",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug"
