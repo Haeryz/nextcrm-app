@@ -3,12 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { Key, Users, Settings, SlidersHorizontal, ClipboardList } from "lucide-react";
+import {
+  ClipboardList,
+  Key,
+  MessageSquareQuote,
+  Settings,
+  SlidersHorizontal,
+  UserRoundCog,
+  Users,
+} from "lucide-react";
 
 const navItems = [
   { label: "LLM Keys",     href: "/admin/llm-keys",    icon: Key },
   { label: "Users",        href: "/admin/users",        icon: Users },
   { label: "Services",     href: "/admin/services",     icon: Settings },
+  { label: "Catalog Inquiries", href: "/admin/catalog-inquiries", icon: MessageSquareQuote },
+  { label: "Catalog Customers", href: "/admin/catalog-customers", icon: UserRoundCog },
   { label: "CRM Settings", href: "/admin/crm-settings", icon: SlidersHorizontal },
   { label: "Audit Log",    href: "/admin/audit-log",    icon: ClipboardList },
 ];
