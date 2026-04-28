@@ -1,12 +1,17 @@
 import { getMektekServiceOrderById, getPublicMektekServiceOrder } from "@/actions/mektek/service-orders";
-import { buildMektekInvoiceData, renderMektekReceiptPdf } from "@/actions/mektek/invoice-pdf";
+import { buildMektekInvoiceData, renderMektekInvoicePdf, renderMektekReceiptPdf } from "@/actions/mektek/invoice-pdf";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "@/lib/session";
+import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  const { id } = await context.params;
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? "";
   const download = url.searchParams.get("download") === "1";
@@ -14,13 +19,13 @@ export async function GET(request: Request, { params }: { params: { id: string }
   let order = null;
 
   if (token) {
-    order = await getPublicMektekServiceOrder(params.id, token);
+    order = await getPublicMektekServiceOrder(id, token);
   } else {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return new Response("Unauthorized", { status: 401 });
     }
-    order = await getMektekServiceOrderById(params.id);
+    order = await getMektekServiceOrderById(id);
   }
 
   if (!order) {
@@ -28,8 +33,8 @@ export async function GET(request: Request, { params }: { params: { id: string }
   }
 
   const invoiceData = buildMektekInvoiceData(order);
-  const pdf = await renderMektekReceiptPdf(invoiceData);
-  const filename = `struk-${params.id.slice(0, 8)}.pdf`;
+  const pdf = (await renderMektekInvoicePdf(invoiceData)).buffer as ArrayBuffer;
+  const filename = `struk-${id.slice(0, 8)}.pdf`;
 
   return new Response(pdf, {
     headers: {

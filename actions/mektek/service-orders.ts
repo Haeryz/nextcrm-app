@@ -184,7 +184,7 @@ export const createMektekServiceOrder = async (
     const tags = parseTagsObject(task.tags);
     const whatsappMeta = parseWhatsappMeta(tags);
 
-    let whatsappResult = { ok: false as const, error: "Skipped" };
+    let whatsappResult: { ok: boolean; error?: string } = { ok: false, error: "Skipped" };
     try {
       whatsappResult = await notifyMektekOrderCreated({
         order: task,
@@ -447,7 +447,7 @@ export const updateMektekServiceOrderStatus = async (input: {
         ? buildCustomerTrackingLink(serviceOrder.id, customerToken, session.user.userLanguage || "en")
         : "";
 
-      let notifyResult = { ok: false as const, error: "Skipped" };
+      let notifyResult: { ok: boolean; error?: string } = { ok: false, error: "Skipped" };
       try {
         notifyResult = await notifyMektekOrderCompleted({
           order: { ...serviceOrder, tags },
