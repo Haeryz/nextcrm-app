@@ -17,6 +17,7 @@ import TechnicianAssignCard from "../_components/TechnicianAssignCard";
 import VisitDiscountCard from "../_components/VisitDiscountCard";
 import PaymentCard from "../_components/PaymentCard";
 import WhatsAppComposer from "../_components/WhatsAppComposer";
+import InvoiceActions from "../_components/InvoiceActions";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -255,6 +256,7 @@ export default async function MektekDetailPage({ params }: Props) {
           </Card>
 
           <PaymentCard />
+          <InvoiceActions serviceOrderId={order.id} />
           <WhatsAppComposer
             phone={phone ?? ""}
             customerName={order.crm_accounts?.name ?? "Customer"}
