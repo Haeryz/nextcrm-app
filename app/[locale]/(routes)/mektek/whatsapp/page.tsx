@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,15 +32,57 @@ const DEFAULT_TEMPLATES = [
 export default function MektekWhatsAppPage() {
   const [businessPhone, setBusinessPhone] = useState("");
   const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
-  const [sessionStatus] = useState<"disconnected" | "connecting" | "connected">(
-    "disconnected"
-  );
+  const [sessionStatus, setSessionStatus] = useState<
+    "disconnected" | "connecting" | "connected" | "qr" | "auth_failure"
+  >("disconnected");
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
 
   const updateTemplate = (id: string, body: string) => {
     setTemplates((prev) =>
       prev.map((t) => (t.id === id ? { ...t, body } : t))
     );
   };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchStatus = async () => {
+      try {
+        const response = await fetch("/api/whatsapp/status", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!isMounted) return;
+
+        if (data.status === "ready") {
+          setSessionStatus("connected");
+        } else if (data.status === "qr") {
+          setSessionStatus("qr");
+        } else if (data.status === "auth_failure") {
+          setSessionStatus("auth_failure");
+        } else if (data.status === "connecting") {
+          setSessionStatus("connecting");
+        } else {
+          setSessionStatus("disconnected");
+        }
+
+        setQrDataUrl(typeof data.qrDataUrl === "string" ? data.qrDataUrl : null);
+        setLastError(typeof data.lastError === "string" ? data.lastError : null);
+      } catch {
+        if (isMounted) {
+          setSessionStatus("disconnected");
+        }
+      }
+    };
+
+    fetchStatus();
+    const interval = window.setInterval(fetchStatus, 5000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   return (
     <Container
@@ -71,6 +113,10 @@ export default function MektekWhatsAppPage() {
                   ? "Belum terhubung"
                   : sessionStatus === "connecting"
                   ? "Menghubungkan..."
+                  : sessionStatus === "qr"
+                  ? "Scan QR"
+                  : sessionStatus === "auth_failure"
+                  ? "Auth gagal"
                   : "Terhubung"}
               </Badge>
             </div>
@@ -78,15 +124,27 @@ export default function MektekWhatsAppPage() {
           <CardContent className="space-y-4">
             {/* QR Code placeholder */}
             <div className="flex flex-col items-center gap-3">
-              <div className="w-48 h-48 bg-muted rounded-xl flex flex-col items-center justify-center border-2 border-dashed border-border">
-                <QrCode className="w-12 h-12 text-muted-foreground mb-2" />
-                <p className="text-xs text-muted-foreground text-center px-4">
-                  QR Code akan muncul di sini setelah WhatsApp-web.js diaktifkan
-                </p>
+              <div className="w-48 h-48 bg-muted rounded-xl flex flex-col items-center justify-center border-2 border-dashed border-border overflow-hidden">
+                {qrDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={qrDataUrl} alt="WhatsApp QR" className="h-48 w-48 object-contain" />
+                ) : (
+                  <>
+                    <QrCode className="w-12 h-12 text-muted-foreground mb-2" />
+                    <p className="text-xs text-muted-foreground text-center px-4">
+                      QR code akan muncul di sini saat sesi siap dipasangkan
+                    </p>
+                  </>
+                )}
               </div>
               <p className="text-xs text-muted-foreground max-w-xs text-center">
                 Scan QR code ini dengan WhatsApp di ponsel Anda untuk menghubungkan sesi.
               </p>
+              {lastError && (
+                <p className="text-xs text-destructive max-w-xs text-center">
+                  {lastError}
+                </p>
+              )}
             </div>
 
             <Separator />
@@ -103,8 +161,8 @@ export default function MektekWhatsAppPage() {
               </p>
             </div>
 
-            <Button variant="outline" disabled className="w-full">
-              Hubungkan WhatsApp (Backend Pending)
+            <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
+              Refresh Status
             </Button>
           </CardContent>
         </Card>

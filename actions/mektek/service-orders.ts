@@ -5,6 +5,10 @@ import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import crypto from "crypto";
+import {
+  notifyMektekOrderCompleted,
+  notifyMektekOrderCreated,
+} from "@/actions/mektek/whatsapp-notifications";
 
 const MEKTEK_TITLE_PREFIX = "MEKTEK AC -";
 const DEFAULT_TIMELINE_MESSAGE =
@@ -22,6 +26,12 @@ const parseTagsObject = (tags: unknown): Record<string, unknown> => {
     return {};
   }
   return tags as Record<string, unknown>;
+};
+
+const parseWhatsappMeta = (tags: Record<string, unknown>): Record<string, unknown> => {
+  const whatsapp = tags.whatsapp;
+  if (!whatsapp || typeof whatsapp !== "object" || Array.isArray(whatsapp)) return {};
+  return whatsapp as Record<string, unknown>;
 };
 
 const parseTimeline = (tags: unknown): MektekTimelineEntry[] => {
@@ -46,8 +56,12 @@ const parseTimeline = (tags: unknown): MektekTimelineEntry[] => {
 };
 
 const buildCustomerTrackingLink = (taskId: string, token: string, locale?: string) => {
+  const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "http://localhost:3000";
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    vercelUrl ||
+    "http://localhost:3000";
   const safeLocale = locale || "en";
   return `${appUrl}/${safeLocale}/service-status/${taskId}?token=${token}`;
 };
@@ -166,6 +180,35 @@ export const createMektekServiceOrder = async (
     }
 
     const customerTrackingLink = buildCustomerTrackingLink(task.id, customerToken, locale);
+
+    const tags = parseTagsObject(task.tags);
+    const whatsappMeta = parseWhatsappMeta(tags);
+
+    let whatsappResult = { ok: false as const, error: "Skipped" };
+    try {
+      whatsappResult = await notifyMektekOrderCreated({
+        order: task,
+        trackingLink: customerTrackingLink,
+      });
+    } catch (error) {
+      console.log("[MEKTEK_WHATSAPP_ORDER_CREATED]", error);
+    }
+
+    if (whatsappResult.ok) {
+      await prismadb.crm_Accounts_Tasks.update({
+        where: { id: task.id },
+        data: {
+          tags: {
+            ...tags,
+            whatsapp: {
+              ...whatsappMeta,
+              orderCreatedAt: new Date().toISOString(),
+              lastStatus: "ACTIVE",
+            },
+          },
+        },
+      });
+    }
 
     revalidatePath("/[locale]/(routes)/mektek", "page");
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
@@ -367,11 +410,26 @@ export const updateMektekServiceOrderStatus = async (input: {
   try {
     const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
       where: { id: serviceOrderId, title: { startsWith: MEKTEK_TITLE_PREFIX } },
-      select: { id: true, tags: true },
+      select: {
+        id: true,
+        tags: true,
+        content: true,
+        createdAt: true,
+        crm_accounts: {
+          select: {
+            name: true,
+            office_phone: true,
+            billing_street: true,
+          },
+        },
+      },
     });
     if (!serviceOrder) return { error: "Service order not found" };
 
     const tags = parseTagsObject(serviceOrder.tags);
+    const whatsappMeta = parseWhatsappMeta(tags);
+    const lastStatus = typeof whatsappMeta.lastStatus === "string" ? whatsappMeta.lastStatus : "";
+    const shouldNotifyComplete = newStatus === "COMPLETE" && lastStatus !== "COMPLETE";
     let timeline = parseTimeline(serviceOrder.tags);
 
     if (newStatus === "COMPLETE" && input?.markAllTimelineComplete && timeline.length > 0) {
@@ -382,6 +440,40 @@ export const updateMektekServiceOrderStatus = async (input: {
       where: { id: serviceOrder.id },
       data: { taskStatus: newStatus, tags: { ...tags, timeline }, updatedBy: session.user.id },
     });
+
+    if (shouldNotifyComplete) {
+      const customerToken = typeof tags.customerToken === "string" ? tags.customerToken : "";
+      const trackingLink = customerToken
+        ? buildCustomerTrackingLink(serviceOrder.id, customerToken, session.user.userLanguage || "en")
+        : "";
+
+      let notifyResult = { ok: false as const, error: "Skipped" };
+      try {
+        notifyResult = await notifyMektekOrderCompleted({
+          order: { ...serviceOrder, tags },
+          trackingLink,
+        });
+      } catch (error) {
+        console.log("[MEKTEK_WHATSAPP_ORDER_COMPLETED]", error);
+      }
+
+      if (notifyResult.ok) {
+        await prismadb.crm_Accounts_Tasks.update({
+          where: { id: serviceOrder.id },
+          data: {
+            tags: {
+              ...tags,
+              timeline,
+              whatsapp: {
+                ...whatsappMeta,
+                lastStatus: "COMPLETE",
+                completedNotifiedAt: new Date().toISOString(),
+              },
+            },
+          },
+        });
+      }
+    }
 
     revalidatePath("/[locale]/(routes)/mektek", "page");
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
