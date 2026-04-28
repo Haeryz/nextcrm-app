@@ -79,7 +79,10 @@ const formatCurrency = (amount: number) =>
     minimumFractionDigits: 0,
   }).format(amount);
 
-function MektekInvoicePdf({ data }: { data: MektekInvoiceData }) {
+// FIX 1: renderToBuffer expects a ReactElement<DocumentProps>.
+// Wrap the component output directly in <Document> so the top-level element
+// IS the Document, making the props compatible with DocumentProps.
+function buildPdfDocument(data: MektekInvoiceData) {
   return React.createElement(
     Document,
     null,
@@ -211,19 +214,23 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
   const tags = parseTags(order.tags);
   const itemsRaw = Array.isArray(tags.items) ? tags.items : [];
 
+  // FIX 2: The mapped object uses `sku: string | undefined` but MektekInvoiceItem
+  // has `sku?: string` (optional). These are structurally different to TypeScript.
+  // Solution: cast the mapped result to MektekInvoiceItem directly, then filter nulls.
   const items: MektekInvoiceItem[] = itemsRaw
-    .map((item) => {
+    .map((item): MektekInvoiceItem | null => {
       if (!item || typeof item !== "object" || Array.isArray(item)) return null;
       const row = item as Record<string, unknown>;
-      const name = typeof row.name === "string" ? row.name : "Service";
-      const sku = typeof row.sku === "string" ? row.sku : undefined;
-      const unit = typeof row.unit === "string" ? row.unit : undefined;
-      const quantity = Number(row.quantity ?? row.qty ?? 1) || 1;
-      const unitPrice = Number(row.unitPrice ?? row.price ?? 0) || 0;
-      const total = Number(row.total ?? unitPrice * quantity) || 0;
-      return { name, sku, unit, quantity, unitPrice, total };
+      return {
+        name: String(row.name ?? ""),
+        sku: row.sku ? String(row.sku) : undefined,
+        unit: row.unit ? String(row.unit) : undefined,
+        quantity: Number(row.quantity ?? 0),
+        unitPrice: Number(row.unitPrice ?? 0),
+        total: Number(row.total ?? 0),
+      };
     })
-    .filter((row): row is MektekInvoiceItem => !!row);
+    .filter((item): item is MektekInvoiceItem => item !== null);
 
   if (items.length === 0) {
     items.push({
@@ -273,12 +280,14 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
   };
 }
 
-export async function renderMektekInvoicePdf(data: MektekInvoiceData): Promise<Buffer> {
-  const doc = React.createElement(MektekInvoicePdf, { data: { ...data, type: "invoice" } });
-  return renderToBuffer(doc);
+export async function renderMektekInvoicePdf(data: MektekInvoiceData): Promise<Uint8Array> {
+  const doc = buildPdfDocument({ ...data, type: "invoice" });
+  const buffer = await renderToBuffer(doc);
+  return new Uint8Array(buffer);
 }
 
-export async function renderMektekReceiptPdf(data: MektekInvoiceData): Promise<Buffer> {
-  const doc = React.createElement(MektekInvoicePdf, { data: { ...data, type: "receipt" } });
-  return renderToBuffer(doc);
+export async function renderMektekReceiptPdf(data: MektekInvoiceData): Promise<Uint8Array> {
+  const doc = buildPdfDocument({ ...data, type: "receipt" });
+  const buffer = await renderToBuffer(doc);
+  return new Uint8Array(buffer);
 }

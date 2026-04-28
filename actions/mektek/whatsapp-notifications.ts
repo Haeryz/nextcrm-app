@@ -83,10 +83,12 @@ export async function notifyMektekOrderCompleted(params: {
   });
 
   const invoiceData = buildMektekInvoiceData(params.order);
-  const [invoicePdf, receiptPdf] = await Promise.all([
+  const [invoiceRaw, receiptRaw] = await Promise.all([
     renderMektekInvoicePdf(invoiceData),
     renderMektekReceiptPdf(invoiceData),
   ]);
+  const invoicePdf = Buffer.from(invoiceRaw);
+  const receiptPdf = Buffer.from(receiptRaw);
 
   return sendWhatsAppMessage({
     to: context.phone,
