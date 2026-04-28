@@ -86,3 +86,7 @@ PART CATALOG ALL.xlsx
 /lib/catalog/generated/
 .wwebjs_auth
 .wwebjs_cache
+# Local catalogue import source/generated artifacts
+PART CATALOG ALL.xlsx
+/public/catalog/
+/lib/catalog/generated/
