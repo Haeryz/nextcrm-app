@@ -78,3 +78,6 @@ v8-compile-cache-*/
 .superpowers/
 
 price.md
+
+.wwebjs_auth
+.wwebjs_cache
