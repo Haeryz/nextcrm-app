@@ -745,6 +745,7 @@ model crm_Accounts_Tasks {
   account      String?                       @db.Uuid
   crm_accounts crm_Accounts?                 @relation(fields: [account], references: [id])
   documents    DocumentsToCrmAccountsTasks[]
+  catalogServiceLinks CatalogServiceLink[]
 
   @@index([user])
   @@index([account])
@@ -794,6 +795,113 @@ enum ActiveStatus {
   ACTIVE
   INACTIVE
   PENDING
+}
+
+enum CatalogInquiryStatus {
+  NEW
+  CONTACTED
+  CLOSED
+}
+
+enum CatalogServiceLinkSource {
+  PHONE_MATCH
+  TOKEN_LINK
+  ADMIN_ASSIGN
+}
+
+model CatalogCustomer {
+  id              String                   @id @default(uuid()) @db.Uuid
+  username        String
+  phone           String
+  phoneNormalized String                   @unique
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  sessions     CatalogCustomerSession[]
+  inquiries    CatalogInquiry[]
+  serviceLinks CatalogServiceLink[]
+
+  @@index([phoneNormalized])
+  @@index([createdAt])
+}
+
+model CatalogCustomerSession {
+  id           String          @id @default(uuid()) @db.Uuid
+  tokenHash    String          @unique
+  customerId   String          @db.Uuid
+  expiresAt    DateTime
+  createdAt    DateTime        @default(now())
+  lastSeenAt   DateTime?
+
+  customer CatalogCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([expiresAt])
+}
+
+model CatalogInquiry {
+  id         String               @id @default(uuid()) @db.Uuid
+  customerId String               @db.Uuid
+  items      Json                 @db.JsonB
+  note       String?
+  status     CatalogInquiryStatus @default(NEW)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  customer CatalogCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model CatalogImage {
+  id        String        @id @default(uuid()) @db.Uuid
+  mimeType  String
+  bytes     Bytes         @db.ByteA
+  createdAt DateTime      @default(now())
+
+  items CatalogItem[]
+}
+
+model CatalogItem {
+  id                String   @id
+  machine           String
+  rowNumber         Int
+  illustration      String?
+  partNumber        String?
+  catalogPartNumber String?
+  description       String
+  quantity          String?
+  price             Int?
+  remark            String?
+  searchText        String
+  imageId           String?  @db.Uuid
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  image CatalogImage? @relation(fields: [imageId], references: [id], onDelete: SetNull)
+
+  @@index([machine])
+  @@index([imageId])
+  @@index([description])
+}
+
+model CatalogServiceLink {
+  id             String                   @id @default(uuid()) @db.Uuid
+  customerId     String                   @db.Uuid
+  serviceOrderId String                   @db.Uuid
+  source         CatalogServiceLinkSource
+  token          String?
+  createdAt      DateTime                 @default(now())
+
+  customer     CatalogCustomer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  serviceOrder crm_Accounts_Tasks  @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, serviceOrderId])
+  @@index([customerId])
+  @@index([serviceOrderId])
+  @@index([source])
 }
 
 model Users {
