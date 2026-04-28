@@ -30,6 +30,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.nextcrm-dev*.log
 
 # local env files
 .env*.local
@@ -78,3 +79,8 @@ v8-compile-cache-*/
 .superpowers/
 
 price.md
+
+# Local catalogue import source/generated artifacts
+PART CATALOG ALL.xlsx
+/public/catalog/
+/lib/catalog/generated/
