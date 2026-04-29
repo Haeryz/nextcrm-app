@@ -37,6 +37,34 @@ function applyTemplate(template: string, context: Record<string, string>): strin
   return template.replace(/\{(\w+)\}/g, (_, key) => context[key] ?? "");
 }
 
+const DEFAULT_NEW_ORDER_TEMPLATE = [
+  "Halo {customerName},",
+  "",
+  "Terima kasih, pesanan servis AC kendaraan {vehicle} sudah kami terima di Mektek.",
+  "",
+  "Tim kami akan melakukan pengecekan awal dan memperbarui progres servis secara berkala.",
+  "",
+  "Cek status servis Anda di:",
+  "{trackingLink}",
+  "",
+  "Simpan link ini untuk melihat status, estimasi, dan catatan pengerjaan terbaru.",
+  "",
+  "Terima kasih telah mempercayai Mektek.",
+].join("\n");
+
+const DEFAULT_COMPLETED_TEMPLATE = [
+  "Halo {customerName},",
+  "",
+  "Servis AC kendaraan {vehicle} Anda sudah selesai.",
+  "",
+  "Invoice dan struk kami lampirkan pada pesan ini. Ringkasan status servis tetap bisa dicek melalui link berikut:",
+  "{trackingLink}",
+  "",
+  "Silakan hubungi kami jika ada pertanyaan sebelum pengambilan kendaraan.",
+  "",
+  "Terima kasih telah mempercayai Mektek.",
+].join("\n");
+
 export async function notifyMektekOrderCreated(params: {
   order: ServiceOrderSummary;
   trackingLink: string;
@@ -50,7 +78,7 @@ export async function notifyMektekOrderCreated(params: {
 
   const messageTemplate =
     (context.tags.whatsappNewOrderTemplate as string | undefined) ||
-    "Halo {customerName}, pesanan servis kendaraan {vehicle} Anda telah kami terima. Pantau progres di: {trackingLink}";
+    DEFAULT_NEW_ORDER_TEMPLATE;
 
   const message = applyTemplate(messageTemplate, {
     customerName: context.customerName,
@@ -74,7 +102,7 @@ export async function notifyMektekOrderCompleted(params: {
 
   const messageTemplate =
     (context.tags.whatsappCompletedTemplate as string | undefined) ||
-    "Halo {customerName}, servis kendaraan {vehicle} Anda telah selesai. Invoice dan struk terlampir. Pantau status di: {trackingLink}";
+    DEFAULT_COMPLETED_TEMPLATE;
 
   const message = applyTemplate(messageTemplate, {
     customerName: context.customerName,

@@ -73,7 +73,9 @@ export default function DamageItemsInput({
             <Input
               placeholder="Estimasi biaya (Rp)"
               value={item.estimatedCost}
-              onChange={(e) => updateItem(index, "estimatedCost", e.target.value)}
+              onChange={(e) =>
+                updateItem(index, "estimatedCost", e.target.value.replace(/\D/g, ""))
+              }
               disabled={disabled}
               className="w-40"
             />

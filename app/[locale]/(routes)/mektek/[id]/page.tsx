@@ -18,6 +18,7 @@ import VisitDiscountCard from "../_components/VisitDiscountCard";
 import PaymentCard from "../_components/PaymentCard";
 import WhatsAppComposer from "../_components/WhatsAppComposer";
 import InvoiceActions from "../_components/InvoiceActions";
+import { buildMektekInvoiceData } from "@/actions/mektek/invoice-pdf";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -78,6 +79,10 @@ export default async function MektekDetailPage({ params }: Props) {
 
   const progress = calculateProgress(timelineFromTags, order.taskStatus);
   const statusMeta = getStatusMeta(order.taskStatus);
+  const invoiceData = buildMektekInvoiceData(order);
+  const paymentMethod = ["cash", "transfer", "qris"].includes(invoiceData.payment.method)
+    ? (invoiceData.payment.method as "cash" | "transfer" | "qris")
+    : "cash";
 
   return (
     <Container
@@ -255,7 +260,14 @@ export default async function MektekDetailPage({ params }: Props) {
             </CardContent>
           </Card>
 
-          <PaymentCard />
+          <PaymentCard
+            serviceOrderId={order.id}
+            subtotal={invoiceData.financials.subtotal}
+            initialDiscount={invoiceData.financials.discount}
+            initialTax={invoiceData.financials.tax}
+            initialAmountPaid={invoiceData.financials.amountPaid}
+            initialMethod={paymentMethod}
+          />
           <InvoiceActions serviceOrderId={order.id} />
           <WhatsAppComposer
             phone={phone ?? ""}
