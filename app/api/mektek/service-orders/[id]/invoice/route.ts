@@ -1,5 +1,9 @@
-import { getMektekServiceOrderById, getPublicMektekServiceOrder } from "@/actions/mektek/service-orders";
-import { buildMektekInvoiceData, renderMektekInvoicePdf, renderMektekReceiptPdf } from "@/actions/mektek/invoice-pdf";
+import {
+  getMektekServiceOrderById,
+  getPublicMektekServiceOrder,
+  getPublicMektekServiceOrderByCode,
+} from "@/actions/mektek/service-orders";
+import { buildMektekInvoiceData, renderMektekInvoicePdf } from "@/actions/mektek/invoice-pdf";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "@/lib/session";
 import type { NextRequest } from "next/server";
@@ -14,11 +18,14 @@ export async function GET(
   const { id } = await params;
   const url = new URL(request.url);
   const token = url.searchParams.get("token") ?? "";
+  const code = url.searchParams.get("code") ?? "";
   const download = url.searchParams.get("download") === "1";
 
   let order = null;
 
-  if (token) {
+  if (code) {
+    order = await getPublicMektekServiceOrderByCode(code);
+  } else if (token) {
     order = await getPublicMektekServiceOrder(id, token);
   } else {
     const session = await getServerSession(authOptions);
@@ -33,7 +40,7 @@ export async function GET(
   }
 
   const invoiceData = buildMektekInvoiceData(order);
-  const pdf = (await renderMektekReceiptPdf(invoiceData)).buffer as ArrayBuffer;
+  const pdf = (await renderMektekInvoicePdf(invoiceData)).buffer as ArrayBuffer;
   const filename = `invoice-${id.slice(0, 8)}.pdf`;
 
   return new Response(pdf, {

@@ -13,7 +13,18 @@ interface WhatsAppComposerProps {
 }
 
 function buildDefaultMessage(customerName: string, trackingLink: string) {
-  return `Halo ${customerName || "Pelanggan"},\n\nBerikut update terkini servis kendaraan Anda di Mektek.\n\nCek status servis Anda di:\n${trackingLink || "[link tracking belum tersedia]"}\n\nTerima kasih telah mempercayai kami! 🔧`;
+  return [
+    `Halo ${customerName || "Pelanggan"},`,
+    "",
+    "Berikut update terkini servis kendaraan Anda di Mektek.",
+    "",
+    "Status, estimasi, dan catatan pengerjaan dapat dicek melalui link berikut:",
+    trackingLink || "[link tracking belum tersedia]",
+    "",
+    "Silakan balas pesan ini jika ada pertanyaan.",
+    "",
+    "Terima kasih telah mempercayai Mektek.",
+  ].join("\n");
 }
 
 export default function WhatsAppComposer({

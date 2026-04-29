@@ -40,6 +40,7 @@ export default function NewServiceOrderForm() {
         phone,
         address,
         estimatedDone,
+        damageItems,
       });
 
       if (result?.error) {
