@@ -90,3 +90,5 @@ PART CATALOG ALL.xlsx
 PART CATALOG ALL.xlsx
 /public/catalog/
 /lib/catalog/generated/
+.wwebjs_auth
+.wwebjs_cache
