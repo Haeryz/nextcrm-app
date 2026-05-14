@@ -8,6 +8,11 @@ import { X, Plus } from "lucide-react";
 export type DamageItem = {
   description: string;
   estimatedCost: string;
+  quantity?: number;
+  catalogItemId?: string;
+  machine?: string;
+  partNumber?: string;
+  catalogPartNumber?: string;
 };
 
 interface DamageItemsInputProps {
@@ -22,14 +27,18 @@ export default function DamageItemsInput({
   disabled,
 }: DamageItemsInputProps) {
   const addItem = () => {
-    onChange([...items, { description: "", estimatedCost: "" }]);
+    onChange([...items, { description: "", estimatedCost: "", quantity: 1 }]);
   };
 
   const removeItem = (index: number) => {
     onChange(items.filter((_, i) => i !== index));
   };
 
-  const updateItem = (index: number, field: keyof DamageItem, value: string) => {
+  const updateItem = (
+    index: number,
+    field: keyof DamageItem,
+    value: string | number
+  ) => {
     onChange(
       items.map((item, i) => (i === index ? { ...item, [field]: value } : item))
     );
@@ -39,7 +48,7 @@ export default function DamageItemsInput({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground uppercase tracking-wide">
-          Detail Kerusakan
+          Service Items
         </p>
         <Button
           type="button"
@@ -55,40 +64,65 @@ export default function DamageItemsInput({
 
       {items.length === 0 && (
         <p className="text-xs text-muted-foreground italic py-2">
-          Belum ada item kerusakan. Klik &ldquo;Tambah item&rdquo; untuk menambah.
+          Belum ada item servis. Klik &ldquo;Tambah item&rdquo; untuk menambah.
         </p>
       )}
 
       <div className="space-y-2">
         {items.map((item, index) => (
-          <div key={index} className="flex gap-2 items-start">
-            <Input
-              placeholder={`Kerusakan #${index + 1} (contoh: AC tidak dingin)`}
-              value={item.description}
-              onChange={(e) => updateItem(index, "description", e.target.value)}
-              disabled={disabled}
-              className="flex-1"
-              required
-            />
-            <Input
-              placeholder="Estimasi biaya (Rp)"
-              value={item.estimatedCost}
-              onChange={(e) =>
-                updateItem(index, "estimatedCost", e.target.value.replace(/\D/g, ""))
-              }
-              disabled={disabled}
-              className="w-40"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => removeItem(index)}
-              disabled={disabled}
-              className="shrink-0"
-            >
-              <X className="w-4 h-4" />
-            </Button>
+          <div key={index} className="rounded-lg border bg-background p-3">
+            {item.catalogItemId && (
+              <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span className="rounded-full bg-muted px-2 py-1">
+                  Catalog
+                </span>
+                <span>{item.machine}</span>
+                <span>{item.catalogPartNumber || item.partNumber || "No part number"}</span>
+              </div>
+            )}
+            <div className="flex flex-col gap-2 md:flex-row md:items-start">
+              <Input
+                placeholder={`Kerusakan #${index + 1} (contoh: mesin susah menyala)`}
+                value={item.description}
+                onChange={(e) => updateItem(index, "description", e.target.value)}
+                disabled={disabled}
+                className="flex-1"
+                required
+              />
+              <Input
+                aria-label="Quantity"
+                placeholder="Qty"
+                value={String(item.quantity ?? 1)}
+                onChange={(e) =>
+                  updateItem(
+                    index,
+                    "quantity",
+                    Math.max(1, Math.floor(Number(e.target.value.replace(/\D/g, "")) || 1))
+                  )
+                }
+                disabled={disabled}
+                className="w-full md:w-20"
+              />
+              <Input
+                placeholder="Estimasi biaya (Rp)"
+                value={item.estimatedCost}
+                onChange={(e) =>
+                  updateItem(index, "estimatedCost", e.target.value.replace(/\D/g, ""))
+                }
+                disabled={disabled}
+                className="w-full md:w-40"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => removeItem(index)}
+                disabled={disabled}
+                className="shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         ))}
       </div>

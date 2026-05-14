@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { createMektekServiceOrder } from "@/actions/mektek/service-orders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import CatalogItemPicker from "./CatalogItemPicker";
 import DamageItemsInput, { DamageItem } from "./DamageItemsInput";
 
 export default function NewServiceOrderForm() {
@@ -15,7 +16,9 @@ export default function NewServiceOrderForm() {
   const [trackingLink, setTrackingLink] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [vehicle, setVehicle] = useState("");
-  const [damageItems, setDamageItems] = useState<DamageItem[]>([{ description: "", estimatedCost: "" }]);
+  const [damageItems, setDamageItems] = useState<DamageItem[]>([
+    { description: "", estimatedCost: "", quantity: 1 },
+  ]);
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [estimatedDone, setEstimatedDone] = useState("");
@@ -27,9 +30,16 @@ export default function NewServiceOrderForm() {
       const complaint = damageItems
         .filter((item) => item.description.trim())
         .map((item) =>
-          item.estimatedCost
-            ? `${item.description.trim()} (Est. Rp ${item.estimatedCost})`
-            : item.description.trim()
+          [
+            item.description.trim(),
+            item.quantity && item.quantity > 1 ? `x${item.quantity}` : "",
+            item.catalogPartNumber || item.partNumber
+              ? `(${item.catalogPartNumber || item.partNumber})`
+              : "",
+            item.estimatedCost ? `(Est. Rp ${item.estimatedCost})` : "",
+          ]
+            .filter(Boolean)
+            .join(" ")
         )
         .join("\n");
 
@@ -52,11 +62,35 @@ export default function NewServiceOrderForm() {
       setTrackingLink(result?.data?.customerTrackingLink || "");
       setCustomerName("");
       setVehicle("");
-      setDamageItems([{ description: "", estimatedCost: "" }]);
+      setDamageItems([{ description: "", estimatedCost: "", quantity: 1 }]);
       setPhone("");
       setAddress("");
       setEstimatedDone("");
       router.refresh();
+    });
+  };
+
+  const addCatalogItem = (item: DamageItem) => {
+    setDamageItems((current) => {
+      const existingIndex = current.findIndex(
+        (row) => row.catalogItemId && row.catalogItemId === item.catalogItemId
+      );
+      if (existingIndex >= 0) {
+        return current.map((row, index) =>
+          index === existingIndex
+            ? { ...row, quantity: Math.max(1, Number(row.quantity) || 1) + 1 }
+            : row
+        );
+      }
+
+      const emptyManualIndex = current.findIndex(
+        (row) => !row.catalogItemId && !row.description.trim() && !row.estimatedCost.trim()
+      );
+      if (emptyManualIndex >= 0) {
+        return current.map((row, index) => (index === emptyManualIndex ? item : row));
+      }
+
+      return [...current, item];
     });
   };
 
@@ -101,6 +135,7 @@ export default function NewServiceOrderForm() {
           value={phone}
           onChange={(event) => setPhone(event.target.value)}
           disabled={isPending}
+          required
         />
         <Input
           placeholder="Estimated done"
@@ -117,6 +152,10 @@ export default function NewServiceOrderForm() {
           value={address}
           onChange={(event) => setAddress(event.target.value)}
           disabled={isPending}
+        />
+        <CatalogItemPicker
+          disabled={isPending}
+          onAddItem={addCatalogItem}
         />
         <DamageItemsInput
           items={damageItems}

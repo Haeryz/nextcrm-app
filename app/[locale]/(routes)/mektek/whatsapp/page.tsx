@@ -18,7 +18,7 @@ const DEFAULT_TEMPLATES = [
     body: [
       "Halo {customerName},",
       "",
-      "Terima kasih, pesanan servis AC kendaraan {vehicle} sudah kami terima di Mektek.",
+      "Terima kasih, pesanan servis kendaraan {vehicle} sudah kami terima di Mektek.",
       "",
       "Tim kami akan melakukan pengecekan awal dan memperbarui progres servis secara berkala.",
       "",
@@ -53,7 +53,7 @@ const DEFAULT_TEMPLATES = [
     body: [
       "Halo {customerName},",
       "",
-      "Servis AC kendaraan {vehicle} Anda sudah selesai.",
+      "Servis kendaraan {vehicle} Anda sudah selesai.",
       "",
       "Invoice dan struk kami lampirkan pada pesan ini. Ringkasan status servis tetap bisa dicek melalui link berikut:",
       "{trackingLink}",

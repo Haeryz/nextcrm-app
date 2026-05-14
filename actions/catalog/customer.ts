@@ -10,7 +10,7 @@ import { calculateProgress } from "@/app/[locale]/(routes)/mektek/_lib/constants
 
 const CUSTOMER_SESSION_COOKIE = "nextcrm_catalog_customer";
 const SESSION_DAYS = 30;
-const MEKTEK_TITLE_PREFIX = "MEKTEK AC -";
+const MEKTEK_TITLE_PREFIXES = ["MEKTEK Service -", "MEKTEK AC -"];
 
 export type CatalogCustomerSessionUser = {
   id: string;
@@ -326,7 +326,10 @@ function serviceRowFromTask(task: any, source: string, token?: string | null) {
     latestUpdate: latestTimeline,
     dueDateAt: task.dueDateAt ? task.dueDateAt.toISOString() : null,
     updatedAt: task.updatedAt ? task.updatedAt.toISOString() : null,
-    customerName: task.crm_accounts?.name ?? "Customer",
+    customerName:
+      typeof tags.customerName === "string" && tags.customerName.length > 0
+        ? tags.customerName
+        : task.crm_accounts?.name ?? "Customer",
     trackingHref: buildTrackingLink(task.id, customerToken),
   };
 }
@@ -365,9 +368,11 @@ export async function getCustomerServiceProgress(customer: CatalogCustomerSessio
 
   const allMektekOrders = await prismadb.crm_Accounts_Tasks.findMany({
     where: {
-      title: {
-        startsWith: MEKTEK_TITLE_PREFIX,
-      },
+      OR: MEKTEK_TITLE_PREFIXES.map((prefix) => ({
+        title: {
+          startsWith: prefix,
+        },
+      })),
     },
     include: {
       crm_accounts: {
@@ -432,9 +437,11 @@ export async function linkCustomerServiceByToken(input: { trackingLink: string }
   const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
     where: {
       id: parsed.id,
-      title: {
-        startsWith: MEKTEK_TITLE_PREFIX,
-      },
+      OR: MEKTEK_TITLE_PREFIXES.map((prefix) => ({
+        title: {
+          startsWith: prefix,
+        },
+      })),
     },
     select: {
       id: true,

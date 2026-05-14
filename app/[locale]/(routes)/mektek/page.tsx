@@ -2,6 +2,8 @@ import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   getMektekServiceOrders,
 } from "@/actions/mektek/service-orders";
@@ -12,10 +14,52 @@ import { calculateProgress, getStatusMeta } from "./_lib/constants";
 import MektekSubNav from "./_components/MektekSubNav";
 import ExcelExportButton from "./_components/ExcelExportButton";
 
-export default async function MektekPage() {
+interface MektekPageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+function readSearchParam(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string
+) {
+  const value = searchParams[key];
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+function buildPageHref(params: {
+  page: number;
+  dateFrom: string;
+  dateTo: string;
+}) {
+  const query = new URLSearchParams();
+  if (params.page > 1) query.set("page", String(params.page));
+  if (params.dateFrom) query.set("dateFrom", params.dateFrom);
+  if (params.dateTo) query.set("dateTo", params.dateTo);
+  const suffix = query.toString();
+  return suffix ? `/mektek?${suffix}` : "/mektek";
+}
+
+export default async function MektekPage({ searchParams }: MektekPageProps) {
   const session = await getServerSession(authOptions);
   const isAdmin = !!session?.user?.isAdmin;
-  const orders = await getMektekServiceOrders();
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const currentPage = Math.max(Number(readSearchParam(resolvedSearchParams, "page")) || 1, 1);
+  const dateFrom = readSearchParam(resolvedSearchParams, "dateFrom");
+  const dateTo = readSearchParam(resolvedSearchParams, "dateTo");
+  const { orders, page, totalCount, totalPages } = await getMektekServiceOrders({
+    page: currentPage,
+    pageSize: 10,
+    dateFrom,
+    dateTo,
+  });
+  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1)
+    .filter((pageNumber) => {
+      return (
+        pageNumber === 1 ||
+        pageNumber === totalPages ||
+        Math.abs(pageNumber - page) <= 1
+      );
+    });
 
   return (
     <Container
@@ -39,11 +83,43 @@ export default async function MektekPage() {
           <ExcelExportButton orders={orders} />
         </div>
 
+        <Card className="border">
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <form action="/mektek" className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end">
+                <label className="space-y-1 text-sm">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    From date
+                  </span>
+                  <Input name="dateFrom" type="date" defaultValue={dateFrom} />
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    To date
+                  </span>
+                  <Input name="dateTo" type="date" defaultValue={dateTo} />
+                </label>
+                <Button type="submit" variant="outline">
+                  Filter
+                </Button>
+                {(dateFrom || dateTo) && (
+                  <Button asChild type="button" variant="ghost">
+                    <Link href="/mektek">Clear</Link>
+                  </Button>
+                )}
+              </form>
+              <p className="text-sm text-muted-foreground">
+                Showing {orders.length} of {totalCount} orders
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="space-y-4">
           {orders.length === 0 && (
             <Card className="border">
               <CardContent className="p-6 text-sm text-muted-foreground">
-                No service records yet. Use the form above to add the first AC service intake.
+                No service records found for this date range.
               </CardContent>
             </Card>
           )}
@@ -58,6 +134,10 @@ export default async function MektekPage() {
               typeof tags.vehicle === "string" && tags.vehicle.length > 0
                 ? tags.vehicle
                 : "Unknown vehicle";
+            const customerName =
+              typeof tags.customerName === "string" && tags.customerName.length > 0
+                ? tags.customerName
+                : order.crm_accounts?.name ?? "Unknown customer";
 
             const timelineItems: { completed: boolean }[] = Array.isArray(tags.timeline)
               ? (tags.timeline as Array<Record<string, unknown>>).map((item) => ({
@@ -84,7 +164,7 @@ export default async function MektekPage() {
                       </Badge>
                     </div>
                     <p className="font-bold text-lg text-foreground">
-                      {order.crm_accounts?.name ?? "Unknown customer"}
+                      {customerName}
                     </p>
                     <p className="text-sm text-muted-foreground">
                       {vehicle}
@@ -97,7 +177,7 @@ export default async function MektekPage() {
                         {timelineCount} timeline updates
                       </span>
                       <span className="text-[11px] rounded-full bg-muted px-2 py-1 text-muted-foreground">
-                        AC Service
+                        Vehicle Service
                       </span>
                     </div>
                   </div>
@@ -137,6 +217,46 @@ export default async function MektekPage() {
             );
           })}
         </div>
+
+        {totalPages > 1 && (
+          <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild variant="outline" size="sm" disabled={page <= 1}>
+                <Link href={buildPageHref({ page: Math.max(1, page - 1), dateFrom, dateTo })}>
+                  Previous
+                </Link>
+              </Button>
+              {pageNumbers.map((pageNumber, index) => {
+                const previous = pageNumbers[index - 1];
+                const showGap = previous && pageNumber - previous > 1;
+                return (
+                  <div key={pageNumber} className="flex items-center gap-2">
+                    {showGap && (
+                      <span className="px-1 text-sm text-muted-foreground">...</span>
+                    )}
+                    <Button
+                      asChild
+                      variant={pageNumber === page ? "default" : "outline"}
+                      size="sm"
+                    >
+                      <Link href={buildPageHref({ page: pageNumber, dateFrom, dateTo })}>
+                        {pageNumber}
+                      </Link>
+                    </Button>
+                  </div>
+                );
+              })}
+              <Button asChild variant="outline" size="sm" disabled={page >= totalPages}>
+                <Link href={buildPageHref({ page: Math.min(totalPages, page + 1), dateFrom, dateTo })}>
+                  Next
+                </Link>
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </Container>
   );

@@ -54,7 +54,7 @@ export default function AddTimelineEntryForm({
     <form onSubmit={onSubmit} className="rounded-lg border p-4 bg-card space-y-3">
       <p className="text-sm font-semibold">Tambah timeline pesanan</p>
       <Input
-        placeholder="Contoh: Sparepart AC sudah dipasang"
+        placeholder="Contoh: Sparepart sudah dipasang"
         value={description}
         onChange={(event) => setDescription(event.target.value)}
         disabled={isPending}

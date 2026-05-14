@@ -2,6 +2,7 @@ import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { notFound } from "next/navigation";
 import {
   getMektekCustomerTrackingLink,
@@ -13,8 +14,6 @@ import AddTimelineEntryForm from "./_components/AddTimelineEntryForm";
 import CustomerTrackingLinkCard from "./_components/CustomerTrackingLinkCard";
 import ServiceOrderStatusControl from "./_components/ServiceOrderStatusControl";
 import { calculateProgress, getStatusMeta } from "../_lib/constants";
-import TechnicianAssignCard from "../_components/TechnicianAssignCard";
-import VisitDiscountCard from "../_components/VisitDiscountCard";
 import PaymentCard from "../_components/PaymentCard";
 import WhatsAppComposer from "../_components/WhatsAppComposer";
 import InvoiceActions from "../_components/InvoiceActions";
@@ -22,6 +21,17 @@ import { buildMektekInvoiceData } from "@/actions/mektek/invoice-pdf";
 
 interface Props {
   params: Promise<{ id: string }>;
+}
+
+type TimelineEntry = {
+  id: string;
+  date: Date;
+  description: string;
+  completed: boolean;
+};
+
+function valueOrDash(value?: string | null) {
+  return value && value.trim() ? value : "-";
 }
 
 export default async function MektekDetailPage({ params }: Props) {
@@ -38,10 +48,17 @@ export default async function MektekDetailPage({ params }: Props) {
       : {};
 
   const vehicle = typeof tags.vehicle === "string" ? tags.vehicle : "Unknown vehicle";
+  const customerName =
+    typeof tags.customerName === "string" && tags.customerName.length > 0
+      ? tags.customerName
+      : order.crm_accounts?.name ?? "Unknown customer";
+  const customerId =
+    typeof tags.catalogCustomerId === "string" && tags.catalogCustomerId.length > 0
+      ? tags.catalogCustomerId
+      : order.crm_accounts?.id ?? "Unknown";
   const phone = typeof tags.phone === "string" ? tags.phone : order.crm_accounts?.office_phone;
   const address =
     typeof tags.address === "string" ? tags.address : order.crm_accounts?.billing_street;
-  type TimelineEntry = { id: string; date: Date; description: string; completed: boolean };
 
   const timelineFromTags: TimelineEntry[] = Array.isArray(tags.timeline)
     ? tags.timeline
@@ -64,7 +81,6 @@ export default async function MektekDetailPage({ params }: Props) {
 
   const trackingResult = await getMektekCustomerTrackingLink(order.id);
   const customerTrackingLink = trackingResult?.data?.link;
-
   const timeline = timelineFromTags.length
     ? timelineFromTags
     : [
@@ -76,7 +92,7 @@ export default async function MektekDetailPage({ params }: Props) {
           completed: true,
         },
       ];
-
+  const completedSteps = timeline.filter((item) => item.completed).length;
   const progress = calculateProgress(timelineFromTags, order.taskStatus);
   const statusMeta = getStatusMeta(order.taskStatus);
   const invoiceData = buildMektekInvoiceData(order);
@@ -86,221 +102,204 @@ export default async function MektekDetailPage({ params }: Props) {
 
   return (
     <Container
-      title={`MEKTEK — ${order.crm_accounts?.name ?? "Unknown customer"}`}
-      description={`Service order detail · ID ${order.id}`}
+      title="Service Order"
+      description={`${customerName} · ${vehicle} · ID ${order.id.slice(0, 8)}`}
     >
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* ── Left column: IDENTITAS + PROGRESS ── */}
-        <div className="lg:col-span-1 flex flex-col gap-6">
-          {/* IDENTITAS */}
-          <Card className="border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground">
-                Identitas
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-xs text-muted-foreground">Customer ID</p>
-                <p className="font-mono font-semibold text-foreground">
-                  {order.crm_accounts?.id ?? "Unknown"}
-                </p>
+      <div className="space-y-6">
+        <Card className="border shadow-sm">
+          <CardContent className="p-5 md:p-6">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={statusMeta.badgeVariant}>{statusMeta.label}</Badge>
+                  <span className="text-xs font-mono text-muted-foreground">
+                    {order.id}
+                  </span>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                    {customerName}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {vehicle}
+                  </p>
+                </div>
               </div>
-              <Separator />
-              <div>
-                <p className="text-xs text-muted-foreground">Nama</p>
-                <p className="font-semibold text-foreground">
-                  {order.crm_accounts?.name ?? "Unknown customer"}
-                </p>
-              </div>
-              <Separator />
-              <div>
-                <p className="text-xs text-muted-foreground">Kendaraan</p>
-                <p className="font-semibold text-foreground">
-                  {vehicle}
-                </p>
-              </div>
-              <Separator />
-              <div>
-                <p className="text-xs text-muted-foreground">Telepon</p>
-                <p className="font-semibold text-foreground">{phone ?? "-"}</p>
-              </div>
-              <Separator />
-              <div>
-                <p className="text-xs text-muted-foreground">Alamat</p>
-                <p className="font-semibold text-foreground">
-                  {address ?? "-"}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
 
-          <TechnicianAssignCard />
-          <VisitDiscountCard visitCount={1} />
-
-          {/* PROGRESS */}
-          <Card className="border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground">
-                Progress
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-end justify-between">
-                <span className="text-4xl font-black text-foreground">
-                  {progress}%
-                </span>
-                <Badge variant={statusMeta.badgeVariant}>
-                  {statusMeta.label}
-                </Badge>
-              </div>
-              <div className="h-3 w-full bg-muted rounded-full overflow-hidden">
-                <div
-                  className={`h-full ${statusMeta.barColor} rounded-full transition-all duration-500`}
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {timeline.filter((item) => item.completed).length} of {timeline.length} steps completed
-              </p>
-              <Separator />
-              <div>
-                <p className="text-xs text-muted-foreground">Estimated Done</p>
-                <p className="font-semibold text-foreground">
-                  {order.dueDateAt?.toLocaleDateString() ?? "Not set"}
+              <div className="w-full max-w-sm space-y-2">
+                <div className="flex items-end justify-between">
+                  <span className="text-sm font-medium text-muted-foreground">Progress</span>
+                  <span className="text-2xl font-bold text-foreground">{progress}%</span>
+                </div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={`h-full ${statusMeta.barColor} rounded-full transition-all`}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {completedSteps} of {timeline.length} steps completed
                 </p>
               </div>
-              {isAdmin && (
-                <>
-                  <Separator />
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="space-y-6">
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Customer & Service</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Customer ID</p>
+                    <p className="font-mono text-sm font-medium text-foreground">
+                      {customerId}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Estimated Done</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {order.dueDateAt?.toLocaleDateString() ?? "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Phone</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {valueOrDash(phone)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Address</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {valueOrDash(address)}
+                    </p>
+                  </div>
+                </div>
+                <Separator />
+                <div>
+                  <p className="text-xs text-muted-foreground">Service Notes</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
+                    {order.content || "No service notes yet."}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Work Timeline</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {isAdmin && <AddTimelineEntryForm serviceOrderId={order.id} />}
+
+                <div className="space-y-3">
+                  {timeline.map((timelineItem) => (
+                    <div
+                      key={timelineItem.id}
+                      className="grid grid-cols-[16px_1fr] gap-3 rounded-lg border p-4"
+                    >
+                      <span
+                        className={`mt-1 size-3 rounded-full ${
+                          timelineItem.completed ? "bg-foreground" : "bg-muted-foreground"
+                        }`}
+                      />
+                      <div className="min-w-0 space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-xs text-muted-foreground">
+                            {timelineItem.date.toLocaleDateString()} ·{" "}
+                            {timelineItem.date.toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                          <Badge variant={timelineItem.completed ? "default" : "secondary"}>
+                            {timelineItem.completed ? "Done" : "Pending"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm font-medium text-foreground">
+                          {timelineItem.description}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Internal Notes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {order.comments.length > 0 ? (
+                  <div className="space-y-3">
+                    {order.comments.map((comment) => (
+                      <div key={comment.id} className="rounded-lg border p-3">
+                        <p className="text-sm text-foreground">{comment.comment}</p>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {comment.assigned_user?.name ?? "Unknown"} ·{" "}
+                          {comment.createdAt.toLocaleDateString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No internal notes yet.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <aside className="space-y-6">
+            {isAdmin && customerTrackingLink && (
+              <CustomerTrackingLinkCard link={customerTrackingLink} />
+            )}
+
+            {isAdmin && (
+              <Card className="border shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Status</CardTitle>
+                </CardHeader>
+                <CardContent>
                   <ServiceOrderStatusControl
                     serviceOrderId={order.id}
                     currentStatus={order.taskStatus ?? "ACTIVE"}
                   />
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                </CardContent>
+              </Card>
+            )}
 
-        {/* ── Right column: PESANAN timeline ── */}
-        <div className="lg:col-span-2 flex flex-col gap-6">
-          {isAdmin && customerTrackingLink && (
-            <CustomerTrackingLinkCard link={customerTrackingLink} />
-          )}
-
-          {isAdmin && <AddTimelineEntryForm serviceOrderId={order.id} />}
-
-          <Card className="border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground">
-                Pesanan
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="relative">
-                {/* Dashed vertical connector line */}
-                {timeline.length > 1 && (
-                  <div
-                    className="absolute left-1.75 top-5 border-l-2 border-dashed border-border"
-                    style={{
-                      height: `calc(100% - 2.5rem)`,
-                    }}
-                  />
-                )}
-
-                <div className="space-y-4">
-                  {timeline.map((timelineItem) => (
-                    <div key={timelineItem.id} className="relative flex gap-5">
-                      {/* Timeline dot */}
-                      <div
-                        className={`mt-1 shrink-0 w-4 h-4 rounded-full border-2 z-10 ${
-                          timelineItem.completed
-                            ? "bg-foreground border-foreground"
-                            : "bg-background border-muted-foreground"
-                        }`}
-                      />
-
-                      {/* Order card */}
-                      <Card
-                        className={`flex-1 border shadow-sm ${
-                          timelineItem.completed
-                            ? "bg-card"
-                            : "bg-muted/30"
-                        }`}
-                      >
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <span className="font-mono">
-                                {timelineItem.date
-                                  ? timelineItem.date.toLocaleDateString()
-                                  : "No date"}
-                              </span>
-                            </div>
-                            {timelineItem.completed ? (
-                              <Badge variant="default" className="text-xs">
-                                Done
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">
-                                Pending
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="font-semibold text-foreground text-sm">
-                            {timelineItem.description}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <PaymentCard
-            serviceOrderId={order.id}
-            subtotal={invoiceData.financials.subtotal}
-            initialDiscount={invoiceData.financials.discount}
-            initialTax={invoiceData.financials.tax}
-            initialAmountPaid={invoiceData.financials.amountPaid}
-            initialMethod={paymentMethod}
-          />
-          <InvoiceActions serviceOrderId={order.id} />
-          <WhatsAppComposer
-            phone={phone ?? ""}
-            customerName={order.crm_accounts?.name ?? "Customer"}
-            trackingLink={customerTrackingLink ?? ""}
-          />
-
-          {/* Notes panel */}
-          <Card className="border shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground">
-                Catatan
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {order.comments.length > 0 ? (
-                <div className="space-y-3">
-                  {order.comments.map((comment) => (
-                    <div key={comment.id} className="rounded-md border p-3">
-                      <p className="text-sm text-foreground">{comment.comment}</p>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        {comment.assigned_user?.name ?? "Unknown"} · {comment.createdAt.toLocaleDateString()}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">
-                  Tidak ada catatan.
-                </p>
-              )}
-            </CardContent>
-          </Card>
+            <Tabs defaultValue="payment" className="space-y-4">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="payment">Payment</TabsTrigger>
+                <TabsTrigger value="docs">Docs</TabsTrigger>
+                <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+              </TabsList>
+              <TabsContent value="payment" className="mt-0">
+                <PaymentCard
+                  serviceOrderId={order.id}
+                  subtotal={invoiceData.financials.subtotal}
+                  initialDiscount={invoiceData.financials.discount}
+                  initialTax={invoiceData.financials.tax}
+                  initialAmountPaid={invoiceData.financials.amountPaid}
+                  initialMethod={paymentMethod}
+                />
+              </TabsContent>
+              <TabsContent value="docs" className="mt-0">
+                <InvoiceActions serviceOrderId={order.id} />
+              </TabsContent>
+              <TabsContent value="whatsapp" className="mt-0">
+                <WhatsAppComposer
+                  phone={phone ?? ""}
+                  customerName={customerName}
+                  trackingLink={customerTrackingLink ?? ""}
+                />
+              </TabsContent>
+            </Tabs>
+          </aside>
         </div>
       </div>
     </Container>

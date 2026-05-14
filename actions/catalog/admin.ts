@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
-const MEKTEK_TITLE_PREFIX = "MEKTEK AC -";
+const MEKTEK_TITLE_PREFIXES = ["MEKTEK Service -", "MEKTEK AC -"];
 const INQUIRY_STATUSES = new Set(["NEW", "CONTACTED", "CLOSED"]);
 
 async function requireAdmin() {
@@ -106,9 +106,11 @@ export async function getAssignableMektekOrders() {
 
   const orders = await prismadb.crm_Accounts_Tasks.findMany({
     where: {
-      title: {
-        startsWith: MEKTEK_TITLE_PREFIX,
-      },
+      OR: MEKTEK_TITLE_PREFIXES.map((prefix) => ({
+        title: {
+          startsWith: prefix,
+        },
+      })),
     },
     include: {
       crm_accounts: {
@@ -153,9 +155,11 @@ export async function assignCatalogServiceToCustomer(input: {
   const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
     where: {
       id: serviceOrderId,
-      title: {
-        startsWith: MEKTEK_TITLE_PREFIX,
-      },
+      OR: MEKTEK_TITLE_PREFIXES.map((prefix) => ({
+        title: {
+          startsWith: prefix,
+        },
+      })),
     },
     select: {
       id: true,

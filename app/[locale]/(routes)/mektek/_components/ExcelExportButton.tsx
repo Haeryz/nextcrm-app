@@ -20,6 +20,13 @@ interface ExcelExportButtonProps {
   orders: ServiceOrder[];
 }
 
+const SERVICE_TITLE_PREFIXES = ["MEKTEK Service - ", "MEKTEK AC - "];
+
+function stripServicePrefix(title: string) {
+  const prefix = SERVICE_TITLE_PREFIXES.find((item) => title.startsWith(item));
+  return prefix ? title.slice(prefix.length) : title;
+}
+
 export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
   const [loading, setLoading] = useState(false);
 
@@ -34,7 +41,10 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
 
         return {
           ID: order.id,
-          "Nama Customer": order.crm_accounts?.name ?? "",
+          "Nama Customer":
+            typeof tags.customerName === "string"
+              ? tags.customerName
+              : order.crm_accounts?.name ?? "",
           Kendaraan: typeof tags.vehicle === "string" ? tags.vehicle : "",
           Telepon:
             typeof tags.phone === "string"
@@ -42,7 +52,7 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
               : (order.crm_accounts?.office_phone ?? ""),
           Alamat: typeof tags.address === "string" ? tags.address : "",
           Status: order.taskStatus ?? "",
-          Keluhan: typeof order.title === "string" ? order.title.replace("MEKTEK AC - ", "") : "",
+          Keluhan: typeof order.title === "string" ? stripServicePrefix(order.title) : "",
           "Estimasi Selesai": order.dueDateAt
             ? new Date(order.dueDateAt).toLocaleDateString("id-ID")
             : "",

@@ -12,9 +12,19 @@ import {
   notifyMektekOrderCreated,
 } from "@/actions/mektek/whatsapp-notifications";
 
-const MEKTEK_TITLE_PREFIX = "MEKTEK AC -";
+const MEKTEK_TITLE_PREFIX = "MEKTEK Service -";
+const LEGACY_MEKTEK_TITLE_PREFIX = "MEKTEK AC -";
+const MEKTEK_TITLE_PREFIXES = [MEKTEK_TITLE_PREFIX, LEGACY_MEKTEK_TITLE_PREFIX];
 const DEFAULT_TIMELINE_MESSAGE =
   "Layanan Anda telah terbuat. Tim kami sedang menyiapkan pemeriksaan awal kendaraan.";
+
+const mektekOrderWhere = (): Prisma.crm_Accounts_TasksWhereInput => ({
+  OR: MEKTEK_TITLE_PREFIXES.map((prefix) => ({
+    title: {
+      startsWith: prefix,
+    },
+  })),
+});
 
 type MektekTimelineEntry = {
   id: string;
@@ -42,27 +52,52 @@ const parseMoney = (value: unknown) => {
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
 };
 
-const buildInvoiceItems = (
-  damageItems?: { description?: string; estimatedCost?: string }[]
-) =>
+type CreateMektekServiceOrderInput = {
+  customerName: string;
+  vehicle: string;
+  complaint: string;
+  phone?: string;
+  address?: string;
+  estimatedDone?: string;
+  damageItems?: {
+    description?: string;
+    estimatedCost?: string;
+    quantity?: number;
+    catalogItemId?: string;
+    machine?: string;
+    partNumber?: string;
+    catalogPartNumber?: string;
+  }[];
+};
+
+const buildInvoiceItems = (damageItems?: CreateMektekServiceOrderInput["damageItems"]) =>
   (Array.isArray(damageItems) ? damageItems : [])
     .map((item) => {
       const name = String(item?.description ?? "").trim();
       if (!name) return null;
       const unitPrice = parseMoney(item?.estimatedCost);
+      const quantity = Math.max(1, Math.floor(Number(item?.quantity) || 1));
       return {
+        catalogItemId: item?.catalogItemId || null,
         name,
-        quantity: 1,
+        machine: item?.machine || null,
+        partNumber: item?.partNumber || null,
+        catalogPartNumber: item?.catalogPartNumber || null,
+        quantity,
         unit: "JOB",
         unitPrice,
-        total: unitPrice,
+        total: unitPrice * quantity,
       };
     })
     .filter(
       (
         item
       ): item is {
+        catalogItemId: string | null;
         name: string;
+        machine: string | null;
+        partNumber: string | null;
+        catalogPartNumber: string | null;
         quantity: number;
         unit: string;
         unitPrice: number;
@@ -116,14 +151,11 @@ const buildCustomerTrackingLink = async (code: string, locale?: string) => {
   return `${appUrl}/${safeLocale}/s/${code}`;
 };
 
-type CreateMektekServiceOrderInput = {
-  customerName: string;
-  vehicle: string;
-  complaint: string;
-  phone?: string;
-  address?: string;
-  estimatedDone?: string;
-  damageItems?: { description?: string; estimatedCost?: string }[];
+const normalizeCustomerPhone = (phone: string): string => {
+  const trimmed = String(phone || "").trim();
+  const hasPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "");
+  return hasPlus ? `+${digits}` : digits;
 };
 
 export const createMektekServiceOrder = async (
@@ -142,9 +174,13 @@ export const createMektekServiceOrder = async (
   const complaint = String(input?.complaint ?? "").trim();
   const phone = String(input?.phone ?? "").trim();
   const address = String(input?.address ?? "").trim();
+  const phoneNormalized = normalizeCustomerPhone(phone);
 
   if (!customerName || !vehicle || !complaint) {
     return { error: "Customer name, vehicle, and complaint are required" };
+  }
+  if (phoneNormalized.replace(/\D/g, "").length < 6) {
+    return { error: "Phone number is required to add the customer to Customer/Users" };
   }
 
   let dueDateAt: Date | undefined;
@@ -161,81 +197,99 @@ export const createMektekServiceOrder = async (
   const customerCode = createCustomerCode();
   const invoiceItems = buildInvoiceItems(input?.damageItems);
   const locale = session.user.userLanguage || "en";
-  let accountId: string | undefined;
 
   try {
-    try {
-      const account = await prismadb.crm_Accounts.create({
-        data: {
-          v: 0,
-          name: customerName,
-          type: "Customer",
-          status: "Active",
-          office_phone: phone,
-          billing_street: address,
-          description: `Kendaraan: ${vehicle}`,
-          createdBy: session.user.id,
-          updatedBy: session.user.id,
+    const task = await prismadb.$transaction(async (tx) => {
+      const catalogCustomer = await tx.catalogCustomer.upsert({
+        where: {
+          phoneNormalized,
+        },
+        update: {
+          phone,
+        },
+        create: {
+          username: customerName,
+          phone,
+          phoneNormalized,
         },
         select: {
           id: true,
         },
       });
-      accountId = account?.id;
-    } catch (error) {
-      console.log("[CREATE_MEKTEK_SERVICE_ORDER_ACCOUNT]", error);
-    }
 
-    const task = await prismadb.crm_Accounts_Tasks.create({
-      data: {
-        v: 0,
-        title: `${MEKTEK_TITLE_PREFIX} ${vehicle}`,
-        content: complaint,
-        priority: "medium",
-        taskStatus: "ACTIVE",
-        user: session.user.id,
-        createdBy: session.user.id,
-        updatedBy: session.user.id,
-        dueDateAt,
-        account: accountId,
-        tags: {
-          module: "mektek",
-          serviceType: "AC",
-          customerToken,
-          customerCode,
-          vehicle,
-          customerName,
-          phone: phone || null,
-          address: address || null,
-          items: invoiceItems,
-          discount: 0,
-          tax: 0,
-          payment: {
-            method: "cash",
-            amountPaid: 0,
-            status: "unpaid",
-            updatedAt: null,
-          },
-          timeline: [
-            {
-              id: crypto.randomUUID(),
-              description: DEFAULT_TIMELINE_MESSAGE,
-              createdAt: new Date().toISOString(),
-              completed: true,
+      const serviceOrder = await tx.crm_Accounts_Tasks.create({
+        data: {
+          v: 0,
+          title: `${MEKTEK_TITLE_PREFIX} ${vehicle}`,
+          content: complaint,
+          priority: "medium",
+          taskStatus: "ACTIVE",
+          user: session.user.id,
+          createdBy: session.user.id,
+          updatedBy: session.user.id,
+          dueDateAt,
+          tags: {
+            module: "mektek",
+            serviceType: "Vehicle Service",
+            customerToken,
+            customerCode,
+            vehicle,
+            customerName,
+            phone,
+            phoneNormalized,
+            address: address || null,
+            catalogCustomerId: catalogCustomer.id,
+            items: invoiceItems,
+            discount: 0,
+            tax: 0,
+            payment: {
+              method: "cash",
+              amountPaid: 0,
+              status: "unpaid",
+              updatedAt: null,
             },
-          ],
-        },
-      },
-      include: {
-        crm_accounts: {
-          select: {
-            id: true,
-            name: true,
-            office_phone: true,
-            billing_street: true,
+            timeline: [
+              {
+                id: crypto.randomUUID(),
+                description: DEFAULT_TIMELINE_MESSAGE,
+                createdAt: new Date().toISOString(),
+                completed: true,
+              },
+            ],
           },
         },
-      },
+        include: {
+          crm_accounts: {
+            select: {
+              id: true,
+              name: true,
+              office_phone: true,
+              billing_street: true,
+            },
+          },
+        },
+      });
+
+      await tx.catalogServiceLink.upsert({
+        where: {
+          customerId_serviceOrderId: {
+            customerId: catalogCustomer.id,
+            serviceOrderId: serviceOrder.id,
+          },
+        },
+        update: {
+          source: "ADMIN_ASSIGN",
+          token: customerToken,
+        },
+        create: {
+          customerId: catalogCustomer.id,
+          serviceOrderId: serviceOrder.id,
+          source: "ADMIN_ASSIGN",
+          token: customerToken,
+        },
+      });
+
+      return serviceOrder;
     });
 
     if (!task?.id) {
@@ -276,6 +330,8 @@ export const createMektekServiceOrder = async (
     revalidatePath("/[locale]/(routes)/mektek", "page");
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
     revalidatePath("/[locale]/service-status/[id]", "page");
+    revalidatePath("/[locale]/(routes)/admin/catalog-customers", "page");
+    revalidatePath("/[locale]/customer/profile", "page");
     return {
       data: {
         ...task,
@@ -288,13 +344,88 @@ export const createMektekServiceOrder = async (
   }
 };
 
-export const getMektekServiceOrders = async () => {
-  return prismadb.crm_Accounts_Tasks.findMany({
-    where: {
-      title: {
-        startsWith: MEKTEK_TITLE_PREFIX,
+export const searchMektekCatalogItems = async (query: string) => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+  if (!session.user.isAdmin) {
+    return { error: "Forbidden: only admin can search catalog items" };
+  }
+
+  const search = String(query ?? "").trim();
+  if (search.length < 2) {
+    return { data: [] };
+  }
+
+  try {
+    const normalized = search.toLowerCase();
+    const items = await prismadb.catalogItem.findMany({
+      where: {
+        OR: [
+          { searchText: { contains: normalized } },
+          { description: { contains: search, mode: "insensitive" } },
+          { machine: { contains: search, mode: "insensitive" } },
+          { partNumber: { contains: search, mode: "insensitive" } },
+          { catalogPartNumber: { contains: search, mode: "insensitive" } },
+        ],
       },
-    },
+      orderBy: [{ machine: "asc" }, { rowNumber: "asc" }],
+      take: 12,
+      select: {
+        id: true,
+        machine: true,
+        rowNumber: true,
+        description: true,
+        partNumber: true,
+        catalogPartNumber: true,
+        price: true,
+      },
+    });
+
+    return { data: items };
+  } catch (error) {
+    console.log("[SEARCH_MEKTEK_CATALOG_ITEMS]", error);
+    return { error: "Failed to search catalog items" };
+  }
+};
+
+export const getMektekServiceOrders = async (input?: {
+  page?: number;
+  pageSize?: number;
+  dateFrom?: string;
+  dateTo?: string;
+}) => {
+  const pageSize = Math.min(Math.max(Number(input?.pageSize) || 10, 1), 50);
+  const requestedPage = Math.max(Number(input?.page) || 1, 1);
+  const createdAt: Prisma.DateTimeNullableFilter<"crm_Accounts_Tasks"> = {};
+  const dateFrom = String(input?.dateFrom ?? "").trim();
+  const dateTo = String(input?.dateTo ?? "").trim();
+
+  if (dateFrom) {
+    const parsedFrom = new Date(`${dateFrom}T00:00:00.000`);
+    if (!Number.isNaN(parsedFrom.getTime())) {
+      createdAt.gte = parsedFrom;
+    }
+  }
+  if (dateTo) {
+    const parsedTo = new Date(`${dateTo}T23:59:59.999`);
+    if (!Number.isNaN(parsedTo.getTime())) {
+      createdAt.lte = parsedTo;
+    }
+  }
+
+  const where: Prisma.crm_Accounts_TasksWhereInput = {
+    ...mektekOrderWhere(),
+    ...(Object.keys(createdAt).length > 0 ? { createdAt } : {}),
+  };
+
+  const totalCount = await prismadb.crm_Accounts_Tasks.count({ where });
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+
+  const orders = await prismadb.crm_Accounts_Tasks.findMany({
+    where,
     include: {
       crm_accounts: {
         select: {
@@ -308,16 +439,24 @@ export const getMektekServiceOrders = async () => {
     orderBy: {
       createdAt: "desc",
     },
+    skip: (page - 1) * pageSize,
+    take: pageSize,
   });
+
+  return {
+    orders,
+    page,
+    pageSize,
+    totalCount,
+    totalPages,
+  };
 };
 
 export const getMektekServiceOrderById = async (id: string) => {
   return prismadb.crm_Accounts_Tasks.findFirst({
     where: {
       id,
-      title: {
-        startsWith: MEKTEK_TITLE_PREFIX,
-      },
+      ...mektekOrderWhere(),
     },
     include: {
       crm_accounts: {
@@ -360,9 +499,7 @@ export const getPublicMektekServiceOrder = async (id: string, token: string) => 
   const order = await prismadb.crm_Accounts_Tasks.findFirst({
     where: {
       id,
-      title: {
-        startsWith: MEKTEK_TITLE_PREFIX,
-      },
+      ...mektekOrderWhere(),
     },
     select: {
       id: true,
@@ -400,9 +537,7 @@ export const getPublicMektekServiceOrderByCode = async (code: string) => {
 
   return prismadb.crm_Accounts_Tasks.findFirst({
     where: {
-      title: {
-        startsWith: MEKTEK_TITLE_PREFIX,
-      },
+      ...mektekOrderWhere(),
       tags: {
         path: ["customerCode"],
         equals: safeCode,
@@ -445,7 +580,7 @@ export const addMektekTimelineEntry = async (data: {
     const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
       where: {
         id: serviceOrderId,
-        title: { startsWith: MEKTEK_TITLE_PREFIX },
+        ...mektekOrderWhere(),
       },
       select: {
         id: true,
@@ -504,7 +639,7 @@ export const updateMektekServiceOrderStatus = async (input: {
 
   try {
     const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
-      where: { id: serviceOrderId, title: { startsWith: MEKTEK_TITLE_PREFIX } },
+      where: { id: serviceOrderId, ...mektekOrderWhere() },
       select: {
         id: true,
         tags: true,
@@ -618,7 +753,7 @@ export const updateMektekPayment = async (input: {
 
   try {
     const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
-      where: { id: serviceOrderId, title: { startsWith: MEKTEK_TITLE_PREFIX } },
+      where: { id: serviceOrderId, ...mektekOrderWhere() },
       select: { id: true, tags: true },
     });
 
@@ -686,7 +821,7 @@ export const getMektekCustomerTrackingLink = async (serviceOrderId: string) => {
     const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
       where: {
         id,
-        title: { startsWith: MEKTEK_TITLE_PREFIX },
+        ...mektekOrderWhere(),
       },
       select: {
         id: true,

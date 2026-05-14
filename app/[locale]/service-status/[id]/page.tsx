@@ -26,7 +26,10 @@ export default async function ServiceStatusPage({ params, searchParams }: Props)
       ? (order.tags as Record<string, unknown>)
       : {};
 
-  const customerName = order.crm_accounts?.name || "Customer";
+  const customerName =
+    typeof tags.customerName === "string" && tags.customerName.length > 0
+      ? tags.customerName
+      : order.crm_accounts?.name || "Customer";
   const vehicle = typeof tags.vehicle === "string" ? tags.vehicle : "Unknown vehicle";
 
   const timeline = Array.isArray(tags.timeline)
