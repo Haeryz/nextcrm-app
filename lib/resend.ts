@@ -1,5 +1,4 @@
 import { Resend } from "resend";
-import { prismadb } from "./prisma";
 import { areExternalApisDisabled } from "./external-apis";
 
 type ResendLike = {
@@ -19,16 +18,10 @@ export default async function resendHelper() {
     return noopResend;
   }
 
-  const resendKey = await prismadb.systemServices.findFirst({
-    where: {
-      name: "resend_smtp",
-    },
-  });
-
-  const apiKey = process.env.RESEND_API_KEY || resendKey?.serviceKey;
+  const apiKey = process.env.RESEND_API_KEY;
 
   if (!apiKey) {
-    throw new Error("Resend API key is not configured. Please add it in Admin settings or set RESEND_API_KEY environment variable.");
+    throw new Error("RESEND_API_KEY is not configured.");
   }
 
   const resend = new Resend(apiKey);

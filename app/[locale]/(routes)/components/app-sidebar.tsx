@@ -60,14 +60,10 @@ interface Session {
 }
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-  dict: any;
-  build: number;
   session: Session;
 }
 
 export function AppSidebar({
-  dict,
-  build,
   session,
   ...props
 }: AppSidebarProps) {
@@ -120,8 +116,7 @@ export function AppSidebar({
 
       {/* Main Content - Navigation */}
       <SidebarContent>
-        {/* NavMain component with all enabled module navigation items */}
-        <NavMain items={navItems} dict={dict} />
+        <NavMain items={navItems} />
       </SidebarContent>
 
       {/* Footer with NavUser and Build Version */}

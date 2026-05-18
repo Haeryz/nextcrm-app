@@ -4,15 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 
-import Header from "./components/Header";
-import Footer from "./components/Footer";
-import getAllCommits from "@/actions/github/get-repo-commits";
-
 import { Metadata } from "next";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "./components/app-sidebar";
-import { getTranslations } from "next-intl/server";
-import { AvatarProvider } from "@/context/avatar-context";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -66,64 +60,21 @@ export default async function AppLayout({
     return redirect("/inactive");
   }
 
-  const build = await getAllCommits();
-
-  // Fetch localization dictionary
-  const dict = await getTranslations("ModuleMenu");
-
-  // Extract translations as plain object for client component
-  const translations = {
-    dashboard: dict("dashboard"),
-    crm: {
-      title: dict("crm.title"),
-      accounts: dict("crm.accounts"),
-      opportunities: dict("crm.opportunities"),
-      contacts: dict("crm.contacts"),
-      leads: dict("crm.leads"),
-      contracts: dict("crm.contracts"),
-      targets: dict("crm.targets"),
-      targetLists: dict("crm.targetLists"),
-    },
-    projects: dict("projects"),
-    emails: dict("emails"),
-    reports: dict("reports"),
-    documents: dict("documents"),
-    settings: dict("settings"),
-  };
-
   const cookieStore = await cookies();
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
-  //console.log(typeof build, "build");
   return (
-    <AvatarProvider initialAvatar={user?.image}>
     <SidebarProvider defaultOpen={sidebarOpen}>
-      <AppSidebar
-        dict={translations}
-        build={build}
-        session={session}
-      />
+      <AppSidebar session={session} />
       <SidebarInset>
-        <Header
-          id={session.user.id as string}
-          lang={session.user.userLanguage as string}
-        />
-        {/*
-          Task Group 3.3: Footer Relocation
-          - Footer has been moved inside the scrollable content area
-          - This allows the footer to scroll with the page content
-          - Footer will appear at the bottom of the content, not fixed at viewport bottom
-        */}
         <div className="flex flex-col flex-grow overflow-y-auto h-full w-full min-w-0">
           <div className="flex-grow py-5 w-full min-w-0">
             <div className="w-full px-4 min-w-0">
               {children}
             </div>
           </div>
-          <Footer />
         </div>
       </SidebarInset>
     </SidebarProvider>
-    </AvatarProvider>
   );
 }

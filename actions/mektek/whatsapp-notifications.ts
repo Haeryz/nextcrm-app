@@ -10,7 +10,6 @@ type ServiceOrderSummary = {
   content?: string | null;
   createdAt?: Date | null;
   tags?: unknown;
-  crm_accounts?: { name?: string | null; office_phone?: string | null; billing_street?: string | null } | null;
 };
 
 function parseTags(tags: unknown): Record<string, unknown> {
@@ -21,14 +20,10 @@ function parseTags(tags: unknown): Record<string, unknown> {
 function buildContext(order: ServiceOrderSummary) {
   const tags = parseTags(order.tags);
   const customerName =
-    (order.crm_accounts?.name as string | undefined) ||
     (tags.customerName as string | undefined) ||
     "Customer";
   const vehicle = (tags.vehicle as string | undefined) || "Vehicle";
-  const phone =
-    (tags.phone as string | undefined) ||
-    (order.crm_accounts?.office_phone as string | undefined) ||
-    "";
+  const phone = (tags.phone as string | undefined) || "";
 
   return { customerName, vehicle, phone, tags };
 }

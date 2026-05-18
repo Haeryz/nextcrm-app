@@ -249,16 +249,6 @@ export const createMektekServiceOrder = async (
             ],
           },
         },
-        include: {
-          crm_accounts: {
-            select: {
-              id: true,
-              name: true,
-              office_phone: true,
-              billing_street: true,
-            },
-          },
-        },
       });
 
       await tx.catalogServiceLink.upsert({
@@ -321,8 +311,6 @@ export const createMektekServiceOrder = async (
     revalidatePath("/[locale]/(routes)/mektek", "page");
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
     revalidatePath("/[locale]/service-status/[id]", "page");
-    revalidatePath("/[locale]/(routes)/admin/catalog-customers", "page");
-    revalidatePath("/[locale]/customer/profile", "page");
     return {
       data: {
         ...task,
@@ -417,16 +405,6 @@ export const getMektekServiceOrders = async (input?: {
 
   const orders = await prismadb.crm_Accounts_Tasks.findMany({
     where,
-    include: {
-      crm_accounts: {
-        select: {
-          id: true,
-          name: true,
-          office_phone: true,
-          billing_street: true,
-        },
-      },
-    },
     orderBy: {
       createdAt: "desc",
     },
@@ -450,14 +428,6 @@ export const getMektekServiceOrderById = async (id: string) => {
       ...mektekOrderWhere(),
     },
     include: {
-      crm_accounts: {
-        select: {
-          id: true,
-          name: true,
-          office_phone: true,
-          billing_street: true,
-        },
-      },
       assigned_user: {
         select: {
           id: true,
@@ -500,11 +470,6 @@ export const getPublicMektekServiceOrder = async (id: string, token: string) => 
       createdAt: true,
       updatedAt: true,
       tags: true,
-      crm_accounts: {
-        select: {
-          name: true,
-        },
-      },
     },
   });
 
@@ -542,11 +507,6 @@ export const getPublicMektekServiceOrderByCode = async (code: string) => {
       createdAt: true,
       updatedAt: true,
       tags: true,
-      crm_accounts: {
-        select: {
-          name: true,
-        },
-      },
     },
   });
 };
@@ -640,13 +600,6 @@ export const updateMektekServiceOrderStatus = async (input: {
         tags: true,
         content: true,
         createdAt: true,
-        crm_accounts: {
-          select: {
-            name: true,
-            office_phone: true,
-            billing_street: true,
-          },
-        },
       },
     });
     if (!serviceOrder) return { error: "Service order not found" };

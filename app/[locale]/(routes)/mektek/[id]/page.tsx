@@ -73,14 +73,13 @@ export default async function MektekDetailPage({ params }: Props) {
   const customerName =
     typeof tags.customerName === "string" && tags.customerName.length > 0
       ? tags.customerName
-      : order.crm_accounts?.name ?? "Unknown customer";
+      : "Unknown customer";
   const customerId =
     typeof tags.catalogCustomerId === "string" && tags.catalogCustomerId.length > 0
       ? tags.catalogCustomerId
-      : order.crm_accounts?.id ?? "Unknown";
-  const phone = typeof tags.phone === "string" ? tags.phone : order.crm_accounts?.office_phone;
-  const address =
-    typeof tags.address === "string" ? tags.address : order.crm_accounts?.billing_street;
+      : "Unknown";
+  const phone = typeof tags.phone === "string" ? tags.phone : undefined;
+  const address = typeof tags.address === "string" ? tags.address : undefined;
 
   const timelineFromTags: TimelineEntry[] = Array.isArray(tags.timeline)
     ? tags.timeline

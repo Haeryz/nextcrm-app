@@ -15,7 +15,6 @@ interface ServiceOrder {
   updatedAt?: Date | null;
   content?: string | null;
   tags?: unknown;
-  crm_accounts?: { name?: string | null; office_phone?: string | null } | null;
 }
 
 interface ExcelExportButtonProps {
@@ -47,12 +46,12 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
           "Nama Customer":
             typeof tags.customerName === "string"
               ? tags.customerName
-              : order.crm_accounts?.name ?? "",
+              : "",
           Kendaraan: typeof tags.vehicle === "string" ? tags.vehicle : "",
           Telepon:
             typeof tags.phone === "string"
               ? tags.phone
-              : (order.crm_accounts?.office_phone ?? ""),
+              : "",
           Alamat: typeof tags.address === "string" ? tags.address : "",
           Status: order.taskStatus ?? "",
           Keluhan: typeof order.title === "string" ? stripServicePrefix(order.title) : "",

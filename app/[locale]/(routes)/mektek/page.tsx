@@ -150,7 +150,7 @@ export default async function MektekPage({ searchParams }: MektekPageProps) {
             const customerName =
               typeof tags.customerName === "string" && tags.customerName.length > 0
                 ? tags.customerName
-                : order.crm_accounts?.name ?? "Unknown customer";
+                : "Unknown customer";
 
             const timelineItems: { completed: boolean }[] = Array.isArray(tags.timeline)
               ? (tags.timeline as Array<Record<string, unknown>>).map((item) => ({

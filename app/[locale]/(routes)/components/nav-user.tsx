@@ -1,15 +1,7 @@
 "use client"
 
-import { useRouter } from "next/navigation"
 import { signOut } from "next-auth/react"
-import {
-  ChevronsUpDown,
-  LogOut,
-  Settings,
-  User,
-  LayoutDashboard,
-  BadgeDollarSign,
-} from "lucide-react"
+import { ChevronsUpDown, LogOut } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -26,28 +18,6 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { useAvatarContext } from "@/context/avatar-context"
-
-/**
- * NavUser Component - Task Group 3.1
- *
- * User profile section component for sidebar footer.
- * Displays user avatar, name, email, and provides dropdown menu with user actions.
- *
- * Features:
- * - User avatar display with fallback to default image
- * - User name and email display (when sidebar expanded)
- * - Avatar only display (when sidebar collapsed)
- * - Dropdown menu with user actions:
- *   - Todo Dashboard (navigation to /projects/dashboard)
- *   - Sales Dashboard (navigation to /crm/dashboard/{userId})
- *   - Profile Settings (navigation to /profile)
- *   - Logout (signOut action)
- * - Integrates with Zustand store for avatar state management
- * - Reuses logic from existing AvatarDropdown component
- *
- * @param user - User object containing id, name, email, avatar
- */
 
 interface NavUserProps {
   user: {
@@ -59,12 +29,8 @@ interface NavUserProps {
 }
 
 export function NavUser({ user }: NavUserProps) {
-  const router = useRouter()
   const { isMobile } = useSidebar()
-  const { avatar } = useAvatarContext()
-
-  // Get avatar URL or fallback to default
-  const avatarUrl = avatar || user.avatar || undefined
+  const avatarUrl = user.avatar || undefined
 
   // Get user initials for avatar fallback
   const userInitials = user.name
@@ -118,22 +84,6 @@ export function NavUser({ user }: NavUserProps) {
                 </div>
               </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/projects/dashboard")}>
-              <LayoutDashboard className="mr-2 h-4 w-4" />
-              Todo Dashboard
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => router.push(`/crm/dashboard/${user.id}`)}
-            >
-              <BadgeDollarSign className="mr-2 h-4 w-4" />
-              Sales Dashboard
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/profile")}>
-              <Settings className="mr-2 h-4 w-4" />
-              Profile Settings
-            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => signOut()}>
               <LogOut className="mr-2 h-4 w-4" />

@@ -519,11 +519,6 @@ type ServiceOrderSummary = {
   createdAt?: Date | null;
   content?: string | null;
   tags?: unknown;
-  crm_accounts?: {
-    name?: string | null;
-    office_phone?: string | null;
-    billing_street?: string | null;
-  } | null;
 };
 
 function parseTags(tags: unknown): Record<string, unknown> {
@@ -579,15 +574,9 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
           : process.env.MEKTEK_COMPANY_CONTACT,
     },
     customer: {
-      name: order.crm_accounts?.name || String(tags.customerName ?? "Customer"),
-      address:
-        typeof tags.address === "string"
-          ? tags.address
-          : order.crm_accounts?.billing_street || undefined,
-      phone:
-        typeof tags.phone === "string"
-          ? tags.phone
-          : order.crm_accounts?.office_phone || undefined,
+      name: String(tags.customerName ?? "Customer"),
+      address: typeof tags.address === "string" ? tags.address : undefined,
+      phone: typeof tags.phone === "string" ? tags.phone : undefined,
     },
     service: {
       unit: typeof tags.vehicle === "string" ? tags.vehicle : undefined,

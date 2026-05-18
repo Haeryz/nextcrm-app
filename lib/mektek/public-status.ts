@@ -15,9 +15,6 @@ type PublicOrder = {
   createdAt?: Date | null;
   updatedAt?: Date | null;
   tags?: unknown;
-  crm_accounts?: {
-    name?: string | null;
-  } | null;
 };
 
 const parseTags = (tags: unknown): Record<string, unknown> => {
@@ -64,7 +61,7 @@ export function buildMektekPublicSnapshot(order: PublicOrder) {
     customerName:
       typeof tags.customerName === "string" && tags.customerName.trim()
         ? tags.customerName
-        : order.crm_accounts?.name || "Customer",
+        : "Customer",
     vehicle:
       typeof tags.vehicle === "string" && tags.vehicle.trim()
         ? tags.vehicle
