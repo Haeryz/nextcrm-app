@@ -845,13 +845,14 @@ model CatalogCustomerSession {
 }
 
 model CatalogInquiry {
-  id         String               @id @default(uuid()) @db.Uuid
-  customerId String               @db.Uuid
-  items      Json                 @db.JsonB
-  note       String?
-  status     CatalogInquiryStatus @default(NEW)
-  createdAt  DateTime             @default(now())
-  updatedAt  DateTime             @updatedAt
+  id              String               @id @default(uuid()) @db.Uuid
+  customerId      String               @db.Uuid
+  items           Json                 @db.JsonB
+  note            String?
+  status          CatalogInquiryStatus @default(NEW)
+  discountPercent Int                  @default(0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
   customer CatalogCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 

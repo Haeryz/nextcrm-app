@@ -1,4 +1,5 @@
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
+import InquiryDiscountInput from "./InquiryDiscountInput";
 import InquiryStatusSelect from "./InquiryStatusSelect";
 import { getAdminCatalogInquiries } from "@/actions/catalog/admin";
 import { Badge } from "@/components/ui/badge";
@@ -71,6 +72,18 @@ export default async function CatalogInquiriesAdminPage() {
                 </div>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+                  <div>
+                    <p className="text-sm font-medium">Bulk purchase discount</p>
+                    <p className="text-xs text-muted-foreground">
+                      Enter a whole-number percentage for this inquiry.
+                    </p>
+                  </div>
+                  <InquiryDiscountInput
+                    inquiryId={inquiry.id}
+                    discountPercent={inquiry.discountPercent}
+                  />
+                </div>
                 {itemsFromJson(inquiry.items).map((item: any) => (
                   <div
                     key={`${inquiry.id}-${item.itemId}`}

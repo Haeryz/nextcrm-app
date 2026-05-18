@@ -67,6 +67,44 @@ export async function updateCatalogInquiryStatus(input: {
   }
 }
 
+export async function updateCatalogInquiryDiscount(input: {
+  inquiryId: string;
+  discountPercent: string | number;
+}) {
+  const admin = await requireAdmin();
+  if ("error" in admin) return { error: admin.error };
+
+  const inquiryId = String(input?.inquiryId ?? "").trim();
+  const discountPercent = Number(input?.discountPercent);
+
+  if (
+    !inquiryId ||
+    !Number.isInteger(discountPercent) ||
+    discountPercent < 0 ||
+    discountPercent > 100
+  ) {
+    return { error: "Discount must be a whole number from 0 to 100." };
+  }
+
+  try {
+    await prismadb.catalogInquiry.update({
+      where: {
+        id: inquiryId,
+      },
+      data: {
+        discountPercent,
+      },
+    });
+
+    revalidatePath("/admin/catalog-inquiries");
+    revalidatePath("/customer/profile");
+    return { data: true };
+  } catch (error) {
+    console.error("[UPDATE_CATALOG_INQUIRY_DISCOUNT]", error);
+    return { error: "Unable to update inquiry discount." };
+  }
+}
+
 export async function getAdminCatalogCustomers() {
   const admin = await requireAdmin();
   if ("error" in admin) return [];

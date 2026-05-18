@@ -6,9 +6,11 @@ import { getOpportunities } from "@/actions/crm/get-opportunities";
 import { getAllCrmData } from "@/actions/crm/get-crm-data";
 
 const CrmDashboardPage = async () => {
-  const salesStages = await getSaleStages();
-  const opportunities = await getOpportunities();
-  const crmData = await getAllCrmData();
+  const [salesStages, opportunities, crmData] = await Promise.all([
+    getSaleStages(),
+    getOpportunities(),
+    getAllCrmData(),
+  ]);
 
   return (
     <Container

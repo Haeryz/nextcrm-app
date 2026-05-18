@@ -194,9 +194,14 @@ export default async function CustomerProfilePage() {
                       Submitted {formatDate(inquiry.createdAt)}
                     </p>
                   </div>
-                  <Badge variant={inquiry.status === "NEW" ? "default" : "secondary"}>
-                    {inquiry.status}
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {inquiry.discountPercent > 0 && (
+                      <Badge variant="outline">Discount {inquiry.discountPercent}%</Badge>
+                    )}
+                    <Badge variant={inquiry.status === "NEW" ? "default" : "secondary"}>
+                      {inquiry.status}
+                    </Badge>
+                  </div>
                 </div>
                 <div className="mt-3 flex flex-col gap-2">
                   {inquiryItems(inquiry.items).map((item: any) => (

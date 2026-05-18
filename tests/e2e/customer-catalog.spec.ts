@@ -183,4 +183,25 @@ test("logs in, browses DB catalogue, opens detail, submits inquiry, and shows pr
     },
   });
   expect(inquiryCount).toBe(1);
+
+  await page.goto("/en/admin/catalog-inquiries");
+  await expect(page.getByText(customerUsername)).toBeVisible();
+  await page.getByLabel("Discount percentage").fill("15");
+  await page.getByRole("button", { name: "Save" }).click();
+  await expect(page.getByText("Inquiry discount updated.")).toBeVisible();
+
+  await page.goto("/customer/profile");
+  await expect(page.getByText("Discount 15%")).toBeVisible();
+
+  const inquiry = await prisma.catalogInquiry.findFirst({
+    where: {
+      customer: {
+        phoneNormalized: customerPhoneNormalized,
+      },
+    },
+    select: {
+      discountPercent: true,
+    },
+  });
+  expect(inquiry?.discountPercent).toBe(15);
 });
