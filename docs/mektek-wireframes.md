@@ -7,7 +7,6 @@ These low-fidelity wireframes document the implemented MekTek MVP screens.
 ```text
 +---------------------------------------------------------------+
 | MEKTEK Dashboard                                              |
-| [Dashboard] [Orders] [WhatsApp]                               |
 +---------------+---------------+---------------+---------------+
 | Open orders   | Due today     | Overdue       | Completed     |
 +---------------+---------------+---------------+---------------+

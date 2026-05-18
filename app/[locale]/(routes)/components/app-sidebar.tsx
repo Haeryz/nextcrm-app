@@ -12,16 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { NavMain } from "./nav-main";
 import { NavUser } from "./nav-user";
-import getDashboardMenuItem from "./menu-items/Dashboard";
-import getCrmMenuItem from "./menu-items/Crm";
-import getProjectsMenuItem from "./menu-items/Projects";
-import getEmailsMenuItem from "./menu-items/Emails";
-import getReportsMenuItem from "./menu-items/Reports";
-import getDocumentsMenuItem from "./menu-items/Documents";
-import getAdministrationMenuItem from "./menu-items/Administration";
-import getCampaignsMenuItem from "./menu-items/Campaigns";
-import getMektekMenuItem from "./menu-items/Mektek";
-import getCustomerMenuItem from "./menu-items/Customer";
+import getMektekMenuItems from "./menu-items/Mektek";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
 
 /**
@@ -31,19 +22,8 @@ import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
  * Implements shadcn/ui sidebar pattern with:
  * - Logo and "N" branding symbol with rotation animation
  * - Build version display in footer (when expanded)
- * - Navigation with Dashboard and module items
+ * - Navigation with Mektek workspace items
  * - Nav-user section in footer for user profile and actions
- *
- * Phase 2 Updates:
- * - Task 2.2: Added Dashboard menu item integration
- * - Task 2.3: Added CRM module navigation (collapsible group with module filtering)
- * - Task 2.4: Added Projects module navigation (simple item with module filtering)
- * - Task 2.5: Added Emails module navigation (simple item with module filtering)
- * - Task 2.6: Added remaining module navigation items (Employees, Reports, Documents, Databox)
- * - Task 2.7: Added Administration menu with role-based visibility (is_admin check)
- * - NavMain component renders all enabled module navigation items
- * - Module filtering ensures only enabled modules appear in navigation
- * - Role-based visibility: Administration only shows for admin users
  *
  * Phase 3 Updates:
  * - Task 3.1: Added NavUser component in SidebarFooter
@@ -94,35 +74,9 @@ export function AppSidebar({
   const { state } = useSidebar();
   const isExpanded = state === "expanded";
 
-  const navItems = [
-    getDashboardMenuItem({ title: dict?.dashboard || "Dashboard" }),
-    getCrmMenuItem({ localizations: dict.crm }),
-    getCampaignsMenuItem({
-      localizations: {
-        title: "Campaigns",
-        campaigns: "All Campaigns",
-        templates: "Templates",
-        targets: "Targets",
-        targetLists: "Target Lists",
-      },
-    }),
-    getProjectsMenuItem({ title: dict?.projects || "Projects" }),
-    getEmailsMenuItem({ title: dict?.emails || "Emails" }),
-    getReportsMenuItem({ title: dict?.reports || "Reports" }),
-    getDocumentsMenuItem({ title: dict?.documents || "Documents" }),
-    getCustomerMenuItem(),
-  ];
-
-  if (canAccessMektekStaffArea(session?.user)) {
-    navItems.push(getMektekMenuItem({ title: "Mektek" }));
-  }
-
-  // Administration: admin users only
-  if (session?.user?.isAdmin) {
-    navItems.push(
-      getAdministrationMenuItem({ title: dict?.settings || "Administration" }),
-    );
-  }
+  const navItems = canAccessMektekStaffArea(session?.user)
+    ? getMektekMenuItems()
+    : [];
 
   // Prepare user data for NavUser component
   const userData = {

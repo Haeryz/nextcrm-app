@@ -5,7 +5,6 @@ import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
 import { getMektekDashboardSummary } from "@/actions/mektek/dashboard";
-import MektekSubNav from "../_components/MektekSubNav";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getStatusMeta } from "../_lib/constants";
@@ -46,8 +45,6 @@ export default async function MektekDashboardPage() {
       description="Operational view of current service work"
     >
       <div className="space-y-6">
-        <MektekSubNav activeTab="dashboard" />
-
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
           {stats.map(({ label, value, icon: Icon }) => (
             <Card key={label}>

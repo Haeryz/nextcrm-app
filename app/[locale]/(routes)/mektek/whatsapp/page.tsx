@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import MektekSubNav from "../_components/MektekSubNav";
 import { QrCode, Smartphone, MessageSquare, CheckCircle2, AlertCircle } from "lucide-react";
 
 const DEFAULT_TEMPLATES = [
@@ -126,8 +125,6 @@ export default function MektekWhatsAppPage() {
       description="Konfigurasi integrasi WhatsApp untuk notifikasi pelanggan"
     >
       <div className="space-y-6">
-        <MektekSubNav activeTab="whatsapp" />
-
         {/* Session status */}
         <Card className="border shadow-sm">
           <CardHeader className="pb-3">

@@ -11,7 +11,6 @@ import NewServiceOrderForm from "./_components/NewServiceOrderForm";
 import { getServerSession } from "@/lib/session";
 import { authOptions } from "@/lib/auth";
 import { calculateProgress, getStatusMeta } from "./_lib/constants";
-import MektekSubNav from "./_components/MektekSubNav";
 import ExcelExportButton from "./_components/ExcelExportButton";
 import {
   canAccessMektekStaffArea,
@@ -83,8 +82,6 @@ export default async function MektekPage({ searchParams }: MektekPageProps) {
       description="Service order tracking — manage and monitor all repair jobs"
     >
       <div className="space-y-6">
-        <MektekSubNav activeTab="orders" />
-
         {canCreate ? (
           <NewServiceOrderForm />
         ) : (

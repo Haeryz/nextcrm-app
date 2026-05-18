@@ -45,6 +45,7 @@ export interface NavItem {
   url?: string
   icon?: LucideIcon
   isActive?: boolean
+  exact?: boolean
   items?: NavSubItem[] // For collapsible groups
 }
 
@@ -133,7 +134,7 @@ export function NavMain({ items, dict }: NavMainProps) {
 
           // Simple navigation item (no sub-items)
           if (!item.url) return null
-          const isActive = isRouteActive(item.url)
+          const isActive = isRouteActive(item.url, item.exact)
           return (
             <SidebarMenuItem key={item.title}>
               <SidebarMenuButton
