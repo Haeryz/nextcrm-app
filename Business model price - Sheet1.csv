@@ -1,0 +1,33 @@
+No,Fitur / Modul,Output,Volume,Satuan,Biaya (Rp),Catatan,Status Implementasi,Catatan Implementasi
+1,Perencanaan & UI/UX,Wireframe & tampilan sistem,1,Paket,450,,Implemented,Wireframe terdokumentasi di docs/mektek-wireframes.md dan tampilan sistem sudah tersedia
+2,Setup Project & Arsitektur,"Setup aplikasi, database, dan struktur sistem",1,Paket,350,,Implemented,Next.js app; Prisma; struktur modul; Dockerfile dan docker-compose sudah ada
+3,Autentikasi,"Login admin, CS, teknisi, dan customer",1,Paket,450,,Implemented,Role MekTek untuk admin; CS; teknisi; serta sesi customer sudah tersedia dan dibatasi sesuai hak akses
+4,Dashboard Admin,Statistik dan ringkasan operasional,1,Paket,450,,Implemented,Dashboard operasional khusus MekTek sudah tersedia dengan ringkasan order; pembayaran; dan progres servis
+5,Manajemen Customer,Data customer dan histori servis,1,Paket,400,,Implemented,Customer profile; admin customer view; dan histori servis tertaut sudah ada
+6,Sistem Membership & Diskon,Diskon berdasarkan frekuensi servis,1,Paket,350,,Partial,Tier diskon dan UI loyalitas ada; belum terhubung otomatis ke jumlah kunjungan/transaksi
+7,Input Kerusakan AC,Form input kerusakan dari CS,1,Paket,450,,Implemented,Form intake admin dengan damage items; qty; estimasi biaya; dan katalog sparepart sudah ada
+8,Sistem Servis,Tracking status servis dari waiting sampai done,1,Paket,850,,Implemented,Status PENDING/ACTIVE/COMPLETE; timeline; progress; dan halaman tracking customer sudah ada
+9,Estimasi Teknisi,Estimasi biaya dan waktu pengerjaan,1,Paket,350,,Partial,Estimasi biaya item dan ETA ada; assignment teknisi masih placeholder UI
+10,Unique ID Order,ID unik setiap transaksi,1,Paket,200,,Implemented,UUID order; customer code; dan short tracking link sudah ada
+11,Katalog Sparepart,Daftar sparepart,1,Paket,450,,Implemented,CatalogItem di database; katalog customer; dan pencarian sparepart sudah ada
+12,Manajemen Sparepart,"Stok, harga, dan kategori sparepart",1,Paket,250,Harga tidak ada data,Partial,Data katalog punya harga/quantity; belum ada workflow CRUD stok penuh dan sebagian harga kosong
+13,Pemisahan Servis & Sparepart,Data servis dan sparepart dibuat terpisah,1,Paket,250,,Implemented,Item servis dan sparepart dipisah pada order; katalog dan input manual sparepart tersedia; order lama tetap dibaca kompatibel
+,,,,,,,,
+15,Sistem Pembayaran,Pembayaran cash dan transfer,1,Paket,400,,Implemented,Cash; transfer; QRIS; amount paid; dan status paid/partial/unpaid sudah ada
+16,Invoice & Print Struk,Generate dan cetak struk,1,Paket,350,,Implemented,Generate invoice dan struk PDF sudah ada
+17,Notifikasi Real-time,Update status di website,1,Paket,300,,Implemented,Halaman tracking customer menerima update live via SSE saat status atau timeline berubah
+18,Integrasi WhatsApp Email,Notifikasi status ke customer,1,Paket,550,Notifikasi email dan wa jadi satu,Partial,WhatsApp create/complete sudah ada; notifikasi email khusus MekTek belum ada
+,,,,,,,,
+20,Export Data ke Excel,"Export data customer, servis, dan pembayaran",1,Paket,300,,Partial,Export Excel hanya untuk daftar service order aktif; belum mencakup customer dan pembayaran terpisah
+21,Cloud Data Backup,Backup data sistem,1,Paket,250,,Partial,Script backup database lokal ada; otomasi cloud backup belum terlihat
+,,,,,,,,
+,,,,,,,,
+,,,,,,,,
+25,Keamanan Sistem,"Validasi, proteksi halaman, dan proteksi data",1,Paket,250,,Partial,Validasi server; guard admin; dan token customer ada; hardening penuh belum dapat dibuktikan dari repo
+26,Deployment & Infrastruktur,"Deploy aplikasi, domain, hosting, dan SSL",1,Paket,400,,Partial,Dockerfile dan docker-compose ada; domain; hosting; dan SSL belum terbukti dari repo
+27,QA & 10.000.000 Testing,Pengujian fitur utama sistem,1,Paket,250,,Partial,Test suite ada; coverage otomatis khusus workflow MekTek masih minim
+28,Portal Tracking Customer,Link privat untuk melihat status servis,,,,Belum tercantum di RAB,Implemented,Halaman service-status dan short link /s/[code] sudah ada
+29,Katalog Customer & Inquiry,Customer dapat melihat katalog dan mengirim inquiry,,,,Belum tercantum di RAB,Implemented,Customer mode; katalog; inquiry; dan halaman admin inquiry sudah ada
+30,QRIS & Partial Payment,Metode QRIS dan pembayaran sebagian,,,,Belum tercantum di RAB,Implemented,Metode QRIS serta status paid/partial/unpaid sudah ada
+31,Short Tracking URL,URL pendek customer tracking,,,,Belum tercantum di RAB,Implemented,Customer code dan route /s/[code] sudah ada
+Total,Total RAB Web Apps MekTek,,,,8300,,,

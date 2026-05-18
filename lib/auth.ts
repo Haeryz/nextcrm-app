@@ -109,6 +109,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.isAdmin = user.is_admin ?? false;
+        token.mektekRole = user.mektekRole ?? null;
       }
       return token;
     },
@@ -146,6 +147,7 @@ export const authOptions: NextAuthOptions = {
           session.user.avatar = newUser.avatar;
           session.user.image = newUser.avatar;
           session.user.isAdmin = false;
+          session.user.mektekRole = null;
           session.user.userLanguage = newUser.userLanguage;
           session.user.userStatus = newUser.userStatus;
           session.user.lastLoginAt = newUser.lastLoginAt;
@@ -169,6 +171,7 @@ export const authOptions: NextAuthOptions = {
         session.user.avatar = user.avatar;
         session.user.image = user.avatar;
         session.user.isAdmin = user.is_admin;
+        session.user.mektekRole = user.mektekRole;
         session.user.userLanguage = user.userLanguage;
         session.user.userStatus = user.userStatus;
         session.user.lastLoginAt = user.lastLoginAt;

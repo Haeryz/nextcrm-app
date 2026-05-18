@@ -18,6 +18,14 @@ import PaymentCard from "../_components/PaymentCard";
 import WhatsAppComposer from "../_components/WhatsAppComposer";
 import InvoiceActions from "../_components/InvoiceActions";
 import { buildMektekInvoiceData } from "@/actions/mektek/invoice-pdf";
+import { normalizeMektekLineItems } from "@/lib/mektek/items";
+import VisitDiscountCard from "../_components/VisitDiscountCard";
+import {
+  canAccessMektekStaffArea,
+  canManageMektekPayments,
+  canUpdateMektekProgress,
+  canUseMektekCustomerTools,
+} from "@/lib/mektek/permissions";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -37,7 +45,21 @@ function valueOrDash(value?: string | null) {
 export default async function MektekDetailPage({ params }: Props) {
   const { id } = await params;
   const session = await getServerSession(authOptions);
-  const isAdmin = !!session?.user?.isAdmin;
+  const canAccess = canAccessMektekStaffArea(session?.user);
+  const canUpdateProgress = canUpdateMektekProgress(session?.user);
+  const canUseCustomerTools = canUseMektekCustomerTools(session?.user);
+  const canManagePayment = canManageMektekPayments(session?.user);
+  if (!canAccess) {
+    return (
+      <Container title="Service Order" description="Restricted MekTek workspace">
+        <Card>
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            You do not have access to this MekTek service order.
+          </CardContent>
+        </Card>
+      </Container>
+    );
+  }
   const order = await getMektekServiceOrderById(id);
 
   if (!order) notFound();
@@ -96,9 +118,12 @@ export default async function MektekDetailPage({ params }: Props) {
   const progress = calculateProgress(timelineFromTags, order.taskStatus);
   const statusMeta = getStatusMeta(order.taskStatus);
   const invoiceData = buildMektekInvoiceData(order);
+  const normalizedItems = normalizeMektekLineItems(tags, order.content);
   const paymentMethod = ["cash", "transfer", "qris"].includes(invoiceData.payment.method)
     ? (invoiceData.payment.method as "cash" | "transfer" | "qris")
     : "cash";
+  const completedVisitCount =
+    typeof tags.completedVisitCount === "number" ? tags.completedVisitCount : 0;
 
   return (
     <Container
@@ -190,10 +215,74 @@ export default async function MektekDetailPage({ params }: Props) {
 
             <Card className="border shadow-sm">
               <CardHeader className="pb-3">
+                <CardTitle className="text-base">Service & Sparepart</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="rounded-lg border p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold">Service Items</p>
+                      <Badge variant="secondary">
+                        {normalizedItems.serviceItems.length}
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      {normalizedItems.serviceItems.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No service items.</p>
+                      ) : (
+                        normalizedItems.serviceItems.map((item, index) => (
+                          <div key={`${item.name}-${index}`} className="text-sm">
+                            <p className="font-medium">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.quantity} x {item.unitPrice.toLocaleString("id-ID")} IDR
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <p className="mt-3 border-t pt-3 text-sm font-semibold">
+                      Subtotal: {normalizedItems.serviceSubtotal.toLocaleString("id-ID")} IDR
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border p-4">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <p className="text-sm font-semibold">Sparepart Items</p>
+                      <Badge variant="secondary">
+                        {normalizedItems.sparepartItems.length}
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      {normalizedItems.sparepartItems.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No sparepart items.</p>
+                      ) : (
+                        normalizedItems.sparepartItems.map((item, index) => (
+                          <div key={`${item.name}-${index}`} className="text-sm">
+                            <p className="font-medium">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.quantity} x {item.unitPrice.toLocaleString("id-ID")} IDR
+                              {item.catalogPartNumber || item.partNumber
+                                ? ` · ${item.catalogPartNumber || item.partNumber}`
+                                : ""}
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <p className="mt-3 border-t pt-3 text-sm font-semibold">
+                      Subtotal: {normalizedItems.sparepartSubtotal.toLocaleString("id-ID")} IDR
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-sm">
+              <CardHeader className="pb-3">
                 <CardTitle className="text-base">Work Timeline</CardTitle>
               </CardHeader>
               <CardContent className="space-y-5">
-                {isAdmin && <AddTimelineEntryForm serviceOrderId={order.id} />}
+                {canUpdateProgress && <AddTimelineEntryForm serviceOrderId={order.id} />}
 
                 <div className="space-y-3">
                   {timeline.map((timelineItem) => (
@@ -254,11 +343,13 @@ export default async function MektekDetailPage({ params }: Props) {
           </div>
 
           <aside className="space-y-6">
-            {isAdmin && customerTrackingLink && (
+            <VisitDiscountCard visitCount={completedVisitCount} />
+
+            {canUseCustomerTools && customerTrackingLink && (
               <CustomerTrackingLinkCard link={customerTrackingLink} />
             )}
 
-            {isAdmin && (
+            {canUpdateProgress && (
               <Card className="border shadow-sm">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Status</CardTitle>
@@ -272,33 +363,38 @@ export default async function MektekDetailPage({ params }: Props) {
               </Card>
             )}
 
-            <Tabs defaultValue="payment" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="payment">Payment</TabsTrigger>
-                <TabsTrigger value="docs">Docs</TabsTrigger>
-                <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
-              </TabsList>
-              <TabsContent value="payment" className="mt-0">
-                <PaymentCard
-                  serviceOrderId={order.id}
-                  subtotal={invoiceData.financials.subtotal}
-                  initialDiscount={invoiceData.financials.discount}
-                  initialTax={invoiceData.financials.tax}
-                  initialAmountPaid={invoiceData.financials.amountPaid}
-                  initialMethod={paymentMethod}
-                />
-              </TabsContent>
-              <TabsContent value="docs" className="mt-0">
-                <InvoiceActions serviceOrderId={order.id} />
-              </TabsContent>
-              <TabsContent value="whatsapp" className="mt-0">
-                <WhatsAppComposer
-                  phone={phone ?? ""}
-                  customerName={customerName}
-                  trackingLink={customerTrackingLink ?? ""}
-                />
-              </TabsContent>
-            </Tabs>
+            {(canManagePayment || canUseCustomerTools) && (
+              <Tabs defaultValue={canManagePayment ? "payment" : "docs"} className="space-y-4">
+                <TabsList className={`grid w-full ${canManagePayment ? "grid-cols-3" : "grid-cols-2"}`}>
+                  {canManagePayment && <TabsTrigger value="payment">Payment</TabsTrigger>}
+                  <TabsTrigger value="docs">Docs</TabsTrigger>
+                  <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+                </TabsList>
+                {canManagePayment && (
+                  <TabsContent value="payment" className="mt-0">
+                    <PaymentCard
+                      serviceOrderId={order.id}
+                      serviceSubtotal={invoiceData.financials.serviceSubtotal}
+                      sparepartSubtotal={invoiceData.financials.sparepartSubtotal}
+                      initialDiscount={invoiceData.financials.discount}
+                      initialTax={invoiceData.financials.tax}
+                      initialAmountPaid={invoiceData.financials.amountPaid}
+                      initialMethod={paymentMethod}
+                    />
+                  </TabsContent>
+                )}
+                <TabsContent value="docs" className="mt-0">
+                  <InvoiceActions serviceOrderId={order.id} />
+                </TabsContent>
+                <TabsContent value="whatsapp" className="mt-0">
+                  <WhatsAppComposer
+                    phone={phone ?? ""}
+                    customerName={customerName}
+                    trackingLink={customerTrackingLink ?? ""}
+                  />
+                </TabsContent>
+              </Tabs>
+            )}
           </aside>
         </div>
       </div>

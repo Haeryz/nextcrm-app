@@ -29,6 +29,7 @@ type SessionUserLike = {
   userLanguage: string;
   userStatus: string;
   is_admin: boolean;
+  mektekRole: "CS" | "TECHNICIAN" | null;
 };
 
 function toSession(user: SessionUserLike): Session {
@@ -43,6 +44,7 @@ function toSession(user: SessionUserLike): Session {
       avatar: user.avatar ?? undefined,
       // No-auth mode intentionally bypasses role/status checks.
       isAdmin: true,
+      mektekRole: user.mektekRole,
       userLanguage: user.userLanguage || "en",
       userStatus: "ACTIVE",
     },
@@ -64,6 +66,7 @@ function normalizeSession(session: Session): Session {
       image: user.image,
       avatar: user.avatar || user.image,
       isAdmin: true,
+      mektekRole: user.mektekRole ?? null,
       userLanguage: user.userLanguage || GUEST_USER_LANGUAGE,
       userStatus: "ACTIVE",
     },
@@ -84,6 +87,7 @@ async function getFallbackUser(): Promise<SessionUserLike> {
       userLanguage: true,
       userStatus: true,
       is_admin: true,
+      mektekRole: true,
     },
   });
 
@@ -102,6 +106,7 @@ async function getFallbackUser(): Promise<SessionUserLike> {
     update: {
       name: GUEST_USER_NAME,
       is_admin: true,
+      mektekRole: null,
       is_account_admin: true,
       userStatus: "ACTIVE",
       userLanguage: GUEST_USER_LANGUAGE as any,
@@ -112,6 +117,7 @@ async function getFallbackUser(): Promise<SessionUserLike> {
       email: GUEST_USER_EMAIL,
       name: GUEST_USER_NAME,
       is_admin: true,
+      mektekRole: null,
       is_account_admin: true,
       userStatus: "ACTIVE",
       userLanguage: GUEST_USER_LANGUAGE as any,
@@ -125,6 +131,7 @@ async function getFallbackUser(): Promise<SessionUserLike> {
       userLanguage: true,
       userStatus: true,
       is_admin: true,
+      mektekRole: true,
     },
   });
 
@@ -164,6 +171,7 @@ export async function getServerSession(
       userLanguage: GUEST_USER_LANGUAGE,
       userStatus: "ACTIVE",
       is_admin: true,
+      mektekRole: null,
     });
   }
 }

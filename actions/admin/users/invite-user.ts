@@ -13,11 +13,12 @@ export const inviteUser = async (data: {
   name: string;
   email: string;
   language: string;
+  mektekRole?: "CS" | "TECHNICIAN" | null;
 }) => {
   const session = await getServerSession(authOptions);
   if (!session) return { error: "Unauthorized" };
 
-  const { name, email, language } = data;
+  const { name, email, language, mektekRole = null } = data;
 
   if (!name || !email || !language) {
     return { error: "Name, Email, and Language is required!" };
@@ -62,6 +63,7 @@ export const inviteUser = async (data: {
         account_name: "",
         is_account_admin: false,
         is_admin: false,
+        mektekRole,
         email,
         userStatus: "ACTIVE",
         userLanguage: language as Language,

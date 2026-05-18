@@ -14,11 +14,13 @@ export default function NewServiceOrderForm() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [trackingLink, setTrackingLink] = useState("");
+  const [loyaltySummary, setLoyaltySummary] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [vehicle, setVehicle] = useState("");
-  const [damageItems, setDamageItems] = useState<DamageItem[]>([
+  const [serviceItems, setServiceItems] = useState<DamageItem[]>([
     { description: "", estimatedCost: "", quantity: 1 },
   ]);
+  const [sparepartItems, setSparepartItems] = useState<DamageItem[]>([]);
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [estimatedDone, setEstimatedDone] = useState("");
@@ -27,7 +29,7 @@ export default function NewServiceOrderForm() {
     event.preventDefault();
 
     startTransition(async () => {
-      const complaint = damageItems
+      const complaint = serviceItems
         .filter((item) => item.description.trim())
         .map((item) =>
           [
@@ -50,7 +52,8 @@ export default function NewServiceOrderForm() {
         phone,
         address,
         estimatedDone,
-        damageItems,
+        serviceItems,
+        sparepartItems,
       });
 
       if (result?.error) {
@@ -60,9 +63,22 @@ export default function NewServiceOrderForm() {
 
       toast.success("Service order created");
       setTrackingLink(result?.data?.customerTrackingLink || "");
+      const tags =
+        result?.data?.tags && typeof result.data.tags === "object"
+          ? (result.data.tags as Record<string, unknown>)
+          : {};
+      const loyaltyTier = typeof tags.loyaltyTier === "string" ? tags.loyaltyTier : "";
+      const loyaltyDiscountRate =
+        typeof tags.loyaltyDiscountRate === "number" ? tags.loyaltyDiscountRate : 0;
+      setLoyaltySummary(
+        loyaltyTier && loyaltyDiscountRate > 0
+          ? `${loyaltyTier} discount applied automatically: ${loyaltyDiscountRate}%`
+          : ""
+      );
       setCustomerName("");
       setVehicle("");
-      setDamageItems([{ description: "", estimatedCost: "", quantity: 1 }]);
+      setServiceItems([{ description: "", estimatedCost: "", quantity: 1 }]);
+      setSparepartItems([]);
       setPhone("");
       setAddress("");
       setEstimatedDone("");
@@ -71,7 +87,7 @@ export default function NewServiceOrderForm() {
   };
 
   const addCatalogItem = (item: DamageItem) => {
-    setDamageItems((current) => {
+    setSparepartItems((current) => {
       const existingIndex = current.findIndex(
         (row) => row.catalogItemId && row.catalogItemId === item.catalogItemId
       );
@@ -158,8 +174,19 @@ export default function NewServiceOrderForm() {
           onAddItem={addCatalogItem}
         />
         <DamageItemsInput
-          items={damageItems}
-          onChange={setDamageItems}
+          items={serviceItems}
+          onChange={setServiceItems}
+          disabled={isPending}
+        />
+        <DamageItemsInput
+          items={sparepartItems}
+          onChange={setSparepartItems}
+          label="Sparepart Items"
+          addLabel="Tambah sparepart"
+          emptyMessage='Belum ada sparepart. Tambahkan dari katalog atau klik "Tambah sparepart".'
+          descriptionPlaceholder={(index) =>
+            `Sparepart #${index + 1} (contoh: filter oli)`
+          }
           disabled={isPending}
         />
         </div>
@@ -174,6 +201,9 @@ export default function NewServiceOrderForm() {
       {trackingLink && (
         <div className="rounded-xl border p-4 bg-muted/20">
           <p className="text-sm font-medium mb-2">Customer tracking link</p>
+          {loyaltySummary && (
+            <p className="mb-2 text-sm text-muted-foreground">{loyaltySummary}</p>
+          )}
           <div className="flex flex-col md:flex-row gap-2">
             <Input value={trackingLink} readOnly />
             <Button type="button" onClick={copyLink}>

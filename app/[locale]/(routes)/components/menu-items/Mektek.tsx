@@ -10,6 +10,7 @@ const getMektekMenuItem = ({ title }: Props): NavItem => {
     title,
     icon: Wrench,
     items: [
+      { title: "Dashboard", url: "/mektek/dashboard" },
       { title: "Orders", url: "/mektek", exact: true },
       { title: "WhatsApp", url: "/mektek/whatsapp" },
     ],

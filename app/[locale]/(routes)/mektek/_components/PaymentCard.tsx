@@ -14,7 +14,8 @@ type PaymentMethod = "cash" | "transfer" | "qris";
 
 type PaymentCardProps = {
   serviceOrderId: string;
-  subtotal: number;
+  serviceSubtotal: number;
+  sparepartSubtotal: number;
   initialDiscount: number;
   initialTax: number;
   initialAmountPaid: number;
@@ -33,7 +34,8 @@ const parseMoney = (value: string) => Number(value.replace(/\D/g, "")) || 0;
 
 export default function PaymentCard({
   serviceOrderId,
-  subtotal,
+  serviceSubtotal,
+  sparepartSubtotal,
   initialDiscount,
   initialTax,
   initialAmountPaid,
@@ -55,12 +57,13 @@ export default function PaymentCard({
     const discountAmount = parseMoney(discount);
     const taxAmount = parseMoney(tax);
     const paidAmount = parseMoney(amountPaid);
+    const subtotal = serviceSubtotal + sparepartSubtotal;
     const total = Math.max(0, subtotal - discountAmount + taxAmount);
     const paid = Math.min(paidAmount, total);
     const remaining = Math.max(0, total - paid);
     const status = total > 0 && remaining === 0 ? "paid" : paid > 0 ? "partial" : "unpaid";
     return { discountAmount, taxAmount, total, paid, remaining, status };
-  }, [amountPaid, discount, subtotal, tax]);
+  }, [amountPaid, discount, serviceSubtotal, sparepartSubtotal, tax]);
 
   const updateNumber = (setter: (value: string) => void) => (value: string) => {
     setter(value.replace(/\D/g, ""));
@@ -175,10 +178,14 @@ export default function PaymentCard({
         </div>
 
         <div className="rounded-lg border bg-muted/20 p-3">
-          <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
             <div>
               <p className="text-xs text-muted-foreground">Subtotal servis</p>
-              <p className="font-semibold">{formatCurrency(subtotal)}</p>
+              <p className="font-semibold">{formatCurrency(serviceSubtotal)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Subtotal sparepart</p>
+              <p className="font-semibold">{formatCurrency(sparepartSubtotal)}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Total tagihan</p>

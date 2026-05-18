@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import * as XLSX from "xlsx";
+import { normalizeMektekLineItems } from "@/lib/mektek/items";
 
 interface ServiceOrder {
   id: string;
@@ -12,6 +13,7 @@ interface ServiceOrder {
   dueDateAt?: Date | null;
   createdAt?: Date | null;
   updatedAt?: Date | null;
+  content?: string | null;
   tags?: unknown;
   crm_accounts?: { name?: string | null; office_phone?: string | null } | null;
 }
@@ -38,6 +40,7 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
           order.tags && typeof order.tags === "object" && !Array.isArray(order.tags)
             ? (order.tags as Record<string, unknown>)
             : {};
+        const normalizedItems = normalizeMektekLineItems(tags, order.content);
 
         return {
           ID: order.id,
@@ -63,6 +66,10 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
             ? new Date(order.updatedAt).toLocaleDateString("id-ID")
             : "",
           "Jumlah Timeline": Array.isArray(tags.timeline) ? tags.timeline.length : 0,
+          "Jumlah Item Servis": normalizedItems.serviceItems.length,
+          "Jumlah Sparepart": normalizedItems.sparepartItems.length,
+          "Subtotal Servis": normalizedItems.serviceSubtotal,
+          "Subtotal Sparepart": normalizedItems.sparepartSubtotal,
         };
       });
 
@@ -73,7 +80,8 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
       const colWidths = [
         { wch: 36 }, { wch: 24 }, { wch: 22 }, { wch: 18 },
         { wch: 30 }, { wch: 12 }, { wch: 30 }, { wch: 18 },
-        { wch: 18 }, { wch: 18 }, { wch: 16 },
+        { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 18 },
+        { wch: 18 }, { wch: 18 }, { wch: 20 },
       ];
       worksheet["!cols"] = colWidths;
 

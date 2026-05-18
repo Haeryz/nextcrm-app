@@ -84,6 +84,15 @@ export const columns: ColumnDef<AdminUser>[] = [
     enableSorting: true,
     enableHiding: true,
   },
+  {
+    accessorKey: "mektekRole",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="MekTek role" />
+    ),
+    cell: ({ row }) => <div>{row.original.mektekRole ?? "-"}</div>,
+    enableSorting: true,
+    enableHiding: true,
+  },
 
   {
     accessorKey: "userStatus",

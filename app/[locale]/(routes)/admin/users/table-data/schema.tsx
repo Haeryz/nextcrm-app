@@ -8,6 +8,7 @@ export const adminUserSchema = z.object({
   created_on: z.date(),
   lastLoginAt: z.date().nullable().optional(),
   is_admin: z.boolean(),
+  mektekRole: z.enum(["CS", "TECHNICIAN"]).nullable().optional(),
   name: z.string().nullable().optional(),
   email: z.string(),
   userStatus: z.string(),

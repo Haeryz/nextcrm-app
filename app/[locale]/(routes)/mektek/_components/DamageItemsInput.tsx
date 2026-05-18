@@ -18,12 +18,21 @@ export type DamageItem = {
 interface DamageItemsInputProps {
   items: DamageItem[];
   onChange: (items: DamageItem[]) => void;
+  label?: string;
+  addLabel?: string;
+  emptyMessage?: string;
+  descriptionPlaceholder?: (index: number) => string;
   disabled?: boolean;
 }
 
 export default function DamageItemsInput({
   items,
   onChange,
+  label = "Service Items",
+  addLabel = "Tambah item",
+  emptyMessage = "Belum ada item servis. Klik \"Tambah item\" untuk menambah.",
+  descriptionPlaceholder = (index) =>
+    `Kerusakan #${index + 1} (contoh: mesin susah menyala)`,
   disabled,
 }: DamageItemsInputProps) {
   const addItem = () => {
@@ -48,7 +57,7 @@ export default function DamageItemsInput({
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground uppercase tracking-wide">
-          Service Items
+          {label}
         </p>
         <Button
           type="button"
@@ -58,13 +67,13 @@ export default function DamageItemsInput({
           disabled={disabled}
         >
           <Plus className="w-3 h-3 mr-1" />
-          Tambah item
+          {addLabel}
         </Button>
       </div>
 
       {items.length === 0 && (
         <p className="text-xs text-muted-foreground italic py-2">
-          Belum ada item servis. Klik &ldquo;Tambah item&rdquo; untuk menambah.
+          {emptyMessage}
         </p>
       )}
 
@@ -82,7 +91,7 @@ export default function DamageItemsInput({
             )}
             <div className="flex flex-col gap-2 md:flex-row md:items-start">
               <Input
-                placeholder={`Kerusakan #${index + 1} (contoh: mesin susah menyala)`}
+                placeholder={descriptionPlaceholder(index)}
                 value={item.description}
                 onChange={(e) => updateItem(index, "description", e.target.value)}
                 disabled={disabled}

@@ -13,6 +13,10 @@ import { authOptions } from "@/lib/auth";
 import { calculateProgress, getStatusMeta } from "./_lib/constants";
 import MektekSubNav from "./_components/MektekSubNav";
 import ExcelExportButton from "./_components/ExcelExportButton";
+import {
+  canAccessMektekStaffArea,
+  canCreateMektekOrders,
+} from "@/lib/mektek/permissions";
 
 interface MektekPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -41,7 +45,19 @@ function buildPageHref(params: {
 
 export default async function MektekPage({ searchParams }: MektekPageProps) {
   const session = await getServerSession(authOptions);
-  const isAdmin = !!session?.user?.isAdmin;
+  const canAccess = canAccessMektekStaffArea(session?.user);
+  const canCreate = canCreateMektekOrders(session?.user);
+  if (!canAccess) {
+    return (
+      <Container title="MEKTEK" description="Service order tracking">
+        <Card className="border">
+          <CardContent className="p-6 text-sm text-muted-foreground">
+            You do not have access to the MekTek staff workspace.
+          </CardContent>
+        </Card>
+      </Container>
+    );
+  }
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const currentPage = Math.max(Number(readSearchParam(resolvedSearchParams, "page")) || 1, 1);
   const dateFrom = readSearchParam(resolvedSearchParams, "dateFrom");
@@ -69,12 +85,12 @@ export default async function MektekPage({ searchParams }: MektekPageProps) {
       <div className="space-y-6">
         <MektekSubNav activeTab="orders" />
 
-        {isAdmin ? (
+        {canCreate ? (
           <NewServiceOrderForm />
         ) : (
           <Card className="border">
             <CardContent className="p-4 text-sm text-muted-foreground">
-              Only admin can add new service records.
+              Only MekTek admin or CS can add new service records.
             </CardContent>
           </Card>
         )}

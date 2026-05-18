@@ -36,6 +36,7 @@ const FormSchema = z.object({
       message: "Please select a user language.",
     })
     .min(2),
+  mektekRole: z.enum(["NONE", "CS", "TECHNICIAN"]),
 });
 
 export function InviteForm() {
@@ -47,12 +48,18 @@ export function InviteForm() {
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
+    defaultValues: {
+      mektekRole: "NONE",
+    },
   });
 
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     setIsLoading(true);
     try {
-      const result = await inviteUser(data);
+      const result = await inviteUser({
+        ...data,
+        mektekRole: data.mektekRole === "NONE" ? null : data.mektekRole,
+      });
 
       if (result.error) {
         toast.error(result.error);
@@ -66,6 +73,7 @@ export function InviteForm() {
         name: "",
         email: "",
         language: "en",
+        mektekRole: "NONE",
       });
       router.refresh();
       setIsLoading(false);
@@ -123,6 +131,28 @@ export function InviteForm() {
                 <SelectContent>
                   <SelectItem value="en">English</SelectItem>
                   <SelectItem value="cz">Czech</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="mektekRole"
+          render={({ field }) => (
+            <FormItem className="w-[220px]">
+              <FormLabel>MekTek role</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="NONE">None</SelectItem>
+                  <SelectItem value="CS">CS</SelectItem>
+                  <SelectItem value="TECHNICIAN">Technician</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />

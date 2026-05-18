@@ -11,6 +11,18 @@ import {
   notifyMektekOrderCompleted,
   notifyMektekOrderCreated,
 } from "@/actions/mektek/whatsapp-notifications";
+import {
+  buildMektekStoredItems,
+  normalizeMektekLineItems,
+  type MektekLineItemInput,
+} from "@/lib/mektek/items";
+import {
+  canCreateMektekOrders,
+  canManageMektekPayments,
+  canUpdateMektekProgress,
+  canUseMektekCustomerTools,
+} from "@/lib/mektek/permissions";
+import { calculateMektekDiscountAmount } from "@/lib/mektek/loyalty";
 
 const MEKTEK_TITLE_PREFIX = "MEKTEK Service -";
 const LEGACY_MEKTEK_TITLE_PREFIX = "MEKTEK AC -";
@@ -59,51 +71,9 @@ type CreateMektekServiceOrderInput = {
   phone?: string;
   address?: string;
   estimatedDone?: string;
-  damageItems?: {
-    description?: string;
-    estimatedCost?: string;
-    quantity?: number;
-    catalogItemId?: string;
-    machine?: string;
-    partNumber?: string;
-    catalogPartNumber?: string;
-  }[];
+  serviceItems?: MektekLineItemInput[];
+  sparepartItems?: MektekLineItemInput[];
 };
-
-const buildInvoiceItems = (damageItems?: CreateMektekServiceOrderInput["damageItems"]) =>
-  (Array.isArray(damageItems) ? damageItems : [])
-    .map((item) => {
-      const name = String(item?.description ?? "").trim();
-      if (!name) return null;
-      const unitPrice = parseMoney(item?.estimatedCost);
-      const quantity = Math.max(1, Math.floor(Number(item?.quantity) || 1));
-      return {
-        catalogItemId: item?.catalogItemId || null,
-        name,
-        machine: item?.machine || null,
-        partNumber: item?.partNumber || null,
-        catalogPartNumber: item?.catalogPartNumber || null,
-        quantity,
-        unit: "JOB",
-        unitPrice,
-        total: unitPrice * quantity,
-      };
-    })
-    .filter(
-      (
-        item
-      ): item is {
-        catalogItemId: string | null;
-        name: string;
-        machine: string | null;
-        partNumber: string | null;
-        catalogPartNumber: string | null;
-        quantity: number;
-        unit: string;
-        unitPrice: number;
-        total: number;
-      } => !!item
-    );
 
 const parseTimeline = (tags: unknown): MektekTimelineEntry[] => {
   const tagsObject = parseTagsObject(tags);
@@ -165,8 +135,8 @@ export const createMektekServiceOrder = async (
   if (!session?.user?.id) {
     return { error: "Unauthorized" };
   }
-  if (!session.user.isAdmin) {
-    return { error: "Forbidden: only admin can create service orders" };
+  if (!canCreateMektekOrders(session.user)) {
+    return { error: "Forbidden: only MekTek admin or CS can create service orders" };
   }
 
   const customerName = String(input?.customerName ?? "").trim();
@@ -195,7 +165,8 @@ export const createMektekServiceOrder = async (
 
   const customerToken = crypto.randomBytes(20).toString("hex");
   const customerCode = createCustomerCode();
-  const invoiceItems = buildInvoiceItems(input?.damageItems);
+  const serviceItems = buildMektekStoredItems(input?.serviceItems, "service");
+  const sparepartItems = buildMektekStoredItems(input?.sparepartItems, "sparepart");
   const locale = session.user.userLanguage || "en";
 
   try {
@@ -216,6 +187,22 @@ export const createMektekServiceOrder = async (
           id: true,
         },
       });
+      const completedVisitCount = await tx.catalogServiceLink.count({
+        where: {
+          customerId: catalogCustomer.id,
+          serviceOrder: {
+            taskStatus: "COMPLETE",
+          },
+        },
+      });
+      const subtotal = normalizeMektekLineItems(
+        {
+          serviceItems,
+          sparepartItems,
+        },
+        complaint
+      ).subtotal;
+      const loyalty = calculateMektekDiscountAmount(subtotal, completedVisitCount);
 
       const serviceOrder = await tx.crm_Accounts_Tasks.create({
         data: {
@@ -239,8 +226,12 @@ export const createMektekServiceOrder = async (
             phoneNormalized,
             address: address || null,
             catalogCustomerId: catalogCustomer.id,
-            items: invoiceItems,
-            discount: 0,
+            completedVisitCount,
+            loyaltyTier: loyalty.tier?.label ?? null,
+            loyaltyDiscountRate: loyalty.discountRate,
+            serviceItems,
+            sparepartItems,
+            discount: loyalty.discountAmount,
             tax: 0,
             payment: {
               method: "cash",
@@ -349,8 +340,8 @@ export const searchMektekCatalogItems = async (query: string) => {
   if (!session?.user?.id) {
     return { error: "Unauthorized" };
   }
-  if (!session.user.isAdmin) {
-    return { error: "Forbidden: only admin can search catalog items" };
+  if (!canCreateMektekOrders(session.user)) {
+    return { error: "Forbidden: only MekTek admin or CS can search catalog items" };
   }
 
   const search = String(query ?? "").trim();
@@ -567,7 +558,9 @@ export const addMektekTimelineEntry = async (data: {
 }) => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized" };
-  if (!session.user.isAdmin) return { error: "Forbidden: only admin can update timeline" };
+  if (!canUpdateMektekProgress(session.user)) {
+    return { error: "Forbidden: only MekTek admin or technician can update timeline" };
+  }
 
   const serviceOrderId = String(data?.serviceOrderId ?? "").trim();
   const description = String(data?.description ?? "").trim();
@@ -630,7 +623,9 @@ export const updateMektekServiceOrderStatus = async (input: {
 }) => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized" };
-  if (!session.user.isAdmin) return { error: "Forbidden: only admin can change order status" };
+  if (!canUpdateMektekProgress(session.user)) {
+    return { error: "Forbidden: only MekTek admin or technician can change order status" };
+  }
 
   const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
   const newStatus = input?.newStatus;
@@ -743,7 +738,9 @@ export const updateMektekPayment = async (input: {
 }) => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized" };
-  if (!session.user.isAdmin) return { error: "Forbidden: only admin can update payment" };
+  if (!canManageMektekPayments(session.user)) {
+    return { error: "Forbidden: only admin can update payment" };
+  }
 
   const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
   if (!serviceOrderId) return { error: "Service order ID is required" };
@@ -754,21 +751,13 @@ export const updateMektekPayment = async (input: {
   try {
     const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
       where: { id: serviceOrderId, ...mektekOrderWhere() },
-      select: { id: true, tags: true },
+      select: { id: true, tags: true, content: true },
     });
 
     if (!serviceOrder) return { error: "Service order not found" };
 
     const tags = parseTagsObject(serviceOrder.tags);
-    const items = Array.isArray(tags.items) ? tags.items : [];
-    const subtotal = items.reduce((sum, item) => {
-      if (!item || typeof item !== "object" || Array.isArray(item)) return sum;
-      const row = item as Record<string, unknown>;
-      const total = parseMoney(row.total);
-      const unitPrice = parseMoney(row.unitPrice);
-      const quantity = Number(row.quantity ?? 1) || 1;
-      return sum + (total || unitPrice * quantity);
-    }, 0);
+    const subtotal = normalizeMektekLineItems(tags, serviceOrder.content).subtotal;
     const discount = parseMoney(input.discount);
     const tax = parseMoney(input.tax);
     const grandTotal = Math.max(0, subtotal - discount + tax);
@@ -813,6 +802,9 @@ export const updateMektekPayment = async (input: {
 export const getMektekCustomerTrackingLink = async (serviceOrderId: string) => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!canUseMektekCustomerTools(session.user) && !canUpdateMektekProgress(session.user)) {
+    return { error: "Forbidden" };
+  }
 
   const id = String(serviceOrderId ?? "").trim();
   if (!id) return { error: "Service order ID is required" };

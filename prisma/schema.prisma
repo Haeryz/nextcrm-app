@@ -797,6 +797,11 @@ enum ActiveStatus {
   PENDING
 }
 
+enum MektekStaffRole {
+  CS
+  TECHNICIAN
+}
+
 enum CatalogInquiryStatus {
   NEW
   CONTACTED
@@ -912,6 +917,7 @@ model Users {
   email            String       @unique
   is_account_admin Boolean      @default(false)
   is_admin         Boolean      @default(false)
+  mektekRole       MektekStaffRole?
   created_on       DateTime     @default(now())
   lastLoginAt      DateTime?
   name             String?
@@ -956,6 +962,7 @@ model Users {
   @@index([userLanguage])
   @@index([is_admin])
   @@index([is_account_admin])
+  @@index([mektekRole])
   @@index([created_on])
   @@index([lastLoginAt])
 }

@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Activity,
   ClipboardList,
   MessageCircle,
 } from "lucide-react";
 
 const tabs = [
+  { key: "dashboard", href: "/mektek/dashboard", label: "Dashboard", icon: Activity },
   { key: "orders",   href: "/mektek",          label: "Orders",   icon: ClipboardList },
   { key: "whatsapp", href: "/mektek/whatsapp", label: "WhatsApp", icon: MessageCircle },
 ];

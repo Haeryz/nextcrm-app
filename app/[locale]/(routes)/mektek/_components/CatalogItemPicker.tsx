@@ -74,7 +74,7 @@ export default function CatalogItemPicker({
       quantity: 1,
       estimatedCost: typeof item.price === "number" ? String(item.price) : "",
     });
-    toast.success("Catalog item added to service order.");
+    toast.success("Catalog item added as sparepart.");
   };
 
   return (

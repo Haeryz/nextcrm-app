@@ -23,6 +23,7 @@ import { activateUser } from "@/actions/admin/users/activate-user";
 import { deactivateUser } from "@/actions/admin/users/deactivate-user";
 import { activateAdmin } from "@/actions/admin/users/activate-admin";
 import { deactivateAdmin } from "@/actions/admin/users/deactivate-admin";
+import { updateMektekRole } from "@/actions/admin/users/update-mektek-role";
 
 interface DataTableRowActionsProps<TData> {
   row: Row<TData>;
@@ -134,6 +135,27 @@ export function DataTableRowActions<TData>({
     }
   };
 
+  const onUpdateMektekRole = async (role: "CS" | "TECHNICIAN" | null) => {
+    try {
+      setLoading(true);
+      const result = await updateMektekRole({
+        userId: data.id,
+        role,
+      });
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      router.refresh();
+      toast.success("MekTek role updated.");
+    } catch (error) {
+      toast.error("Something went wrong while updating MekTek role. Please try again.");
+    } finally {
+      setLoading(false);
+      setOpen(false);
+    }
+  };
+
   return (
     <>
       <AlertModal
@@ -170,6 +192,18 @@ export function DataTableRowActions<TData>({
           <DropdownMenuItem onClick={() => onDeactivateAdmin()}>
             <Edit className="mr-2 w-4 h-4" />
             Deactivate Admin rights
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onUpdateMektekRole("CS")}>
+            <Edit className="mr-2 w-4 h-4" />
+            Set MekTek role: CS
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onUpdateMektekRole("TECHNICIAN")}>
+            <Edit className="mr-2 w-4 h-4" />
+            Set MekTek role: Technician
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onUpdateMektekRole(null)}>
+            <Edit className="mr-2 w-4 h-4" />
+            Clear MekTek role
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setOpen(true)}>
             <Trash className="mr-2 w-4 h-4" />

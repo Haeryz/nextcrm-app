@@ -13,18 +13,16 @@ export default function VisitDiscountCard({ visitCount }: VisitDiscountCardProps
     <Card className="border shadow-sm">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground">
+          <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
             Loyalitas
           </CardTitle>
-          {tier && (
-            <Badge variant="secondary">{tier.label}</Badge>
-          )}
+          {tier && <Badge variant="secondary">{tier.label}</Badge>}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-end gap-1">
           <span className="text-3xl font-black text-foreground">{visitCount}</span>
-          <span className="text-sm text-muted-foreground mb-1">kunjungan</span>
+          <span className="mb-1 text-sm text-muted-foreground">kunjungan selesai</span>
         </div>
 
         {tier && tier.discount > 0 ? (
@@ -33,28 +31,30 @@ export default function VisitDiscountCard({ visitCount }: VisitDiscountCardProps
               Diskon {tier.discount}%
             </p>
             <p className="text-xs text-muted-foreground">
-              Berlaku untuk servis berikutnya
+              Diskon otomatis untuk order ini
             </p>
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground italic">
+          <p className="text-xs italic text-muted-foreground">
             Belum ada diskon. Servis 3x untuk mulai mendapatkan diskon.
           </p>
         )}
 
-        {/* Tier ladder */}
         <div className="space-y-1 pt-1">
-          {[...discountTiers].reverse().map((t) => (
+          {[...discountTiers].reverse().map((item) => (
             <div
-              key={t.label}
-              className={`flex justify-between text-xs px-2 py-1 rounded ${
-                tier?.label === t.label
-                  ? "bg-foreground text-background font-semibold"
+              key={item.label}
+              className={`flex justify-between rounded px-2 py-1 text-xs ${
+                tier?.label === item.label
+                  ? "bg-foreground font-semibold text-background"
                   : "text-muted-foreground"
               }`}
             >
-              <span>{t.label}</span>
-              <span>{t.minVisits}+ kunjungan · {t.discount > 0 ? `${t.discount}% off` : "No discount"}</span>
+              <span>{item.label}</span>
+              <span>
+                {item.minVisits}+ kunjungan -{" "}
+                {item.discount > 0 ? `${item.discount}% off` : "No discount"}
+              </span>
             </div>
           ))}
         </div>

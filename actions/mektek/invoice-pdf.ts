@@ -2,8 +2,10 @@
 
 import React from "react";
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
 
 export type MektekInvoiceItem = {
+  kind?: "service" | "sparepart";
   sku?: string;
   name: string;
   quantity: number;
@@ -35,6 +37,8 @@ export type MektekInvoiceData = {
   };
   items: MektekInvoiceItem[];
   financials: {
+    serviceSubtotal: number;
+    sparepartSubtotal: number;
     subtotal: number;
     discount: number;
     taxBase: number;     // DPP
@@ -527,81 +531,25 @@ function parseTags(tags: unknown): Record<string, unknown> {
   return tags as Record<string, unknown>;
 }
 
-function parseMoney(value: unknown): number {
-  const cleaned = String(value ?? "").replace(/\D/g, "");
-  const amount = Number(cleaned);
-  return Number.isFinite(amount) && amount > 0 ? amount : 0;
-}
-
-function parsePayment(tags: Record<string, unknown>) {
-  const payment =
-    tags.payment && typeof tags.payment === "object" && !Array.isArray(tags.payment)
-      ? (tags.payment as Record<string, unknown>)
-      : {};
-  return {
-    method: typeof payment.method === "string" ? payment.method : "cash",
-    amountPaid: parseMoney(payment.amountPaid),
-    status: typeof payment.status === "string" ? payment.status : "",
-  };
-}
-
-function parseContentItems(content?: string | null): MektekInvoiceItem[] {
-  if (!content) return [];
-  return content
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const m = line.match(/\(Est\.\s*Rp\s*([^)]+)\)\s*$/i);
-      const unitPrice = m ? parseMoney(m[1]) : 0;
-      const name = m ? line.replace(m[0], "").trim() : line;
-      return { name, quantity: 1, unit: "JOB", unitPrice, total: unitPrice };
-    });
-}
-
 export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoiceData {
   const tags = parseTags(order.tags);
-  const itemsRaw = Array.isArray(tags.items) ? tags.items : [];
+  const financialSummary = buildMektekFinancialSummary(tags, order.content);
+  const normalizedItems = financialSummary.normalizedItems;
+  const items: MektekInvoiceItem[] = normalizedItems.items.map((item) => ({
+    kind: item.kind,
+    name: item.name,
+    sku: item.catalogPartNumber || item.partNumber || undefined,
+    unit: item.unit,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    total: item.total,
+  }));
 
-  const items: MektekInvoiceItem[] = itemsRaw
-    .map((item): MektekInvoiceItem | null => {
-      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
-      const row = item as Record<string, unknown>;
-      return {
-        name: String(row.name ?? ""),
-        sku: row.sku ? String(row.sku) : undefined,
-        unit: row.unit ? String(row.unit) : undefined,
-        quantity: Number(row.quantity ?? 1) || 1,
-        unitPrice: parseMoney(row.unitPrice),
-        total:
-          parseMoney(row.total) ||
-          parseMoney(row.unitPrice) * (Number(row.quantity ?? 1) || 1),
-      };
-    })
-    .filter((i): i is MektekInvoiceItem => i !== null && !!i.name);
-
-  if (items.length === 0) items.push(...parseContentItems(order.content));
   if (items.length === 0)
     items.push({ name: "Service", quantity: 1, unit: "JOB", unitPrice: 0, total: 0 });
 
-  const subtotal = items.reduce((s, i) => s + i.total, 0);
-  const discount = parseMoney(tags.discount);
-  const taxBase = Math.max(0, subtotal - discount);
-  const tax = parseMoney(tags.tax) || Math.round(taxBase * 0.11);
-  const pph = parseMoney(tags.pph) || Math.round(taxBase * 0.02);
-  const grandTotal = Math.max(0, taxBase + tax - pph);
-  const payment = parsePayment(tags);
-  const amountPaid =
-    payment.status === "paid" && payment.amountPaid === 0
-      ? grandTotal
-      : Math.min(payment.amountPaid, grandTotal);
-  const balanceDue = Math.max(0, grandTotal - amountPaid);
-  const paymentStatus =
-    amountPaid >= grandTotal && grandTotal > 0
-      ? "paid"
-      : amountPaid > 0
-      ? "partial"
-      : "unpaid";
+  const subtotal =
+    financialSummary.subtotal || items.reduce((sum, item) => sum + item.total, 0);
 
   // Parse signature names if stored in tags
   const sigTags =
@@ -648,18 +596,20 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
     },
     items,
     financials: {
+      serviceSubtotal: normalizedItems.serviceSubtotal,
+      sparepartSubtotal: normalizedItems.sparepartSubtotal,
       subtotal,
-      discount,
-      taxBase,
-      tax,
-      pph,
-      grandTotal,
-      amountPaid,
-      balanceDue,
+      discount: financialSummary.discount,
+      taxBase: financialSummary.taxBase,
+      tax: financialSummary.tax,
+      pph: financialSummary.pph,
+      grandTotal: financialSummary.grandTotal,
+      amountPaid: financialSummary.amountPaid,
+      balanceDue: financialSummary.balanceDue,
     },
     payment: {
-      method: payment.method,
-      status: paymentStatus,
+      method: financialSummary.payment.method,
+      status: financialSummary.payment.status,
     },
     notes:
       typeof tags.invoiceNotes === "string" ? tags.invoiceNotes : undefined,
