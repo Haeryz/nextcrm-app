@@ -92,3 +92,4 @@ PART CATALOG ALL.xlsx
 /lib/catalog/generated/
 .wwebjs_auth
 .wwebjs_cache
+.pnpm-store

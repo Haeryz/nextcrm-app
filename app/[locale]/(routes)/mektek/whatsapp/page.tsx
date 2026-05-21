@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -64,8 +63,13 @@ const DEFAULT_TEMPLATES = [
   },
 ];
 
+function formatWhatsAppPhone(phone?: string | null) {
+  if (!phone) return null;
+  return phone.startsWith("+") ? phone : `+${phone}`;
+}
+
 export default function MektekWhatsAppPage() {
-  const [businessPhone, setBusinessPhone] = useState("");
+  const [connectedPhone, setConnectedPhone] = useState<string | null>(null);
   const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
   const [sessionStatus, setSessionStatus] = useState<
     "disconnected" | "connecting" | "connected" | "qr" | "auth_failure"
@@ -102,10 +106,12 @@ export default function MektekWhatsAppPage() {
         }
 
         setQrDataUrl(typeof data.qrDataUrl === "string" ? data.qrDataUrl : null);
+        setConnectedPhone(formatWhatsAppPhone(data.sessionPhone));
         setLastError(typeof data.lastError === "string" ? data.lastError : null);
       } catch {
         if (isMounted) {
           setSessionStatus("disconnected");
+          setConnectedPhone(null);
         }
       }
     };
@@ -183,14 +189,12 @@ export default function MektekWhatsAppPage() {
             <Separator />
 
             <div>
-              <p className="text-xs text-muted-foreground mb-2">Nomor WhatsApp Bisnis</p>
-              <Input
-                placeholder="+62 812 xxxx xxxx"
-                value={businessPhone}
-                onChange={(e) => setBusinessPhone(e.target.value)}
-              />
+              <p className="text-xs text-muted-foreground mb-2">Akun WhatsApp Pengirim</p>
+              <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                {connectedPhone ?? "Akan otomatis terdeteksi setelah QR berhasil discan"}
+              </div>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Nomor yang digunakan untuk mengirim pesan ke pelanggan.
+                Nomor pengirim diambil dari sesi WhatsApp Web, jadi tidak perlu diisi manual.
               </p>
             </div>
 

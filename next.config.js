@@ -4,9 +4,12 @@ const withNextIntl = require("next-intl/plugin")(
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Standalone output produces a self-contained server bundle for Docker.
-  // The runner image only needs node + .next/standalone + .next/static + public.
+  turbopack: {
+    root: __dirname,
+  },
+
   output: "standalone",
+
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "localhost" },
@@ -15,6 +18,7 @@ const nextConfig = {
       { protocol: "https", hostname: "minio-cwg0o4ss0scoccgwso8sk004.coolify.cz" },
     ],
   },
+
   async redirects() {
     return [
       {

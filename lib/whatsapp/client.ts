@@ -14,6 +14,7 @@ export type WhatsAppSessionStatus =
 export type WhatsAppState = {
   status: WhatsAppSessionStatus;
   qrDataUrl?: string;
+  sessionPhone?: string;
   lastQrAt?: string;
   lastError?: string;
 };
@@ -22,6 +23,15 @@ declare global {
   var whatsappClient: Client | undefined;
   var whatsappState: WhatsAppState | undefined;
 }
+
+type WhatsAppWidLike = {
+  user?: unknown;
+  _serialized?: unknown;
+};
+
+type WhatsAppClientInfoLike = {
+  wid?: WhatsAppWidLike;
+};
 
 const defaultState: WhatsAppState = { status: "disconnected" };
 
@@ -36,7 +46,26 @@ function setState(patch: Partial<WhatsAppState>) {
   Object.assign(getStateRef(), patch);
 }
 
+function getClientSessionPhone(client?: Client): string | undefined {
+  const info = (client as (Client & { info?: WhatsAppClientInfoLike }) | undefined)?.info;
+  const user = info?.wid?.user;
+  if (typeof user === "string" && user) return user;
+
+  const serialized = info?.wid?._serialized;
+  if (typeof serialized === "string" && serialized) {
+    return serialized.split("@")[0];
+  }
+
+  return undefined;
+}
+
 export function getWhatsAppState(): WhatsAppState {
+  const state = getStateRef();
+  if (state.status === "ready" && !state.sessionPhone) {
+    const sessionPhone = getClientSessionPhone(globalThis.whatsappClient);
+    if (sessionPhone) setState({ sessionPhone });
+  }
+
   return { ...getStateRef() };
 }
 
@@ -76,15 +105,20 @@ export function getWhatsAppClient(): Client {
   });
 
   client.on("ready", () => {
-    setState({ status: "ready", qrDataUrl: undefined, lastError: undefined });
+    setState({
+      status: "ready",
+      qrDataUrl: undefined,
+      sessionPhone: getClientSessionPhone(client),
+      lastError: undefined,
+    });
   });
 
   client.on("auth_failure", (message: string) => {
-    setState({ status: "auth_failure", lastError: message });
+    setState({ status: "auth_failure", sessionPhone: undefined, lastError: message });
   });
 
   client.on("disconnected", (reason: string) => {
-    setState({ status: "disconnected", lastError: reason });
+    setState({ status: "disconnected", sessionPhone: undefined, lastError: reason });
   });
 
   client.initialize().catch((error) => {
