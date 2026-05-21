@@ -1,0 +1,1 @@
+ALTER TABLE "CatalogItem" ADD COLUMN IF NOT EXISTS "imagePath" TEXT;

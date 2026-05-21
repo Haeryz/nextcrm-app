@@ -1,4 +1,4 @@
-import { Activity, ClipboardList, MessageCircle } from "lucide-react";
+import { Activity, ClipboardList, MessageCircle, PackageSearch } from "lucide-react";
 import { NavItem } from "../nav-main";
 
 const getMektekMenuItems = (): NavItem[] => [
@@ -12,6 +12,11 @@ const getMektekMenuItems = (): NavItem[] => [
     url: "/mektek",
     exact: true,
     icon: ClipboardList,
+  },
+  {
+    title: "Items",
+    url: "/mektek/items",
+    icon: PackageSearch,
   },
   {
     title: "WhatsApp",

@@ -66,13 +66,14 @@ export function NavMain({ items, dict }: NavMainProps) {
 
   // Helper function to check if a route is active
   const isRouteActive = (url: string, exact?: boolean): boolean => {
+    const normalizedPathname = pathname.replace(/^\/[a-z]{2}(?=\/|$)/, "") || "/"
     if (url === "/" || url === "") {
-      return pathname === "/" || pathname === ""
+      return normalizedPathname === "/" || normalizedPathname === ""
     }
     if (exact) {
-      return pathname === url || pathname.replace(/^\/[a-z]{2}(?=\/|$)/, "") === url
+      return normalizedPathname === url
     }
-    return pathname.startsWith(url)
+    return normalizedPathname.startsWith(url)
   }
 
   // Helper to check if any sub-item is active

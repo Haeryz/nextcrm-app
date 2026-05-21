@@ -355,6 +355,7 @@ export const searchMektekCatalogItems = async (query: string) => {
         id: true,
         machine: true,
         rowNumber: true,
+        imagePath: true,
         description: true,
         partNumber: true,
         catalogPartNumber: true,

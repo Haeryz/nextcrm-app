@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Search, Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 
 import { searchMektekCatalogItems } from "@/actions/mektek/service-orders";
@@ -13,6 +13,7 @@ type CatalogSearchItem = {
   id: string;
   machine: string;
   rowNumber: number;
+  imagePath: string | null;
   description: string;
   partNumber: string | null;
   catalogPartNumber: string | null;
@@ -78,7 +79,7 @@ export default function CatalogItemPicker({
   };
 
   return (
-    <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+    <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-4">
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">
           Catalog Items
@@ -102,7 +103,7 @@ export default function CatalogItemPicker({
           onClick={searchCatalog}
           disabled={disabled || isPending}
         >
-          <Search className="h-4 w-4" />
+          <Search data-icon="inline-start" />
           {isPending ? "Searching..." : "Search"}
         </Button>
       </div>
@@ -114,16 +115,32 @@ export default function CatalogItemPicker({
               key={item.id}
               className="flex flex-col gap-3 border-b p-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
             >
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">
-                  {item.description}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {item.machine} · {item.catalogPartNumber || item.partNumber || "No part number"} · Row {item.rowNumber}
-                </p>
-                <p className="text-xs font-medium text-foreground">
-                  {formatPrice(item.price)}
-                </p>
+              <div className="flex min-w-0 flex-1 gap-3">
+                <div className="size-16 shrink-0 overflow-hidden rounded-md border bg-muted">
+                  {item.imagePath ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={item.imagePath}
+                      alt={item.description}
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex size-full items-center justify-center text-[10px] text-muted-foreground">
+                      No image
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-foreground">
+                    {item.description}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {item.machine} - {item.catalogPartNumber || item.partNumber || "No part number"} - Row {item.rowNumber}
+                  </p>
+                  <p className="text-xs font-medium text-foreground">
+                    {formatPrice(item.price)}
+                  </p>
+                </div>
               </div>
               <Button
                 type="button"
@@ -132,7 +149,7 @@ export default function CatalogItemPicker({
                 disabled={disabled}
                 className="shrink-0"
               >
-                <Plus className="h-4 w-4" />
+                <Plus data-icon="inline-start" />
                 Add
               </Button>
             </div>

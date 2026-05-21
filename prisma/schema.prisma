@@ -129,6 +129,7 @@ model CatalogItem {
   machine           String
   rowNumber         Int
   illustration      String?
+  imagePath         String?
   partNumber        String?
   catalogPartNumber String?
   description       String

@@ -40,7 +40,7 @@ function loadCleanCatalog() {
   return catalog;
 }
 
-function imageBytesByKey(images) {
+function imagePathsByKey(images) {
   const result = new Map();
 
   for (const image of images) {
@@ -53,16 +53,14 @@ function imageBytesByKey(images) {
       throw new Error(`Extracted catalog image missing: ${filePath}`);
     }
 
-    result.set(image.key, {
-      mimeType: image.mimeType,
-      bytes: fs.readFileSync(filePath),
-    });
+    const publicPath = `/${image.file.replace(/^public\//, "")}`;
+    result.set(image.key, publicPath);
   }
 
   return result;
 }
 
-function validateItems(items, imagePayloads) {
+function validateItems(items, imagePaths) {
   const ids = new Set();
 
   for (const item of items) {
@@ -74,7 +72,7 @@ function validateItems(items, imagePayloads) {
     }
     ids.add(item.id);
 
-    if (item.imageKey && !imagePayloads.has(item.imageKey)) {
+    if (item.imageKey && !imagePaths.has(item.imageKey)) {
       throw new Error(`Catalog item ${item.id} references missing image ${item.imageKey}`);
     }
   }
@@ -82,32 +80,10 @@ function validateItems(items, imagePayloads) {
 
 async function importCatalog() {
   const catalog = loadCleanCatalog();
-  const imagePayloads = imageBytesByKey(catalog.images);
-  validateItems(catalog.items, imagePayloads);
+  const imagePaths = imagePathsByKey(catalog.images);
+  validateItems(catalog.items, imagePaths);
 
-  await prisma.$transaction([
-    prisma.catalogItem.deleteMany({}),
-    prisma.catalogImage.deleteMany({}),
-  ]);
-
-  const referencedImageKeys = new Set(
-    catalog.items.map((item) => item.imageKey).filter(Boolean)
-  );
-  const imageIdByKey = new Map();
-
-  for (const imageKey of referencedImageKeys) {
-    const image = imagePayloads.get(imageKey);
-    const created = await prisma.catalogImage.create({
-      data: {
-        mimeType: image.mimeType,
-        bytes: image.bytes,
-      },
-      select: {
-        id: true,
-      },
-    });
-    imageIdByKey.set(imageKey, created.id);
-  }
+  await prisma.catalogItem.deleteMany({});
 
   for (const item of catalog.items) {
     await prisma.catalogItem.create({
@@ -116,6 +92,7 @@ async function importCatalog() {
         machine: item.machine,
         rowNumber: item.rowNumber,
         illustration: item.illustration,
+        imagePath: item.imageKey ? imagePaths.get(item.imageKey) || null : null,
         partNumber: item.partNumber,
         catalogPartNumber: item.catalogPartNumber,
         description: item.description,
@@ -123,14 +100,13 @@ async function importCatalog() {
         price: item.price,
         remark: item.remark,
         searchText: item.searchText,
-        imageId: item.imageKey ? imageIdByKey.get(item.imageKey) || null : null,
       },
     });
   }
 
   const missingImages = catalog.items.filter((item) => !item.imageKey).length;
   console.log(
-    `Imported ${catalog.items.length} catalogue items and ${imageIdByKey.size} images into Postgres. ${missingImages} items have no image.`
+    `Imported ${catalog.items.length} catalogue items with ${imagePaths.size} extracted image files into Postgres. ${missingImages} items have no image.`
   );
 }
 

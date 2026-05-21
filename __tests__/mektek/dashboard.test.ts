@@ -2,6 +2,7 @@ jest.mock("@/lib/prisma", () => ({
   prismadb: {
     crm_Accounts_Tasks: {
       findMany: jest.fn(),
+      count: jest.fn(),
     },
   },
 }));
@@ -13,6 +14,7 @@ describe("getMektekDashboardSummary", () => {
   beforeEach(() => jest.clearAllMocks());
 
   it("aggregates operations-first dashboard metrics", async () => {
+    (prismadb.crm_Accounts_Tasks.count as jest.Mock).mockResolvedValue(3);
     (prismadb.crm_Accounts_Tasks.findMany as jest.Mock).mockResolvedValue([
       {
         id: "open",
@@ -64,5 +66,7 @@ describe("getMektekDashboardSummary", () => {
       unpaidBalance: 302000,
     });
     expect(result.recentOrders).toHaveLength(3);
+    expect(result.recentOrdersPage).toBe(1);
+    expect(result.recentOrdersTotalPages).toBe(1);
   });
 });

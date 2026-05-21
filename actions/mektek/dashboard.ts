@@ -11,15 +11,57 @@ const startOfDay = (date = new Date()) =>
 const endOfDay = (date = new Date()) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
 
-export async function getMektekDashboardSummary(now = new Date()) {
-  const orders = await prismadb.crm_Accounts_Tasks.findMany({
-    where: {
-      OR: MEKTEK_TITLE_PREFIXES.map((prefix) => ({
-        title: {
-          startsWith: prefix,
-        },
-      })),
+const mektekOrderWhere = {
+  OR: MEKTEK_TITLE_PREFIXES.map((prefix) => ({
+    title: {
+      startsWith: prefix,
     },
+  })),
+};
+
+export async function getMektekDashboardSummary(
+  now = new Date(),
+  options?: {
+    recentOrdersPage?: number;
+    recentOrdersPageSize?: number;
+  }
+) {
+  const recentOrdersPageSize = Math.min(
+    Math.max(Number(options?.recentOrdersPageSize) || 6, 1),
+    20
+  );
+  const requestedRecentOrdersPage = Math.max(
+    Number(options?.recentOrdersPage) || 1,
+    1
+  );
+
+  const [orders, recentOrdersTotalCount] = await Promise.all([
+    prismadb.crm_Accounts_Tasks.findMany({
+      where: mektekOrderWhere,
+      select: {
+        id: true,
+        dueDateAt: true,
+        taskStatus: true,
+        updatedAt: true,
+        content: true,
+        tags: true,
+      },
+    }),
+    prismadb.crm_Accounts_Tasks.count({
+      where: mektekOrderWhere,
+    }),
+  ]);
+
+  const recentOrdersTotalPages = Math.max(
+    1,
+    Math.ceil(recentOrdersTotalCount / recentOrdersPageSize)
+  );
+  const recentOrdersPage = Math.min(
+    requestedRecentOrdersPage,
+    recentOrdersTotalPages
+  );
+  const recentOrders = await prismadb.crm_Accounts_Tasks.findMany({
+    where: mektekOrderWhere,
     select: {
       id: true,
       title: true,
@@ -33,6 +75,8 @@ export async function getMektekDashboardSummary(now = new Date()) {
     orderBy: {
       updatedAt: "desc",
     },
+    skip: (recentOrdersPage - 1) * recentOrdersPageSize,
+    take: recentOrdersPageSize,
   });
 
   const todayStart = startOfDay(now);
@@ -64,6 +108,10 @@ export async function getMektekDashboardSummary(now = new Date()) {
     overdue,
     completedToday,
     unpaidBalance,
-    recentOrders: orders.slice(0, 8),
+    recentOrders,
+    recentOrdersPage,
+    recentOrdersPageSize,
+    recentOrdersTotalCount,
+    recentOrdersTotalPages,
   };
 }

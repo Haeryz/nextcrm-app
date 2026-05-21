@@ -1,13 +1,19 @@
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
-import Link from "next/link";
 import { Activity, Banknote, CalendarClock, CheckCircle2, Clock3 } from "lucide-react";
-import { getServerSession } from "@/lib/session";
+import { getMektekDashboardSummary } from "@/actions/mektek/dashboard";
 import { authOptions } from "@/lib/auth";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
-import { getMektekDashboardSummary } from "@/actions/mektek/dashboard";
-import { Badge } from "@/components/ui/badge";
+import { getServerSession } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getStatusMeta } from "../_lib/constants";
+import MektekOrderList from "../_components/MektekOrderList";
+import MektekPagination from "../_components/MektekPagination";
+
+interface MektekDashboardPageProps {
+  params?: Promise<{ locale: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+const DASHBOARD_ORDER_PAGE_SIZE = 6;
 
 const formatCurrency = (amount: number) =>
   amount.toLocaleString("id-ID", {
@@ -16,7 +22,19 @@ const formatCurrency = (amount: number) =>
     maximumFractionDigits: 0,
   });
 
-export default async function MektekDashboardPage() {
+function readSearchParam(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string
+) {
+  const value = searchParams[key];
+  return Array.isArray(value) ? value[0] ?? "" : value ?? "";
+}
+
+export default async function MektekDashboardPage({
+  params,
+  searchParams,
+}: MektekDashboardPageProps) {
+  const { locale = "en" } = params ? await params : { locale: "en" };
   const session = await getServerSession(authOptions);
   if (!canAccessMektekStaffArea(session?.user)) {
     return (
@@ -30,7 +48,15 @@ export default async function MektekDashboardPage() {
     );
   }
 
-  const summary = await getMektekDashboardSummary();
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const ordersPage = Math.max(
+    Number(readSearchParam(resolvedSearchParams, "ordersPage")) || 1,
+    1
+  );
+  const summary = await getMektekDashboardSummary(undefined, {
+    recentOrdersPage: ordersPage,
+    recentOrdersPageSize: DASHBOARD_ORDER_PAGE_SIZE,
+  });
   const stats = [
     { label: "Open orders", value: summary.openOrders, icon: Activity },
     { label: "Due today", value: summary.dueToday, icon: CalendarClock },
@@ -60,32 +86,28 @@ export default async function MektekDashboardPage() {
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Recent orders needing attention</CardTitle>
+          <CardHeader className="flex flex-col gap-2 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle className="text-base">Recent orders</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Page {summary.recentOrdersPage} of {summary.recentOrdersTotalPages}
+            </p>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {summary.recentOrders.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No service orders yet.</p>
-            ) : (
-              summary.recentOrders.map((order) => {
-                const status = getStatusMeta(order.taskStatus);
-                return (
-                  <Link
-                    key={order.id}
-                    href={`/mektek/${order.id}`}
-                    className="flex flex-col gap-3 rounded-md border p-4 transition-colors hover:bg-muted/40 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{order.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Due {order.dueDateAt?.toLocaleDateString("id-ID") ?? "Not set"}
-                      </p>
-                    </div>
-                    <Badge variant={status.badgeVariant}>{status.label}</Badge>
-                  </Link>
-                );
-              })
-            )}
+          <CardContent className="space-y-4">
+            <MektekOrderList
+              orders={summary.recentOrders}
+              emptyMessage="No service orders yet."
+              density="compact"
+              locale={locale}
+            />
+            <MektekPagination
+              basePath={`/${locale}/mektek/dashboard`}
+              page={summary.recentOrdersPage}
+              totalPages={summary.recentOrdersTotalPages}
+              totalCount={summary.recentOrdersTotalCount}
+              pageSize={summary.recentOrdersPageSize}
+              itemLabel="orders"
+              pageParam="ordersPage"
+            />
           </CardContent>
         </Card>
       </div>
