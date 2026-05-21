@@ -26,6 +26,8 @@ type SessionUserLike = {
   email: string;
   name: string | null;
   avatar: string | null;
+  phone: string | null;
+  phoneNormalized: string | null;
   userLanguage: string;
   userStatus: string;
   is_admin: boolean;
@@ -42,6 +44,8 @@ function toSession(user: SessionUserLike): Session {
       name: user.name ?? GUEST_USER_NAME,
       image: user.avatar ?? undefined,
       avatar: user.avatar ?? undefined,
+      phone: user.phone,
+      phoneNormalized: user.phoneNormalized,
       // No-auth mode intentionally bypasses role/status checks.
       isAdmin: true,
       mektekRole: user.mektekRole,
@@ -65,6 +69,8 @@ function normalizeSession(session: Session): Session {
       name: user.name || GUEST_USER_NAME,
       image: user.image,
       avatar: user.avatar || user.image,
+      phone: user.phone ?? null,
+      phoneNormalized: user.phoneNormalized ?? null,
       isAdmin: true,
       mektekRole: user.mektekRole ?? null,
       userLanguage: user.userLanguage || GUEST_USER_LANGUAGE,
@@ -84,6 +90,8 @@ async function getFallbackUser(): Promise<SessionUserLike> {
       email: true,
       name: true,
       avatar: true,
+      phone: true,
+      phoneNormalized: true,
       userLanguage: true,
       userStatus: true,
       is_admin: true,
@@ -128,6 +136,8 @@ async function getFallbackUser(): Promise<SessionUserLike> {
       email: true,
       name: true,
       avatar: true,
+      phone: true,
+      phoneNormalized: true,
       userLanguage: true,
       userStatus: true,
       is_admin: true,
@@ -168,6 +178,8 @@ export async function getServerSession(
       email: GUEST_USER_EMAIL,
       name: GUEST_USER_NAME,
       avatar: null,
+      phone: null,
+      phoneNormalized: null,
       userLanguage: GUEST_USER_LANGUAGE,
       userStatus: "ACTIVE",
       is_admin: true,

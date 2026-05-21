@@ -3,6 +3,11 @@ import { prismadb } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { newUserNotify } from "@/lib/new-user-notify";
 import { Language } from "@prisma/client";
+import {
+  buildPhoneAccountEmail,
+  normalizePhoneNumber,
+  phoneDigits,
+} from "@/lib/phone";
 
 export const registerUser = async (data: {
   name: string;
@@ -85,5 +90,101 @@ export const registerUser = async (data: {
     console.error("[REGISTER_USER]", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return { error: `Registration failed: ${errorMessage}` };
+  }
+};
+
+export const registerCustomerUser = async (data: {
+  name: string;
+  phone: string;
+  password: string;
+  confirmPassword: string;
+}) => {
+  const name = String(data?.name ?? "").trim();
+  const phone = String(data?.phone ?? "").trim();
+  const password = String(data?.password ?? "");
+  const confirmPassword = String(data?.confirmPassword ?? "");
+  const phoneNormalized = normalizePhoneNumber(phone);
+  const digits = phoneDigits(phoneNormalized);
+
+  if (!name || !phone || !password || !confirmPassword) {
+    const missingFields = [];
+    if (!name) missingFields.push("name");
+    if (!phone) missingFields.push("phone");
+    if (!password) missingFields.push("password");
+    if (!confirmPassword) missingFields.push("confirmPassword");
+    return { error: `Missing required fields: ${missingFields.join(", ")}` };
+  }
+
+  if (digits.length < 6) {
+    return { error: "Phone number is invalid" };
+  }
+
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters" };
+  }
+
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match" };
+  }
+
+  const email = buildPhoneAccountEmail(phoneNormalized);
+
+  try {
+    const existingUser = await prismadb.users.findFirst({
+      where: {
+        OR: [{ phoneNormalized }, { email }],
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingUser) {
+      return { error: "Phone number already has an account" };
+    }
+
+    const user = await prismadb.$transaction(async (tx) => {
+      const createdUser = await tx.users.create({
+        data: {
+          name,
+          username: name,
+          avatar: "",
+          account_name: "Mektek Customer",
+          is_account_admin: false,
+          is_admin: false,
+          email,
+          phone,
+          phoneNormalized,
+          userLanguage: "en",
+          userStatus: "ACTIVE",
+          password: await hash(password, 12),
+        },
+      });
+
+      await tx.catalogCustomer.upsert({
+        where: {
+          phoneNormalized,
+        },
+        update: {
+          username: name,
+          phone,
+          userId: createdUser.id,
+        },
+        create: {
+          username: name,
+          phone,
+          phoneNormalized,
+          userId: createdUser.id,
+        },
+      });
+
+      return createdUser;
+    });
+
+    return { data: user };
+  } catch (error) {
+    console.error("[REGISTER_CUSTOMER_USER]", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    return { error: `Customer registration failed: ${errorMessage}` };
   }
 };

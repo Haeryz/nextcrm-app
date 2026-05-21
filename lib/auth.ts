@@ -7,6 +7,7 @@ import bcrypt from "bcrypt";
 import { newUserNotify } from "./new-user-notify";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { areExternalApisDisabled } from "./external-apis";
+import { normalizePhoneNumber } from "./phone";
 
 const defaultAuthUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -67,7 +68,7 @@ export const authOptions: NextAuthOptions = {
     CredentialsProvider({
       name: "credentials",
       credentials: {
-        email: { label: "email", type: "text" },
+        email: { label: "email or phone", type: "text" },
         password: { label: "password", type: "password" },
       },
 
@@ -77,10 +78,20 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Email or password is missing");
         }
 
+        const identifier = credentials.email.trim();
+        const phoneNormalized = normalizePhoneNumber(identifier);
+        const isEmail = identifier.includes("@");
+
         const user = await prismadb.users.findFirst({
-          where: {
-            email: credentials.email,
-          },
+          where: isEmail
+            ? { email: identifier }
+            : {
+                OR: [
+                  { phoneNormalized },
+                  { phone: identifier },
+                  { email: identifier },
+                ],
+              },
         });
 
         //clear white space from password
@@ -110,6 +121,8 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.isAdmin = user.is_admin ?? false;
         token.mektekRole = user.mektekRole ?? null;
+        token.phone = user.phone ?? null;
+        token.phoneNormalized = user.phoneNormalized ?? null;
       }
       return token;
     },
@@ -142,12 +155,15 @@ export const authOptions: NextAuthOptions = {
 
           //Put new created user data in session
           session.user.id = newUser.id;
+          session.user._id = newUser.id;
           session.user.name = newUser.name;
           session.user.email = newUser.email;
           session.user.avatar = newUser.avatar;
           session.user.image = newUser.avatar;
           session.user.isAdmin = false;
           session.user.mektekRole = null;
+          session.user.phone = newUser.phone;
+          session.user.phoneNormalized = newUser.phoneNormalized;
           session.user.userLanguage = newUser.userLanguage;
           session.user.userStatus = newUser.userStatus;
           session.user.lastLoginAt = newUser.lastLoginAt;
@@ -166,12 +182,15 @@ export const authOptions: NextAuthOptions = {
         });
         //User allready exist in localDB, put user data in session
         session.user.id = user.id;
+        session.user._id = user.id;
         session.user.name = user.name;
         session.user.email = user.email;
         session.user.avatar = user.avatar;
         session.user.image = user.avatar;
         session.user.isAdmin = user.is_admin;
         session.user.mektekRole = user.mektekRole;
+        session.user.phone = user.phone;
+        session.user.phoneNormalized = user.phoneNormalized;
         session.user.userLanguage = user.userLanguage;
         session.user.userStatus = user.userStatus;
         session.user.lastLoginAt = user.lastLoginAt;

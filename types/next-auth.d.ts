@@ -8,6 +8,8 @@ declare module "next-auth/jwt" {
     id: UserId;
     isAdmin: boolean;
     mektekRole?: "CS" | "TECHNICIAN" | null;
+    phone?: string | null;
+    phoneNormalized?: string | null;
   }
 }
 
@@ -19,6 +21,8 @@ declare module "next-auth" {
       avatar?: string | null | undefined;
       isAdmin: boolean;
       mektekRole?: "CS" | "TECHNICIAN" | null;
+      phone?: string | null;
+      phoneNormalized?: string | null;
       userLanguage: string;
       userStatus: string;
     };

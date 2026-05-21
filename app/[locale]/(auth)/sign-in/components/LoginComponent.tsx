@@ -52,7 +52,7 @@ export function LoginComponent() {
   const router = useRouter();
 
   const formSchema = z.object({
-    email: z.string().min(3).max(50),
+    email: z.string().min(3).max(80),
     password: z.string().min(8).max(50),
   });
 
@@ -107,16 +107,18 @@ export function LoginComponent() {
       });
       if (status?.error) {
         toast.error(status.error);
+        return;
       }
       if (status?.ok) {
         toast.success("Login successful.");
+        router.push(data.email.includes("@") ? "/" : "/customer/profile");
+        router.refresh();
       }
     } catch (error: any) {
       console.log(error);
       toast.error(error?.message || error?.toString() || "An error occurred during login");
     } finally {
       setIsLoading(false);
-      router.push("/");
     }
   }
 
@@ -180,11 +182,11 @@ export function LoginComponent() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>E-mail</FormLabel>
+                    <FormLabel>E-mail or phone number</FormLabel>
                     <FormControl>
                       <Input
                         disabled={isLoading}
-                        placeholder="John Doe"
+                        placeholder="name@domain.com or +628123456789"
                         {...field}
                       />
                     </FormControl>

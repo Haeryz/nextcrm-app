@@ -95,6 +95,7 @@ const processSteps: LandingProcessStep[] = [
 
 function MektekLanding({ locale }: { locale: string }) {
   const sparepartHref = `/${locale}/customer?view=sparepart`;
+  const profileHref = `/${locale}/customer/profile`;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -124,6 +125,14 @@ function MektekLanding({ locale }: { locale: string }) {
                   Buka katalog
                   <ArrowRight className="size-4" />
                 </Link>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
+              >
+                <Link href={profileHref}>Cek service profile</Link>
               </Button>
               <p className="text-sm text-zinc-400">
                 Masuk setelah mengenal layanan Mektek secara singkat.

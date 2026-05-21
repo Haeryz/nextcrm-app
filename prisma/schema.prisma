@@ -47,14 +47,18 @@ model Users {
   lastLoginAt      DateTime?
   name             String?
   password         String?
+  phone            String?
+  phoneNormalized  String?      @unique
   username         String?
   userStatus       ActiveStatus @default(PENDING)
   userLanguage     Language     @default(en)
 
   tasksComment       tasksComments[]
   crm_accounts_tasks crm_Accounts_Tasks[]
+  customerProfile    CatalogCustomer?
 
   @@index([email])
+  @@index([phoneNormalized])
   @@index([userStatus])
   @@index([userLanguage])
   @@index([is_admin])
@@ -115,12 +119,15 @@ model CatalogCustomer {
   username        String
   phone           String
   phoneNormalized String   @unique
+  userId          String?  @unique @db.Uuid
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  user         Users?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   serviceLinks CatalogServiceLink[]
 
   @@index([phoneNormalized])
+  @@index([userId])
   @@index([createdAt])
 }
 

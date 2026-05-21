@@ -23,6 +23,7 @@ import {
   canUseMektekCustomerTools,
 } from "@/lib/mektek/permissions";
 import { calculateMektekDiscountAmount } from "@/lib/mektek/loyalty";
+import { normalizePhoneNumber } from "@/lib/phone";
 
 const MEKTEK_TITLE_PREFIX = "MEKTEK Service -";
 const LEGACY_MEKTEK_TITLE_PREFIX = "MEKTEK AC -";
@@ -121,13 +122,6 @@ const buildCustomerTrackingLink = async (code: string, locale?: string) => {
   return `${appUrl}/${safeLocale}/s/${code}`;
 };
 
-const normalizeCustomerPhone = (phone: string): string => {
-  const trimmed = String(phone || "").trim();
-  const hasPlus = trimmed.startsWith("+");
-  const digits = trimmed.replace(/\D/g, "");
-  return hasPlus ? `+${digits}` : digits;
-};
-
 export const createMektekServiceOrder = async (
   input: CreateMektekServiceOrderInput
 ) => {
@@ -144,7 +138,7 @@ export const createMektekServiceOrder = async (
   const complaint = String(input?.complaint ?? "").trim();
   const phone = String(input?.phone ?? "").trim();
   const address = String(input?.address ?? "").trim();
-  const phoneNormalized = normalizeCustomerPhone(phone);
+  const phoneNormalized = normalizePhoneNumber(phone);
 
   if (!customerName || !vehicle || !complaint) {
     return { error: "Customer name, vehicle, and complaint are required" };

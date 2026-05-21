@@ -1,22 +1,28 @@
 "use client";
-import { z } from "zod";
+
+import React from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import { useForm } from "react-hook-form";
 import { useRouter } from "next/navigation";
-import React from "react";
-import { FingerprintIcon } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 
+import {
+  registerCustomerUser,
+  registerUser,
+} from "@/actions/auth/register-user";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
 import {
   Form,
@@ -26,6 +32,8 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Icons } from "@/components/ui/icons";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -33,32 +41,69 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Icons } from "@/components/ui/icons";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { registerUser } from "@/actions/auth/register-user";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+const customerSchema = z.object({
+  name: z.string().min(3).max(50),
+  phone: z.string().min(6).max(30),
+  password: z.string().min(8).max(50),
+  confirmPassword: z.string().min(8).max(50),
+});
+
+const staffSchema = z.object({
+  name: z.string().min(3).max(50),
+  username: z.string().min(3).max(50),
+  email: z.string().email(),
+  language: z.string().min(2).max(50),
+  password: z.string().min(8).max(50),
+  confirmPassword: z.string().min(8).max(50),
+});
+
+type CustomerFormValues = z.infer<typeof customerSchema>;
+type StaffFormValues = z.infer<typeof staffSchema>;
+
+function PasswordToggle({
+  show,
+  onClick,
+}: {
+  show: boolean;
+  onClick: () => void;
+}) {
+  const Icon = show ? EyeOff : Eye;
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="mt-7 shrink-0"
+      onClick={onClick}
+      aria-label={show ? "Hide password" : "Show password"}
+    >
+      <Icon data-icon="inline-start" />
+    </Button>
+  );
+}
 
 export function RegisterComponent() {
   const router = useRouter();
+  const t = useTranslations("RegisterComponent");
 
-  //Local states
-  const [isLoading, setIsLoading] = React.useState<boolean>(false);
-  const [show, setShow] = React.useState<boolean>(false);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [show, setShow] = React.useState(false);
 
-  const formSchema = z.object({
-    name: z.string().min(3).max(50),
-    username: z.string().min(3).max(50),
-    email: z.string().email(),
-    language: z.string().min(2).max(50),
-    password: z.string().min(8).max(50),
-    confirmPassword: z.string().min(8).max(50),
+  const customerForm = useForm<CustomerFormValues>({
+    resolver: zodResolver(customerSchema),
+    defaultValues: {
+      name: "",
+      phone: "",
+      password: "",
+      confirmPassword: "",
+    },
   });
 
-  type BillboardFormValues = z.infer<typeof formSchema>;
-
-  const form = useForm<BillboardFormValues>({
-    resolver: zodResolver(formSchema),
+  const staffForm = useForm<StaffFormValues>({
+    resolver: zodResolver(staffSchema),
     defaultValues: {
       name: "",
       username: "",
@@ -69,7 +114,39 @@ export function RegisterComponent() {
     },
   });
 
-  const onSubmit = async (data: BillboardFormValues) => {
+  const onCustomerSubmit = async (data: CustomerFormValues) => {
+    setIsLoading(true);
+    try {
+      const result = await registerCustomerUser(data);
+
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      const status = await signIn("credentials", {
+        redirect: false,
+        email: data.phone,
+        password: data.password,
+      });
+
+      if (status?.error) {
+        toast.error("Account created. Please sign in with your phone number.");
+        router.push("/sign-in");
+        return;
+      }
+
+      toast.success("Customer account created.");
+      router.push("/customer/profile");
+      router.refresh();
+    } catch (error: any) {
+      toast.error(error?.message || "Customer registration failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onStaffSubmit = async (data: StaffFormValues) => {
     setIsLoading(true);
     try {
       const result = await registerUser(data);
@@ -82,7 +159,7 @@ export function RegisterComponent() {
       toast.success("User created successfully, please login.");
       router.push("/");
     } catch (error: any) {
-      toast.error(error?.message);
+      toast.error(error?.message || "Registration failed");
     } finally {
       setIsLoading(false);
     }
@@ -95,145 +172,40 @@ export function RegisterComponent() {
       await signIn("google", {
         callbackUrl: process.env.NEXT_PUBLIC_APP_URL,
       });
-    } catch (error) {
     } finally {
       setIsLoading(false);
     }
   };
 
-  //Localizations
-  const t = useTranslations("RegisterComponent");
-
   return (
-    <Card className="shadow-lg ">
-      <CardHeader className="space-y-1">
+    <Card className="w-[min(92vw,520px)] shadow-lg">
+      <CardHeader className="gap-1">
         <CardTitle className="text-2xl">{t("cardTitle")}</CardTitle>
         <CardDescription>{t("cardDescription")}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 overflow-auto">
-        {/*  <pre>
-          <code>{JSON.stringify(form.watch(), null, 2)}</code>
-        </pre> */}
-        <div className="grid grid-cols-2 gap-6">
-          {/*        <Button variant="outline">
-            <Icons.gitHub className="mr-2 h-4 w-4" />
-            Github
-          </Button> */}
-          <Button
-            variant="outline"
-            onClick={loginWithGoogle}
-            disabled={isLoading}
-          >
-            <Icons.google className="mr-2 h-4 w-4" />
-            Google
-          </Button>
-        </div>
-        <div className="relative">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">
-              Or create new account
-            </span>
-          </div>
-        </div>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="grid gap-2">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input
-                        disabled={isLoading}
-                        placeholder="John Doe"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username</FormLabel>
-                    <FormControl>
-                      <Input
-                        disabled={isLoading}
-                        placeholder="jdoe"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>E-mail</FormLabel>
-                    <FormControl>
-                      <Input
-                        disabled={isLoading}
-                        placeholder="name@domain.com"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="language"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Choose your language</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a language" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent className="flex overflow-y-auto h-56">
-                        {["en", "de", "cz", "uk"].map(
-                          (lng: string, index: number) => (
-                            <SelectItem key={index} value={lng}>
-                              {t("locale", { locale: lng })}
-                            </SelectItem>
-                          )
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="flex items-center w-full ">
+        <Tabs defaultValue="customer" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="customer">Customer</TabsTrigger>
+            <TabsTrigger value="staff">Staff</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="customer" className="mt-4">
+            <Form {...customerForm}>
+              <form
+                onSubmit={customerForm.handleSubmit(onCustomerSubmit)}
+                className="grid gap-4"
+              >
                 <FormField
-                  control={form.control}
-                  name="password"
+                  control={customerForm.control}
+                  name="name"
                   render={({ field }) => (
-                    <FormItem className="w-full">
-                      <FormLabel>Password</FormLabel>
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
                       <FormControl>
                         <Input
-                          className="w-full"
                           disabled={isLoading}
-                          placeholder="Password"
-                          type={show ? "text" : "password"}
+                          placeholder="John Doe"
                           {...field}
                         />
                       </FormControl>
@@ -241,23 +213,56 @@ export function RegisterComponent() {
                     </FormItem>
                   )}
                 />
-                <span
-                  className="flex px-4 pt-7 w-16"
-                  onClick={() => setShow(!show)}
-                >
-                  <FingerprintIcon size={25} className="text-gray-400" />
-                </span>
-              </div>
-              <div className="flex items-center w-full ">
+
                 <FormField
-                  control={form.control}
+                  control={customerForm.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone number</FormLabel>
+                      <FormControl>
+                        <Input
+                          disabled={isLoading}
+                          inputMode="tel"
+                          placeholder="+628123456789"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex items-start gap-2">
+                  <FormField
+                    control={customerForm.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem className="w-full">
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input
+                            disabled={isLoading}
+                            placeholder="Password"
+                            type={show ? "text" : "password"}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <PasswordToggle show={show} onClick={() => setShow(!show)} />
+                </div>
+
+                <FormField
+                  control={customerForm.control}
                   name="confirmPassword"
                   render={({ field }) => (
-                    <FormItem className="w-full">
+                    <FormItem>
                       <FormLabel>Confirm Password</FormLabel>
                       <FormControl>
                         <Input
-                          className="w-full"
                           disabled={isLoading}
                           placeholder="Password"
                           type={show ? "text" : "password"}
@@ -268,27 +273,168 @@ export function RegisterComponent() {
                     </FormItem>
                   )}
                 />
-                <span
-                  className="flex px-4 pt-7 w-16"
-                  onClick={() => setShow(!show)}
-                >
-                  <FingerprintIcon size={25} className="text-gray-400" />
-                </span>
-              </div>
-            </div>
 
-            <div className="grid gap-2 py-5">
-              <Button disabled={isLoading} type="submit">
-                Create account
+                <Button disabled={isLoading} type="submit" className="h-11">
+                  {isLoading ? "Creating account..." : "Create customer account"}
+                </Button>
+              </form>
+            </Form>
+          </TabsContent>
+
+          <TabsContent value="staff" className="mt-4">
+            <div className="grid gap-4">
+              <Button
+                variant="outline"
+                onClick={loginWithGoogle}
+                disabled={isLoading}
+                type="button"
+              >
+                <Icons.google data-icon="inline-start" />
+                Google
               </Button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    Or create staff account
+                  </span>
+                </div>
+              </div>
+
+              <Form {...staffForm}>
+                <form
+                  onSubmit={staffForm.handleSubmit(onStaffSubmit)}
+                  className="grid gap-4"
+                >
+                  <FormField
+                    control={staffForm.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                          <Input
+                            disabled={isLoading}
+                            placeholder="John Doe"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={staffForm.control}
+                    name="username"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Username</FormLabel>
+                        <FormControl>
+                          <Input disabled={isLoading} placeholder="jdoe" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={staffForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>E-mail</FormLabel>
+                        <FormControl>
+                          <Input
+                            disabled={isLoading}
+                            placeholder="name@domain.com"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={staffForm.control}
+                    name="language"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Choose your language</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a language" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent className="flex h-56 overflow-y-auto">
+                            {["en", "de", "cz", "uk"].map((lng) => (
+                              <SelectItem key={lng} value={lng}>
+                                {t("locale", { locale: lng })}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex items-start gap-2">
+                    <FormField
+                      control={staffForm.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem className="w-full">
+                          <FormLabel>Password</FormLabel>
+                          <FormControl>
+                            <Input
+                              disabled={isLoading}
+                              placeholder="Password"
+                              type={show ? "text" : "password"}
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <PasswordToggle show={show} onClick={() => setShow(!show)} />
+                  </div>
+                  <FormField
+                    control={staffForm.control}
+                    name="confirmPassword"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Confirm Password</FormLabel>
+                        <FormControl>
+                          <Input
+                            disabled={isLoading}
+                            placeholder="Password"
+                            type={show ? "text" : "password"}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button disabled={isLoading} type="submit" className="h-11">
+                    {isLoading ? "Creating account..." : "Create staff account"}
+                  </Button>
+                </form>
+              </Form>
             </div>
-          </form>
-        </Form>
+          </TabsContent>
+        </Tabs>
       </CardContent>
-      <CardFooter className="flex flex-col space-y-5">
+      <CardFooter className="flex flex-col gap-5">
         <div className="text-sm text-gray-500">
           Already have an account?{" "}
-          <Link href={"/sign-in"} className="text-blue-500">
+          <Link href="/sign-in" className="text-blue-500">
             sign-in
           </Link>
         </div>
