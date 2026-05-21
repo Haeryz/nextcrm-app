@@ -18,10 +18,26 @@ function hasDatabaseUrl() {
   return Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.trim().length > 0);
 }
 
+function shouldRunMigrations() {
+  if (!hasDatabaseUrl()) {
+    return false;
+  }
+
+  if (process.env.PRISMA_MIGRATE_ON_BUILD === "true") {
+    return true;
+  }
+
+  return process.env.VERCEL !== "1";
+}
+
 run("pnpm exec prisma generate");
 
-if (hasDatabaseUrl()) {
+if (shouldRunMigrations()) {
   run("pnpm exec prisma migrate deploy");
+} else if (hasDatabaseUrl()) {
+  console.warn(
+    "[build] Skipping prisma migrate deploy during Vercel build. Run migrations separately, or set PRISMA_MIGRATE_ON_BUILD=true to opt in."
+  );
 } else {
   console.warn("[build] Skipping prisma migrate deploy because DATABASE_URL is not set.");
 }
