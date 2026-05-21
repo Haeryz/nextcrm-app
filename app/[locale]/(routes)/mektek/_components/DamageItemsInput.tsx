@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { X, Plus } from "lucide-react";
+import { searchMektekCatalogItems } from "@/actions/mektek/service-orders";
 
 export type DamageItem = {
   description: string;
@@ -23,7 +24,18 @@ interface DamageItemsInputProps {
   emptyMessage?: string;
   descriptionPlaceholder?: (index: number) => string;
   disabled?: boolean;
+  catalogSearch?: boolean;
 }
+
+type CatalogSearchItem = {
+  id: string;
+  machine: string;
+  rowNumber: number;
+  description: string;
+  partNumber: string | null;
+  catalogPartNumber: string | null;
+  price: number | null;
+};
 
 export default function DamageItemsInput({
   items,
@@ -34,7 +46,12 @@ export default function DamageItemsInput({
   descriptionPlaceholder = (index) =>
     `Kerusakan #${index + 1} (contoh: mesin susah menyala)`,
   disabled,
+  catalogSearch = false,
 }: DamageItemsInputProps) {
+  const [activeCatalogIndex, setActiveCatalogIndex] = useState<number | null>(null);
+  const [catalogResults, setCatalogResults] = useState<CatalogSearchItem[]>([]);
+  const [isSearchingCatalog, startCatalogSearch] = useTransition();
+
   const addItem = () => {
     onChange([...items, { description: "", estimatedCost: "", quantity: 1 }]);
   };
@@ -51,6 +68,57 @@ export default function DamageItemsInput({
     onChange(
       items.map((item, i) => (i === index ? { ...item, [field]: value } : item))
     );
+  };
+
+  useEffect(() => {
+    if (!catalogSearch || activeCatalogIndex === null) {
+      setCatalogResults([]);
+      return;
+    }
+
+    const query = items[activeCatalogIndex]?.description.trim() ?? "";
+    if (query.length < 2) {
+      setCatalogResults([]);
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      startCatalogSearch(async () => {
+        const result = await searchMektekCatalogItems(query);
+        if (cancelled) return;
+        setCatalogResults((result?.data ?? []) as CatalogSearchItem[]);
+      });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeCatalogIndex, catalogSearch, items]);
+
+  const selectCatalogItem = (index: number, catalogItem: CatalogSearchItem) => {
+    onChange(
+      items.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              catalogItemId: catalogItem.id,
+              machine: catalogItem.machine,
+              partNumber: catalogItem.partNumber ?? "",
+              catalogPartNumber: catalogItem.catalogPartNumber ?? "",
+              description: catalogItem.description,
+              quantity: Math.max(1, Number(item.quantity) || 1),
+              estimatedCost:
+                typeof catalogItem.price === "number"
+                  ? String(catalogItem.price)
+                  : item.estimatedCost,
+            }
+          : item
+      )
+    );
+    setActiveCatalogIndex(null);
+    setCatalogResults([]);
   };
 
   return (
@@ -90,14 +158,56 @@ export default function DamageItemsInput({
               </div>
             )}
             <div className="flex flex-col gap-2 md:flex-row md:items-start">
-              <Input
-                placeholder={descriptionPlaceholder(index)}
-                value={item.description}
-                onChange={(e) => updateItem(index, "description", e.target.value)}
-                disabled={disabled}
-                className="flex-1"
-                required
-              />
+              <div className="relative flex-1">
+                <Input
+                  placeholder={descriptionPlaceholder(index)}
+                  value={item.description}
+                  onFocus={() => catalogSearch && setActiveCatalogIndex(index)}
+                  onChange={(e) => {
+                    updateItem(index, "description", e.target.value);
+                    if (catalogSearch) setActiveCatalogIndex(index);
+                  }}
+                  disabled={disabled}
+                  required
+                />
+                {catalogSearch && activeCatalogIndex === index && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-20 max-h-72 overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md">
+                    {isSearchingCatalog && (
+                      <div className="px-3 py-2 text-xs text-muted-foreground">
+                        Searching catalogue...
+                      </div>
+                    )}
+                    {!isSearchingCatalog &&
+                      catalogResults.map((catalogItem) => (
+                        <button
+                          key={catalogItem.id}
+                          type="button"
+                          className="flex w-full flex-col gap-1 border-b px-3 py-2 text-left last:border-b-0 hover:bg-accent hover:text-accent-foreground"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => selectCatalogItem(index, catalogItem)}
+                        >
+                          <span className="text-sm font-medium">
+                            {catalogItem.description}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {catalogItem.machine} -{" "}
+                            {catalogItem.catalogPartNumber ||
+                              catalogItem.partNumber ||
+                              "No part number"}{" "}
+                            - Row {catalogItem.rowNumber}
+                          </span>
+                        </button>
+                      ))}
+                    {!isSearchingCatalog &&
+                      items[index]?.description.trim().length >= 2 &&
+                      catalogResults.length === 0 && (
+                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                          No catalogue item found.
+                        </div>
+                      )}
+                  </div>
+                )}
+              </div>
               <Input
                 aria-label="Quantity"
                 placeholder="Qty"

@@ -187,6 +187,7 @@ export default function NewServiceOrderForm() {
           descriptionPlaceholder={(index) =>
             `Sparepart #${index + 1} (contoh: filter oli)`
           }
+          catalogSearch
           disabled={isPending}
         />
         </div>
