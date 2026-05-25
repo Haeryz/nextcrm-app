@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -87,7 +87,11 @@ function PasswordToggle({
 
 export function RegisterComponent() {
   const router = useRouter();
+  const params = useParams<{ locale?: string }>();
+  const searchParams = useSearchParams();
   const t = useTranslations("RegisterComponent");
+  const locale = params.locale || "en";
+  const initialPhone = searchParams.get("phone") || "";
 
   const [isLoading, setIsLoading] = React.useState(false);
   const [show, setShow] = React.useState(false);
@@ -96,7 +100,7 @@ export function RegisterComponent() {
     resolver: zodResolver(customerSchema),
     defaultValues: {
       name: "",
-      phone: "",
+      phone: initialPhone,
       password: "",
       confirmPassword: "",
     },
@@ -128,16 +132,17 @@ export function RegisterComponent() {
         redirect: false,
         email: data.phone,
         password: data.password,
+        callbackUrl: `/${locale}/customer/profile`,
       });
 
       if (status?.error) {
         toast.error("Account created. Please sign in with your phone number.");
-        router.push("/sign-in");
+        router.push(`/${locale}/sign-in?customer=1&phone=${encodeURIComponent(data.phone)}`);
         return;
       }
 
       toast.success("Customer account created.");
-      router.push("/customer/profile");
+      router.push(`/${locale}/customer/profile`);
       router.refresh();
     } catch (error: any) {
       toast.error(error?.message || "Customer registration failed");
@@ -157,7 +162,7 @@ export function RegisterComponent() {
       }
 
       toast.success("User created successfully, please login.");
-      router.push("/");
+      router.push(`/${locale}`);
     } catch (error: any) {
       toast.error(error?.message || "Registration failed");
     } finally {
@@ -434,7 +439,13 @@ export function RegisterComponent() {
       <CardFooter className="flex flex-col gap-5">
         <div className="text-sm text-gray-500">
           Already have an account?{" "}
-          <Link href="/sign-in" className="text-blue-500">
+          <Link
+            href={{
+              pathname: `/${locale}/sign-in`,
+              query: initialPhone ? { customer: "1", phone: initialPhone } : undefined,
+            }}
+            className="text-blue-500"
+          >
             sign-in
           </Link>
         </div>

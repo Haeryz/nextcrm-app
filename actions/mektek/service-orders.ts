@@ -76,6 +76,15 @@ type CreateMektekServiceOrderInput = {
   sparepartItems?: MektekLineItemInput[];
 };
 
+export type MektekCustomerSearchResult = {
+  id: string;
+  name: string;
+  phone: string;
+  phoneNormalized: string;
+  address: string | null;
+  source: "customer" | "user";
+};
+
 const parseTimeline = (tags: unknown): MektekTimelineEntry[] => {
   const tagsObject = parseTagsObject(tags);
   const timeline = tagsObject.timeline;
@@ -314,6 +323,118 @@ export const createMektekServiceOrder = async (
   } catch (error) {
     console.log("[CREATE_MEKTEK_SERVICE_ORDER]", error);
     return { error: "Failed to create service order" };
+  }
+};
+
+export const searchMektekCustomers = async (
+  query: string
+): Promise<{ data?: MektekCustomerSearchResult[]; error?: string }> => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+  if (!canCreateMektekOrders(session.user)) {
+    return { error: "Forbidden: only MekTek admin or CS can search customers" };
+  }
+
+  const search = String(query ?? "").trim();
+  if (search.length < 2) {
+    return { data: [] };
+  }
+
+  const normalizedSearch = normalizePhoneNumber(search);
+  const searchDigits = normalizedSearch.replace(/\D/g, "");
+  const customerWhere: Prisma.CatalogCustomerWhereInput[] = [
+    { username: { contains: search, mode: "insensitive" } },
+    { phone: { contains: search } },
+  ];
+  const userWhere: Prisma.UsersWhereInput[] = [
+    { name: { contains: search, mode: "insensitive" } },
+    { username: { contains: search, mode: "insensitive" } },
+    { phone: { contains: search } },
+  ];
+
+  if (normalizedSearch) {
+    customerWhere.push({ phoneNormalized: { contains: normalizedSearch } });
+    userWhere.push({ phoneNormalized: { contains: normalizedSearch } });
+  }
+  if (searchDigits && searchDigits !== normalizedSearch) {
+    customerWhere.push({ phoneNormalized: { contains: searchDigits } });
+    userWhere.push({ phoneNormalized: { contains: searchDigits } });
+  }
+
+  try {
+    const [customers, users] = await Promise.all([
+      prismadb.catalogCustomer.findMany({
+        where: { OR: customerWhere },
+        orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+        take: 8,
+        select: {
+          id: true,
+          username: true,
+          phone: true,
+          phoneNormalized: true,
+          serviceLinks: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
+            select: {
+              serviceOrder: {
+                select: {
+                  tags: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      prismadb.users.findMany({
+        where: { OR: userWhere },
+        orderBy: [{ lastLoginAt: "desc" }, { created_on: "desc" }],
+        take: 8,
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          phone: true,
+          phoneNormalized: true,
+        },
+      }),
+    ]);
+
+    const results: MektekCustomerSearchResult[] = customers.map((customer) => {
+      const tags = parseTagsObject(customer.serviceLinks[0]?.serviceOrder?.tags);
+      const address = typeof tags.address === "string" ? tags.address : null;
+
+      return {
+        id: customer.id,
+        name: customer.username,
+        phone: customer.phone,
+        phoneNormalized: customer.phoneNormalized,
+        address,
+        source: "customer",
+      };
+    });
+
+    const seenPhones = new Set(results.map((customer) => customer.phoneNormalized));
+    for (const user of users) {
+      const phoneNormalized = user.phoneNormalized || normalizePhoneNumber(user.phone || "");
+      if (!phoneNormalized || seenPhones.has(phoneNormalized)) continue;
+
+      results.push({
+        id: user.id,
+        name: user.name || user.username || "Customer",
+        phone: user.phone || phoneNormalized,
+        phoneNormalized,
+        address: null,
+        source: "user",
+      });
+      seenPhones.add(phoneNormalized);
+    }
+
+    return { data: results.slice(0, 8) };
+  } catch (error) {
+    console.log("[SEARCH_MEKTEK_CUSTOMERS]", error);
+    return { error: "Failed to search customers" };
   }
 };
 

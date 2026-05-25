@@ -71,7 +71,7 @@ export function AppSidebar({
   const isExpanded = state === "expanded";
 
   const navItems = canAccessMektekStaffArea(session?.user)
-    ? getMektekMenuItems()
+    ? getMektekMenuItems(session?.user)
     : [];
 
   // Prepare user data for NavUser component

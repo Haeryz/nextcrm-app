@@ -1,0 +1,400 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { hash } from "bcryptjs";
+import type { ActiveStatus, Language, MektekStaffRole, Prisma } from "@prisma/client";
+
+import { authOptions } from "@/lib/auth";
+import { canManageMektekCustomers } from "@/lib/mektek/permissions";
+import { normalizePhoneNumber, buildPhoneAccountEmail, phoneDigits } from "@/lib/phone";
+import { prismadb } from "@/lib/prisma";
+import { getServerSession } from "@/lib/session";
+
+const DEFAULT_PAGE_SIZE = 12;
+const activeStatuses = new Set(["ACTIVE", "PENDING", "INACTIVE"]);
+const languages = new Set(["cz", "en", "de", "uk"]);
+const staffRoles = new Set(["CS", "TECHNICIAN"]);
+
+export type CustomerUserInput = {
+  name: string;
+  phone: string;
+  email?: string;
+  password?: string;
+  userStatus?: string;
+  userLanguage?: string;
+  isAdmin?: boolean;
+  mektekRole?: string;
+};
+
+export type CustomerUserRow = {
+  id: string;
+  username: string;
+  phone: string;
+  phoneNormalized: string;
+  createdAt: Date;
+  updatedAt: Date;
+  serviceCount: number;
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    userStatus: ActiveStatus;
+    userLanguage: Language;
+    isAdmin: boolean;
+    mektekRole: MektekStaffRole | null;
+    lastLoginAt: Date | null;
+  } | null;
+};
+
+async function ensureCustomerAdmin() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!canManageMektekCustomers(session.user)) {
+    return { error: "Forbidden: only admins can manage customers" };
+  }
+  return { session };
+}
+
+function compactText(value: unknown) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeEmail(value: unknown) {
+  return compactText(value).toLowerCase();
+}
+
+function normalizeCustomerUserInput(input: CustomerUserInput) {
+  const name = compactText(input.name);
+  const phone = compactText(input.phone);
+  const phoneNormalized = normalizePhoneNumber(phone);
+  const digits = phoneDigits(phoneNormalized);
+  const email = normalizeEmail(input.email) || buildPhoneAccountEmail(phoneNormalized);
+  const password = String(input.password ?? "");
+  const userStatus = activeStatuses.has(String(input.userStatus))
+    ? (String(input.userStatus) as ActiveStatus)
+    : ("ACTIVE" as ActiveStatus);
+  const userLanguage = languages.has(String(input.userLanguage))
+    ? (String(input.userLanguage) as Language)
+    : ("en" as Language);
+  const mektekRole = staffRoles.has(String(input.mektekRole))
+    ? (String(input.mektekRole) as MektekStaffRole)
+    : null;
+
+  if (!name) return { error: "Customer name is required" };
+  if (digits.length < 6) return { error: "Phone number is invalid" };
+  if (!email.includes("@")) return { error: "Email is invalid" };
+  if (password && password.length < 8) {
+    return { error: "Password must be at least 8 characters" };
+  }
+
+  return {
+    data: {
+      name,
+      phone,
+      phoneNormalized,
+      email,
+      password,
+      userStatus,
+      userLanguage,
+      isAdmin: !!input.isAdmin,
+      mektekRole,
+    },
+  };
+}
+
+function customerWhere(input?: { query?: string }): Prisma.CatalogCustomerWhereInput {
+  const query = compactText(input?.query);
+  if (!query) return {};
+
+  const phoneNormalized = normalizePhoneNumber(query);
+  return {
+    OR: [
+      { username: { contains: query, mode: "insensitive" } },
+      { phone: { contains: query } },
+      { phoneNormalized: { contains: phoneNormalized || query } },
+      { user: { name: { contains: query, mode: "insensitive" } } },
+      { user: { username: { contains: query, mode: "insensitive" } } },
+      { user: { email: { contains: query, mode: "insensitive" } } },
+    ],
+  };
+}
+
+function formatPrismaError(error: unknown, fallback: string) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "P2002"
+  ) {
+    return "A customer or user with this phone/email already exists";
+  }
+  return fallback;
+}
+
+export async function listMektekCustomerUsers(input?: {
+  query?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const access = await ensureCustomerAdmin();
+  if ("error" in access) return { error: access.error };
+
+  const pageSize = Math.min(Math.max(Number(input?.pageSize) || DEFAULT_PAGE_SIZE, 1), 50);
+  const requestedPage = Math.max(Number(input?.page) || 1, 1);
+  const where = customerWhere(input);
+  const totalCount = await prismadb.catalogCustomer.count({ where });
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+
+  const customers = await prismadb.catalogCustomer.findMany({
+    where,
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          userStatus: true,
+          userLanguage: true,
+          is_admin: true,
+          mektekRole: true,
+          lastLoginAt: true,
+        },
+      },
+      _count: {
+        select: {
+          serviceLinks: true,
+        },
+      },
+    },
+  });
+
+  const items: CustomerUserRow[] = customers.map((customer) => ({
+    id: customer.id,
+    username: customer.username,
+    phone: customer.phone,
+    phoneNormalized: customer.phoneNormalized,
+    createdAt: customer.createdAt,
+    updatedAt: customer.updatedAt,
+    serviceCount: customer._count.serviceLinks,
+    user: customer.user
+      ? {
+          id: customer.user.id,
+          name: customer.user.name,
+          email: customer.user.email,
+          userStatus: customer.user.userStatus,
+          userLanguage: customer.user.userLanguage,
+          isAdmin: customer.user.is_admin,
+          mektekRole: customer.user.mektekRole,
+          lastLoginAt: customer.user.lastLoginAt,
+        }
+      : null,
+  }));
+
+  return {
+    data: {
+      items,
+      page,
+      pageSize,
+      totalCount,
+      totalPages,
+    },
+  };
+}
+
+export async function createMektekCustomerUser(input: CustomerUserInput) {
+  const access = await ensureCustomerAdmin();
+  if ("error" in access) return { error: access.error };
+
+  const normalized = normalizeCustomerUserInput(input);
+  if ("error" in normalized) return { error: normalized.error };
+  const data = normalized.data;
+
+  try {
+    const customer = await prismadb.$transaction(async (tx) => {
+      const password = data.password ? await hash(data.password, 12) : undefined;
+      const user = await tx.users.create({
+        data: {
+          name: data.name,
+          username: data.name,
+          avatar: "",
+          account_name: "Mektek Customer",
+          is_account_admin: false,
+          is_admin: data.isAdmin,
+          email: data.email,
+          phone: data.phone,
+          phoneNormalized: data.phoneNormalized,
+          userLanguage: data.userLanguage,
+          userStatus: data.userStatus,
+          mektekRole: data.mektekRole,
+          ...(password ? { password } : {}),
+        },
+      });
+
+      return tx.catalogCustomer.create({
+        data: {
+          username: data.name,
+          phone: data.phone,
+          phoneNormalized: data.phoneNormalized,
+          userId: user.id,
+        },
+      });
+    });
+
+    revalidatePath("/[locale]/(routes)/mektek/customers", "page");
+    return { data: customer };
+  } catch (error) {
+    console.log("[CREATE_MEKTEK_CUSTOMER_USER]", error);
+    return { error: formatPrismaError(error, "Failed to create customer") };
+  }
+}
+
+export async function updateMektekCustomerUser(id: string, input: CustomerUserInput) {
+  const access = await ensureCustomerAdmin();
+  if ("error" in access) return { error: access.error };
+
+  const customerId = compactText(id);
+  if (!customerId) return { error: "Customer ID is required" };
+
+  const normalized = normalizeCustomerUserInput(input);
+  if ("error" in normalized) return { error: normalized.error };
+  const data = normalized.data;
+
+  try {
+    const customer = await prismadb.$transaction(async (tx) => {
+      const existing = await tx.catalogCustomer.findUnique({
+        where: { id: customerId },
+        select: {
+          id: true,
+          userId: true,
+        },
+      });
+
+      if (!existing) {
+        throw new Error("CUSTOMER_NOT_FOUND");
+      }
+
+      const password = data.password ? await hash(data.password, 12) : undefined;
+      const userPayload = {
+        name: data.name,
+        username: data.name,
+        account_name: "Mektek Customer",
+        is_admin: data.isAdmin,
+        email: data.email,
+        phone: data.phone,
+        phoneNormalized: data.phoneNormalized,
+        userLanguage: data.userLanguage,
+        userStatus: data.userStatus,
+        mektekRole: data.mektekRole,
+        ...(password ? { password } : {}),
+      };
+
+      let userId = existing.userId;
+      if (userId) {
+        await tx.users.update({
+          where: { id: userId },
+          data: userPayload,
+        });
+      } else {
+        const user = await tx.users.create({
+          data: {
+            ...userPayload,
+            avatar: "",
+            is_account_admin: false,
+          },
+        });
+        userId = user.id;
+      }
+
+      return tx.catalogCustomer.update({
+        where: { id: customerId },
+        data: {
+          username: data.name,
+          phone: data.phone,
+          phoneNormalized: data.phoneNormalized,
+          userId,
+        },
+      });
+    });
+
+    revalidatePath("/[locale]/(routes)/mektek/customers", "page");
+    revalidatePath("/[locale]/customer/profile", "page");
+    return { data: customer };
+  } catch (error) {
+    console.log("[UPDATE_MEKTEK_CUSTOMER_USER]", error);
+    if (error instanceof Error && error.message === "CUSTOMER_NOT_FOUND") {
+      return { error: "Customer not found" };
+    }
+    return { error: formatPrismaError(error, "Failed to update customer") };
+  }
+}
+
+export async function deleteMektekCustomerUser(id: string) {
+  const access = await ensureCustomerAdmin();
+  if ("error" in access) return { error: access.error };
+
+  const customerId = compactText(id);
+  if (!customerId) return { error: "Customer ID is required" };
+
+  try {
+    await prismadb.$transaction(async (tx) => {
+      const customer = await tx.catalogCustomer.findUnique({
+        where: { id: customerId },
+        include: {
+          user: {
+            select: {
+              id: true,
+              is_admin: true,
+            },
+          },
+        },
+      });
+
+      if (!customer) {
+        throw new Error("CUSTOMER_NOT_FOUND");
+      }
+
+      if (customer.userId === access.session.user.id) {
+        throw new Error("SELF_DELETE");
+      }
+
+      if (customer.user?.is_admin) {
+        const otherAdmins = await tx.users.count({
+          where: {
+            is_admin: true,
+            id: {
+              not: customer.user.id,
+            },
+          },
+        });
+        if (otherAdmins === 0) {
+          throw new Error("LAST_ADMIN");
+        }
+      }
+
+      await tx.catalogCustomer.delete({
+        where: { id: customer.id },
+      });
+
+      if (customer.userId) {
+        await tx.users.delete({
+          where: { id: customer.userId },
+        });
+      }
+    });
+
+    revalidatePath("/[locale]/(routes)/mektek/customers", "page");
+    return { data: { id: customerId } };
+  } catch (error) {
+    console.log("[DELETE_MEKTEK_CUSTOMER_USER]", error);
+    if (error instanceof Error) {
+      if (error.message === "CUSTOMER_NOT_FOUND") return { error: "Customer not found" };
+      if (error.message === "SELF_DELETE") return { error: "You cannot delete your own user account" };
+      if (error.message === "LAST_ADMIN") return { error: "You cannot delete the last admin account" };
+    }
+    return { error: "Failed to delete customer" };
+  }
+}

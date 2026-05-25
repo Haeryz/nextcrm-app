@@ -1,9 +1,12 @@
 import Link from "next/link";
 import {
+  ArrowLeft,
   ArrowRight,
   CheckCircle2,
   ClipboardCheck,
+  LogIn,
   Search,
+  UserRound,
   type LucideIcon,
   Wrench,
 } from "lucide-react";
@@ -95,7 +98,7 @@ const processSteps: LandingProcessStep[] = [
 
 function MektekLanding({ locale }: { locale: string }) {
   const sparepartHref = `/${locale}/customer?view=sparepart`;
-  const profileHref = `/${locale}/customer/profile`;
+  const accessHref = `/${locale}/customer/access`;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -119,7 +122,7 @@ function MektekLanding({ locale }: { locale: string }) {
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               <Button asChild size="lg" className="bg-white text-zinc-950 hover:bg-zinc-200">
                 <Link href={sparepartHref}>
                   Buka katalog
@@ -132,10 +135,13 @@ function MektekLanding({ locale }: { locale: string }) {
                 variant="outline"
                 className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
               >
-                <Link href={profileHref}>Cek service profile</Link>
+                <Link href={accessHref}>
+                  Login / Sign up
+                  <LogIn className="size-4" />
+                </Link>
               </Button>
               <p className="text-sm text-zinc-400">
-                Masuk setelah mengenal layanan Mektek secara singkat.
+                Use your phone number so we can send you to the right flow.
               </p>
             </div>
 
@@ -327,16 +333,33 @@ export default async function CustomerCatalogPage({
     <main className="min-h-screen bg-background">
       <section className="border-b bg-muted/20">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-6">
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium uppercase text-muted-foreground">
-              MekTek Catalogue
-            </p>
-            <h1 className="text-3xl font-semibold md:text-4xl">
-              Sparepart catalogue
-            </h1>
-            <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-              Browse available machine parts by model, part number, or description.
-            </p>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium uppercase text-muted-foreground">
+                MekTek Catalogue
+              </p>
+              <h1 className="text-3xl font-semibold md:text-4xl">
+                Sparepart catalogue
+              </h1>
+              <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
+                Browse available machine parts by model, part number, or description.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Button asChild variant="outline">
+                <Link href={`/${locale}/customer`}>
+                  <ArrowLeft className="size-4" />
+                  Customer home
+                </Link>
+              </Button>
+              <Button asChild>
+                <Link href={`/${locale}/customer/profile`}>
+                  <UserRound className="size-4" />
+                  Back to profile
+                </Link>
+              </Button>
+            </div>
           </div>
 
           <form

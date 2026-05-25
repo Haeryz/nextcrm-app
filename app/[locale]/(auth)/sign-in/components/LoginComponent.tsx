@@ -15,7 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -50,6 +50,12 @@ export function LoginComponent() {
   const [email, setEmail] = useState("");
 
   const router = useRouter();
+  const params = useParams<{ locale?: string }>();
+  const searchParams = useSearchParams();
+  const locale = params.locale || "en";
+  const customerFlow = searchParams.get("customer") === "1";
+  const initialIdentifier =
+    searchParams.get("phone") || searchParams.get("email") || "";
 
   const formSchema = z.object({
     email: z.string().min(3).max(80),
@@ -61,7 +67,7 @@ export function LoginComponent() {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: "",
+      email: initialIdentifier,
       password: "",
     },
   });
@@ -103,7 +109,7 @@ export function LoginComponent() {
         redirect: false,
         email: data.email,
         password: data.password,
-        callbackUrl: process.env.NEXT_PUBLIC_APP_URL,
+        callbackUrl: `/${locale}/customer/profile`,
       });
       if (status?.error) {
         toast.error(status.error);
@@ -111,7 +117,11 @@ export function LoginComponent() {
       }
       if (status?.ok) {
         toast.success("Login successful.");
-        router.push(data.email.includes("@") ? "/" : "/customer/profile");
+        router.push(
+          customerFlow || !data.email.includes("@")
+            ? `/${locale}/customer/profile`
+            : `/${locale}`
+        );
         router.refresh();
       }
     } catch (error: any) {
@@ -247,7 +257,15 @@ export function LoginComponent() {
       <CardFooter className="flex flex-col space-y-5">
         <div className="text-sm text-gray-500">
           Need account? Register{" "}
-          <Link href={"/register"} className="text-blue-500">
+          <Link
+            href={{
+              pathname: `/${locale}/register`,
+              query: initialIdentifier
+                ? { customer: "1", phone: initialIdentifier }
+                : undefined,
+            }}
+            className="text-blue-500"
+          >
             here
           </Link>
         </div>

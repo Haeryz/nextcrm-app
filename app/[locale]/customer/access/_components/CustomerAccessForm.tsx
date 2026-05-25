@@ -1,0 +1,296 @@
+"use client";
+
+import { useState, type FormEvent } from "react";
+import { signIn } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, Eye, EyeOff, Lock, Phone, UserRound } from "lucide-react";
+import { toast } from "sonner";
+
+import { registerCustomerUser } from "@/actions/auth/register-user";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+export function CustomerAccessForm({ locale }: { locale: string }) {
+  const router = useRouter();
+  const [loginPhone, setLoginPhone] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [signupName, setSignupName] = useState("");
+  const [signupPhone, setSignupPhone] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showSignupConfirmPassword, setShowSignupConfirmPassword] =
+    useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  async function onLoginSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const status = await signIn("credentials", {
+        redirect: false,
+        email: loginPhone,
+        password: loginPassword,
+        callbackUrl: `/${locale}/customer/profile`,
+      });
+
+      if (status?.error) {
+        toast.error(status.error);
+        return;
+      }
+
+      toast.success("Login successful.");
+      router.push(`/${locale}/customer/profile`);
+      router.refresh();
+    } catch (error: any) {
+      toast.error(error?.message || "Login failed");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function onSignupSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const result = await registerCustomerUser({
+        name: signupName,
+        phone: signupPhone,
+        password: signupPassword,
+        confirmPassword: signupConfirmPassword,
+      });
+
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+
+      const status = await signIn("credentials", {
+        redirect: false,
+        email: signupPhone,
+        password: signupPassword,
+        callbackUrl: `/${locale}/customer/profile`,
+      });
+
+      if (status?.error) {
+        toast.success("Account created. Login with your phone and password.");
+        setLoginPhone(signupPhone);
+        return;
+      }
+
+      toast.success("Customer account created.");
+      router.push(`/${locale}/customer/profile`);
+      router.refresh();
+    } catch (error: any) {
+      toast.error(error?.message || "Signup failed");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  return (
+    <div className="w-full max-w-xl rounded-md border border-zinc-200 bg-zinc-50 p-5 md:p-6">
+      <Tabs defaultValue="login" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 bg-zinc-200">
+          <TabsTrigger value="login">Login</TabsTrigger>
+          <TabsTrigger value="signup">Sign up</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="login" className="mt-6">
+          <form onSubmit={onLoginSubmit} className="grid gap-5">
+            <div className="grid gap-2">
+              <Label htmlFor="login-phone" className="text-zinc-950">
+                Phone number
+              </Label>
+              <div className="relative">
+                <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
+                <Input
+                  id="login-phone"
+                  value={loginPhone}
+                  onChange={(event) => setLoginPhone(event.target.value)}
+                  inputMode="tel"
+                  placeholder="+628123456789"
+                  className="h-12 border-zinc-300 bg-white pl-9 text-zinc-950 placeholder:text-zinc-500 focus-visible:ring-zinc-950"
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="login-password" className="text-zinc-950">
+                Password
+              </Label>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
+                <Input
+                  id="login-password"
+                  value={loginPassword}
+                  onChange={(event) => setLoginPassword(event.target.value)}
+                  type={showLoginPassword ? "text" : "password"}
+                  placeholder="Password"
+                  className="h-12 border-zinc-300 bg-white pl-9 pr-12 text-zinc-950 placeholder:text-zinc-500 focus-visible:ring-zinc-950"
+                  disabled={isLoading}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
+                  onClick={() => setShowLoginPassword((value) => !value)}
+                  disabled={isLoading}
+                  aria-label={
+                    showLoginPassword ? "Hide password" : "Show password"
+                  }
+                >
+                  {showLoginPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="h-12 bg-zinc-950 text-white hover:bg-zinc-800"
+              disabled={isLoading}
+            >
+              {isLoading ? "Logging in..." : "Login"}
+              <ArrowRight className="size-4" />
+            </Button>
+          </form>
+        </TabsContent>
+
+        <TabsContent value="signup" className="mt-6">
+          <form onSubmit={onSignupSubmit} className="grid gap-5">
+            <div className="grid gap-2">
+              <Label htmlFor="signup-name" className="text-zinc-950">
+                Name
+              </Label>
+              <div className="relative">
+                <UserRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
+                <Input
+                  id="signup-name"
+                  value={signupName}
+                  onChange={(event) => setSignupName(event.target.value)}
+                  placeholder="Customer name"
+                  className="h-12 border-zinc-300 bg-white pl-9 text-zinc-950 placeholder:text-zinc-500 focus-visible:ring-zinc-950"
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="signup-phone" className="text-zinc-950">
+                Phone number
+              </Label>
+              <div className="relative">
+                <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
+                <Input
+                  id="signup-phone"
+                  value={signupPhone}
+                  onChange={(event) => setSignupPhone(event.target.value)}
+                  inputMode="tel"
+                  placeholder="+628123456789"
+                  className="h-12 border-zinc-300 bg-white pl-9 text-zinc-950 placeholder:text-zinc-500 focus-visible:ring-zinc-950"
+                  disabled={isLoading}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="signup-password" className="text-zinc-950">
+                Password
+              </Label>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
+                <Input
+                  id="signup-password"
+                  value={signupPassword}
+                  onChange={(event) => setSignupPassword(event.target.value)}
+                  type={showSignupPassword ? "text" : "password"}
+                  placeholder="Password"
+                  className="h-12 border-zinc-300 bg-white pl-9 pr-12 text-zinc-950 placeholder:text-zinc-500 focus-visible:ring-zinc-950"
+                  disabled={isLoading}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
+                  onClick={() => setShowSignupPassword((value) => !value)}
+                  disabled={isLoading}
+                  aria-label={
+                    showSignupPassword ? "Hide password" : "Show password"
+                  }
+                >
+                  {showSignupPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="signup-confirm-password" className="text-zinc-950">
+                Confirm password
+              </Label>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-500" />
+                <Input
+                  id="signup-confirm-password"
+                  value={signupConfirmPassword}
+                  onChange={(event) =>
+                    setSignupConfirmPassword(event.target.value)
+                  }
+                  type={showSignupConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm password"
+                  className="h-12 border-zinc-300 bg-white pl-9 pr-12 text-zinc-950 placeholder:text-zinc-500 focus-visible:ring-zinc-950"
+                  disabled={isLoading}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950"
+                  onClick={() =>
+                    setShowSignupConfirmPassword((value) => !value)
+                  }
+                  disabled={isLoading}
+                  aria-label={
+                    showSignupConfirmPassword
+                      ? "Hide password"
+                      : "Show password"
+                  }
+                >
+                  {showSignupConfirmPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="h-12 bg-zinc-950 text-white hover:bg-zinc-800"
+              disabled={isLoading}
+            >
+              {isLoading ? "Creating account..." : "Create account"}
+              <ArrowRight className="size-4" />
+            </Button>
+          </form>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

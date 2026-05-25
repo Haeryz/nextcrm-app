@@ -22,3 +22,7 @@ export function canUpdateMektekProgress(user?: MektekSessionUser | null) {
 export function canManageMektekPayments(user?: MektekSessionUser | null) {
   return !!user?.isAdmin;
 }
+
+export function canManageMektekCustomers(user?: MektekSessionUser | null) {
+  return !!user?.isAdmin;
+}

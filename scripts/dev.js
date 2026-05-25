@@ -1,7 +1,11 @@
-const { spawn } = require("child_process");
+const { execFileSync, spawn } = require("child_process");
+const fs = require("fs");
 const path = require("path");
 
 const args = process.argv.slice(2);
+if (args[0] === "--") {
+  args.shift();
+}
 const portArgIndex = args.findIndex((arg) => arg === "--port" || arg === "-p");
 const inlinePortArg = args.find((arg) => arg.startsWith("--port="));
 const hostnameArgIndex = args.findIndex(
@@ -20,6 +24,23 @@ const hostname =
   "localhost";
 
 console.log(`Customer mode: http://${hostname}:${port}/customer`);
+
+const devCachePath = path.join(process.cwd(), ".next", "dev");
+if (process.env.NEXTCRM_KEEP_DEV_CACHE !== "true") {
+  try {
+    fs.rmSync(devCachePath, { recursive: true, force: true });
+  } catch (error) {
+    console.warn(
+      `Could not clear ${devCachePath}. Stop any running dev server and retry.`
+    );
+    console.warn(error);
+  }
+}
+
+execFileSync("pnpm", ["exec", "prisma", "generate"], {
+  stdio: "inherit",
+  env: process.env,
+});
 
 const nextBin = path.resolve(process.cwd(), "node_modules/next/dist/bin/next");
 
