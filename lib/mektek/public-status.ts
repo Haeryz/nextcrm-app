@@ -39,13 +39,10 @@ const buildTimeline = (tags: Record<string, unknown>): PublicTimelineEntry[] =>
           return { id, description, createdAt, completed };
         })
         .filter((item): item is PublicTimelineEntry => !!item)
+        .sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        )
     : [];
-
-const calculateProgress = (timeline: PublicTimelineEntry[], taskStatus?: string | null) => {
-  if (taskStatus === "COMPLETE") return 100;
-  if (!timeline.length) return 0;
-  return Math.round((timeline.filter((item) => item.completed).length / timeline.length) * 100);
-};
 
 export type MektekPublicSnapshot = ReturnType<typeof buildMektekPublicSnapshot>;
 
@@ -54,7 +51,7 @@ export function buildMektekPublicSnapshot(order: PublicOrder) {
   const financialSummary = buildMektekFinancialSummary(tags, order.content);
   const normalizedItems = financialSummary.normalizedItems;
   const timeline = buildTimeline(tags);
-  const latestTimeline = timeline[timeline.length - 1] ?? null;
+  const latestTimeline = timeline[0] ?? null;
 
   return {
     id: order.id,
@@ -72,7 +69,6 @@ export function buildMektekPublicSnapshot(order: PublicOrder) {
     content: order.content ?? "",
     timeline,
     latestTimeline,
-    progress: calculateProgress(timeline, order.taskStatus),
     itemSummary: {
       serviceSubtotal: normalizedItems.serviceSubtotal,
       sparepartSubtotal: normalizedItems.sparepartSubtotal,

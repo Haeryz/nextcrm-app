@@ -62,6 +62,9 @@ export default function LiveServiceStatus({
   }, [streamHref]);
 
   const statusMeta = getStatusMeta(snapshot.taskStatus);
+  const timelineNewestFirst = [...snapshot.timeline].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_10%_20%,rgba(148,163,184,0.14),transparent_35%),radial-gradient(circle_at_90%_10%,rgba(59,130,246,0.12),transparent_30%),hsl(var(--background))] px-4 py-8 md:px-8 md:py-10">
@@ -73,15 +76,12 @@ export default function LiveServiceStatus({
                 Customer Tracking
               </p>
               <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">
-                MEKTEK Service Progress
+                MEKTEK Service Status
               </h1>
               <p className="text-sm text-muted-foreground">
                 Hai {snapshot.customerName}, berikut update terkini untuk servis kendaraan Anda.
               </p>
             </div>
-            <Badge variant={statusMeta.badgeVariant} className="h-fit px-3 py-1 text-xs">
-              {statusMeta.label}
-            </Badge>
           </div>
         </div>
 
@@ -125,14 +125,13 @@ export default function LiveServiceStatus({
                 Progress
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-lg font-black">{snapshot.progress}%</p>
-              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-muted">
-                <div
-                  className={`h-full rounded-full transition-all ${statusMeta.barColor}`}
-                  style={{ width: `${snapshot.progress}%` }}
-                />
-              </div>
+            <CardContent className="flex items-center">
+              <Badge
+                variant={statusMeta.badgeVariant}
+                className="px-4 py-2 text-sm font-bold uppercase tracking-wide"
+              >
+                {statusMeta.label}
+              </Badge>
             </CardContent>
           </Card>
         </div>
@@ -249,19 +248,19 @@ export default function LiveServiceStatus({
         <Card className="border shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-              Progress Track
+              Service Timeline
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {snapshot.timeline.length === 0 ? (
+            {timelineNewestFirst.length === 0 ? (
               <p className="text-sm text-muted-foreground">Belum ada update timeline.</p>
             ) : (
               <div className="space-y-3">
-                {snapshot.timeline.map((item, index) => (
+                {timelineNewestFirst.map((item, index) => (
                   <div
                     key={item.id}
                     className={`rounded-xl border p-4 ${
-                      index === snapshot.timeline.length - 1
+                      index === 0
                         ? "border-primary/30 bg-primary/5"
                         : "bg-card"
                     }`}

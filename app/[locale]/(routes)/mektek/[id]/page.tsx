@@ -13,7 +13,7 @@ import { authOptions } from "@/lib/auth";
 import AddTimelineEntryForm from "./_components/AddTimelineEntryForm";
 import CustomerTrackingLinkCard from "./_components/CustomerTrackingLinkCard";
 import ServiceOrderStatusControl from "./_components/ServiceOrderStatusControl";
-import { calculateProgress, getStatusMeta } from "../_lib/constants";
+import { getStatusMeta } from "../_lib/constants";
 import PaymentCard from "../_components/PaymentCard";
 import WhatsAppComposer from "../_components/WhatsAppComposer";
 import InvoiceActions from "../_components/InvoiceActions";
@@ -123,7 +123,6 @@ export default async function MektekDetailPage({ params }: Props) {
         },
       ];
   const completedSteps = timeline.filter((item) => item.completed).length;
-  const progress = calculateProgress(timelineFromTags, order.taskStatus);
   const statusMeta = getStatusMeta(order.taskStatus);
   const invoiceData = buildMektekInvoiceData(order);
   const normalizedItems = normalizeMektekLineItems(tags, order.content);
@@ -159,20 +158,21 @@ export default async function MektekDetailPage({ params }: Props) {
                 </div>
               </div>
 
-              <div className="w-full max-w-sm space-y-2">
-                <div className="flex items-end justify-between">
-                  <span className="text-sm font-medium text-muted-foreground">Progress</span>
-                  <span className="text-2xl font-bold text-foreground">{progress}%</span>
-                </div>
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={`h-full ${statusMeta.barColor} rounded-full transition-all`}
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {completedSteps} of {timeline.length} steps completed
+              <div className="w-full max-w-sm rounded-lg border bg-muted/20 p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Current state
                 </p>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                  <Badge
+                    variant={statusMeta.badgeVariant}
+                    className="px-3 py-1.5 text-xs font-bold uppercase tracking-wide"
+                  >
+                    {statusMeta.label}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground">
+                    {completedSteps} of {timeline.length} steps done
+                  </p>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -235,7 +235,7 @@ export default async function MektekDetailPage({ params }: Props) {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="rounded-lg border p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold">Service Items</p>
+                      <p className="text-sm font-semibold">Service Description</p>
                       <Badge variant="secondary">
                         {normalizedItems.serviceItems.length}
                       </Badge>

@@ -128,7 +128,7 @@ test("creates split MekTek items and streams tracking updates live", async ({ pa
     request.url().includes(`/api/mektek/service-orders/${createdOrderId}/stream`)
   );
   await customerPage.goto(trackingLinkValue);
-  await expect(customerPage.getByText("MEKTEK Service Progress")).toBeVisible();
+  await expect(customerPage.getByText("MEKTEK Service Status")).toBeVisible();
   await expect(customerPage.getByText("Subtotal sparepart")).toBeVisible();
   const streamRequest = await streamRequestPromise;
   expect(streamRequest.url()).toContain("/stream?token=");

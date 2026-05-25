@@ -178,30 +178,6 @@ export default function NewServiceOrderForm({
     setHasCustomerSearchResult(false);
   };
 
-  const addCatalogItem = (item: DamageItem) => {
-    setSparepartItems((current) => {
-      const existingIndex = current.findIndex(
-        (row) => row.catalogItemId && row.catalogItemId === item.catalogItemId
-      );
-      if (existingIndex >= 0) {
-        return current.map((row, index) =>
-          index === existingIndex
-            ? { ...row, quantity: Math.max(1, Number(row.quantity) || 1) + 1 }
-            : row
-        );
-      }
-
-      const emptyManualIndex = current.findIndex(
-        (row) => !row.catalogItemId && !row.description.trim() && !row.estimatedCost.trim()
-      );
-      if (emptyManualIndex >= 0) {
-        return current.map((row, index) => (index === emptyManualIndex ? item : row));
-      }
-
-      return [...current, item];
-    });
-  };
-
   const copyLink = async () => {
     if (!trackingLink) return;
     await navigator.clipboard.writeText(trackingLink);
@@ -338,11 +314,6 @@ export default function NewServiceOrderForm({
             value={voucherCode}
             onChange={(event) => setVoucherCode(event.target.value.toUpperCase())}
             disabled={isPending}
-          />
-          <CatalogItemPicker
-            key={formResetKey}
-            disabled={isPending}
-            onAddItem={addCatalogItem}
           />
           <DamageItemsInput
             items={serviceItems}

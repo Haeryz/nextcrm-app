@@ -75,7 +75,10 @@ export function CustomerServiceLiveCard({
               Last update: {formatDateTime(snapshot.updatedAt)}
             </p>
           </div>
-          <Badge variant={statusMeta.badgeVariant} className="h-fit w-fit">
+          <Badge
+            variant={statusMeta.badgeVariant}
+            className="h-fit w-fit px-3 py-1.5 text-xs font-bold uppercase tracking-wide"
+          >
             {statusMeta.label}
           </Badge>
         </div>
@@ -91,17 +94,16 @@ export function CustomerServiceLiveCard({
               {formatDateTime(snapshot.latestTimeline?.createdAt ?? null)}
             </p>
           </div>
-          <div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Progress</span>
-              <span className="font-semibold">{snapshot.progress}%</span>
-            </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted">
-              <div
-                className={`h-full rounded-full transition-all ${statusMeta.barColor}`}
-                style={{ width: `${snapshot.progress}%` }}
-              />
-            </div>
+          <div className="rounded-md border bg-background p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Current state
+            </p>
+            <Badge
+              variant={statusMeta.badgeVariant}
+              className="mt-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wide"
+            >
+              {statusMeta.label}
+            </Badge>
           </div>
         </div>
 

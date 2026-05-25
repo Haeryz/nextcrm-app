@@ -40,7 +40,7 @@ type CatalogSearchItem = {
 export default function DamageItemsInput({
   items,
   onChange,
-  label = "Service Items",
+  label = "Service Description",
   addLabel = "Tambah item",
   emptyMessage = "Belum ada item servis. Klik \"Tambah item\" untuk menambah.",
   descriptionPlaceholder = (index) =>

@@ -56,7 +56,10 @@ describe("buildMektekPublicSnapshot", () => {
       serviceCount: 1,
       sparepartCount: 1,
     });
-    expect(snapshot.progress).toBe(50);
+    expect(snapshot.timeline.map((item) => item.description)).toEqual([
+      "In progress",
+      "Received",
+    ]);
     expect(snapshot.latestTimeline?.description).toBe("In progress");
     expect(snapshot.invoice.subtotal).toBe(150000);
   });

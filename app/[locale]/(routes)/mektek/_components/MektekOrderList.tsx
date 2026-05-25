@@ -3,7 +3,7 @@ import { ArrowRight, CalendarClock, Car, Clock3, UserRound, Wrench } from "lucid
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { calculateProgress, getStatusMeta } from "../_lib/constants";
+import { getStatusMeta } from "../_lib/constants";
 
 type MektekOrder = {
   id: string;
@@ -92,7 +92,7 @@ export default function MektekOrderList({
         <span>Status</span>
         <span>Technician</span>
         <span>Schedule</span>
-        <span>Progress</span>
+        <span>Current state</span>
         <span className="sr-only">Open</span>
       </div>
       <div className="divide-y">
@@ -101,7 +101,6 @@ export default function MektekOrderList({
           const customerName = getText(tags, "customerName", "Unknown customer");
           const vehicle = getText(tags, "vehicle", order.title ?? "Unknown vehicle");
           const timeline = getTimeline(tags);
-          const progress = calculateProgress(timeline, order.taskStatus);
           const status = getStatusMeta(order.taskStatus);
           const timelineCount = timeline.length || 1;
           const technicianName = order.assigned_user?.name || order.assigned_user?.email || "Unassigned";
@@ -158,16 +157,13 @@ export default function MektekOrderList({
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2 text-xs">
-                  <span className="text-muted-foreground">Progress</span>
-                  <span className="font-medium">{progress}%</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={cn("h-full rounded-full", status.barColor)}
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
+                <p className="text-xs text-muted-foreground">Current state</p>
+                <Badge
+                  variant={status.badgeVariant}
+                  className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
+                >
+                  {status.label}
+                </Badge>
               </div>
 
               <ArrowRight className="hidden h-4 w-4 justify-self-end text-muted-foreground lg:block" />
