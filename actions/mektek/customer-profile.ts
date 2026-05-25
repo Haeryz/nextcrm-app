@@ -5,6 +5,7 @@ import { buildMektekPublicSnapshot } from "@/lib/mektek/public-status";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { normalizePhoneNumber } from "@/lib/phone";
+import { buildMektekVouchers } from "@/lib/mektek/vouchers";
 
 const parseTags = (tags: unknown): Record<string, unknown> => {
   if (!tags || typeof tags !== "object" || Array.isArray(tags)) return {};
@@ -41,6 +42,7 @@ export async function getMektekCustomerProfile(locale = "en") {
         customer: null,
         services: [],
         needsPhoneAccount: true,
+        vouchers: [],
       },
     };
   }
@@ -78,6 +80,10 @@ export async function getMektekCustomerProfile(locale = "en") {
         customer: null,
         services: [],
         needsPhoneAccount: false,
+        vouchers: buildMektekVouchers({
+          phoneNormalized,
+          completedVisitCount: 0,
+        }),
       },
     };
   }
@@ -131,6 +137,10 @@ export async function getMektekCustomerProfile(locale = "en") {
       return bTime - aTime;
     });
 
+  const completedVisitCount = services.filter(
+    (service) => service.snapshot.taskStatus === "COMPLETE"
+  ).length;
+
   return {
     data: {
       user,
@@ -141,6 +151,11 @@ export async function getMektekCustomerProfile(locale = "en") {
         phoneNormalized: customer.phoneNormalized,
       },
       services,
+      vouchers: buildMektekVouchers({
+        customerId: customer.id,
+        phoneNormalized: customer.phoneNormalized,
+        completedVisitCount,
+      }),
       needsPhoneAccount: false,
     },
   };

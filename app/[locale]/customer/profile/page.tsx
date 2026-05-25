@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CustomerServiceLiveCard } from "./_components/CustomerServiceLiveCard";
+import { CustomerVoucherList } from "./_components/CustomerVoucherList";
 
 interface CustomerProfilePageProps {
   params: Promise<{ locale: string }>;
@@ -107,6 +108,10 @@ export default async function CustomerProfilePage({
               with your phone number to see service tracking.
             </CardContent>
           </Card>
+        )}
+
+        {!profile.needsPhoneAccount && profile.vouchers.length > 0 && (
+          <CustomerVoucherList vouchers={profile.vouchers} />
         )}
 
         {!profile.needsPhoneAccount && profile.services.length === 0 && (

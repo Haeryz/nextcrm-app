@@ -28,6 +28,8 @@ export default function NewServiceOrderForm() {
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [estimatedDone, setEstimatedDone] = useState("");
+  const [voucherCode, setVoucherCode] = useState("");
+  const [formResetKey, setFormResetKey] = useState(0);
   const [customerSuggestions, setCustomerSuggestions] = useState<
     MektekCustomerSearchResult[]
   >([]);
@@ -93,6 +95,7 @@ export default function NewServiceOrderForm() {
         phone,
         address,
         estimatedDone,
+        voucherCode,
         serviceItems,
         sparepartItems,
       });
@@ -111,8 +114,17 @@ export default function NewServiceOrderForm() {
       const loyaltyTier = typeof tags.loyaltyTier === "string" ? tags.loyaltyTier : "";
       const loyaltyDiscountRate =
         typeof tags.loyaltyDiscountRate === "number" ? tags.loyaltyDiscountRate : 0;
+      const voucher =
+        tags.voucher && typeof tags.voucher === "object" && !Array.isArray(tags.voucher)
+          ? (tags.voucher as Record<string, unknown>)
+          : null;
+      const voucherTitle = typeof voucher?.title === "string" ? voucher.title : "";
+      const voucherDiscount =
+        typeof voucher?.discountAmount === "number" ? voucher.discountAmount : 0;
       setLoyaltySummary(
-        loyaltyTier && loyaltyDiscountRate > 0
+        voucherTitle && voucherDiscount > 0
+          ? `${voucherTitle} voucher applied: Rp ${voucherDiscount.toLocaleString("id-ID")}`
+          : loyaltyTier && loyaltyDiscountRate > 0
           ? `${loyaltyTier} discount applied automatically: ${loyaltyDiscountRate}%`
           : ""
       );
@@ -124,6 +136,11 @@ export default function NewServiceOrderForm() {
       setPhone("");
       setAddress("");
       setEstimatedDone("");
+      setVoucherCode("");
+      setCustomerSuggestions([]);
+      setCustomerSuggestionsOpen(false);
+      setHasCustomerSearchResult(false);
+      setFormResetKey((key) => key + 1);
       router.refresh();
     });
   };
@@ -276,7 +293,14 @@ export default function NewServiceOrderForm() {
             onChange={(event) => setAddress(event.target.value)}
             disabled={isPending}
           />
+          <Input
+            placeholder="Voucher code"
+            value={voucherCode}
+            onChange={(event) => setVoucherCode(event.target.value.toUpperCase())}
+            disabled={isPending}
+          />
           <CatalogItemPicker
+            key={formResetKey}
             disabled={isPending}
             onAddItem={addCatalogItem}
           />

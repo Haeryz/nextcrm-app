@@ -24,6 +24,10 @@ import {
 } from "@/lib/mektek/permissions";
 import { calculateMektekDiscountAmount } from "@/lib/mektek/loyalty";
 import { normalizePhoneNumber } from "@/lib/phone";
+import {
+  calculateMektekVoucherDiscount,
+  findMektekVoucherByCode,
+} from "@/lib/mektek/vouchers";
 
 const MEKTEK_TITLE_PREFIX = "MEKTEK Service -";
 const LEGACY_MEKTEK_TITLE_PREFIX = "MEKTEK AC -";
@@ -72,6 +76,8 @@ type CreateMektekServiceOrderInput = {
   phone?: string;
   address?: string;
   estimatedDone?: string;
+  manualDiscount?: string | number;
+  voucherCode?: string;
   serviceItems?: MektekLineItemInput[];
   sparepartItems?: MektekLineItemInput[];
 };
@@ -148,6 +154,8 @@ export const createMektekServiceOrder = async (
   const phone = String(input?.phone ?? "").trim();
   const address = String(input?.address ?? "").trim();
   const phoneNormalized = normalizePhoneNumber(phone);
+  const manualDiscount = parseMoney(input?.manualDiscount);
+  const voucherCode = String(input?.voucherCode ?? "").trim();
 
   if (!customerName || !vehicle || !complaint) {
     return { error: "Customer name, vehicle, and complaint are required" };
@@ -206,6 +214,35 @@ export const createMektekServiceOrder = async (
         complaint
       ).subtotal;
       const loyalty = calculateMektekDiscountAmount(subtotal, completedVisitCount);
+      const voucher = voucherCode
+        ? findMektekVoucherByCode(
+            {
+              customerId: catalogCustomer.id,
+              phoneNormalized,
+              completedVisitCount,
+            },
+            voucherCode
+          )
+        : null;
+      const voucherDiscount = voucher
+        ? calculateMektekVoucherDiscount(voucher, subtotal)
+        : 0;
+
+      if (voucherCode && !voucher) {
+        throw new Error("INVALID_VOUCHER");
+      }
+      if (voucher && !voucher.available) {
+        throw new Error("LOCKED_VOUCHER");
+      }
+      if (voucher && voucherDiscount <= 0) {
+        throw new Error("VOUCHER_MINIMUM_NOT_MET");
+      }
+
+      const discount = manualDiscount > 0
+        ? manualDiscount
+        : voucherDiscount > 0
+          ? voucherDiscount
+          : loyalty.discountAmount;
 
       const serviceOrder = await tx.crm_Accounts_Tasks.create({
         data: {
@@ -232,9 +269,18 @@ export const createMektekServiceOrder = async (
             completedVisitCount,
             loyaltyTier: loyalty.tier?.label ?? null,
             loyaltyDiscountRate: loyalty.discountRate,
+            manualDiscount: manualDiscount || null,
+            voucher: voucher
+              ? {
+                  id: voucher.id,
+                  code: voucher.code,
+                  title: voucher.title,
+                  discountAmount: voucherDiscount,
+                }
+              : null,
             serviceItems,
             sparepartItems,
-            discount: loyalty.discountAmount,
+            discount,
             tax: 0,
             payment: {
               method: "cash",
@@ -322,6 +368,11 @@ export const createMektekServiceOrder = async (
     };
   } catch (error) {
     console.log("[CREATE_MEKTEK_SERVICE_ORDER]", error);
+    if (error instanceof Error) {
+      if (error.message === "INVALID_VOUCHER") return { error: "Voucher code is invalid" };
+      if (error.message === "LOCKED_VOUCHER") return { error: "Voucher is not available for this customer" };
+      if (error.message === "VOUCHER_MINIMUM_NOT_MET") return { error: "Voucher minimum purchase is not met" };
+    }
     return { error: "Failed to create service order" };
   }
 };
