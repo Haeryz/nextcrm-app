@@ -80,6 +80,15 @@ export default async function MektekDetailPage({ params }: Props) {
       : "Unknown";
   const phone = typeof tags.phone === "string" ? tags.phone : undefined;
   const address = typeof tags.address === "string" ? tags.address : undefined;
+  const technicianTag =
+    tags.technician && typeof tags.technician === "object" && !Array.isArray(tags.technician)
+      ? (tags.technician as Record<string, unknown>)
+      : {};
+  const technicianName =
+    order.assigned_user?.name ||
+    (typeof technicianTag.name === "string" ? technicianTag.name : "") ||
+    (typeof technicianTag.email === "string" ? technicianTag.email : "") ||
+    "Unassigned";
 
   const timelineFromTags: TimelineEntry[] = Array.isArray(tags.timeline)
     ? tags.timeline
@@ -187,6 +196,12 @@ export default async function MektekDetailPage({ params }: Props) {
                     <p className="text-xs text-muted-foreground">Estimated Done</p>
                     <p className="text-sm font-medium text-foreground">
                       {order.dueDateAt?.toLocaleDateString() ?? "Not set"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Technician</p>
+                    <p className="text-sm font-medium text-foreground">
+                      {technicianName}
                     </p>
                   </div>
                   <div>

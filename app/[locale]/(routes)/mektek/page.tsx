@@ -1,6 +1,9 @@
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import Link from "next/link";
-import { getMektekServiceOrders } from "@/actions/mektek/service-orders";
+import {
+  getMektekServiceOrders,
+  getMektekTechnicians,
+} from "@/actions/mektek/service-orders";
 import { authOptions } from "@/lib/auth";
 import { canAccessMektekStaffArea, canCreateMektekOrders } from "@/lib/mektek/permissions";
 import { getServerSession } from "@/lib/session";
@@ -57,6 +60,8 @@ export default async function MektekPage({ params, searchParams }: MektekPagePro
       dateFrom,
       dateTo,
     });
+  const techniciansResult = canCreate ? await getMektekTechnicians() : { data: [] };
+  const technicians = techniciansResult.data ?? [];
 
   return (
     <Container
@@ -65,7 +70,7 @@ export default async function MektekPage({ params, searchParams }: MektekPagePro
     >
       <div className="space-y-6">
         {canCreate ? (
-          <NewServiceOrderForm />
+          <NewServiceOrderForm technicians={technicians} />
         ) : (
           <Card className="border">
             <CardContent className="p-4 text-sm text-muted-foreground">

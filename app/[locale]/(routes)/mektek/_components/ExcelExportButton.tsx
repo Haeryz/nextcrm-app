@@ -15,6 +15,11 @@ interface ServiceOrder {
   updatedAt?: Date | null;
   content?: string | null;
   tags?: unknown;
+  assigned_user?: {
+    id: string;
+    name: string | null;
+    email?: string | null;
+  } | null;
 }
 
 interface ExcelExportButtonProps {
@@ -40,6 +45,15 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
             ? (order.tags as Record<string, unknown>)
             : {};
         const normalizedItems = normalizeMektekLineItems(tags, order.content);
+        const technicianTag =
+          tags.technician && typeof tags.technician === "object" && !Array.isArray(tags.technician)
+            ? (tags.technician as Record<string, unknown>)
+            : {};
+        const technicianName =
+          order.assigned_user?.name ||
+          order.assigned_user?.email ||
+          (typeof technicianTag.name === "string" ? technicianTag.name : "") ||
+          (typeof technicianTag.email === "string" ? technicianTag.email : "");
 
         return {
           ID: order.id,
@@ -53,6 +67,7 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
               ? tags.phone
               : "",
           Alamat: typeof tags.address === "string" ? tags.address : "",
+          Teknisi: technicianName,
           Status: order.taskStatus ?? "",
           Keluhan: typeof order.title === "string" ? stripServicePrefix(order.title) : "",
           "Estimasi Selesai": order.dueDateAt
@@ -78,9 +93,9 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
 
       const colWidths = [
         { wch: 36 }, { wch: 24 }, { wch: 22 }, { wch: 18 },
-        { wch: 30 }, { wch: 12 }, { wch: 30 }, { wch: 18 },
-        { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 18 },
-        { wch: 18 }, { wch: 18 }, { wch: 20 },
+        { wch: 30 }, { wch: 22 }, { wch: 12 }, { wch: 30 },
+        { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 16 },
+        { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 },
       ];
       worksheet["!cols"] = colWidths;
 

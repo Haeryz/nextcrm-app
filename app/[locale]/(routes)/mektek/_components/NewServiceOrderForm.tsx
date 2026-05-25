@@ -8,19 +8,37 @@ import {
   createMektekServiceOrder,
   searchMektekCustomers,
   type MektekCustomerSearchResult,
+  type MektekTechnicianOption,
 } from "@/actions/mektek/service-orders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import CatalogItemPicker from "./CatalogItemPicker";
 import DamageItemsInput, { DamageItem } from "./DamageItemsInput";
 
-export default function NewServiceOrderForm() {
+const UNASSIGNED_TECHNICIAN = "UNASSIGNED";
+
+type NewServiceOrderFormProps = {
+  technicians: MektekTechnicianOption[];
+};
+
+export default function NewServiceOrderForm({
+  technicians,
+}: NewServiceOrderFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [trackingLink, setTrackingLink] = useState("");
   const [loyaltySummary, setLoyaltySummary] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [vehicle, setVehicle] = useState("");
+  const [technicianId, setTechnicianId] = useState(UNASSIGNED_TECHNICIAN);
   const [serviceItems, setServiceItems] = useState<DamageItem[]>([
     { description: "", estimatedCost: "", quantity: 1 },
   ]);
@@ -92,6 +110,8 @@ export default function NewServiceOrderForm() {
         customerName,
         vehicle,
         complaint: complaint || "-",
+        technicianId:
+          technicianId === UNASSIGNED_TECHNICIAN ? undefined : technicianId,
         phone,
         address,
         estimatedDone,
@@ -131,6 +151,7 @@ export default function NewServiceOrderForm() {
       selectedCustomerNameRef.current = "";
       setCustomerName("");
       setVehicle("");
+      setTechnicianId(UNASSIGNED_TECHNICIAN);
       setServiceItems([{ description: "", estimatedCost: "", quantity: 1 }]);
       setSparepartItems([]);
       setPhone("");
@@ -270,6 +291,25 @@ export default function NewServiceOrderForm() {
             disabled={isPending}
             required
           />
+          <Select
+            value={technicianId}
+            onValueChange={setTechnicianId}
+            disabled={isPending}
+          >
+            <SelectTrigger aria-label="Technician">
+              <SelectValue placeholder="Assign technician" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value={UNASSIGNED_TECHNICIAN}>Unassigned technician</SelectItem>
+                {technicians.map((technician) => (
+                  <SelectItem key={technician.id} value={technician.id}>
+                    {technician.name || technician.email}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
           <Input
             placeholder="Phone"
             value={phone}

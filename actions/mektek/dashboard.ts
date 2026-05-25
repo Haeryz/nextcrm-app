@@ -71,6 +71,13 @@ export async function getMektekDashboardSummary(
       createdAt: true,
       content: true,
       tags: true,
+      assigned_user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
     },
     orderBy: {
       updatedAt: "desc",

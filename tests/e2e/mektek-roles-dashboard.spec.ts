@@ -166,6 +166,8 @@ test("CS creates an order and receives automatic loyalty discount", async ({ bro
 
   await page.getByPlaceholder("Customer name").fill(customerName);
   await page.getByPlaceholder(/Vehicle/).fill(vehicle);
+  await page.getByLabel("Technician").click();
+  await page.getByRole("option", { name: "MekTek Technician" }).click();
   await page.getByPlaceholder("Phone").fill(customerPhone);
   await page.getByPlaceholder(/Kerusakan #1/).fill("Brake inspection");
   await page.getByPlaceholder("Estimasi biaya (Rp)").first().fill("200000");
@@ -183,6 +185,11 @@ test("CS creates an order and receives automatic loyalty discount", async ({ bro
     select: {
       id: true,
       tags: true,
+      assigned_user: {
+        select: {
+          email: true,
+        },
+      },
     },
   });
   expect(createdOrder?.id).toBeTruthy();
@@ -192,8 +199,10 @@ test("CS creates an order and receives automatic loyalty discount", async ({ bro
   expect(tags.loyaltyTier).toBe("Silver");
   expect(tags.loyaltyDiscountRate).toBe(5);
   expect(tags.discount).toBe(10000);
+  expect(createdOrder?.assigned_user?.email).toBe(technicianEmail);
 
   await page.goto(`/en/mektek/${createdOrderId}`);
+  await expect(page.getByText("MekTek Technician")).toBeVisible();
   await expect(page.getByText("Docs")).toBeVisible();
   await expect(page.getByText("WhatsApp")).toBeVisible();
   await expect(page.getByText("Payment")).toHaveCount(0);

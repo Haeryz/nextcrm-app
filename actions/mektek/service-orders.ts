@@ -73,6 +73,7 @@ type CreateMektekServiceOrderInput = {
   customerName: string;
   vehicle: string;
   complaint: string;
+  technicianId?: string;
   phone?: string;
   address?: string;
   estimatedDone?: string;
@@ -89,6 +90,13 @@ export type MektekCustomerSearchResult = {
   phoneNormalized: string;
   address: string | null;
   source: "customer" | "user";
+};
+
+export type MektekTechnicianOption = {
+  id: string;
+  name: string | null;
+  email: string;
+  phone: string | null;
 };
 
 const parseTimeline = (tags: unknown): MektekTimelineEntry[] => {
@@ -153,6 +161,7 @@ export const createMektekServiceOrder = async (
   const complaint = String(input?.complaint ?? "").trim();
   const phone = String(input?.phone ?? "").trim();
   const address = String(input?.address ?? "").trim();
+  const technicianId = String(input?.technicianId ?? "").trim();
   const phoneNormalized = normalizePhoneNumber(phone);
   const manualDiscount = parseMoney(input?.manualDiscount);
   const voucherCode = String(input?.voucherCode ?? "").trim();
@@ -182,6 +191,26 @@ export const createMektekServiceOrder = async (
 
   try {
     const task = await prismadb.$transaction(async (tx) => {
+      const technician = technicianId
+        ? await tx.users.findFirst({
+            where: {
+              id: technicianId,
+              mektekRole: "TECHNICIAN",
+              userStatus: "ACTIVE",
+            },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            },
+          })
+        : null;
+
+      if (technicianId && !technician) {
+        throw new Error("INVALID_TECHNICIAN");
+      }
+
       const catalogCustomer = await tx.catalogCustomer.upsert({
         where: {
           phoneNormalized,
@@ -251,7 +280,7 @@ export const createMektekServiceOrder = async (
           content: complaint,
           priority: "medium",
           taskStatus: "ACTIVE",
-          user: session.user.id,
+          user: technician?.id ?? null,
           createdBy: session.user.id,
           updatedBy: session.user.id,
           dueDateAt,
@@ -265,6 +294,14 @@ export const createMektekServiceOrder = async (
             phone,
             phoneNormalized,
             address: address || null,
+            technician: technician
+              ? {
+                  id: technician.id,
+                  name: technician.name,
+                  email: technician.email,
+                  phone: technician.phone,
+                }
+              : null,
             catalogCustomerId: catalogCustomer.id,
             completedVisitCount,
             loyaltyTier: loyalty.tier?.label ?? null,
@@ -372,8 +409,43 @@ export const createMektekServiceOrder = async (
       if (error.message === "INVALID_VOUCHER") return { error: "Voucher code is invalid" };
       if (error.message === "LOCKED_VOUCHER") return { error: "Voucher is not available for this customer" };
       if (error.message === "VOUCHER_MINIMUM_NOT_MET") return { error: "Voucher minimum purchase is not met" };
+      if (error.message === "INVALID_TECHNICIAN") return { error: "Selected technician is not available" };
     }
     return { error: "Failed to create service order" };
+  }
+};
+
+export const getMektekTechnicians = async (): Promise<{
+  data?: MektekTechnicianOption[];
+  error?: string;
+}> => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+  if (!canCreateMektekOrders(session.user)) {
+    return { error: "Forbidden: only MekTek admin or CS can view technicians" };
+  }
+
+  try {
+    const technicians = await prismadb.users.findMany({
+      where: {
+        mektekRole: "TECHNICIAN",
+        userStatus: "ACTIVE",
+      },
+      orderBy: [{ name: "asc" }, { email: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+      },
+    });
+
+    return { data: technicians };
+  } catch (error) {
+    console.log("[GET_MEKTEK_TECHNICIANS]", error);
+    return { error: "Failed to load technicians" };
   }
 };
 
@@ -572,6 +644,15 @@ export const getMektekServiceOrders = async (input?: {
 
   const orders = await prismadb.crm_Accounts_Tasks.findMany({
     where,
+    include: {
+      assigned_user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
     orderBy: {
       createdAt: "desc",
     },

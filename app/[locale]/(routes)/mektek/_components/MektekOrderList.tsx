@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, CalendarClock, Car, Clock3, UserRound } from "lucide-react";
+import { ArrowRight, CalendarClock, Car, Clock3, UserRound, Wrench } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,11 @@ type MektekOrder = {
   updatedAt: Date | null;
   createdAt?: Date | null;
   tags: unknown;
+  assigned_user?: {
+    id: string;
+    name: string | null;
+    email?: string | null;
+  } | null;
 };
 
 type TimelineItem = {
@@ -82,9 +87,10 @@ export default function MektekOrderList({
       className="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm"
       data-testid="mektek-order-list"
     >
-      <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(140px,0.7fr)_minmax(150px,0.8fr)_120px_36px] gap-4 border-b bg-muted/35 px-4 py-3 text-xs font-medium uppercase text-muted-foreground lg:grid">
+      <div className="hidden grid-cols-[minmax(0,1.35fr)_minmax(140px,0.7fr)_minmax(140px,0.7fr)_minmax(150px,0.8fr)_120px_36px] gap-4 border-b bg-muted/35 px-4 py-3 text-xs font-medium uppercase text-muted-foreground lg:grid">
         <span>Customer / vehicle</span>
         <span>Status</span>
+        <span>Technician</span>
         <span>Schedule</span>
         <span>Progress</span>
         <span className="sr-only">Open</span>
@@ -98,6 +104,7 @@ export default function MektekOrderList({
           const progress = calculateProgress(timeline, order.taskStatus);
           const status = getStatusMeta(order.taskStatus);
           const timelineCount = timeline.length || 1;
+          const technicianName = order.assigned_user?.name || order.assigned_user?.email || "Unassigned";
 
           return (
             <Link
@@ -105,7 +112,7 @@ export default function MektekOrderList({
               href={`/${locale}/mektek/${order.id}`}
               data-testid="mektek-order-row"
               className={cn(
-                "grid gap-3 px-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 lg:grid-cols-[minmax(0,1.4fr)_minmax(140px,0.7fr)_minmax(150px,0.8fr)_120px_36px] lg:items-center lg:gap-4",
+                "grid gap-3 px-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 lg:grid-cols-[minmax(0,1.35fr)_minmax(140px,0.7fr)_minmax(140px,0.7fr)_minmax(150px,0.8fr)_120px_36px] lg:items-center lg:gap-4",
                 density === "compact" ? "py-3" : "py-4"
               )}
             >
@@ -121,6 +128,10 @@ export default function MektekOrderList({
                 <p className="font-mono text-[11px] text-muted-foreground">
                   ID {order.id.slice(0, 8)}
                 </p>
+                <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground lg:hidden">
+                  <Wrench className="h-4 w-4 shrink-0" />
+                  <p className="truncate">{technicianName}</p>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 lg:block lg:space-y-2">
@@ -128,6 +139,11 @@ export default function MektekOrderList({
                 <p className="text-xs text-muted-foreground">
                   {timelineCount} step{timelineCount === 1 ? "" : "s"}
                 </p>
+              </div>
+
+              <div className="hidden min-w-0 items-center gap-2 text-sm text-muted-foreground lg:flex">
+                <Wrench className="h-4 w-4 shrink-0" />
+                <span className="truncate">{technicianName}</span>
               </div>
 
               <div className="grid gap-1 text-sm text-muted-foreground">
