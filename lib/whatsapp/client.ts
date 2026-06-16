@@ -2,6 +2,7 @@ import type { Client } from "whatsapp-web.js";
 import { LocalAuth, Client as WhatsAppClient } from "whatsapp-web.js";
 import qrcode from "qrcode";
 import fs from "fs";
+import os from "os";
 import path from "path";
 
 export type WhatsAppSessionStatus =
@@ -133,21 +134,87 @@ export function getWhatsAppClient(): Client {
 }
 
 function findPuppeteerChrome(): string | undefined {
-  const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(process.env.USERPROFILE || "", ".cache", "puppeteer");
+  const cacheDir = process.env.PUPPETEER_CACHE_DIR || path.join(os.homedir(), ".cache", "puppeteer");
   if (!cacheDir) return undefined;
 
   const chromeRoot = path.join(cacheDir, "chrome");
   if (!fs.existsSync(chromeRoot)) return undefined;
 
+  const platformCandidates = getChromePlatformCandidates();
+  for (const candidate of platformCandidates) {
+    const chromePath = findLatestChromeForPlatform(chromeRoot, candidate.prefix, candidate.executablePath);
+    if (chromePath) return chromePath;
+  }
+
+  return undefined;
+}
+
+function getChromePlatformCandidates(): Array<{ prefix: string; executablePath: string[] }> {
+  if (process.platform === "darwin") {
+    return process.arch === "arm64"
+      ? [
+          {
+            prefix: "mac_arm-",
+            executablePath: [
+              "chrome-mac-arm64",
+              "Google Chrome for Testing.app",
+              "Contents",
+              "MacOS",
+              "Google Chrome for Testing",
+            ],
+          },
+          {
+            prefix: "mac-",
+            executablePath: [
+              "chrome-mac-x64",
+              "Google Chrome for Testing.app",
+              "Contents",
+              "MacOS",
+              "Google Chrome for Testing",
+            ],
+          },
+        ]
+      : [
+          {
+            prefix: "mac-",
+            executablePath: [
+              "chrome-mac-x64",
+              "Google Chrome for Testing.app",
+              "Contents",
+              "MacOS",
+              "Google Chrome for Testing",
+            ],
+          },
+        ];
+  }
+
+  if (process.platform === "win32") {
+    return [
+      { prefix: "win64-", executablePath: ["chrome-win64", "chrome.exe"] },
+      { prefix: "win32-", executablePath: ["chrome-win32", "chrome.exe"] },
+    ];
+  }
+
+  return [{ prefix: "linux-", executablePath: ["chrome-linux64", "chrome"] }];
+}
+
+function findLatestChromeForPlatform(
+  chromeRoot: string,
+  directoryPrefix: string,
+  executablePath: string[]
+): string | undefined {
   const candidates = fs
     .readdirSync(chromeRoot, { withFileTypes: true })
-    .filter((dirent) => dirent.isDirectory() && dirent.name.startsWith("win64-"))
+    .filter((dirent) => dirent.isDirectory() && dirent.name.startsWith(directoryPrefix))
     .map((dirent) => dirent.name)
     .sort();
 
   if (!candidates.length) return undefined;
 
-  const latest = candidates[candidates.length - 1];
-  const chromePath = path.join(chromeRoot, latest, "chrome-win64", "chrome.exe");
-  return fs.existsSync(chromePath) ? chromePath : undefined;
+  for (const candidate of candidates.reverse()) {
+    const chromePath = path.join(chromeRoot, candidate, ...executablePath);
+    if (fs.existsSync(chromePath)) return chromePath;
+  }
+
+  return undefined;
 }

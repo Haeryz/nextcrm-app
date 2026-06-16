@@ -42,6 +42,11 @@ execFileSync("pnpm", ["exec", "prisma", "generate"], {
   env: process.env,
 });
 
+execFileSync(process.execPath, [path.resolve(process.cwd(), "scripts/ensure-whatsapp-browser.js")], {
+  stdio: "inherit",
+  env: process.env,
+});
+
 const nextBin = path.resolve(process.cwd(), "node_modules/next/dist/bin/next");
 
 const child = spawn(process.execPath, [nextBin, "dev", ...args], {
