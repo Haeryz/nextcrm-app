@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { getExistingCatalogImagePath } from "@/lib/catalog-images";
 
 interface CustomerCatalogPageProps {
   params?: Promise<{ locale: string }>;
@@ -167,9 +168,9 @@ function MektekLanding({ locale }: { locale: string }) {
                     <p className="text-sm font-semibold">Mektek service flow</p>
                     <p className="text-xs text-zinc-500">Customer, progress, and follow-up</p>
                   </div>
-                  <div className="flex h-10 items-center gap-2 rounded-md border bg-zinc-50 px-3 text-sm text-zinc-500 sm:w-56">
+                  <div className="flex h-10 min-w-0 items-center gap-2 rounded-md border bg-zinc-50 px-3 text-sm text-zinc-500 sm:w-56">
                     <Search className="size-4" />
-                    Cek status layanan
+                    <span className="truncate">Cek status layanan</span>
                   </div>
                 </div>
 
@@ -394,44 +395,50 @@ export default async function CustomerCatalogPage({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {catalog.items.map((item: CustomerCatalogItem) => (
-            <Card key={item.id} className="overflow-hidden">
-              <div className="aspect-[4/3] bg-muted">
-                {item.imagePath ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={item.imagePath}
-                    alt={item.description}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
-                    No image
-                  </div>
-                )}
-              </div>
-              <CardContent className="flex min-h-56 flex-col gap-3 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <Badge variant="secondary">{item.machine}</Badge>
-                  <span className="text-xs text-muted-foreground">Row {item.rowNumber}</span>
-                </div>
-                <div className="flex flex-1 flex-col gap-1">
-                  <h2 className="line-clamp-2 text-base font-semibold">
-                    {item.description}
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    {item.catalogPartNumber || item.partNumber || "No part number"}
-                  </p>
-                  {item.remark && (
-                    <p className="line-clamp-2 text-xs text-muted-foreground">
-                      {item.remark}
-                    </p>
+          {catalog.items.map((item: CustomerCatalogItem) => {
+            const imagePath = getExistingCatalogImagePath(item.imagePath);
+
+            return (
+              <Card key={item.id} className="overflow-hidden">
+                <div className="aspect-[4/3] bg-muted">
+                  {imagePath ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={imagePath}
+                      alt={item.description}
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
+                      No image
+                    </div>
                   )}
                 </div>
-                <p className="text-sm font-semibold">{formatPrice(item.price)}</p>
-              </CardContent>
-            </Card>
-          ))}
+                <CardContent className="flex min-h-56 flex-col gap-3 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <Badge variant="secondary" className="max-w-[70%] truncate">
+                      {item.machine}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">Row {item.rowNumber}</span>
+                  </div>
+                  <div className="flex flex-1 flex-col gap-1">
+                    <h2 className="line-clamp-2 text-base font-semibold">
+                      {item.description}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {item.catalogPartNumber || item.partNumber || "No part number"}
+                    </p>
+                    {item.remark && (
+                      <p className="line-clamp-2 text-xs text-muted-foreground">
+                        {item.remark}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-sm font-semibold">{formatPrice(item.price)}</p>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         {catalog.items.length === 0 && (

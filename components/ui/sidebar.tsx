@@ -662,8 +662,7 @@ const SidebarMenuSkeleton = React.forwardRef<
 >(({ className, showIcon = false, ...props }, ref) => {
   // Skeleton loaders intentionally use random widths for visual variety.
   // eslint-disable-next-line react-hooks/purity
-  const widthRef = React.useRef(`${Math.floor(Math.random() * 40) + 50}%`)
-  const width = widthRef.current
+  const [width] = React.useState(`${Math.floor(Math.random() * 40) + 50}%`)
 
   return (
     <div

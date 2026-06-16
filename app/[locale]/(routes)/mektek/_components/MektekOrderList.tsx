@@ -133,8 +133,10 @@ export default function MektekOrderList({
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 lg:block lg:space-y-2">
-                <Badge variant={status.badgeVariant}>{status.label}</Badge>
+              <div className="flex min-w-0 flex-wrap items-center gap-2 lg:block lg:space-y-2">
+                <Badge variant={status.badgeVariant} className="max-w-full whitespace-normal">
+                  {status.label}
+                </Badge>
                 <p className="text-xs text-muted-foreground">
                   {timelineCount} step{timelineCount === 1 ? "" : "s"}
                 </p>
@@ -145,13 +147,13 @@ export default function MektekOrderList({
                 <span className="truncate">{technicianName}</span>
               </div>
 
-              <div className="grid gap-1 text-sm text-muted-foreground">
-                <span className="inline-flex items-center gap-2">
-                  <CalendarClock className="h-4 w-4" />
+              <div className="grid min-w-0 gap-1 text-sm text-muted-foreground">
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <CalendarClock className="h-4 w-4 shrink-0" />
                   Due {formatDate(order.dueDateAt)}
                 </span>
-                <span className="inline-flex items-center gap-2">
-                  <Clock3 className="h-4 w-4" />
+                <span className="inline-flex min-w-0 items-center gap-2">
+                  <Clock3 className="h-4 w-4 shrink-0" />
                   Updated {formatDate(order.updatedAt)}
                 </span>
               </div>
@@ -160,7 +162,7 @@ export default function MektekOrderList({
                 <p className="text-xs text-muted-foreground">Current state</p>
                 <Badge
                   variant={status.badgeVariant}
-                  className="px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
+                  className="max-w-full whitespace-normal px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"
                 >
                   {status.label}
                 </Badge>

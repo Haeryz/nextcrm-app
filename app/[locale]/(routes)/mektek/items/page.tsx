@@ -8,6 +8,7 @@ import { getServerSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { getExistingCatalogImagePath } from "@/lib/catalog-images";
 import CatalogItemManager from "./_components/CatalogItemManager";
 
 interface MektekCatalogItemsPageProps {
@@ -79,11 +80,11 @@ export default async function MektekCatalogItemsPage({
             >
               <Input name="q" placeholder="Search description, machine, or part number" defaultValue={query} />
               <Input name="machine" placeholder="Machine" defaultValue={machine} />
-              <Button type="submit" variant="outline">
+              <Button type="submit" variant="outline" className="w-full lg:w-auto">
                 Filter
               </Button>
               {(query || machine) && (
-                <Button asChild type="button" variant="ghost">
+                <Button asChild type="button" variant="ghost" className="w-full lg:w-auto">
                   <Link href={`/${locale}/mektek/items`}>Clear</Link>
                 </Button>
               )}
@@ -91,13 +92,18 @@ export default async function MektekCatalogItemsPage({
           </CardContent>
         </Card>
 
-        <CatalogItemManager items={catalog.items} />
+        <CatalogItemManager
+          items={catalog.items.map((item) => ({
+            ...item,
+            imagePath: getExistingCatalogImagePath(item.imagePath),
+          }))}
+        />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
             Page {catalog.page} of {catalog.totalPages} - {catalog.totalCount} items
           </p>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
             <Button asChild variant="outline" size="sm" disabled={catalog.page <= 1}>
               <Link href={pageHref(previousPage)}>Previous</Link>
             </Button>

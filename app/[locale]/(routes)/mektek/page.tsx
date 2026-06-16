@@ -79,8 +79,10 @@ export default async function MektekPage({ params, searchParams }: MektekPagePro
           </Card>
         )}
 
-        <div className="flex justify-end">
-          <ExcelExportButton orders={orders} />
+        <div className="flex justify-stretch sm:justify-end">
+          <div className="w-full sm:w-auto">
+            <ExcelExportButton orders={orders} />
+          </div>
         </div>
 
         <Card className="border">
@@ -102,11 +104,11 @@ export default async function MektekPage({ params, searchParams }: MektekPagePro
                   </span>
                   <Input name="dateTo" type="date" defaultValue={dateTo} />
                 </label>
-                <Button type="submit" variant="outline">
+                <Button type="submit" variant="outline" className="w-full sm:w-auto">
                   Filter
                 </Button>
                 {(dateFrom || dateTo) && (
-                  <Button asChild type="button" variant="ghost">
+                  <Button asChild type="button" variant="ghost" className="w-full sm:w-auto">
                     <Link href={`/${locale}/mektek`}>Clear</Link>
                   </Button>
                 )}

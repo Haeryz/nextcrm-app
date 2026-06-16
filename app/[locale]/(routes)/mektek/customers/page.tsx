@@ -92,11 +92,11 @@ export default async function MektekCustomersPage({
                 placeholder="Search name, phone, or email"
                 defaultValue={query}
               />
-              <Button type="submit" variant="outline">
+              <Button type="submit" variant="outline" className="w-full sm:w-auto">
                 Filter
               </Button>
               {query && (
-                <Button asChild type="button" variant="ghost">
+                <Button asChild type="button" variant="ghost" className="w-full sm:w-auto">
                   <Link href={`/${locale}/mektek/customers`}>Clear</Link>
                 </Button>
               )}
@@ -122,7 +122,7 @@ export default async function MektekCustomersPage({
           <p className="text-sm text-muted-foreground">
             Page {customers.data.page} of {totalPages} - {totalCount} customers
           </p>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex">
             <Button asChild variant="outline" size="sm" disabled={customers.data.page <= 1}>
               <Link href={pageHref(previousPage)}>Previous</Link>
             </Button>

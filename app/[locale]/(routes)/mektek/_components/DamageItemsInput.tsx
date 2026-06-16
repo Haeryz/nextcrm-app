@@ -51,6 +51,10 @@ export default function DamageItemsInput({
   const [activeCatalogIndex, setActiveCatalogIndex] = useState<number | null>(null);
   const [catalogResults, setCatalogResults] = useState<CatalogSearchItem[]>([]);
   const [isSearchingCatalog, startCatalogSearch] = useTransition();
+  const activeCatalogQuery =
+    activeCatalogIndex === null
+      ? ""
+      : items[activeCatalogIndex]?.description.trim() ?? "";
 
   const addItem = () => {
     onChange([...items, { description: "", estimatedCost: "", quantity: 1 }]);
@@ -71,21 +75,12 @@ export default function DamageItemsInput({
   };
 
   useEffect(() => {
-    if (!catalogSearch || activeCatalogIndex === null) {
-      setCatalogResults([]);
-      return;
-    }
-
-    const query = items[activeCatalogIndex]?.description.trim() ?? "";
-    if (query.length < 2) {
-      setCatalogResults([]);
-      return;
-    }
+    if (!catalogSearch || activeCatalogQuery.length < 2) return;
 
     let cancelled = false;
     const timeoutId = window.setTimeout(() => {
       startCatalogSearch(async () => {
-        const result = await searchMektekCatalogItems(query);
+        const result = await searchMektekCatalogItems(activeCatalogQuery);
         if (cancelled) return;
         setCatalogResults((result?.data ?? []) as CatalogSearchItem[]);
       });
@@ -95,7 +90,7 @@ export default function DamageItemsInput({
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [activeCatalogIndex, catalogSearch, items]);
+  }, [activeCatalogQuery, catalogSearch]);
 
   const selectCatalogItem = (index: number, catalogItem: CatalogSearchItem) => {
     onChange(
@@ -123,7 +118,7 @@ export default function DamageItemsInput({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-xs text-muted-foreground uppercase tracking-wide">
           {label}
         </p>
@@ -158,7 +153,7 @@ export default function DamageItemsInput({
               </div>
             )}
             <div className="flex flex-col gap-2 md:flex-row md:items-start">
-              <div className="relative flex-1">
+              <div className="relative min-w-0 flex-1">
                 <Input
                   placeholder={descriptionPlaceholder(index)}
                   value={item.description}
@@ -178,6 +173,7 @@ export default function DamageItemsInput({
                       </div>
                     )}
                     {!isSearchingCatalog &&
+                      activeCatalogQuery.length >= 2 &&
                       catalogResults.map((catalogItem) => (
                         <button
                           key={catalogItem.id}
@@ -199,7 +195,7 @@ export default function DamageItemsInput({
                         </button>
                       ))}
                     {!isSearchingCatalog &&
-                      items[index]?.description.trim().length >= 2 &&
+                      activeCatalogQuery.length >= 2 &&
                       catalogResults.length === 0 && (
                         <div className="px-3 py-2 text-xs text-muted-foreground">
                           No catalogue item found.
@@ -220,7 +216,7 @@ export default function DamageItemsInput({
                   )
                 }
                 disabled={disabled}
-                className="w-full md:w-20"
+                className="w-full md:w-24"
               />
               <Input
                 placeholder="Estimasi biaya (Rp)"
@@ -229,7 +225,7 @@ export default function DamageItemsInput({
                   updateItem(index, "estimatedCost", e.target.value.replace(/\D/g, ""))
                 }
                 disabled={disabled}
-                className="w-full md:w-40"
+                className="w-full md:w-44"
               />
               <Button
                 type="button"
@@ -237,7 +233,8 @@ export default function DamageItemsInput({
                 size="icon"
                 onClick={() => removeItem(index)}
                 disabled={disabled}
-                className="shrink-0"
+                className="shrink-0 self-end md:self-auto"
+                aria-label={`Remove ${label.toLowerCase()} item ${index + 1}`}
               >
                 <X className="w-4 h-4" />
               </Button>

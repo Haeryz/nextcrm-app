@@ -144,7 +144,7 @@ export default async function MektekDetailPage({ params }: Props) {
               <div className="min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={statusMeta.badgeVariant}>{statusMeta.label}</Badge>
-                  <span className="text-xs font-mono text-muted-foreground">
+                  <span className="break-all font-mono text-xs text-muted-foreground">
                     {order.id}
                   </span>
                 </div>
@@ -158,7 +158,7 @@ export default async function MektekDetailPage({ params }: Props) {
                 </div>
               </div>
 
-              <div className="w-full max-w-sm rounded-lg border bg-muted/20 p-4">
+              <div className="w-full max-w-sm rounded-lg border bg-muted/20 p-4 lg:shrink-0">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Current state
                 </p>
@@ -356,7 +356,7 @@ export default async function MektekDetailPage({ params }: Props) {
             </Card>
           </div>
 
-          <aside className="space-y-6">
+          <aside className="min-w-0 space-y-6">
             <VisitDiscountCard visitCount={completedVisitCount} />
 
             {canUseCustomerTools && customerTrackingLink && (
@@ -378,11 +378,11 @@ export default async function MektekDetailPage({ params }: Props) {
             )}
 
             {(canManagePayment || canUseCustomerTools) && (
-              <Tabs defaultValue={canManagePayment ? "payment" : "docs"} className="space-y-4">
-                <TabsList className={`grid w-full ${canManagePayment ? "grid-cols-3" : "grid-cols-2"}`}>
+              <Tabs defaultValue={canManagePayment ? "payment" : "docs"} className="min-w-0 space-y-4">
+                <TabsList className={`grid h-auto w-full ${canManagePayment ? "grid-cols-3" : "grid-cols-2"}`}>
                   {canManagePayment && <TabsTrigger value="payment">Payment</TabsTrigger>}
-                  <TabsTrigger value="docs">Docs</TabsTrigger>
-                  <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+                  <TabsTrigger value="docs" className="text-xs sm:text-sm">Docs</TabsTrigger>
+                  <TabsTrigger value="whatsapp" className="text-xs sm:text-sm">WhatsApp</TabsTrigger>
                 </TabsList>
                 {canManagePayment && (
                   <TabsContent value="payment" className="mt-0">

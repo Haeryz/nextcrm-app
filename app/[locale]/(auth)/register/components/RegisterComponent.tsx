@@ -183,7 +183,7 @@ export function RegisterComponent() {
   };
 
   return (
-    <Card className="w-[min(92vw,520px)] shadow-lg">
+    <Card className="w-full max-w-[520px] shadow-lg">
       <CardHeader className="gap-1">
         <CardTitle className="text-2xl">{t("cardTitle")}</CardTitle>
         <CardDescription>{t("cardDescription")}</CardDescription>
@@ -279,7 +279,7 @@ export function RegisterComponent() {
                   )}
                 />
 
-                <Button disabled={isLoading} type="submit" className="h-11">
+                <Button disabled={isLoading} type="submit" className="h-11 w-full">
                   {isLoading ? "Creating account..." : "Create customer account"}
                 </Button>
               </form>
@@ -427,7 +427,7 @@ export function RegisterComponent() {
                       </FormItem>
                     )}
                   />
-                  <Button disabled={isLoading} type="submit" className="h-11">
+                  <Button disabled={isLoading} type="submit" className="h-11 w-full">
                     {isLoading ? "Creating account..." : "Create staff account"}
                   </Button>
                 </form>

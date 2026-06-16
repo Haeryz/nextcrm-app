@@ -270,7 +270,7 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
         <p className="text-sm text-muted-foreground">{itemCountLabel}</p>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus data-icon="inline-start" />
               Add item
             </Button>
@@ -331,19 +331,22 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
                 )}
               </div>
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <Badge variant="secondary">{item.machine}</Badge>
+                <Badge variant="secondary" className="max-w-full whitespace-normal">
+                  {item.machine}
+                </Badge>
                 <span className="text-xs text-muted-foreground">Row {item.rowNumber}</span>
               </div>
               <p className="truncate text-sm text-muted-foreground">
                 {item.catalogPartNumber || item.partNumber || "No part number"}
               </p>
-              <div className="flex justify-start gap-2 lg:justify-end">
+              <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => openEdit(item)}
                   disabled={isPending}
+                  className="flex-1 sm:flex-none"
                 >
                   <Edit data-icon="inline-start" />
                   Edit
@@ -355,6 +358,7 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
                   onClick={() => deleteItem(item)}
                   disabled={isPending}
                   aria-label={`Delete ${item.description}`}
+                  className="shrink-0"
                 >
                   <Trash2 />
                 </Button>

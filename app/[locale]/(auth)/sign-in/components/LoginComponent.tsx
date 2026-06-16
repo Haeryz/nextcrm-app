@@ -28,7 +28,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { toast } from "sonner";
-import { FingerprintIcon } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -150,13 +150,13 @@ export function LoginComponent() {
   }
 
   return (
-    <Card className="shadow-lg my-5 ">
+    <Card className="my-5 w-full max-w-[520px] shadow-lg">
       <CardHeader className="space-y-1">
         <CardTitle className="text-2xl">Login</CardTitle>
         <CardDescription>Click here to login with: </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Button variant="outline" onClick={loginWithGitHub}>
             <Icons.gitHub className="mr-2 h-4 w-4" />
             Github
@@ -204,7 +204,7 @@ export function LoginComponent() {
                   </FormItem>
                 )}
               />
-              <div className="flex items-center w-full ">
+              <div className="flex w-full items-start gap-2">
                 <FormField
                   control={form.control}
                   name="password"
@@ -224,12 +224,16 @@ export function LoginComponent() {
                     </FormItem>
                   )}
                 />
-                <span
-                  className="flex px-4 pt-7 w-16"
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="mt-7 shrink-0"
                   onClick={() => setShow(!show)}
+                  aria-label={show ? "Hide password" : "Show password"}
                 >
-                  <FingerprintIcon size={25} className="text-gray-400" />
-                </span>
+                  {show ? <EyeOff /> : <Eye />}
+                </Button>
               </div>
             </div>
             <div className="grid gap-2 py-8">
@@ -291,7 +295,7 @@ export function LoginComponent() {
                   <Skeleton className="h-4 w-3/4" />
                 </div>
               ) : (
-                <div className="flex px-2 space-x-5 py-5">
+                <div className="flex flex-col gap-3 px-2 py-5 sm:flex-row">
                   <Input
                     type="email"
                     placeholder="name@domain.com"
@@ -302,6 +306,7 @@ export function LoginComponent() {
                     onClick={() => {
                       onPasswordReset(email);
                     }}
+                    className="sm:w-auto"
                   >
                     Reset
                   </Button>

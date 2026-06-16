@@ -78,7 +78,7 @@ export default function LiveServiceStatus({
               <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">
                 MEKTEK Service Status
               </h1>
-              <p className="text-sm text-muted-foreground">
+              <p className="break-words text-sm text-muted-foreground">
                 Hai {snapshot.customerName}, berikut update terkini untuk servis kendaraan Anda.
               </p>
             </div>
@@ -104,7 +104,7 @@ export default function LiveServiceStatus({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm font-semibold">{snapshot.vehicle}</p>
+              <p className="break-words text-sm font-semibold">{snapshot.vehicle}</p>
             </CardContent>
           </Card>
 
@@ -152,7 +152,7 @@ export default function LiveServiceStatus({
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 rounded-xl border bg-muted/20 p-4 md:grid-cols-5">
+            <div className="grid grid-cols-1 gap-3 rounded-xl border bg-muted/20 p-4 sm:grid-cols-2 md:grid-cols-5">
               <div>
                 <p className="text-xs text-muted-foreground">Subtotal servis</p>
                 <p className="text-sm font-semibold">
@@ -273,7 +273,7 @@ export default function LiveServiceStatus({
                         {item.completed ? "Done" : "Pending"}
                       </Badge>
                     </div>
-                    <p className="text-sm font-semibold text-foreground">{item.description}</p>
+                    <p className="break-words text-sm font-semibold text-foreground">{item.description}</p>
                   </div>
                 ))}
               </div>
@@ -289,7 +289,7 @@ export default function LiveServiceStatus({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <p className="text-base font-semibold text-foreground">
+              <p className="break-words text-base font-semibold text-foreground">
                 {snapshot.latestTimeline?.description || "Belum ada update."}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -304,7 +304,7 @@ export default function LiveServiceStatus({
                 Service Notes
               </CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
+            <CardContent className="break-words text-sm text-muted-foreground">
               {snapshot.content || "Catatan tambahan servis akan ditampilkan di sini."}
             </CardContent>
           </Card>

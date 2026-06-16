@@ -312,7 +312,7 @@ export default function CustomerUserManager({ customers }: CustomerUserManagerPr
         <p className="text-sm text-muted-foreground">{countLabel}</p>
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus data-icon="inline-start" />
               Add customer
             </Button>
@@ -378,13 +378,14 @@ export default function CustomerUserManager({ customers }: CustomerUserManagerPr
                 <p>{customer.serviceCount} service orders</p>
                 <p className="text-xs">Last login: {formatDate(customer.user?.lastLoginAt ?? null)}</p>
               </div>
-              <div className="flex justify-start gap-2 lg:justify-end">
+          <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={() => openEdit(customer)}
                   disabled={isPending}
+                  className="flex-1 sm:flex-none"
                 >
                   <Edit data-icon="inline-start" />
                   Edit
@@ -396,6 +397,7 @@ export default function CustomerUserManager({ customers }: CustomerUserManagerPr
                   onClick={() => deleteCustomer(customer)}
                   disabled={isPending}
                   aria-label={`Delete ${customer.user?.name || customer.username}`}
+                  className="shrink-0"
                 >
                   <Trash2 />
                 </Button>

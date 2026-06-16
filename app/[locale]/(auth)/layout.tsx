@@ -21,11 +21,11 @@ export async function generateMetadata(props: Props) {
 
 const AuthLayout = async ({ children }: { children: React.ReactNode }) => {
   return (
-    <div className="flex flex-col justify-center items-center min-h-screen w-full">
-      <div className="flex justify-end items-center w-full p-5">
+    <div className="flex min-h-screen w-full flex-col items-center bg-background text-foreground">
+      <div className="flex w-full items-center justify-end p-4 sm:p-5">
         <ThemeToggle />
       </div>
-      <div className="flex items-center grow h-full overflow-hidden">
+      <div className="flex w-full grow items-center justify-center px-4 pb-8">
         {children}
       </div>
     </div>
