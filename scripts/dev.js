@@ -23,7 +23,13 @@ const hostname =
   (hostnameArgIndex >= 0 ? args[hostnameArgIndex + 1] : undefined) ||
   "localhost";
 
-console.log(`Customer mode: http://${hostname}:${port}/customer`);
+const baseUrl = `http://${hostname}:${port}`;
+console.log("");
+console.log("NextCRM (Mektek) dev entry points:");
+console.log(`  Customer: ${baseUrl}/customer`);
+console.log(`  Staff:    ${baseUrl}/mektek`);
+console.log(`  Admin:    ${baseUrl}/mektek/dashboard`);
+console.log("");
 
 const devCachePath = path.join(process.cwd(), ".next", "dev");
 if (process.env.NEXTCRM_KEEP_DEV_CACHE !== "true") {
