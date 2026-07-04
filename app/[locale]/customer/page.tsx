@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getExistingCatalogImagePath } from "@/lib/catalog-images";
+import { CatalogImage } from "@/components/mektek/CatalogImage";
 import { CartProvider } from "@/components/mektek/cart/CartProvider";
 import { CartButton } from "@/components/mektek/cart/CartButton";
 import { CartMount } from "@/components/mektek/cart/CartMount";
@@ -407,18 +408,7 @@ export default async function CustomerCatalogPage({
             return (
               <Card key={item.id} className="overflow-hidden">
                 <div className="aspect-[4/3] bg-muted">
-                  {imagePath ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={imagePath}
-                      alt={item.description}
-                      className="size-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
-                      No image
-                    </div>
-                  )}
+                  <CatalogImage src={imagePath} alt={item.description} />
                 </div>
                 <CardContent className="flex min-h-56 flex-col gap-3 p-4">
                   <div className="flex items-center justify-between gap-3">

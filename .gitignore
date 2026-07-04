@@ -82,13 +82,15 @@ price.md
 
 # Local catalogue import source/generated artifacts
 PART CATALOG ALL.xlsx
-/public/catalog/
+/public/catalog/*
+!/public/catalog/images/
 /lib/catalog/generated/
 .wwebjs_auth
 .wwebjs_cache
 # Local catalogue import source/generated artifacts
 PART CATALOG ALL.xlsx
-/public/catalog/
+/public/catalog/*
+!/public/catalog/images/
 /lib/catalog/generated/
 .wwebjs_auth
 .wwebjs_cache
