@@ -149,6 +149,7 @@ export async function getMektekCustomerProfile(locale = "en") {
         username: customer.username,
         phone: customer.phone,
         phoneNormalized: customer.phoneNormalized,
+        customerType: customer.customerType,
       },
       services,
       vouchers: buildMektekVouchers({

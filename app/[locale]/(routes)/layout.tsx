@@ -7,6 +7,7 @@ import { cookies } from "next/headers";
 import { Metadata } from "next";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AppSidebar } from "./components/app-sidebar";
+import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -39,9 +40,12 @@ export const metadata: Metadata = {
 
 export default async function AppLayout({
   children,
+  params,
 }: {
   children: React.ReactNode;
+  params: Promise<{ locale: string }>;
 }) {
+  const { locale } = await params;
   const session = await getServerSession(authOptions);
 
   //console.log(session, "session");
@@ -58,6 +62,10 @@ export default async function AppLayout({
 
   if (user?.userStatus === "INACTIVE") {
     return redirect("/inactive");
+  }
+
+  if (!canAccessMektekStaffArea(user)) {
+    return redirect(`/${locale}/customer/profile`);
   }
 
   const cookieStore = await cookies();

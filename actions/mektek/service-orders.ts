@@ -76,6 +76,7 @@ type CreateMektekServiceOrderInput = {
   technicianId?: string;
   phone?: string;
   address?: string;
+  customerType?: "STANDARD" | "B2B";
   estimatedDone?: string;
   manualDiscount?: string | number;
   voucherCode?: string;
@@ -88,6 +89,7 @@ export type MektekCustomerSearchResult = {
   name: string;
   phone: string;
   phoneNormalized: string;
+  customerType: "STANDARD" | "B2B";
   address: string | null;
   source: "customer" | "user";
 };
@@ -161,6 +163,7 @@ export const createMektekServiceOrder = async (
   const complaint = String(input?.complaint ?? "").trim();
   const phone = String(input?.phone ?? "").trim();
   const address = String(input?.address ?? "").trim();
+  const customerType = input?.customerType === "B2B" ? "B2B" : "STANDARD";
   const technicianId = String(input?.technicianId ?? "").trim();
   const phoneNormalized = normalizePhoneNumber(phone);
   const manualDiscount = parseMoney(input?.manualDiscount);
@@ -217,14 +220,17 @@ export const createMektekServiceOrder = async (
         },
         update: {
           phone,
+          customerType,
         },
         create: {
           username: customerName,
           phone,
           phoneNormalized,
+          customerType,
         },
         select: {
           id: true,
+          customerType: true,
         },
       });
       const completedVisitCount = await tx.catalogServiceLink.count({
@@ -293,6 +299,7 @@ export const createMektekServiceOrder = async (
             customerName,
             phone,
             phoneNormalized,
+            customerType: catalogCustomer.customerType,
             address: address || null,
             technician: technician
               ? {
@@ -497,6 +504,7 @@ export const searchMektekCustomers = async (
           username: true,
           phone: true,
           phoneNormalized: true,
+          customerType: true,
           serviceLinks: {
             orderBy: { createdAt: "desc" },
             take: 1,
@@ -533,6 +541,7 @@ export const searchMektekCustomers = async (
         name: customer.username,
         phone: customer.phone,
         phoneNormalized: customer.phoneNormalized,
+        customerType: customer.customerType,
         address,
         source: "customer",
       };
@@ -548,6 +557,7 @@ export const searchMektekCustomers = async (
         name: user.name || user.username || "Customer",
         phone: user.phone || phoneNormalized,
         phoneNormalized,
+        customerType: "STANDARD",
         address: null,
         source: "user",
       });

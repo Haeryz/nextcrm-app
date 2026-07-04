@@ -28,6 +28,11 @@ enum CatalogServiceLinkSource {
   SELF_SERVICE
 }
 
+enum CatalogCustomerType {
+  STANDARD
+  B2B
+}
+
 enum Language {
   cz
   en
@@ -121,6 +126,7 @@ model CatalogCustomer {
   username        String
   phone           String
   phoneNormalized String   @unique
+  customerType    CatalogCustomerType @default(STANDARD)
   userId          String?  @unique @db.Uuid
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -129,6 +135,7 @@ model CatalogCustomer {
   serviceLinks CatalogServiceLink[]
 
   @@index([phoneNormalized])
+  @@index([customerType])
   @@index([userId])
   @@index([createdAt])
 }

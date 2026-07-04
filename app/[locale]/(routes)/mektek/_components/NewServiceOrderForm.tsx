@@ -44,6 +44,7 @@ export default function NewServiceOrderForm({
   ]);
   const [sparepartItems, setSparepartItems] = useState<DamageItem[]>([]);
   const [phone, setPhone] = useState("");
+  const [customerType, setCustomerType] = useState<"STANDARD" | "B2B">("STANDARD");
   const [address, setAddress] = useState("");
   const [estimatedDone, setEstimatedDone] = useState("");
   const [voucherCode, setVoucherCode] = useState("");
@@ -113,6 +114,7 @@ export default function NewServiceOrderForm({
         technicianId:
           technicianId === UNASSIGNED_TECHNICIAN ? undefined : technicianId,
         phone,
+        customerType,
         address,
         estimatedDone,
         voucherCode,
@@ -155,6 +157,7 @@ export default function NewServiceOrderForm({
       setServiceItems([{ description: "", estimatedCost: "", quantity: 1 }]);
       setSparepartItems([]);
       setPhone("");
+      setCustomerType("STANDARD");
       setAddress("");
       setEstimatedDone("");
       setVoucherCode("");
@@ -170,6 +173,7 @@ export default function NewServiceOrderForm({
     selectedCustomerNameRef.current = customer.name;
     setCustomerName(customer.name);
     setPhone(customer.phone);
+    setCustomerType(customer.customerType);
     if (customer.address && !address.trim()) {
       setAddress(customer.address);
     }
@@ -246,6 +250,7 @@ export default function NewServiceOrderForm({
                         <span className="text-sm font-medium">{customer.name}</span>
                         <span className="text-xs text-muted-foreground">
                           {customer.phone}
+                          {customer.customerType === "B2B" ? " - B2B" : ""}
                           {customer.address ? ` - ${customer.address}` : ""}
                         </span>
                       </button>
@@ -293,6 +298,19 @@ export default function NewServiceOrderForm({
             disabled={isPending}
             required
           />
+          <Select
+            value={customerType}
+            onValueChange={(nextValue) => setCustomerType(nextValue === "B2B" ? "B2B" : "STANDARD")}
+            disabled={isPending}
+          >
+            <SelectTrigger aria-label="Customer type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="STANDARD">Standard customer</SelectItem>
+              <SelectItem value="B2B">B2B customer</SelectItem>
+            </SelectContent>
+          </Select>
           <Input
             placeholder="Estimated done"
             type="date"

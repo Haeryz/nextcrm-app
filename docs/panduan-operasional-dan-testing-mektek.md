@@ -570,7 +570,6 @@ Hasil yang diharapkan:
 Fitur:
 
 - Login menggunakan email atau nomor telepon.
-- Login OAuth Google/GitHub jika provider dikonfigurasi.
 - Register customer.
 - Register staff.
 - Reset password melalui email.
@@ -1224,4 +1223,3 @@ Severity yang disarankan:
 5. Data katalog yang salah akan memengaruhi service intake dan tampilan customer.
 6. Jika WhatsApp belum terhubung, kirim tracking link secara manual melalui channel yang disetujui.
 7. Jika ada perubahan permission atau role, dokumen ini perlu diperbarui.
-

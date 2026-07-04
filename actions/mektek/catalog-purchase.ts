@@ -109,8 +109,13 @@ export const createMektekCatalogPurchaseIntent = async (
     const order = await prismadb.$transaction(async (tx) => {
       const catalogCustomer = await tx.catalogCustomer.upsert({
         where: { phoneNormalized },
-        update: { phone },
-        create: { username: customerName, phone, phoneNormalized },
+        update: { phone, customerType: "STANDARD" },
+        create: {
+          username: customerName,
+          phone,
+          phoneNormalized,
+          customerType: "STANDARD",
+        },
         select: { id: true },
       });
 
@@ -130,6 +135,7 @@ export const createMektekCatalogPurchaseIntent = async (
             customerName,
             phone,
             phoneNormalized,
+            customerType: "STANDARD",
             address: address || null,
             catalogCustomerId: catalogCustomer.id,
             serviceItems: [],

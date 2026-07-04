@@ -1,5 +1,10 @@
 import { Activity, ClipboardList, MessageCircle, PackageSearch, Users } from "lucide-react";
-import { canManageMektekCustomers } from "@/lib/mektek/permissions";
+import {
+  canCreateMektekOrders,
+  canManageMektekCustomers,
+  canUseMektekCustomerTools,
+  canViewMektekDashboard,
+} from "@/lib/mektek/permissions";
 import { NavItem } from "../nav-main";
 
 type MektekMenuUser = {
@@ -8,29 +13,38 @@ type MektekMenuUser = {
 };
 
 const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
-  const items: NavItem[] = [
-    {
+  const items: NavItem[] = [];
+
+  if (canViewMektekDashboard(user)) {
+    items.push({
       title: "Dashboard",
       url: "/mektek/dashboard",
       icon: Activity,
-    },
-    {
-      title: "Orders",
-      url: "/mektek",
-      exact: true,
-      icon: ClipboardList,
-    },
-    {
+    });
+  }
+
+  items.push({
+    title: "Orders",
+    url: "/mektek",
+    exact: true,
+    icon: ClipboardList,
+  });
+
+  if (canCreateMektekOrders(user)) {
+    items.push({
       title: "Items",
       url: "/mektek/items",
       icon: PackageSearch,
-    },
-    {
+    });
+  }
+
+  if (canUseMektekCustomerTools(user)) {
+    items.push({
       title: "WhatsApp",
       url: "/mektek/whatsapp",
       icon: MessageCircle,
-    },
-  ];
+    });
+  }
 
   if (canManageMektekCustomers(user)) {
     items.push({

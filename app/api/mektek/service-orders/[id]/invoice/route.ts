@@ -4,8 +4,7 @@ import {
   getPublicMektekServiceOrderByCode,
 } from "@/actions/mektek/service-orders";
 import { buildMektekInvoiceData, renderMektekInvoicePdf } from "@/actions/mektek/invoice-pdf";
-import { authOptions } from "@/lib/auth";
-import { getServerSession } from "@/lib/session";
+import { requireMektekStaffApiSession } from "@/lib/api-gates";
 import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
@@ -28,10 +27,8 @@ export async function GET(
   } else if (token) {
     order = await getPublicMektekServiceOrder(id, token);
   } else {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return new Response("Unauthorized", { status: 401 });
-    }
+    const access = await requireMektekStaffApiSession();
+    if (access.response) return access.response;
     order = await getMektekServiceOrderById(id);
   }
 

@@ -10,19 +10,23 @@ export const passwordReset = async (email: string) => {
     return { error: "Email is required!" };
   }
 
-  let resend;
-  try {
-    resend = await resendHelper();
-  } catch (error: any) {
-    return { error: error?.message || "Resend API key is not configured" };
-  }
-
   const user = await prismadb.users.findFirst({
     where: { email },
   });
 
   if (!user) {
     return { error: "No user with that Email exist in Db!" };
+  }
+
+  if (user.is_admin) {
+    return { error: "Admin passwords cannot be reset from the public reset flow" };
+  }
+
+  let resend;
+  try {
+    resend = await resendHelper();
+  } catch (error: any) {
+    return { error: error?.message || "Resend API key is not configured" };
   }
 
   try {

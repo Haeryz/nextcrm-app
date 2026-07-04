@@ -2,7 +2,7 @@ import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import { Activity, Banknote, CalendarClock, CheckCircle2, Clock3 } from "lucide-react";
 import { getMektekDashboardSummary } from "@/actions/mektek/dashboard";
 import { authOptions } from "@/lib/auth";
-import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
+import { canViewMektekDashboard } from "@/lib/mektek/permissions";
 import { getServerSession } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import MektekOrderList from "../_components/MektekOrderList";
@@ -36,12 +36,12 @@ export default async function MektekDashboardPage({
 }: MektekDashboardPageProps) {
   const { locale = "en" } = params ? await params : { locale: "en" };
   const session = await getServerSession(authOptions);
-  if (!canAccessMektekStaffArea(session?.user)) {
+  if (!canViewMektekDashboard(session?.user)) {
     return (
       <Container title="MEKTEK" description="Operational dashboard">
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            You do not have access to the MekTek staff dashboard.
+            Only admins can access the MekTek dashboard.
           </CardContent>
         </Card>
       </Container>

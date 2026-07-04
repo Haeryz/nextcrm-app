@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { hash } from "bcryptjs";
-import type { ActiveStatus, Language, MektekStaffRole, Prisma } from "@prisma/client";
+import type { ActiveStatus, CatalogCustomerType, Language, Prisma } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth";
 import { canManageMektekCustomers } from "@/lib/mektek/permissions";
@@ -13,17 +13,16 @@ import { getServerSession } from "@/lib/session";
 const DEFAULT_PAGE_SIZE = 12;
 const activeStatuses = new Set(["ACTIVE", "PENDING", "INACTIVE"]);
 const languages = new Set(["cz", "en", "de", "uk"]);
-const staffRoles = new Set(["CS", "TECHNICIAN"]);
+const customerTypes = new Set(["STANDARD", "B2B"]);
 
 export type CustomerUserInput = {
   name: string;
   phone: string;
+  customerType?: string;
   email?: string;
   password?: string;
   userStatus?: string;
   userLanguage?: string;
-  isAdmin?: boolean;
-  mektekRole?: string;
 };
 
 export type CustomerUserRow = {
@@ -31,6 +30,7 @@ export type CustomerUserRow = {
   username: string;
   phone: string;
   phoneNormalized: string;
+  customerType: CatalogCustomerType;
   createdAt: Date;
   updatedAt: Date;
   serviceCount: number;
@@ -41,7 +41,7 @@ export type CustomerUserRow = {
     userStatus: ActiveStatus;
     userLanguage: Language;
     isAdmin: boolean;
-    mektekRole: MektekStaffRole | null;
+    mektekRole: "CS" | "TECHNICIAN" | null;
     lastLoginAt: Date | null;
   } | null;
 };
@@ -70,15 +70,15 @@ function normalizeCustomerUserInput(input: CustomerUserInput) {
   const digits = phoneDigits(phoneNormalized);
   const email = normalizeEmail(input.email) || buildPhoneAccountEmail(phoneNormalized);
   const password = String(input.password ?? "");
+  const customerType = customerTypes.has(String(input.customerType))
+    ? (String(input.customerType) as CatalogCustomerType)
+    : ("STANDARD" as CatalogCustomerType);
   const userStatus = activeStatuses.has(String(input.userStatus))
     ? (String(input.userStatus) as ActiveStatus)
     : ("ACTIVE" as ActiveStatus);
   const userLanguage = languages.has(String(input.userLanguage))
     ? (String(input.userLanguage) as Language)
     : ("en" as Language);
-  const mektekRole = staffRoles.has(String(input.mektekRole))
-    ? (String(input.mektekRole) as MektekStaffRole)
-    : null;
 
   if (!name) return { error: "Customer name is required" };
   if (digits.length < 6) return { error: "Phone number is invalid" };
@@ -94,10 +94,9 @@ function normalizeCustomerUserInput(input: CustomerUserInput) {
       phoneNormalized,
       email,
       password,
+      customerType,
       userStatus,
       userLanguage,
-      isAdmin: !!input.isAdmin,
-      mektekRole,
     },
   };
 }
@@ -177,6 +176,7 @@ export async function listMektekCustomerUsers(input?: {
     username: customer.username,
     phone: customer.phone,
     phoneNormalized: customer.phoneNormalized,
+    customerType: customer.customerType,
     createdAt: customer.createdAt,
     updatedAt: customer.updatedAt,
     serviceCount: customer._count.serviceLinks,
@@ -223,13 +223,13 @@ export async function createMektekCustomerUser(input: CustomerUserInput) {
           avatar: "",
           account_name: "Mektek Customer",
           is_account_admin: false,
-          is_admin: data.isAdmin,
+          is_admin: false,
           email: data.email,
           phone: data.phone,
           phoneNormalized: data.phoneNormalized,
           userLanguage: data.userLanguage,
           userStatus: data.userStatus,
-          mektekRole: data.mektekRole,
+          mektekRole: null,
           ...(password ? { password } : {}),
         },
       });
@@ -239,6 +239,7 @@ export async function createMektekCustomerUser(input: CustomerUserInput) {
           username: data.name,
           phone: data.phone,
           phoneNormalized: data.phoneNormalized,
+          customerType: data.customerType,
           userId: user.id,
         },
       });
@@ -270,6 +271,12 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
         select: {
           id: true,
           userId: true,
+          user: {
+            select: {
+              is_admin: true,
+              mektekRole: true,
+            },
+          },
         },
       });
 
@@ -277,18 +284,22 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
         throw new Error("CUSTOMER_NOT_FOUND");
       }
 
+      if (existing.user?.is_admin || existing.user?.mektekRole) {
+        throw new Error("PROTECTED_ACCOUNT");
+      }
+
       const password = data.password ? await hash(data.password, 12) : undefined;
       const userPayload = {
         name: data.name,
         username: data.name,
         account_name: "Mektek Customer",
-        is_admin: data.isAdmin,
+        is_admin: false,
         email: data.email,
         phone: data.phone,
         phoneNormalized: data.phoneNormalized,
         userLanguage: data.userLanguage,
         userStatus: data.userStatus,
-        mektekRole: data.mektekRole,
+        mektekRole: null,
         ...(password ? { password } : {}),
       };
 
@@ -315,6 +326,7 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
           username: data.name,
           phone: data.phone,
           phoneNormalized: data.phoneNormalized,
+          customerType: data.customerType,
           userId,
         },
       });
@@ -327,6 +339,9 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
     console.log("[UPDATE_MEKTEK_CUSTOMER_USER]", error);
     if (error instanceof Error && error.message === "CUSTOMER_NOT_FOUND") {
       return { error: "Customer not found" };
+    }
+    if (error instanceof Error && error.message === "PROTECTED_ACCOUNT") {
+      return { error: "Admin and staff accounts cannot be edited from customer management" };
     }
     return { error: formatPrismaError(error, "Failed to update customer") };
   }
@@ -348,6 +363,7 @@ export async function deleteMektekCustomerUser(id: string) {
             select: {
               id: true,
               is_admin: true,
+              mektekRole: true,
             },
           },
         },
@@ -357,22 +373,12 @@ export async function deleteMektekCustomerUser(id: string) {
         throw new Error("CUSTOMER_NOT_FOUND");
       }
 
-      if (customer.userId === access.session.user.id) {
-        throw new Error("SELF_DELETE");
+      if (customer.user?.is_admin || customer.user?.mektekRole) {
+        throw new Error("PROTECTED_ACCOUNT");
       }
 
-      if (customer.user?.is_admin) {
-        const otherAdmins = await tx.users.count({
-          where: {
-            is_admin: true,
-            id: {
-              not: customer.user.id,
-            },
-          },
-        });
-        if (otherAdmins === 0) {
-          throw new Error("LAST_ADMIN");
-        }
+      if (customer.userId === access.session.user.id) {
+        throw new Error("SELF_DELETE");
       }
 
       await tx.catalogCustomer.delete({
@@ -393,7 +399,9 @@ export async function deleteMektekCustomerUser(id: string) {
     if (error instanceof Error) {
       if (error.message === "CUSTOMER_NOT_FOUND") return { error: "Customer not found" };
       if (error.message === "SELF_DELETE") return { error: "You cannot delete your own user account" };
-      if (error.message === "LAST_ADMIN") return { error: "You cannot delete the last admin account" };
+      if (error.message === "PROTECTED_ACCOUNT") {
+        return { error: "Admin and staff accounts cannot be deleted from customer management" };
+      }
     }
     return { error: "Failed to delete customer" };
   }

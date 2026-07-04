@@ -32,7 +32,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Icons } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -170,18 +169,6 @@ export function RegisterComponent() {
     }
   };
 
-  const loginWithGoogle = async () => {
-    setIsLoading(true);
-
-    try {
-      await signIn("google", {
-        callbackUrl: process.env.NEXT_PUBLIC_APP_URL,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <Card className="w-full max-w-[520px] shadow-lg">
       <CardHeader className="gap-1">
@@ -288,27 +275,6 @@ export function RegisterComponent() {
 
           <TabsContent value="staff" className="mt-4">
             <div className="grid gap-4">
-              <Button
-                variant="outline"
-                onClick={loginWithGoogle}
-                disabled={isLoading}
-                type="button"
-              >
-                <Icons.google data-icon="inline-start" />
-                Google
-              </Button>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-background px-2 text-muted-foreground">
-                    Or create staff account
-                  </span>
-                </div>
-              </div>
-
               <Form {...staffForm}>
                 <form
                   onSubmit={staffForm.handleSubmit(onStaffSubmit)}

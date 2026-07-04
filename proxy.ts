@@ -4,7 +4,8 @@ import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 
 const intlMiddleware = createMiddleware(routing);
-const AUTH_DISABLED = process.env.NEXTCRM_DISABLE_AUTH !== "false";
+const AUTH_DISABLED = process.env.NEXTCRM_DISABLE_AUTH === "true";
+const AUTH_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
 
 // Admin-only: require session.user.isAdmin
 const ADMIN_ONLY_PATHS = [
@@ -15,6 +16,7 @@ const ADMIN_ONLY_PATHS = [
   "/api/user/inviteuser",
   "/api/admin",
 ];
+const MEKTEK_CUSTOMER_TOOL_PATHS = ["/api/whatsapp"];
 
 export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
@@ -33,11 +35,22 @@ export async function proxy(req: NextRequest) {
 
   // Admin-only routes — check JWT token's isAdmin flag
   if (ADMIN_ONLY_PATHS.some((p) => path.startsWith(p))) {
-    const token = await getToken({ req, secret: process.env.JWT_SECRET });
+    const token = await getToken({ req, secret: AUTH_SECRET });
     if (!token) {
       return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
     if (!token.isAdmin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    return NextResponse.next();
+  }
+
+  if (MEKTEK_CUSTOMER_TOOL_PATHS.some((p) => path.startsWith(p))) {
+    const token = await getToken({ req, secret: AUTH_SECRET });
+    if (!token) {
+      return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+    }
+    if (!token.isAdmin && token.mektekRole !== "CS") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     return NextResponse.next();
@@ -56,6 +69,7 @@ export const config = {
     "/api/user/deactivate/:path*",
     "/api/user/inviteuser",
     "/api/admin/:path*",
+    "/api/whatsapp/:path*",
     // All non-API routes (existing intl matcher)
     "/((?!api|trpc|_next|_vercel|.*\\..*).*)",
   ],

@@ -3,7 +3,7 @@ import { prismadb } from "@/lib/prisma";
 import { getServerSession as getNextAuthServerSession } from "next-auth";
 import type { NextAuthOptions, Session } from "next-auth";
 
-const NO_AUTH_ENABLED = process.env.NEXTCRM_DISABLE_AUTH !== "false";
+const NO_AUTH_ENABLED = process.env.NEXTCRM_DISABLE_AUTH === "true";
 const GUEST_USER_ID =
   process.env.NEXTCRM_GUEST_USER_ID || "00000000-0000-0000-0000-000000000001";
 const GUEST_USER_EMAIL =
@@ -46,7 +46,8 @@ function toSession(user: SessionUserLike): Session {
       avatar: user.avatar ?? undefined,
       phone: user.phone,
       phoneNormalized: user.phoneNormalized,
-      // No-auth mode intentionally bypasses role/status checks.
+      // No-auth fallback intentionally bypasses role/status checks only when
+      // there is no real signed-in session.
       isAdmin: true,
       mektekRole: user.mektekRole,
       userLanguage: user.userLanguage || "en",
@@ -71,10 +72,10 @@ function normalizeSession(session: Session): Session {
       avatar: user.avatar || user.image,
       phone: user.phone ?? null,
       phoneNormalized: user.phoneNormalized ?? null,
-      isAdmin: true,
+      isAdmin: !!user.isAdmin,
       mektekRole: user.mektekRole ?? null,
       userLanguage: user.userLanguage || GUEST_USER_LANGUAGE,
-      userStatus: "ACTIVE",
+      userStatus: user.userStatus || "ACTIVE",
     },
   };
 }

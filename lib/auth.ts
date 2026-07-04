@@ -1,12 +1,8 @@
 import { prismadb } from "@/lib/prisma";
 import { NextAuthOptions } from "next-auth";
-import GoogleProvider from "next-auth/providers/google";
-import GitHubProvider from "next-auth/providers/github";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
 import { newUserNotify } from "./new-user-notify";
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
-import { areExternalApisDisabled } from "./external-apis";
 import { normalizePhoneNumber } from "./phone";
 
 const defaultAuthUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -22,49 +18,13 @@ const authSecret =
     ? "nextcrm-dev-secret-change-in-production"
     : undefined);
 
-function getOAuthProviders() {
-  if (areExternalApisDisabled()) {
-    return [];
-  }
-
-  const providers = [];
-  const googleId = process.env.GOOGLE_ID;
-  const googleSecret = process.env.GOOGLE_SECRET;
-  const githubId = process.env.GITHUB_ID;
-  const githubSecret = process.env.GITHUB_SECRET;
-
-  if (googleId && googleSecret) {
-    providers.push(
-      GoogleProvider({
-        clientId: googleId,
-        clientSecret: googleSecret,
-      })
-    );
-  }
-
-  if (githubId && githubSecret) {
-    providers.push(
-      GitHubProvider({
-        name: "github",
-        clientId: githubId,
-        clientSecret: githubSecret,
-      })
-    );
-  }
-
-  return providers;
-}
-
 export const authOptions: NextAuthOptions = {
   secret: authSecret,
-  //adapter: PrismaAdapter(prismadb),
   session: {
     strategy: "jwt",
   },
 
   providers: [
-    ...getOAuthProviders(),
-
     CredentialsProvider({
       name: "credentials",
       credentials: {

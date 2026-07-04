@@ -36,6 +36,7 @@ type CustomerUserRow = {
   username: string;
   phone: string;
   phoneNormalized: string;
+  customerType: "STANDARD" | "B2B";
   createdAt: string;
   updatedAt: string;
   serviceCount: number;
@@ -58,24 +59,22 @@ type CustomerUserManagerProps = {
 const blankCustomer: CustomerUserInput = {
   name: "",
   phone: "",
+  customerType: "STANDARD",
   email: "",
   password: "",
   userStatus: "ACTIVE",
   userLanguage: "en",
-  isAdmin: false,
-  mektekRole: "NONE",
 };
 
 function customerToInput(customer: CustomerUserRow): CustomerUserInput {
   return {
     name: customer.user?.name || customer.username,
     phone: customer.phone,
+    customerType: customer.customerType,
     email: customer.user?.email ?? "",
     password: "",
     userStatus: customer.user?.userStatus ?? "ACTIVE",
     userLanguage: customer.user?.userLanguage ?? "en",
-    isAdmin: customer.user?.isAdmin ?? false,
-    mektekRole: customer.user?.mektekRole ?? "NONE",
   };
 }
 
@@ -108,6 +107,10 @@ function roleLabel(customer: CustomerUserRow) {
   if (customer.user.mektekRole === "CS") return "CS";
   if (customer.user.mektekRole === "TECHNICIAN") return "Technician";
   return "Customer";
+}
+
+function typeLabel(customerType: CustomerUserRow["customerType"]) {
+  return customerType === "B2B" ? "B2B" : "Standard";
 }
 
 function CustomerUserForm({
@@ -153,6 +156,21 @@ function CustomerUserForm({
             disabled={pending}
             required
           />
+        </Field>
+        <Field label="Customer type">
+          <Select
+            value={value.customerType ?? "STANDARD"}
+            onValueChange={(nextValue) => update("customerType", nextValue)}
+            disabled={pending}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="STANDARD">Standard customer</SelectItem>
+              <SelectItem value="B2B">B2B customer</SelectItem>
+            </SelectContent>
+          </Select>
         </Field>
         <Field label="Email">
           <Input
@@ -202,37 +220,6 @@ function CustomerUserForm({
               <SelectItem value="de">German</SelectItem>
               <SelectItem value="cz">Czech</SelectItem>
               <SelectItem value="uk">Ukrainian</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="MekTek role">
-          <Select
-            value={value.mektekRole || "NONE"}
-            onValueChange={(nextValue) => update("mektekRole", nextValue)}
-            disabled={pending}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="NONE">Customer</SelectItem>
-              <SelectItem value="CS">CS</SelectItem>
-              <SelectItem value="TECHNICIAN">Technician</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Admin access">
-          <Select
-            value={value.isAdmin ? "true" : "false"}
-            onValueChange={(nextValue) => update("isAdmin", nextValue === "true")}
-            disabled={pending}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="false">No</SelectItem>
-              <SelectItem value="true">Yes</SelectItem>
             </SelectContent>
           </Select>
         </Field>
@@ -370,6 +357,7 @@ export default function CustomerUserManager({ customers }: CustomerUserManagerPr
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                <Badge variant="outline">{typeLabel(customer.customerType)}</Badge>
                 <Badge variant={customer.user?.isAdmin ? "default" : "secondary"}>
                   {roleLabel(customer)}
                 </Badge>

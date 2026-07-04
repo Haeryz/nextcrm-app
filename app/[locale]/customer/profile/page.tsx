@@ -46,6 +46,11 @@ export default async function CustomerProfilePage({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl">
               <Badge variant="secondary">Customer profile</Badge>
+              {profile.customer?.customerType === "B2B" && (
+                <Badge variant="outline" className="ml-2">
+                  B2B
+                </Badge>
+              )}
               <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">
                 Track your Mektek services
               </h1>

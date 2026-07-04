@@ -42,50 +42,29 @@ export const registerUser = async (data: {
   }
 
   try {
-    const isFirstUser = await prismadb.users.findMany({});
+    const user = await prismadb.users.create({
+      data: {
+        name,
+        username,
+        avatar: "",
+        account_name: "",
+        is_account_admin: false,
+        is_admin: false,
+        email,
+        userLanguage: language as Language,
+        userStatus:
+          process.env.NEXT_PUBLIC_APP_URL === "https://demo.nextcrm.io"
+            ? "ACTIVE"
+            : "PENDING",
+        password: await hash(password, 12),
+      },
+    });
 
-    if (isFirstUser.length === 0) {
-      // First user gets admin rights and ACTIVE status
-      const user = await prismadb.users.create({
-        data: {
-          name,
-          username,
-          avatar: "",
-          account_name: "",
-          is_account_admin: false,
-          is_admin: true,
-          email,
-          userLanguage: language as Language,
-          userStatus: "ACTIVE",
-          password: await hash(password, 12),
-        },
-      });
-      return { data: user };
-    } else {
-      // Subsequent users get PENDING status (unless demo env)
-      const user = await prismadb.users.create({
-        data: {
-          name,
-          username,
-          avatar: "",
-          account_name: "",
-          is_account_admin: false,
-          is_admin: false,
-          email,
-          userLanguage: language as Language,
-          userStatus:
-            process.env.NEXT_PUBLIC_APP_URL === "https://demo.nextcrm.io"
-              ? "ACTIVE"
-              : "PENDING",
-          password: await hash(password, 12),
-        },
-      });
+    // Notify admins about the new pending user. Admins are bootstrapped
+    // through the backend script, never through public registration.
+    newUserNotify(user);
 
-      // Notify admins about the new pending user
-      newUserNotify(user);
-
-      return { data: user };
-    }
+    return { data: user };
   } catch (error) {
     console.error("[REGISTER_USER]", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -168,12 +147,14 @@ export const registerCustomerUser = async (data: {
         update: {
           username: name,
           phone,
+          customerType: "STANDARD",
           userId: createdUser.id,
         },
         create: {
           username: name,
           phone,
           phoneNormalized,
+          customerType: "STANDARD",
           userId: createdUser.id,
         },
       });
