@@ -87,6 +87,7 @@ model crm_Accounts_Tasks {
   comments            tasksComments[]
   assigned_user       Users?              @relation(fields: [user], references: [id])
   catalogServiceLinks CatalogServiceLink[]
+  mektekPayments      MektekPayment[]
 
   @@index([user])
   @@index([createdBy])
@@ -166,4 +167,26 @@ model CatalogServiceLink {
   @@index([customerId])
   @@index([serviceOrderId])
   @@index([source])
+}
+
+model MektekPayment {
+  id                String    @id @default(uuid()) @db.Uuid
+  serviceOrderId    String    @db.Uuid
+  midtransOrderId   String    @unique
+  grossAmount       Int
+  snapToken         String?
+  redirectUrl       String?
+  paymentType       String?
+  transactionStatus String    @default("pending")
+  fraudStatus       String?
+  rawPayload        Json?     @db.JsonB
+  paidAt            DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  serviceOrder crm_Accounts_Tasks @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@index([serviceOrderId])
+  @@index([transactionStatus])
+  @@index([createdAt])
 }

@@ -134,6 +134,7 @@ export default async function CustomerProfilePage({
             invoiceHref={service.invoiceHref}
             receiptHref={service.receiptHref}
             publicHref={service.publicHref}
+            payToken={service.token}
           />
         ))}
       </section>

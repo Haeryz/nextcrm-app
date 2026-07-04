@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Download, ExternalLink, FileText, Receipt } from "lucide-react";
 import type { MektekPublicSnapshot } from "@/lib/mektek/public-status";
 import { getStatusMeta } from "@/app/[locale]/(routes)/mektek/_lib/constants";
+import { PayNowButton } from "@/components/mektek/PayNowButton";
 
 type LiveServiceStatusProps = {
   initialSnapshot: MektekPublicSnapshot;
@@ -15,6 +16,7 @@ type LiveServiceStatusProps = {
   receiptHref: string;
   invoiceDownloadHref: string;
   receiptDownloadHref: string;
+  payToken?: string;
 };
 
 const formatCurrency = (amount: number) =>
@@ -43,6 +45,7 @@ export default function LiveServiceStatus({
   receiptHref,
   invoiceDownloadHref,
   receiptDownloadHref,
+  payToken,
 }: LiveServiceStatusProps) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
 
@@ -184,6 +187,15 @@ export default function LiveServiceStatus({
                 </p>
               </div>
             </div>
+
+            {payToken && snapshot.invoice.balanceDue > 0 && (
+              <PayNowButton
+                serviceOrderId={snapshot.id}
+                token={payToken}
+                balanceDue={snapshot.invoice.balanceDue}
+                className="w-full"
+              />
+            )}
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <div className="rounded-xl border bg-card p-4">

@@ -5,13 +5,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-pnpm dev                        # Start development server
+pnpm dev                        # scripts/dev.js: clears .next/dev cache, runs prisma generate,
+                                #   ensures WhatsApp Chrome, then next dev. Prints customer/staff/admin URLs.
+                                #   Keep the cache with NEXTCRM_KEEP_DEV_CACHE=true
 pnpm build                      # Build via scripts/build.js
 pnpm build:full                 # prisma generate + migrate deploy + next build
 pnpm lint                       # ESLint (--max-warnings=0, zero warnings allowed)
 pnpm test                       # Jest unit tests
 pnpm test:e2e                   # Playwright e2e tests
 pnpm test:e2e:ui                # Playwright with UI
+pnpm catalog:import             # Import Mektek catalog data (scripts/import-catalog-data.js)
 
 # Database
 pnpm prisma generate            # Regenerate Prisma client after schema changes
@@ -33,6 +36,7 @@ All app routes live under `app/[locale]/`. The `[locale]` segment is handled by 
 Within `[locale]/`:
 - `(auth)/` — login, sign-in, pending, inactive pages (unauthenticated)
 - `(routes)/` — all authenticated app pages; the layout at `app/[locale]/(routes)/layout.tsx` enforces session and handles `PENDING`/`INACTIVE` redirects
+- `customer/` — public, token-gated customer portal for Mektek (service tracking, profile, vouchers). **Not** under `(routes)`, so it is not behind the app session guard; access is granted via customer access tokens (`customer/access`)
 
 The main `app/api/` routes are standard Next.js Route Handlers outside the locale segment.
 
@@ -97,7 +101,13 @@ Exposed at `/api/mcp/[transport]` (supports `sse` and `http`). Implemented with 
 
 ### Mektek Module
 
-A custom vertical built on top of CRM Accounts for auto-service management. Service orders (`crm_Tasks` model with `taskStatus` ACTIVE/PENDING/COMPLETE) include timeline entries stored as JSON in the `tags` field, notes/comments, and customer-facing tracking links. Located in `app/[locale]/(routes)/mektek/` with actions in `actions/mektek/`.
+A custom vertical built on top of CRM Accounts for auto-service management. Service orders (`crm_Tasks` model with `taskStatus` ACTIVE/PENDING/COMPLETE) include timeline entries stored as JSON in the `tags` field, notes/comments, and customer-facing tracking links. Located in `app/[locale]/(routes)/mektek/` with actions in `actions/mektek/`. The customer-facing side lives in `app/[locale]/customer/`.
+
+### WhatsApp Integration
+
+Mektek sends customer notifications over WhatsApp via **whatsapp-web.js** (a headless Puppeteer Chrome session, not an API). Core logic is in `lib/whatsapp/` (`client.ts` manages the global session/QR state; `index.ts` exposes `sendWhatsAppMessage`). The session is authenticated by scanning a QR code from `app/[locale]/(routes)/mektek/whatsapp/`, with status at `app/api/whatsapp/status/`. Phone numbers are normalized to Indonesian format (leading `0` → `62`). Sending is short-circuited when `areExternalApisDisabled()` is true or the session status is not `ready`.
+
+The Chrome binary is installed automatically by `scripts/ensure-whatsapp-browser.js` (run on `postinstall` and before `pnpm dev`). Skip/override with `NEXTCRM_SKIP_WHATSAPP_BROWSER_INSTALL=true`, `PUPPETEER_SKIP_DOWNLOAD=true`, or `WHATSAPP_CHROME_PATH`/`PUPPETEER_EXECUTABLE_PATH`.
 
 ### Audit Log
 

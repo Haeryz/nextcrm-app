@@ -8,6 +8,7 @@ import { getStatusMeta } from "@/app/[locale]/(routes)/mektek/_lib/constants";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PayNowButton } from "@/components/mektek/PayNowButton";
 import type { MektekPublicSnapshot } from "@/lib/mektek/public-status";
 
 type CustomerServiceLiveCardProps = {
@@ -16,6 +17,7 @@ type CustomerServiceLiveCardProps = {
   invoiceHref: string | null;
   receiptHref: string | null;
   publicHref: string | null;
+  payToken?: string | null;
 };
 
 const formatDateTime = (value: string | null) => {
@@ -40,6 +42,7 @@ export function CustomerServiceLiveCard({
   invoiceHref,
   receiptHref,
   publicHref,
+  payToken,
 }: CustomerServiceLiveCardProps) {
   const [snapshot, setSnapshot] = useState(initialSnapshot);
 
@@ -127,6 +130,15 @@ export function CustomerServiceLiveCard({
             </p>
           </div>
         </div>
+
+        {payToken && snapshot.invoice.balanceDue > 0 && (
+          <PayNowButton
+            serviceOrderId={snapshot.id}
+            token={payToken}
+            balanceDue={snapshot.invoice.balanceDue}
+            className="w-full"
+          />
+        )}
 
         <div className="flex flex-col gap-2 sm:flex-row">
           {publicHref && (

@@ -29,6 +29,7 @@ export default async function ServiceStatusPage({ params, searchParams }: Props)
       receiptHref={receiptHref}
       invoiceDownloadHref={`${invoiceHref}&download=1`}
       receiptDownloadHref={`${receiptHref}&download=1`}
+      payToken={token}
     />
   );
 }

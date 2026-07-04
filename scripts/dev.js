@@ -48,10 +48,17 @@ execFileSync("pnpm", ["exec", "prisma", "generate"], {
   env: process.env,
 });
 
-execFileSync(process.execPath, [path.resolve(process.cwd(), "scripts/ensure-whatsapp-browser.js")], {
-  stdio: "inherit",
-  env: process.env,
-});
+try {
+  execFileSync(process.execPath, [path.resolve(process.cwd(), "scripts/ensure-whatsapp-browser.js")], {
+    stdio: "inherit",
+    env: process.env,
+  });
+} catch (error) {
+  console.warn(
+    "Could not ensure the WhatsApp Chrome binary. Continuing to start the dev server anyway; WhatsApp sending will be unavailable until it is installed."
+  );
+  console.warn(error?.message ?? error);
+}
 
 const nextBin = path.resolve(process.cwd(), "node_modules/next/dist/bin/next");
 
