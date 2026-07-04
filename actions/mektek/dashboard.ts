@@ -19,6 +19,18 @@ const mektekOrderWhere = {
   })),
 };
 
+const mektekPaymentSelect = {
+  id: true,
+  midtransOrderId: true,
+  grossAmount: true,
+  paymentType: true,
+  transactionStatus: true,
+  fraudStatus: true,
+  paidAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 export async function getMektekDashboardSummary(
   now = new Date(),
   options?: {
@@ -45,6 +57,12 @@ export async function getMektekDashboardSummary(
         updatedAt: true,
         content: true,
         tags: true,
+        mektekPayments: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: mektekPaymentSelect,
+        },
       },
     }),
     prismadb.crm_Accounts_Tasks.count({
@@ -71,6 +89,12 @@ export async function getMektekDashboardSummary(
       createdAt: true,
       content: true,
       tags: true,
+      mektekPayments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: mektekPaymentSelect,
+      },
       assigned_user: {
         select: {
           id: true,
@@ -98,7 +122,11 @@ export async function getMektekDashboardSummary(
     const isComplete = order.taskStatus === "COMPLETE";
     const dueDate = order.dueDateAt ? new Date(order.dueDateAt) : null;
     const updatedAt = order.updatedAt ? new Date(order.updatedAt) : null;
-    const financials = buildMektekFinancialSummary(order.tags, order.content);
+    const financials = buildMektekFinancialSummary(
+      order.tags,
+      order.content,
+      order.mektekPayments
+    );
 
     if (!isComplete) openOrders++;
     if (!isComplete && dueDate && dueDate >= todayStart && dueDate <= todayEnd) dueToday++;

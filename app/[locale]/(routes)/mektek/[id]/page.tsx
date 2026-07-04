@@ -392,8 +392,11 @@ export default async function MektekDetailPage({ params }: Props) {
                       sparepartSubtotal={invoiceData.financials.sparepartSubtotal}
                       initialDiscount={invoiceData.financials.discount}
                       initialTax={invoiceData.financials.tax}
+                      initialPph={invoiceData.financials.pph}
                       initialAmountPaid={invoiceData.financials.amountPaid}
+                      initialProviderAmountPaid={invoiceData.payment.providerAmountPaid}
                       initialMethod={paymentMethod}
+                      providerPayments={invoiceData.payment.providerPayments}
                     />
                   </TabsContent>
                 )}

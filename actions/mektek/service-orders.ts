@@ -16,6 +16,7 @@ import {
   normalizeMektekLineItems,
   type MektekLineItemInput,
 } from "@/lib/mektek/items";
+import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
 import {
   canCreateMektekOrders,
   canManageMektekPayments,
@@ -42,6 +43,18 @@ const mektekOrderWhere = (): Prisma.crm_Accounts_TasksWhereInput => ({
     },
   })),
 });
+
+const mektekPaymentSelect = {
+  id: true,
+  midtransOrderId: true,
+  grossAmount: true,
+  paymentType: true,
+  transactionStatus: true,
+  fraudStatus: true,
+  paidAt: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.MektekPaymentSelect;
 
 type MektekTimelineEntry = {
   id: string;
@@ -708,6 +721,12 @@ export const getMektekServiceOrderById = async (id: string) => {
           },
         },
       },
+      mektekPayments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: mektekPaymentSelect,
+      },
     },
   });
 };
@@ -728,6 +747,12 @@ export const getPublicMektekServiceOrder = async (id: string, token: string) => 
       createdAt: true,
       updatedAt: true,
       tags: true,
+      mektekPayments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: mektekPaymentSelect,
+      },
     },
   });
 
@@ -765,6 +790,12 @@ export const getPublicMektekServiceOrderByCode = async (code: string) => {
       createdAt: true,
       updatedAt: true,
       tags: true,
+      mektekPayments: {
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: mektekPaymentSelect,
+      },
     },
   });
 };
@@ -962,21 +993,42 @@ export const updateMektekPayment = async (input: {
   try {
     const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
       where: { id: serviceOrderId, ...mektekOrderWhere() },
-      select: { id: true, tags: true, content: true },
+      select: {
+        id: true,
+        tags: true,
+        content: true,
+        mektekPayments: {
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: mektekPaymentSelect,
+        },
+      },
     });
 
     if (!serviceOrder) return { error: "Service order not found" };
 
     const tags = parseTagsObject(serviceOrder.tags);
-    const subtotal = normalizeMektekLineItems(tags, serviceOrder.content).subtotal;
     const discount = parseMoney(input.discount);
     const tax = parseMoney(input.tax);
-    const grandTotal = Math.max(0, subtotal - discount + tax);
-    const amountPaid = Math.min(parseMoney(input.amountPaid), grandTotal);
+    const nextTags = {
+      ...tags,
+      discount,
+      tax,
+    };
+    const summary = buildMektekFinancialSummary(
+      nextTags,
+      serviceOrder.content,
+      serviceOrder.mektekPayments
+    );
+    const amountPaid = Math.min(
+      Math.max(parseMoney(input.amountPaid), summary.payment.providerAmountPaid),
+      summary.grandTotal
+    );
     const status =
-      grandTotal <= 0
+      summary.grandTotal <= 0
         ? "unpaid"
-        : amountPaid >= grandTotal
+        : amountPaid >= summary.grandTotal
         ? "paid"
         : amountPaid > 0
         ? "partial"
@@ -986,7 +1038,7 @@ export const updateMektekPayment = async (input: {
       where: { id: serviceOrder.id },
       data: {
         tags: {
-          ...tags,
+          ...nextTags,
           discount,
           tax,
           payment: {
@@ -1003,7 +1055,8 @@ export const updateMektekPayment = async (input: {
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
     revalidatePath("/[locale]/service-status/[id]", "page");
     revalidatePath("/[locale]/s/[code]", "page");
-    return { data: { discount, tax, amountPaid, grandTotal, status } };
+    revalidatePath("/[locale]/customer/profile", "page");
+    return { data: { discount, tax, amountPaid, grandTotal: summary.grandTotal, status } };
   } catch (error) {
     console.log("[UPDATE_MEKTEK_PAYMENT]", error);
     return { error: "Failed to update payment" };

@@ -1,4 +1,7 @@
-import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
+import {
+  buildMektekFinancialSummary,
+  type MektekPaymentRecord,
+} from "@/lib/mektek/financials";
 
 type PublicTimelineEntry = {
   id: string;
@@ -15,6 +18,7 @@ type PublicOrder = {
   createdAt?: Date | null;
   updatedAt?: Date | null;
   tags?: unknown;
+  mektekPayments?: MektekPaymentRecord[];
 };
 
 const parseTags = (tags: unknown): Record<string, unknown> => {
@@ -48,7 +52,11 @@ export type MektekPublicSnapshot = ReturnType<typeof buildMektekPublicSnapshot>;
 
 export function buildMektekPublicSnapshot(order: PublicOrder) {
   const tags = parseTags(order.tags);
-  const financialSummary = buildMektekFinancialSummary(tags, order.content);
+  const financialSummary = buildMektekFinancialSummary(
+    tags,
+    order.content,
+    order.mektekPayments
+  );
   const normalizedItems = financialSummary.normalizedItems;
   const timeline = buildTimeline(tags);
   const latestTimeline = timeline[0] ?? null;
@@ -83,6 +91,7 @@ export function buildMektekPublicSnapshot(order: PublicOrder) {
       amountPaid: financialSummary.amountPaid,
       balanceDue: financialSummary.balanceDue,
       paymentStatus: financialSummary.payment.status,
+      providerAmountPaid: financialSummary.payment.providerAmountPaid,
     },
   };
 }

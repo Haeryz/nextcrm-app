@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CreditCard, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { createMektekPaymentIntent } from "@/actions/mektek/payments";
+import {
+  createMektekPaymentIntent,
+  syncMektekPaymentStatus,
+} from "@/actions/mektek/payments";
 
 type SnapCallbacks = {
   onSuccess?: (result: unknown) => void;
@@ -79,6 +83,31 @@ export function PayNowButton({
   className,
 }: PayNowButtonProps) {
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const confirmPayment = async (orderId: string) => {
+    const result = await syncMektekPaymentStatus({
+      serviceOrderId,
+      token,
+      code,
+      orderId,
+    });
+
+    if (result?.error) {
+      toast.error(result.error);
+      return;
+    }
+
+    if (result.data?.status === "paid") {
+      toast.success("Pembayaran berhasil. Status sudah diperbarui.");
+    } else if (result.data?.status === "pending") {
+      toast.info("Pembayaran masih menunggu konfirmasi Midtrans.");
+    } else {
+      toast.error("Pembayaran belum berhasil dikonfirmasi.");
+    }
+
+    router.refresh();
+  };
 
   const handlePay = async () => {
     setLoading(true);
@@ -90,7 +119,7 @@ export function PayNowButton({
         return;
       }
 
-      const { snapToken, clientKey, snapScriptUrl } = result.data;
+      const { snapToken, clientKey, snapScriptUrl, orderId } = result.data;
 
       await loadSnapScript(snapScriptUrl, clientKey);
 
@@ -101,7 +130,7 @@ export function PayNowButton({
 
       window.snap.pay(snapToken, {
         onSuccess: () => {
-          toast.success("Pembayaran berhasil. Status akan diperbarui otomatis.");
+          void confirmPayment(orderId);
         },
         onPending: () => {
           toast.info("Menunggu pembayaran Anda.");

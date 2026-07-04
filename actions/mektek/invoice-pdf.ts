@@ -2,7 +2,11 @@
 
 import React from "react";
 import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
-import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
+import {
+  buildMektekFinancialSummary,
+  type MektekPaymentDetail,
+  type MektekPaymentRecord,
+} from "@/lib/mektek/financials";
 
 export type MektekInvoiceItem = {
   kind?: "service" | "sparepart";
@@ -51,6 +55,8 @@ export type MektekInvoiceData = {
   payment: {
     method: string;
     status: "paid" | "partial" | "unpaid";
+    providerAmountPaid: number;
+    providerPayments: MektekPaymentDetail[];
   };
   notes?: string;
   signatures?: {
@@ -519,6 +525,7 @@ type ServiceOrderSummary = {
   createdAt?: Date | null;
   content?: string | null;
   tags?: unknown;
+  mektekPayments?: MektekPaymentRecord[];
 };
 
 function parseTags(tags: unknown): Record<string, unknown> {
@@ -528,7 +535,11 @@ function parseTags(tags: unknown): Record<string, unknown> {
 
 export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoiceData {
   const tags = parseTags(order.tags);
-  const financialSummary = buildMektekFinancialSummary(tags, order.content);
+  const financialSummary = buildMektekFinancialSummary(
+    tags,
+    order.content,
+    order.mektekPayments
+  );
   const normalizedItems = financialSummary.normalizedItems;
   const items: MektekInvoiceItem[] = normalizedItems.items.map((item) => ({
     kind: item.kind,
@@ -599,6 +610,8 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
     payment: {
       method: financialSummary.payment.method,
       status: financialSummary.payment.status,
+      providerAmountPaid: financialSummary.payment.providerAmountPaid,
+      providerPayments: financialSummary.payment.providerPayments,
     },
     notes:
       typeof tags.invoiceNotes === "string" ? tags.invoiceNotes : undefined,

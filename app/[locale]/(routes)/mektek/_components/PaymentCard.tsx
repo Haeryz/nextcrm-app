@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CheckCircle2, Circle, Save } from "lucide-react";
 import { updateMektekPayment } from "@/actions/mektek/service-orders";
+import type { MektekPaymentDetail } from "@/lib/mektek/financials";
 
 type PaymentMethod = "cash" | "transfer" | "qris";
 
@@ -18,8 +19,11 @@ type PaymentCardProps = {
   sparepartSubtotal: number;
   initialDiscount: number;
   initialTax: number;
+  initialPph: number;
   initialAmountPaid: number;
+  initialProviderAmountPaid: number;
   initialMethod: PaymentMethod;
+  providerPayments: MektekPaymentDetail[];
 };
 
 const formatCurrency = (amount: number) =>
@@ -38,8 +42,11 @@ export default function PaymentCard({
   sparepartSubtotal,
   initialDiscount,
   initialTax,
+  initialPph,
   initialAmountPaid,
+  initialProviderAmountPaid,
   initialMethod,
+  providerPayments,
 }: PaymentCardProps) {
   const [method, setMethod] = useState<PaymentMethod>(initialMethod);
   const [discount, setDiscount] = useState(toInputValue(initialDiscount));
@@ -58,12 +65,35 @@ export default function PaymentCard({
     const taxAmount = parseMoney(tax);
     const paidAmount = parseMoney(amountPaid);
     const subtotal = serviceSubtotal + sparepartSubtotal;
-    const total = Math.max(0, subtotal - discountAmount + taxAmount);
-    const paid = Math.min(paidAmount, total);
+    const taxBase = Math.max(0, subtotal - discountAmount);
+    const pphAmount = initialPph > 0 ? Math.round(taxBase * 0.02) : 0;
+    const total = Math.max(0, taxBase + taxAmount - pphAmount);
+    const providerPaid = Math.min(initialProviderAmountPaid, total);
+    const paid = Math.min(Math.max(paidAmount, providerPaid), total);
     const remaining = Math.max(0, total - paid);
     const status = total > 0 && remaining === 0 ? "paid" : paid > 0 ? "partial" : "unpaid";
-    return { discountAmount, taxAmount, total, paid, remaining, status };
-  }, [amountPaid, discount, serviceSubtotal, sparepartSubtotal, tax]);
+    return {
+      discountAmount,
+      taxAmount,
+      pphAmount,
+      total,
+      providerPaid,
+      paid,
+      remaining,
+      status,
+    };
+  }, [
+    amountPaid,
+    discount,
+    initialPph,
+    initialProviderAmountPaid,
+    serviceSubtotal,
+    sparepartSubtotal,
+    tax,
+  ]);
+
+  const latestProviderPayment =
+    providerPayments.find((payment) => payment.isPaid) ?? providerPayments[0] ?? null;
 
   const updateNumber = (setter: (value: string) => void) => (value: string) => {
     setter(value.replace(/\D/g, ""));
@@ -177,27 +207,74 @@ export default function PaymentCard({
           </div>
         </div>
 
+        {latestProviderPayment && (
+          <div className="rounded-md border bg-muted/20 p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Midtrans
+              </p>
+              <Badge variant={latestProviderPayment.isPaid ? "default" : "secondary"}>
+                {latestProviderPayment.isPaid ? "Berhasil" : "Menunggu"}
+              </Badge>
+            </div>
+            <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-3">
+              <div>
+                <p className="text-xs text-muted-foreground">Terdeteksi dibayar</p>
+                <p className="font-semibold">{formatCurrency(totals.providerPaid)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Metode gateway</p>
+                <p className="font-semibold uppercase">
+                  {latestProviderPayment.paymentType || "-"}
+                </p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-muted-foreground">Order ID</p>
+                <p className="truncate font-mono text-xs font-semibold">
+                  {latestProviderPayment.midtransOrderId}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="rounded-lg border bg-muted/20 p-3">
-          <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
-            <div>
+          <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <div className="min-w-0 rounded-md border bg-background/80 p-3">
               <p className="text-xs text-muted-foreground">Subtotal servis</p>
-              <p className="font-semibold">{formatCurrency(serviceSubtotal)}</p>
+              <p className="break-words font-semibold leading-tight">
+                {formatCurrency(serviceSubtotal)}
+              </p>
             </div>
-            <div>
+            <div className="min-w-0 rounded-md border bg-background/80 p-3">
               <p className="text-xs text-muted-foreground">Subtotal sparepart</p>
-              <p className="font-semibold">{formatCurrency(sparepartSubtotal)}</p>
+              <p className="break-words font-semibold leading-tight">
+                {formatCurrency(sparepartSubtotal)}
+              </p>
             </div>
-            <div>
+            <div className="min-w-0 rounded-md border bg-background/80 p-3">
               <p className="text-xs text-muted-foreground">Total tagihan</p>
-              <p className="font-semibold">{formatCurrency(totals.total)}</p>
+              <p className="break-words font-semibold leading-tight">
+                {formatCurrency(totals.total)}
+              </p>
             </div>
-            <div>
+            <div className="min-w-0 rounded-md border bg-background/80 p-3">
+              <p className="text-xs text-muted-foreground">PPH</p>
+              <p className="break-words font-semibold leading-tight">
+                {formatCurrency(totals.pphAmount)}
+              </p>
+            </div>
+            <div className="min-w-0 rounded-md border bg-background/80 p-3">
               <p className="text-xs text-muted-foreground">Dibayar</p>
-              <p className="font-semibold">{formatCurrency(totals.paid)}</p>
+              <p className="break-words font-semibold leading-tight">
+                {formatCurrency(totals.paid)}
+              </p>
             </div>
-            <div>
+            <div className="min-w-0 rounded-md border bg-background/80 p-3">
               <p className="text-xs text-muted-foreground">Sisa bayar</p>
-              <p className="font-semibold">{formatCurrency(totals.remaining)}</p>
+              <p className="break-words font-semibold leading-tight">
+                {formatCurrency(totals.remaining)}
+              </p>
             </div>
           </div>
         </div>

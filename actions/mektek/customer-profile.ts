@@ -7,6 +7,18 @@ import { getServerSession } from "@/lib/session";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { buildMektekVouchers } from "@/lib/mektek/vouchers";
 
+const mektekPaymentSelect = {
+  id: true,
+  midtransOrderId: true,
+  grossAmount: true,
+  paymentType: true,
+  transactionStatus: true,
+  fraudStatus: true,
+  paidAt: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
 const parseTags = (tags: unknown): Record<string, unknown> => {
   if (!tags || typeof tags !== "object" || Array.isArray(tags)) return {};
   return tags as Record<string, unknown>;
@@ -66,6 +78,12 @@ export async function getMektekCustomerProfile(locale = "en") {
               createdAt: true,
               updatedAt: true,
               tags: true,
+              mektekPayments: {
+                orderBy: {
+                  createdAt: "desc",
+                },
+                select: mektekPaymentSelect,
+              },
             },
           },
         },
