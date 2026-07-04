@@ -51,7 +51,7 @@ function readSearchParam(
 }
 
 function formatPrice(price: number | null) {
-  if (typeof price !== "number") return "Hubungi admin";
+  if (typeof price !== "number") return "Harga belum tersedia";
   return price.toLocaleString("id-ID", {
     style: "currency",
     currency: "IDR",
@@ -440,21 +440,37 @@ export default async function CustomerCatalogPage({
                       </p>
                     )}
                   </div>
-                  <p className="text-sm font-semibold">{formatPrice(item.price)}</p>
                   {typeof item.price === "number" && item.price > 0 ? (
-                    <ItemActions
-                      item={{
-                        id: item.id,
-                        description: item.description,
-                        price: item.price,
-                        machine: item.machine ?? null,
-                        partNumber: item.partNumber ?? null,
-                        catalogPartNumber: item.catalogPartNumber ?? null,
-                        imagePath: item.imagePath ?? null,
-                      }}
-                    />
+                    <div className="flex flex-col gap-3">
+                      <p className="text-base font-semibold">
+                        {formatPrice(item.price)}
+                      </p>
+                      <ItemActions
+                        item={{
+                          id: item.id,
+                          description: item.description,
+                          price: item.price,
+                          machine: item.machine ?? null,
+                          partNumber: item.partNumber ?? null,
+                          catalogPartNumber: item.catalogPartNumber ?? null,
+                          imagePath: item.imagePath ?? null,
+                        }}
+                      />
+                    </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground">Hubungi admin</p>
+                    <div className="flex items-center justify-between gap-2 rounded-md border border-dashed bg-muted/30 px-3 py-2">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Harga belum tersedia
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          Segera hadir
+                        </span>
+                      </div>
+                      <Badge variant="outline" className="shrink-0 text-muted-foreground">
+                        Pre-order
+                      </Badge>
+                    </div>
                   )}
                 </CardContent>
               </Card>
