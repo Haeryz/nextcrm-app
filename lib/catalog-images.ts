@@ -1,14 +1,20 @@
-import fs from "fs";
-import path from "path";
-
+/**
+ * Resolve a stored catalog image path to a browser-usable src.
+ *
+ * Must be filesystem-free: on Vercel, `public/` assets are served by the CDN
+ * and are NOT readable via `fs` from the serverless runtime, so any runtime
+ * `fs.existsSync` check would wrongly null every image in production. We only
+ * validate the shape here and let the <img> onError fallback handle a genuinely
+ * missing file.
+ */
 export function getExistingCatalogImagePath(imagePath: string | null): string | null {
   if (!imagePath) return null;
   if (/^https?:\/\//.test(imagePath)) return imagePath;
-  if (!imagePath.startsWith("/")) return null;
 
-  const publicPath = path.resolve(process.cwd(), "public", imagePath.slice(1));
-  const publicRoot = path.resolve(process.cwd(), "public");
-  if (!publicPath.startsWith(publicRoot + path.sep)) return null;
+  const normalized = imagePath.replace(/\\/g, "/");
+  // Only allow the known static catalog image directory; block traversal.
+  if (normalized.includes("..")) return null;
+  if (!normalized.startsWith("/catalog/images/")) return null;
 
-  return fs.existsSync(publicPath) ? imagePath : null;
+  return normalized;
 }
