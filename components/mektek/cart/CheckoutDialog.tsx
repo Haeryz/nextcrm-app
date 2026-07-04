@@ -120,7 +120,11 @@ export function CheckoutDialog() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => (!v ? handleClose() : undefined)}>
+    <Dialog
+      open={open}
+      modal={false}
+      onOpenChange={(v) => (!v ? handleClose() : undefined)}
+    >
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
         {done ? (
           <div className="flex flex-col items-center gap-4 py-4 text-center">
