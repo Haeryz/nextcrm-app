@@ -25,6 +25,7 @@ enum MektekStaffRole {
 
 enum CatalogServiceLinkSource {
   ADMIN_ASSIGN
+  SELF_SERVICE
 }
 
 enum Language {

@@ -17,6 +17,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getExistingCatalogImagePath } from "@/lib/catalog-images";
+import { CartProvider } from "@/components/mektek/cart/CartProvider";
+import { CartButton } from "@/components/mektek/cart/CartButton";
+import { CartMount } from "@/components/mektek/cart/CartMount";
+import { ItemActions } from "@/components/mektek/cart/ItemActions";
 
 interface CustomerCatalogPageProps {
   params?: Promise<{ locale: string }>;
@@ -331,6 +335,7 @@ export default async function CustomerCatalogPage({
   };
 
   return (
+    <CartProvider locale={locale}>
     <main className="min-h-screen bg-background">
       <section className="border-b bg-muted/20">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-6">
@@ -360,6 +365,7 @@ export default async function CustomerCatalogPage({
                   Back to profile
                 </Link>
               </Button>
+              <CartButton />
             </div>
           </div>
 
@@ -435,6 +441,21 @@ export default async function CustomerCatalogPage({
                     )}
                   </div>
                   <p className="text-sm font-semibold">{formatPrice(item.price)}</p>
+                  {typeof item.price === "number" && item.price > 0 ? (
+                    <ItemActions
+                      item={{
+                        id: item.id,
+                        description: item.description,
+                        price: item.price,
+                        machine: item.machine ?? null,
+                        partNumber: item.partNumber ?? null,
+                        catalogPartNumber: item.catalogPartNumber ?? null,
+                        imagePath: item.imagePath ?? null,
+                      }}
+                    />
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Hubungi admin</p>
+                  )}
                 </CardContent>
               </Card>
             );
@@ -470,6 +491,8 @@ export default async function CustomerCatalogPage({
           </div>
         </div>
       </section>
+      <CartMount />
     </main>
+    </CartProvider>
   );
 }
