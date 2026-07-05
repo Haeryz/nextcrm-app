@@ -143,6 +143,16 @@ Minimum required for local dev with no-auth mode (no external services):
 - `NEXTCRM_DISABLE_AUTH=true` (already set in `.env.example`)
 - `EMAIL_ENCRYPTION_KEY` — 64-char hex, required for API key encryption (`openssl rand -hex 32`)
 
+Required in every **deployed** environment:
+- `NEXTCRM_DISABLE_AUTH=false` — see the Authentication warning above.
+- `NEXT_PUBLIC_APP_URL` — the public origin (e.g. `https://mektek-bice.vercel.app`). Customer
+  tracking links (sent over WhatsApp) and the password-reset link are built from this trusted
+  config. `actions/mektek/service-orders.ts` `buildAppUrl` and `actions/auth/password-reset.ts`
+  fall back to request `Host` headers **only** for loopback/local hosts, so if this is unset in
+  production, links break rather than trust an attacker-controllable header (host-header
+  injection defense). It's a `NEXT_PUBLIC_*` var, so it is inlined at build time — **redeploy**
+  after changing it.
+
 ## Testing
 
 - **Jest**: tests in `__tests__/`, config in `jest.config.ts`, uses `ts-jest`. E2B is mocked via `__mocks__/e2b.ts`.
