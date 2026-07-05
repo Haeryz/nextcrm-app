@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { listMektekCatalogItems } from "@/actions/mektek/catalog-items";
+import { getSessionUser } from "@/lib/auth-guards";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -318,12 +319,16 @@ export default async function CustomerCatalogPage({
     return <MektekLanding locale={locale} />;
   }
 
-  const catalog = await listMektekCatalogItems({
-    query,
-    machine,
-    page,
-    pageSize: 24,
-  });
+  const [catalog, sessionUser] = await Promise.all([
+    listMektekCatalogItems({
+      query,
+      machine,
+      page,
+      pageSize: 24,
+    }),
+    getSessionUser(),
+  ]);
+  const isAuthenticated = !!sessionUser?.id;
 
   const baseParams = new URLSearchParams();
   baseParams.set("view", "sparepart");
@@ -336,7 +341,7 @@ export default async function CustomerCatalogPage({
   };
 
   return (
-    <CartProvider locale={locale}>
+    <CartProvider locale={locale} isAuthenticated={isAuthenticated}>
     <main className="min-h-screen bg-background">
       <section className="border-b bg-muted/20">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-6">
