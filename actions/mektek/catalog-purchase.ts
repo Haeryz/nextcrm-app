@@ -55,11 +55,29 @@ const clampQuantity = (value: unknown) => {
 export const createMektekCatalogPurchaseIntent = async (
   input: CreateCatalogPurchaseInput
 ) => {
+  // Checkout requires an authenticated customer account. This is the authoritative
+  // gate; the storefront UI also blocks unauthenticated checkout for better UX.
+  const sessionUser = await getSessionUser();
+  if (!sessionUser?.id) {
+    return {
+      error: "Silakan masuk untuk melanjutkan checkout.",
+      code: "AUTH_REQUIRED" as const,
+    };
+  }
+
   const customerName = String(input?.customerName ?? "").trim().slice(0, MAX_NAME_LEN);
-  const phone = String(input?.phone ?? "").trim();
+  // Prefer the authenticated account's own phone so a logged-in customer can only
+  // check out as themselves; fall back to the form value if the account has none.
+  const phone = (sessionUser.phone || String(input?.phone ?? "")).trim();
   const address = String(input?.address ?? "").trim().slice(0, MAX_ADDRESS_LEN);
   const locale = String(input?.locale ?? "en").trim() || "en";
-  const phoneNormalized = normalizePhoneNumber(phone);
+  const phoneNormalized =
+    sessionUser.phoneNormalized || normalizePhoneNumber(phone);
+
+  // Only tie the customer record to the account when the account owns this phone
+  // (CatalogCustomer.userId is unique, so linking a staff/other-phone account here
+  // would collide). Phone-based customer accounts always satisfy this.
+  const linkUserId = sessionUser.phoneNormalized ? sessionUser.id : undefined;
 
   if (!customerName) return { error: "Nama wajib diisi" };
   if (phoneNormalized.replace(/\D/g, "").length < 8) {
@@ -135,12 +153,13 @@ export const createMektekCatalogPurchaseIntent = async (
     const order = await prismadb.$transaction(async (tx) => {
       const catalogCustomer = await tx.catalogCustomer.upsert({
         where: { phoneNormalized },
-        update: { phone, customerType: "STANDARD" },
+        update: { phone, customerType: "STANDARD", userId: linkUserId },
         create: {
           username: customerName,
           phone,
           phoneNormalized,
           customerType: "STANDARD",
+          userId: linkUserId,
         },
         select: { id: true },
       });
