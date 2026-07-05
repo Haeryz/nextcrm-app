@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
@@ -28,7 +29,9 @@ export function CheckoutDialog() {
     checkoutLines,
     closeCheckout,
     clear,
+    loginHref,
   } = useCart();
+  const router = useRouter();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
@@ -80,6 +83,11 @@ export function CheckoutDialog() {
       if (result?.error || !result?.data) {
         toast.error(result?.error ?? "Gagal memulai pembayaran");
         setLoading(false);
+        // Server rejected because the visitor is not logged in — send them to login.
+        if ("code" in (result ?? {}) && result?.code === "AUTH_REQUIRED") {
+          closeCheckout();
+          router.push(loginHref);
+        }
         return;
       }
 
