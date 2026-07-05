@@ -2,15 +2,27 @@
 
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
 import { prismadb } from "@/lib/prisma";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { createMektekPaymentIntent } from "@/actions/mektek/payments";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import type { MektekLineItem } from "@/lib/mektek/items";
 
 const MEKTEK_TITLE_PREFIX = "MEKTEK Service -";
 const STORE_TIMELINE_MESSAGE =
   "Pesanan sparepart Anda telah dibuat. Selesaikan pembayaran untuk memproses pesanan.";
+
+// Bound free-form customer input before it is persisted / rendered into PDFs and
+// WhatsApp messages.
+const MAX_NAME_LEN = 120;
+const MAX_ADDRESS_LEN = 500;
+
+// This endpoint is public and token-less: each call writes several rows and mints
+// a Midtrans transaction. Throttle per IP and per phone to blunt scripted flooding.
+const PURCHASE_LIMIT = 5;
+const PURCHASE_WINDOW_MS = 10 * 60 * 1000;
 
 export type CatalogPurchaseLineInput = {
   catalogItemId: string;
@@ -42,15 +54,28 @@ const clampQuantity = (value: unknown) => {
 export const createMektekCatalogPurchaseIntent = async (
   input: CreateCatalogPurchaseInput
 ) => {
-  const customerName = String(input?.customerName ?? "").trim();
+  const customerName = String(input?.customerName ?? "").trim().slice(0, MAX_NAME_LEN);
   const phone = String(input?.phone ?? "").trim();
-  const address = String(input?.address ?? "").trim();
+  const address = String(input?.address ?? "").trim().slice(0, MAX_ADDRESS_LEN);
   const locale = String(input?.locale ?? "en").trim() || "en";
   const phoneNormalized = normalizePhoneNumber(phone);
 
   if (!customerName) return { error: "Nama wajib diisi" };
   if (phoneNormalized.replace(/\D/g, "").length < 8) {
     return { error: "Nomor telepon tidak valid" };
+  }
+
+  // Throttle scripted abuse: keyed by client IP and by phone independently.
+  const requestHeaders = await headers();
+  const ip = getClientIp(requestHeaders);
+  const ipLimit = checkRateLimit(`catalog-purchase:ip:${ip}`, PURCHASE_LIMIT, PURCHASE_WINDOW_MS);
+  const phoneLimit = checkRateLimit(
+    `catalog-purchase:phone:${phoneNormalized}`,
+    PURCHASE_LIMIT,
+    PURCHASE_WINDOW_MS
+  );
+  if (!ipLimit.ok || !phoneLimit.ok) {
+    return { error: "Terlalu banyak permintaan. Coba lagi dalam beberapa menit." };
   }
 
   // Collapse duplicate lines and clamp quantities.
