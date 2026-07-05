@@ -25,6 +25,8 @@ type CheckoutMode = { kind: "cart" } | { kind: "direct"; item: StoreItem };
 
 type CartContextValue = {
   locale: string;
+  isAuthenticated: boolean;
+  loginHref: string;
   lines: CartLine[];
   count: number;
   subtotal: number;
@@ -55,11 +57,15 @@ export function useCart() {
 
 export function CartProvider({
   locale,
+  isAuthenticated = false,
   children,
 }: {
   locale: string;
+  isAuthenticated?: boolean;
   children: React.ReactNode;
 }) {
+  const loginHref = `/${locale}/customer/access`;
+
   const [lines, setLines] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkout, setCheckout] = useState<CheckoutMode | null>(null);
@@ -140,6 +146,8 @@ export function CartProvider({
 
   const value: CartContextValue = {
     locale,
+    isAuthenticated,
+    loginHref,
     lines,
     count,
     subtotal,
