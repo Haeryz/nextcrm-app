@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+# Production
+https://mektek-bice.vercel.app
+
 ## Commands
 
 ```bash
@@ -45,6 +48,8 @@ The main `app/api/` routes are standard Next.js Route Handlers outside the local
 Auth is handled by **next-auth v4** (JWT strategy) in `lib/auth.ts`. Always import `getServerSession` from `lib/session.ts` — **not** directly from `next-auth`. The `lib/session.ts` wrapper adds no-auth/guest mode support.
 
 **No-auth mode** (default in `.env.example`): set `NEXTCRM_DISABLE_AUTH=true`. The app upserts a guest user in the DB and every session resolves to that user with `isAdmin: true`. Useful for local development without OAuth.
+
+⚠️ **Production must set `NEXTCRM_DISABLE_AUTH=false`.** No-auth mode makes every request an admin guest. `lib/session.ts` refuses to boot when `NODE_ENV=production` and no-auth is enabled, unless `NEXTCRM_ALLOW_NOAUTH_IN_PROD=true` is set as an explicit override. Never set that override on a real deployment.
 
 **Prototype mode**: `NEXTCRM_PROTOTYPE_MODE=true` or `DISABLE_EXTERNAL_APIS=true` disables OAuth providers, AI services, Resend, MinIO, Inngest, and IMAP/SMTP. Check `lib/external-apis.ts` (`areExternalApisDisabled()`) before calling any external API.
 
