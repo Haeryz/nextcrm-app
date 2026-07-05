@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ShoppingCart, Zap } from "lucide-react";
 
@@ -11,7 +12,18 @@ import { useCart, type StoreItem } from "./CartProvider";
  * ("Hubungi admin") parts have no buy path.
  */
 export function ItemActions({ item }: { item: StoreItem }) {
-  const { add, openDirectCheckout, setCartOpen } = useCart();
+  const { add, openDirectCheckout, setCartOpen, isAuthenticated, loginHref } =
+    useCart();
+  const router = useRouter();
+
+  const handleBuy = () => {
+    if (!isAuthenticated) {
+      toast.error("Silakan masuk untuk melanjutkan pembelian.");
+      router.push(loginHref);
+      return;
+    }
+    openDirectCheckout(item);
+  };
 
   return (
     <div className="flex gap-2">
@@ -29,11 +41,7 @@ export function ItemActions({ item }: { item: StoreItem }) {
         <ShoppingCart data-icon="inline-start" />
         Keranjang
       </Button>
-      <Button
-        type="button"
-        className="flex-1"
-        onClick={() => openDirectCheckout(item)}
-      >
+      <Button type="button" className="flex-1" onClick={handleBuy}>
         <Zap data-icon="inline-start" />
         Beli
       </Button>
