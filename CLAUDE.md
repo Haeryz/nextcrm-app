@@ -53,6 +53,18 @@ Auth is handled by **next-auth v4** (JWT strategy) in `lib/auth.ts`. Always impo
 
 **Prototype mode**: `NEXTCRM_PROTOTYPE_MODE=true` or `DISABLE_EXTERNAL_APIS=true` disables OAuth providers, AI services, Resend, MinIO, Inngest, and IMAP/SMTP. Check `lib/external-apis.ts` (`areExternalApisDisabled()`) before calling any external API.
 
+#### Access guards & route protection
+
+- **Central guards** live in `lib/auth-guards.ts`: `requireUser()` (any signed-in, non-suspended user), `requireAdmin()` (admins only), `requireMektekStaff()` (any Mektek staff), and `getSessionUser()` (nullable, no redirect). Prefer these in server components/layouts/actions over re-deriving session + role checks by hand.
+- **App shell**: `app/[locale]/(routes)/layout.tsx` redirects unauthenticated users to `/sign-in` and gates `PENDING`/`INACTIVE`. Everything under `(routes)` is therefore login-only.
+- **Role gating**: Mektek pages check `lib/mektek/permissions.ts` helpers. The WhatsApp pairing page is admin-only via `app/[locale]/(routes)/mektek/whatsapp/layout.tsx` (it exposes the pairing QR).
+- **Checkout requires login**: `createMektekCatalogPurchaseIntent` (server) rejects unauthenticated calls with `{ code: "AUTH_REQUIRED" }`; the storefront cart (`components/mektek/cart/*`) also redirects guests to `/[locale]/customer/access` before opening checkout. A logged-in customer always checks out under their own account phone.
+- **Unknown routes**: `app/[locale]/not-found.tsx` is the friendly 404 for unmatched pages; `app/api/[...notfound]/route.ts` returns a JSON 404 for unmatched `/api/*` calls.
+
+#### First admin (non-technical bootstrap)
+
+Point the client at **`/setup`** (e.g. `https://…/en/setup`). It shows a guided one-time wizard (`app/[locale]/(auth)/setup/`) to create the owner/admin account — no env editing, no DB access. `bootstrapFirstAdmin` (`actions/auth/bootstrap-admin.ts`) creates an `is_admin`, `ACTIVE` user and the page **self-disables** once any admin exists (redirects to sign-in), so it can't be used to mint extra admins later. After setup, the owner invites staff and assigns roles from within the app.
+
 ### Database
 
 Prisma 7 + PostgreSQL 17+ with the **pgvector** extension (required for vector search). The client singleton is in `lib/prisma.ts`. It uses `@prisma/adapter-pg` with connection pooling via `pg`. If `DATABASE_URL` is not set, a mock client is returned so the app boots without a database.
