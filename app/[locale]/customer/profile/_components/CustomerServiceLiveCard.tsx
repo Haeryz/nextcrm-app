@@ -66,15 +66,15 @@ export function CustomerServiceLiveCard({
   const statusMeta = getStatusMeta(snapshot.taskStatus);
 
   return (
-    <Card className="overflow-hidden">
-      <CardHeader className="gap-3 border-b bg-muted/20">
+    <Card className="overflow-hidden border-[#151a63]/10 bg-white dark:border-white/10 dark:bg-white/[0.06]">
+      <CardHeader className="gap-3 border-b border-[#151a63]/10 bg-[#eef1ff] dark:border-white/10 dark:bg-[#070a18]">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-medium uppercase text-muted-foreground">
+            <p className="text-xs font-medium uppercase text-[#4b5577] dark:text-blue-50/60">
               Service #{snapshot.id.slice(0, 8)}
             </p>
             <CardTitle className="mt-1 truncate text-xl">{snapshot.vehicle}</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-1 text-sm text-[#4b5577] dark:text-blue-50/70">
               Last update: {formatDateTime(snapshot.updatedAt)}
             </p>
           </div>
@@ -93,12 +93,12 @@ export function CustomerServiceLiveCard({
             <p className="text-sm font-semibold">
               {snapshot.latestTimeline?.description || "No service update yet."}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-[#4b5577] dark:text-blue-50/60">
               {formatDateTime(snapshot.latestTimeline?.createdAt ?? null)}
             </p>
           </div>
-          <div className="rounded-md border bg-background p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="rounded-md border border-[#151a63]/10 bg-[#fafbff] p-3 dark:border-white/10 dark:bg-[#070a18]">
+            <p className="text-xs font-medium uppercase tracking-wide text-[#4b5577] dark:text-blue-50/60">
               Current state
             </p>
             <Badge
@@ -110,21 +110,21 @@ export function CustomerServiceLiveCard({
           </div>
         </div>
 
-        <div className="grid gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-3">
+        <div className="grid gap-3 rounded-md border border-[#151a63]/10 bg-[#fafbff] p-3 dark:border-white/10 dark:bg-[#070a18] sm:grid-cols-3">
           <div>
-            <p className="text-xs text-muted-foreground">Total tagihan</p>
+            <p className="text-xs text-[#4b5577] dark:text-blue-50/60">Total tagihan</p>
             <p className="text-sm font-semibold">
               {formatCurrency(snapshot.invoice.grandTotal)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Sudah dibayar</p>
+            <p className="text-xs text-[#4b5577] dark:text-blue-50/60">Sudah dibayar</p>
             <p className="text-sm font-semibold">
               {formatCurrency(snapshot.invoice.amountPaid)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Sisa bayar</p>
+            <p className="text-xs text-[#4b5577] dark:text-blue-50/60">Sisa bayar</p>
             <p className="text-sm font-semibold">
               {formatCurrency(snapshot.invoice.balanceDue)}
             </p>
@@ -142,7 +142,11 @@ export function CustomerServiceLiveCard({
 
         <div className="flex flex-col gap-2 sm:flex-row">
           {publicHref && (
-            <Button asChild variant="outline" className="sm:flex-1">
+            <Button
+              asChild
+              variant="outline"
+              className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff] dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15 sm:flex-1"
+            >
               <Link href={publicHref}>
                 <ExternalLink data-icon="inline-start" />
                 Detail live
@@ -150,7 +154,11 @@ export function CustomerServiceLiveCard({
             </Button>
           )}
           {invoiceHref && (
-            <Button asChild variant="outline" className="sm:flex-1">
+            <Button
+              asChild
+              variant="outline"
+              className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff] dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15 sm:flex-1"
+            >
               <a href={invoiceHref} target="_blank" rel="noreferrer">
                 <FileText data-icon="inline-start" />
                 Invoice
@@ -158,7 +166,11 @@ export function CustomerServiceLiveCard({
             </Button>
           )}
           {receiptHref && (
-            <Button asChild variant="outline" className="sm:flex-1">
+            <Button
+              asChild
+              variant="outline"
+              className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff] dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15 sm:flex-1"
+            >
               <a href={receiptHref} target="_blank" rel="noreferrer">
                 <Receipt data-icon="inline-start" />
                 Receipt

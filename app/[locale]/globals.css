@@ -38,6 +38,25 @@
   }
 }
 
+@keyframes mektek-marquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.animate-mektek-marquee {
+  animation: mektek-marquee 26s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-mektek-marquee {
+    animation: none;
+  }
+}
+
 .dropBox {
   @apply flex flex-col overflow-hidden items-start justify-center text-xs p-2 m-2 rounded-md border border-slate-300 shadow-md;
 }

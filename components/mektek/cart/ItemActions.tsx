@@ -30,7 +30,7 @@ export function ItemActions({ item }: { item: StoreItem }) {
       <Button
         type="button"
         variant="outline"
-        className="flex-1"
+        className="flex-1 border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff] dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
         onClick={() => {
           add(item, 1);
           toast.success("Ditambahkan ke keranjang", {
@@ -41,7 +41,11 @@ export function ItemActions({ item }: { item: StoreItem }) {
         <ShoppingCart data-icon="inline-start" />
         Keranjang
       </Button>
-      <Button type="button" className="flex-1" onClick={handleBuy}>
+      <Button
+        type="button"
+        className="flex-1 bg-[#151a63] text-[#fff200] hover:bg-[#10164f] dark:bg-[#fff200] dark:text-[#10164f] dark:hover:bg-[#f5e900]"
+        onClick={() => openDirectCheckout(item)}
+      >
         <Zap data-icon="inline-start" />
         Beli
       </Button>

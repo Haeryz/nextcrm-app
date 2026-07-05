@@ -42,14 +42,19 @@ export function CartSheet() {
 
   return (
     <Sheet open={cartOpen} onOpenChange={setCartOpen}>
-      <SheetContent side="right" className="flex w-full flex-col sm:max-w-md">
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col border-[#151a63]/10 bg-[#f7f8ff] text-[#091247] dark:border-white/10 dark:bg-[#070a18] dark:text-white sm:max-w-md"
+      >
         <SheetHeader>
           <SheetTitle>Keranjang</SheetTitle>
-          <SheetDescription>Sparepart yang siap Anda beli.</SheetDescription>
+          <SheetDescription className="text-[#4b5577] dark:text-blue-50/70">
+            Sparepart yang siap Anda beli.
+          </SheetDescription>
         </SheetHeader>
 
         {lines.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center text-sm text-[#4b5577] dark:text-blue-50/70">
             <ShoppingCart className="size-8 opacity-40" />
             Keranjang masih kosong.
           </div>
@@ -57,10 +62,13 @@ export function CartSheet() {
           <>
             <div className="-mx-2 flex-1 space-y-3 overflow-y-auto px-2 py-2">
               {lines.map(({ item, quantity }) => (
-                <div key={item.id} className="flex gap-3 rounded-md border p-3">
+                <div
+                  key={item.id}
+                  className="flex gap-3 rounded-md border border-[#151a63]/10 bg-white p-3 dark:border-white/10 dark:bg-white/[0.06]"
+                >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{item.description}</p>
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="truncate text-xs text-[#4b5577] dark:text-blue-50/60">
                       {item.machine}
                       {item.catalogPartNumber || item.partNumber
                         ? ` · ${item.catalogPartNumber || item.partNumber}`
@@ -72,7 +80,7 @@ export function CartSheet() {
                         type="button"
                         variant="outline"
                         size="icon"
-                        className="size-7"
+                        className="size-7 border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff] dark:border-white/15 dark:bg-[#070a18] dark:text-white dark:hover:bg-white/15"
                         onClick={() => setQuantity(item.id, quantity - 1)}
                         disabled={quantity <= 1}
                       >
@@ -83,7 +91,7 @@ export function CartSheet() {
                         type="button"
                         variant="outline"
                         size="icon"
-                        className="size-7"
+                        className="size-7 border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff] dark:border-white/15 dark:bg-[#070a18] dark:text-white dark:hover:bg-white/15"
                         onClick={() => setQuantity(item.id, quantity + 1)}
                       >
                         <Plus className="size-3.5" />
@@ -92,7 +100,7 @@ export function CartSheet() {
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="ml-auto size-7 text-muted-foreground hover:text-destructive"
+                        className="ml-auto size-7 text-[#4b5577] hover:bg-[#eef1ff] hover:text-destructive dark:text-blue-50/60 dark:hover:bg-white/10"
                         onClick={() => remove(item.id)}
                       >
                         <Trash2 className="size-4" />
@@ -106,13 +114,20 @@ export function CartSheet() {
             <Separator />
             <div className="space-y-3 pt-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Subtotal</span>
+                <span className="text-[#4b5577] dark:text-blue-50/70">Subtotal</span>
                 <span className="font-semibold">{formatIDR(subtotal)}</span>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#4b5577] dark:text-blue-50/60">
                 PPN 11% & PPh 2% dihitung saat checkout.
               </p>
-              <Button type="button" className="w-full" onClick={handleCheckout}>
+              <Button
+                type="button"
+                className="w-full bg-[#151a63] text-[#fff200] hover:bg-[#10164f] dark:bg-[#fff200] dark:text-[#10164f] dark:hover:bg-[#f5e900]"
+                onClick={() => {
+                  setCartOpen(false);
+                  openCartCheckout();
+                }}
+              >
                 Checkout
               </Button>
             </div>

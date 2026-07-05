@@ -133,21 +133,28 @@ export function CheckoutDialog() {
       modal={false}
       onOpenChange={(v) => (!v ? handleClose() : undefined)}
     >
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-[#151a63]/10 bg-[#f7f8ff] text-[#091247] dark:border-white/10 dark:bg-[#070a18] dark:text-white sm:max-w-lg">
         {done ? (
           <div className="flex flex-col items-center gap-4 py-4 text-center">
-            <CheckCircle2 className="size-12 text-emerald-600" />
+            <CheckCircle2 className="size-12 text-[#151a63] dark:text-[#fff200]" />
             <div className="space-y-1">
               <DialogTitle>Pesanan diterima</DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-[#4b5577] dark:text-blue-50/70">
                 Pembayaran sedang dikonfirmasi. Anda dapat memantau status pesanan.
               </DialogDescription>
             </div>
             <div className="flex w-full flex-col gap-2 pt-2">
-              <Button asChild className="w-full">
+              <Button
+                asChild
+                className="w-full bg-[#151a63] text-[#fff200] hover:bg-[#10164f] dark:bg-[#fff200] dark:text-[#10164f] dark:hover:bg-[#f5e900]"
+              >
                 <Link href={done.trackingPath}>Lihat status pesanan</Link>
               </Button>
-              <Button variant="outline" className="w-full" onClick={handleClose}>
+              <Button
+                variant="outline"
+                className="w-full border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff] dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                onClick={handleClose}
+              >
                 Tutup
               </Button>
             </div>
@@ -156,28 +163,28 @@ export function CheckoutDialog() {
           <>
             <DialogHeader>
               <DialogTitle>Checkout</DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-[#4b5577] dark:text-blue-50/70">
                 Masukkan data Anda untuk melanjutkan pembayaran.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3">
-              <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
+              <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border border-[#151a63]/10 bg-white p-3 dark:border-white/10 dark:bg-white/[0.06]">
                 {lines.map(({ item, quantity }) => (
                   <div key={item.id} className="flex items-start justify-between gap-3 text-sm">
                     <span className="min-w-0 flex-1 truncate">
                       {item.description}{" "}
-                      <span className="text-muted-foreground">× {quantity}</span>
+                      <span className="text-[#4b5577] dark:text-blue-50/60">× {quantity}</span>
                     </span>
                     <span className="font-medium">{formatIDR(item.price * quantity)}</span>
                   </div>
                 ))}
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Subtotal</span>
+                <span className="text-[#4b5577] dark:text-blue-50/70">Subtotal</span>
                 <span className="font-semibold">{formatIDR(subtotal)}</span>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-[#4b5577] dark:text-blue-50/60">
                 Total akhir termasuk PPN 11% & PPh 2% akan tampil di Midtrans.
               </p>
             </div>
@@ -193,6 +200,7 @@ export function CheckoutDialog() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Nama lengkap"
                   autoComplete="name"
+                  className="border-[#151a63]/20 bg-white text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63] dark:border-white/15 dark:bg-[#070a18] dark:text-white dark:placeholder:text-blue-50/45 dark:focus-visible:ring-[#fff200]"
                 />
               </div>
               <div className="space-y-1.5">
@@ -204,6 +212,7 @@ export function CheckoutDialog() {
                   placeholder="08xxxxxxxxxx"
                   inputMode="tel"
                   autoComplete="tel"
+                  className="border-[#151a63]/20 bg-white text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63] dark:border-white/15 dark:bg-[#070a18] dark:text-white dark:placeholder:text-blue-50/45 dark:focus-visible:ring-[#fff200]"
                 />
               </div>
               <div className="space-y-1.5">
@@ -214,6 +223,7 @@ export function CheckoutDialog() {
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="Alamat pengiriman"
                   autoComplete="street-address"
+                  className="border-[#151a63]/20 bg-white text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63] dark:border-white/15 dark:bg-[#070a18] dark:text-white dark:placeholder:text-blue-50/45 dark:focus-visible:ring-[#fff200]"
                 />
               </div>
             </div>
@@ -224,10 +234,16 @@ export function CheckoutDialog() {
                 variant="outline"
                 onClick={handleClose}
                 disabled={loading}
+                className="border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff] dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
               >
                 Batal
               </Button>
-              <Button type="button" onClick={handlePay} disabled={loading}>
+              <Button
+                type="button"
+                onClick={handlePay}
+                disabled={loading}
+                className="bg-[#151a63] text-[#fff200] hover:bg-[#10164f] dark:bg-[#fff200] dark:text-[#10164f] dark:hover:bg-[#f5e900]"
+              >
                 {loading ? (
                   <Loader2 data-icon="inline-start" className="animate-spin" />
                 ) : null}
