@@ -8,6 +8,7 @@ import { prismadb } from "@/lib/prisma";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { createMektekPaymentIntent } from "@/actions/mektek/payments";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { getSessionUser } from "@/lib/auth-guards";
 import type { MektekLineItem } from "@/lib/mektek/items";
 
 const MEKTEK_TITLE_PREFIX = "MEKTEK Service -";
