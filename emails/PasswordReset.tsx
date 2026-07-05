@@ -18,7 +18,7 @@ interface VercelInviteUserEmailProps {
   username?: string;
   avatar?: string | null;
   email: string;
-  password: string;
+  resetLink: string;
   userLanguage: string;
 }
 
@@ -28,7 +28,7 @@ export const PasswordResetEmail = ({
   username,
   avatar,
   email,
-  password,
+  resetLink,
   userLanguage,
 }: VercelInviteUserEmailProps) => {
   const previewText = `Password reset from ${process.env.NEXT_PUBLIC_APP_NAME}`;
@@ -57,31 +57,20 @@ export const PasswordResetEmail = ({
             </Text>
             <Text className="text-black text-sm leading-[24px]">
               {userLanguage === "en"
-                ? "Your password was reset,"
-                : "Vaše heslo bylo resetováno,"}
-            </Text>
-            <Text className="text-black text-sm leading-[24px]">
-              {userLanguage === "en"
-                ? "Your username: "
-                : "Vaše uživatelské jméno: "}
+                ? "We received a request to reset the password for your account:"
+                : "Obdrželi jsme žádost o obnovení hesla k vašemu účtu:"}{" "}
               <strong>{email}</strong>
             </Text>
             <Text className="text-black text-sm leading-[24px]">
               {userLanguage === "en"
-                ? "Your new password: "
-                : "Vaše nové heslo: "}
-
-              <strong>{password}</strong>
+                ? "Click the link below to choose a new password. This link expires in 1 hour and can be used only once. If you did not request this, you can safely ignore this email — your password will not change."
+                : "Kliknutím na odkaz níže si zvolte nové heslo. Odkaz vyprší za 1 hodinu a lze jej použít pouze jednou. Pokud jste o to nežádali, tento e-mail ignorujte — vaše heslo se nezmění."}
             </Text>
             <Text className="text-black text-sm leading-[24px]">
-              {userLanguage === "en"
-                ? "Please login to "
-                : "Prosíme přihlašte se na "}
-              <Link
-                href={process.env.NEXT_PUBLIC_APP_URL}
-                className="text-blue-500 underline"
-              >
-                {process.env.NEXT_PUBLIC_APP_URL}
+              <Link href={resetLink} className="text-blue-500 underline">
+                {userLanguage === "en"
+                  ? "Reset your password"
+                  : "Obnovit heslo"}
               </Link>
             </Text>
             <Text className="text-black text-sm leading-[24px]">
