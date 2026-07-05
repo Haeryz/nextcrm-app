@@ -6,7 +6,12 @@ import type { ActiveStatus, CatalogCustomerType, Language, Prisma } from "@prism
 
 import { authOptions } from "@/lib/auth";
 import { canManageMektekCustomers } from "@/lib/mektek/permissions";
-import { normalizePhoneNumber, buildPhoneAccountEmail, phoneDigits } from "@/lib/phone";
+import {
+  buildPhoneAccountEmail,
+  isValidPhoneNumber,
+  normalizePhoneNumber,
+} from "@/lib/phone";
+import { boundedText, MAX_NAME_LEN } from "@/lib/mektek/sanitize";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -64,10 +69,9 @@ function normalizeEmail(value: unknown) {
 }
 
 function normalizeCustomerUserInput(input: CustomerUserInput) {
-  const name = compactText(input.name);
+  const name = boundedText(input.name, MAX_NAME_LEN);
   const phone = compactText(input.phone);
   const phoneNormalized = normalizePhoneNumber(phone);
-  const digits = phoneDigits(phoneNormalized);
   const email = normalizeEmail(input.email) || buildPhoneAccountEmail(phoneNormalized);
   const password = String(input.password ?? "");
   const customerType = customerTypes.has(String(input.customerType))
@@ -81,7 +85,7 @@ function normalizeCustomerUserInput(input: CustomerUserInput) {
     : ("en" as Language);
 
   if (!name) return { error: "Customer name is required" };
-  if (digits.length < 6) return { error: "Phone number is invalid" };
+  if (!isValidPhoneNumber(phone)) return { error: "Phone number is invalid" };
   if (!email.includes("@")) return { error: "Email is invalid" };
   if (password && password.length < 8) {
     return { error: "Password must be at least 8 characters" };

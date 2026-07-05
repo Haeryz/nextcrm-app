@@ -24,7 +24,14 @@ import {
   canUseMektekCustomerTools,
 } from "@/lib/mektek/permissions";
 import { calculateMektekDiscountAmount } from "@/lib/mektek/loyalty";
-import { normalizePhoneNumber } from "@/lib/phone";
+import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/phone";
+import {
+  boundedText,
+  MAX_ADDRESS_LEN,
+  MAX_COMPLAINT_LEN,
+  MAX_NAME_LEN,
+  MAX_VEHICLE_LEN,
+} from "@/lib/mektek/sanitize";
 import {
   calculateMektekVoucherDiscount,
   findMektekVoucherByCode,
@@ -135,21 +142,38 @@ const parseTimeline = (tags: unknown): MektekTimelineEntry[] => {
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 };
 
+// These links are sent to customers over WhatsApp, so the base URL must come
+// from trusted server-side config — NEVER from attacker-controllable
+// `Host`/`X-Forwarded-Host` request headers (host-header injection → phishing).
+// Request headers are used only as a last resort, and only when the host is a
+// loopback/local address so a spoofed Host header can't poison the link.
 const buildAppUrl = async () => {
+  const configuredUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "") ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "");
+
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, "");
+  }
+
   const requestHeaders = await headers();
   const host =
-    requestHeaders.get("x-forwarded-host") ||
-    requestHeaders.get("host") ||
-    "";
-  if (host) {
-    const proto =
-      requestHeaders.get("x-forwarded-proto") ||
-      (host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https");
+    requestHeaders.get("x-forwarded-host") || requestHeaders.get("host") || "";
+  const hostname = host.split(":")[0];
+  const isLocal =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0" ||
+    hostname.endsWith(".local");
+  if (host && isLocal) {
+    const proto = requestHeaders.get("x-forwarded-proto") || "http";
     return `${proto}://${host}`;
   }
 
-  const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";
-  return process.env.NEXT_PUBLIC_APP_URL || vercelUrl || "http://localhost:3000";
+  return "http://localhost:3000";
 };
 
 const createCustomerCode = () => crypto.randomBytes(12).toString("base64url");
@@ -171,11 +195,11 @@ export const createMektekServiceOrder = async (
     return { error: "Forbidden: only MekTek admin or CS can create service orders" };
   }
 
-  const customerName = String(input?.customerName ?? "").trim();
-  const vehicle = String(input?.vehicle ?? "").trim();
-  const complaint = String(input?.complaint ?? "").trim();
+  const customerName = boundedText(input?.customerName, MAX_NAME_LEN);
+  const vehicle = boundedText(input?.vehicle, MAX_VEHICLE_LEN);
+  const complaint = boundedText(input?.complaint, MAX_COMPLAINT_LEN);
   const phone = String(input?.phone ?? "").trim();
-  const address = String(input?.address ?? "").trim();
+  const address = boundedText(input?.address, MAX_ADDRESS_LEN);
   const customerType = input?.customerType === "B2B" ? "B2B" : "STANDARD";
   const technicianId = String(input?.technicianId ?? "").trim();
   const phoneNormalized = normalizePhoneNumber(phone);
@@ -185,7 +209,7 @@ export const createMektekServiceOrder = async (
   if (!customerName || !vehicle || !complaint) {
     return { error: "Customer name, vehicle, and complaint are required" };
   }
-  if (phoneNormalized.replace(/\D/g, "").length < 6) {
+  if (!isValidPhoneNumber(phone)) {
     return { error: "Phone number is required to add the customer to Customer/Users" };
   }
 

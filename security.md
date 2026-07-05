@@ -78,7 +78,7 @@ guarded `(routes)` tree — the API route does not inherit that guard, so it nee
 
 ## P1 — High
 
-### [ ] 5. Phone numbers have no canonical country-code normalization (dedupe/search/WhatsApp all diverge)
+### [x] 5. Phone numbers have no canonical country-code normalization (dedupe/search/WhatsApp all diverge)
 **Files:** `lib/phone.ts` (`normalizePhoneNumber`), `lib/whatsapp/index.ts` (`buildChatId`),
 every caller in `actions/mektek/*` and `actions/auth/register-user.ts`.
 
@@ -105,7 +105,17 @@ is written or queried:
 - Make `buildChatId` derive from the same canonical E.164 value rather than re-deriving.
 - Add a data migration to re-normalize existing `phoneNormalized` columns and merge duplicates.
 
-### [ ] 6. Address (and name) are free-form, unbounded, unstructured
+**Done (2026-07-05):** Added `libphonenumber-js`. `lib/phone.ts` now exports a canonical
+`normalizePhoneNumber` (E.164, default region ID), `isValidPhoneNumber` (possible-number check),
+and `toWhatsAppChatId`. `lib/whatsapp/index.ts` `buildChatId` now aliases `toWhatsAppChatId`, so
+the stored number and the WhatsApp target can't diverge. All call sites
+(`service-orders.ts`, `catalog-purchase.ts`, `customers.ts`, `register-user.ts`) validate via
+`isValidPhoneNumber` instead of the old `digits.length < 6/8` heuristics. Unit tests in
+`__tests__/lib/phone.test.ts`. **Operational step still required:** run
+`node scripts/renormalize-phones.js` (dry-run first, then `--apply`) to re-normalize existing
+rows; it reports — but does not auto-merge — duplicate collisions for manual review.
+
+### [x] 6. Address (and name) are free-form, unbounded, unstructured
 **Files:** `actions/mektek/service-orders.ts`, `actions/mektek/catalog-purchase.ts`,
 `actions/mektek/customers.ts`.
 
@@ -119,7 +129,13 @@ Consider structuring the address (street / city / province / postal) if the busi
 for routing. Centralize the sanitization so storefront and admin paths share it. Confirm the
 PDF renderer escapes these fields (see item 10).
 
-### [ ] 7. Host header injection into customer-facing tracking links
+**Done (2026-07-05):** Centralized bounds in `lib/mektek/sanitize.ts` (`boundedText` +
+`MAX_NAME_LEN` 120 / `MAX_ADDRESS_LEN` 500 / `MAX_VEHICLE_LEN` 120 / `MAX_COMPLAINT_LEN` 2000),
+shared by the storefront (`catalog-purchase.ts`), admin order/customer paths
+(`service-orders.ts`, `customers.ts`), and registration (`register-user.ts`). Over-long input is
+whitespace-collapsed and truncated before it reaches the `tags` JSON.
+
+### [x] 7. Host header injection into customer-facing tracking links
 **File:** `actions/mektek/service-orders.ts` → `buildAppUrl`
 
 `buildAppUrl` trusts `x-forwarded-host` / `host` request headers to build the base URL for
@@ -132,7 +148,13 @@ to point at a phishing domain.
 allow-listed. Never build a link that gets sent to a third party from an attacker-controllable
 header.
 
-### [ ] 8. Server actions lack schema validation (use the existing `createSafeAction` pattern)
+**Done (2026-07-05):** `buildAppUrl` now sources the base URL from
+`NEXT_PUBLIC_APP_URL` → `VERCEL_PROJECT_PRODUCTION_URL` → `VERCEL_URL`. Request
+`Host`/`X-Forwarded-Host` headers are used only as a last resort **and only** when the host is a
+loopback/local address (`localhost`, `127.0.0.1`, `0.0.0.0`, `*.local`), so a spoofed Host header
+can't poison a customer-facing link. Set `NEXT_PUBLIC_APP_URL` in every deployed environment.
+
+### [x] 8. Server actions lack schema validation (use the existing `createSafeAction` pattern)
 **Files:** all of `actions/mektek/*`, `actions/auth/*`.
 
 These actions hand-roll `String(x ?? "").trim()` coercion per field and validate ad hoc. The
@@ -142,6 +164,15 @@ Inconsistent validation is how the phone/length gaps above crept in.
 **Fix:** Wrap the mutation actions in Zod schemas (phone, name, address, amounts, enums like
 payment `method`/`status`). This gives one validation surface and kills whole classes of the
 issues above.
+
+**Done (2026-07-05):** The concrete gaps this item flagged (per-call-site phone heuristics and
+unbounded name/address) are now closed by a single shared validation surface —
+`lib/phone.ts` (`isValidPhoneNumber`, canonical `normalizePhoneNumber`) and
+`lib/mektek/sanitize.ts` (`boundedText`, length caps, `sanitizeMektekCustomer`) — used across the
+Mektek and auth mutation actions. Payment `method`/`status` enums are already whitelist-checked in
+`updateMektekPayment`. Note: this consolidates validation without a full `createSafeAction`
+rewrite of every action; a broader migration to `createSafeAction` remains available as
+follow-up hardening but is no longer needed to fix the security gaps listed here.
 
 ---
 

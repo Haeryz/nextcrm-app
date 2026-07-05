@@ -1,6 +1,7 @@
 import { MessageMedia } from "whatsapp-web.js";
 import { areExternalApisDisabled } from "@/lib/external-apis";
 import { getWhatsAppClient, getWhatsAppState } from "@/lib/whatsapp/client";
+import { toWhatsAppChatId } from "@/lib/phone";
 
 export type WhatsAppMedia = {
   mimeType: string;
@@ -13,26 +14,9 @@ export type WhatsAppSendResult =
   | { ok: true }
   | { ok: false; error: string };
 
-function normalizePhone(phone: string): string {
-  return String(phone ?? "")
-    .replace(/\s+/g, "")
-    .replace(/[^\d+]/g, "")
-    .replace(/^00/, "+");
-}
-
-function buildChatId(phone: string): string | null {
-  const normalized = normalizePhone(phone);
-  if (!normalized) return null;
-
-  let digits = normalized.replace(/\D/g, "");
-  if (!digits) return null;
-
-  if (digits.startsWith("0")) {
-    digits = `62${digits.slice(1)}`;
-  }
-
-  return `${digits}@c.us`;
-}
+// Chat id is derived from the same canonical E.164 normalizer the rest of the
+// app uses, so WhatsApp always messages the exact number we stored.
+const buildChatId = toWhatsAppChatId;
 
 export async function sendWhatsAppMessage(params: {
   to: string;

@@ -5,9 +5,10 @@ import { newUserNotify } from "@/lib/new-user-notify";
 import { Language } from "@prisma/client";
 import {
   buildPhoneAccountEmail,
+  isValidPhoneNumber,
   normalizePhoneNumber,
-  phoneDigits,
 } from "@/lib/phone";
+import { boundedText, MAX_NAME_LEN } from "@/lib/mektek/sanitize";
 
 export const registerUser = async (data: {
   name: string;
@@ -78,12 +79,11 @@ export const registerCustomerUser = async (data: {
   password: string;
   confirmPassword: string;
 }) => {
-  const name = String(data?.name ?? "").trim();
+  const name = boundedText(data?.name, MAX_NAME_LEN);
   const phone = String(data?.phone ?? "").trim();
   const password = String(data?.password ?? "");
   const confirmPassword = String(data?.confirmPassword ?? "");
   const phoneNormalized = normalizePhoneNumber(phone);
-  const digits = phoneDigits(phoneNormalized);
 
   if (!name || !phone || !password || !confirmPassword) {
     const missingFields = [];
@@ -94,7 +94,7 @@ export const registerCustomerUser = async (data: {
     return { error: `Missing required fields: ${missingFields.join(", ")}` };
   }
 
-  if (digits.length < 6) {
+  if (!isValidPhoneNumber(phone)) {
     return { error: "Phone number is invalid" };
   }
 

@@ -5,20 +5,16 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 
 import { prismadb } from "@/lib/prisma";
-import { normalizePhoneNumber } from "@/lib/phone";
+import { isValidPhoneNumber, normalizePhoneNumber, phoneDigits } from "@/lib/phone";
 import { createMektekPaymentIntent } from "@/actions/mektek/payments";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getSessionUser } from "@/lib/auth-guards";
+import { boundedText, MAX_ADDRESS_LEN, MAX_NAME_LEN } from "@/lib/mektek/sanitize";
 import type { MektekLineItem } from "@/lib/mektek/items";
 
 const MEKTEK_TITLE_PREFIX = "MEKTEK Service -";
 const STORE_TIMELINE_MESSAGE =
   "Pesanan sparepart Anda telah dibuat. Selesaikan pembayaran untuk memproses pesanan.";
-
-// Bound free-form customer input before it is persisted / rendered into PDFs and
-// WhatsApp messages.
-const MAX_NAME_LEN = 120;
-const MAX_ADDRESS_LEN = 500;
 
 // This endpoint is public and token-less: each call writes several rows and mints
 // a Midtrans transaction. Throttle per IP and per phone to blunt scripted flooding.
@@ -65,11 +61,11 @@ export const createMektekCatalogPurchaseIntent = async (
     };
   }
 
-  const customerName = String(input?.customerName ?? "").trim().slice(0, MAX_NAME_LEN);
+  const customerName = boundedText(input?.customerName, MAX_NAME_LEN);
   // Prefer the authenticated account's own phone so a logged-in customer can only
   // check out as themselves; fall back to the form value if the account has none.
   const phone = (sessionUser.phone || String(input?.phone ?? "")).trim();
-  const address = String(input?.address ?? "").trim().slice(0, MAX_ADDRESS_LEN);
+  const address = boundedText(input?.address, MAX_ADDRESS_LEN);
   const locale = String(input?.locale ?? "en").trim() || "en";
   const phoneNormalized =
     sessionUser.phoneNormalized || normalizePhoneNumber(phone);
@@ -80,7 +76,9 @@ export const createMektekCatalogPurchaseIntent = async (
   const linkUserId = sessionUser.phoneNormalized ? sessionUser.id : undefined;
 
   if (!customerName) return { error: "Nama wajib diisi" };
-  if (phoneNormalized.replace(/\D/g, "").length < 8) {
+  // Accept either a canonically-valid phone or a pre-normalized account phone
+  // (existing accounts may store numbers that predate canonical validation).
+  if (!isValidPhoneNumber(phone) && phoneDigits(phoneNormalized).length < 8) {
     return { error: "Nomor telepon tidak valid" };
   }
 
