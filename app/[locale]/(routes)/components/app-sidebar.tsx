@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { NavMain } from "./nav-main";
 import { NavUser } from "./nav-user";
+import { AdminThemeSwitch } from "./admin-theme-switch";
 import getMektekMenuItems from "./menu-items/Mektek";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
 
@@ -121,6 +122,7 @@ export function AppSidebar({
 
       {/* Footer with NavUser and Build Version */}
       <SidebarFooter>
+        <AdminThemeSwitch />
         {/* Task 3.1: NavUser component with user profile and actions */}
         <NavUser user={userData} />
       </SidebarFooter>
