@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Minus, Plus, Trash2, ShoppingCart } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +25,20 @@ export function CartSheet() {
     cartOpen,
     setCartOpen,
     openCartCheckout,
+    isAuthenticated,
+    loginHref,
   } = useCart();
+  const router = useRouter();
+
+  const handleCheckout = () => {
+    setCartOpen(false);
+    if (!isAuthenticated) {
+      toast.error("Silakan masuk untuk melanjutkan checkout.");
+      router.push(loginHref);
+      return;
+    }
+    openCartCheckout();
+  };
 
   return (
     <Sheet open={cartOpen} onOpenChange={setCartOpen}>
@@ -97,14 +112,7 @@ export function CartSheet() {
               <p className="text-xs text-muted-foreground">
                 PPN 11% & PPh 2% dihitung saat checkout.
               </p>
-              <Button
-                type="button"
-                className="w-full"
-                onClick={() => {
-                  setCartOpen(false);
-                  openCartCheckout();
-                }}
-              >
+              <Button type="button" className="w-full" onClick={handleCheckout}>
                 Checkout
               </Button>
             </div>
