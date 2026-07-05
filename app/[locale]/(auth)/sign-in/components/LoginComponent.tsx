@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dialog";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { passwordReset } from "@/actions/auth/password-reset";
+import { requestPasswordReset } from "@/actions/auth/password-reset";
 
 export function LoginComponent() {
   const [isLoading, setIsLoading] = useState(false);
@@ -106,12 +106,16 @@ export function LoginComponent() {
   async function onPasswordReset(email: string) {
     try {
       setIsLoading(true);
-      const result = await passwordReset(email);
+      const result = await requestPasswordReset(email);
       if (result.error) {
         toast.error(result.error);
         return;
       }
-      toast.success("Password reset email has been sent.");
+      // Generic message regardless of whether the account exists (no enumeration).
+      toast.success(
+        result.message ||
+          "If an account exists for that email, a reset link has been sent."
+      );
     } catch (error: any) {
       toast.error(error?.message || "Something went wrong while resetting the password.");
     } finally {
@@ -213,8 +217,8 @@ export function LoginComponent() {
               <DialogHeader>
                 <DialogTitle className="p-5">Password Reset</DialogTitle>
                 <DialogDescription className="p-5">
-                  Enter your email address and we will send new password to your
-                  e-mail.
+                  Enter your email address and we will send a password reset link
+                  to your e-mail.
                 </DialogDescription>
               </DialogHeader>
               {isLoading ? (
