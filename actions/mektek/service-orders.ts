@@ -18,6 +18,7 @@ import {
 } from "@/lib/mektek/items";
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
 import {
+  canAccessMektekStaffArea,
   canCreateMektekOrders,
   canManageMektekPayments,
   canUpdateMektekProgress,
@@ -664,6 +665,15 @@ export const getMektekServiceOrders = async (input?: {
   dateFrom?: string;
   dateTo?: string;
 }) => {
+  // Every "use server" export is an independently invocable endpoint — authorize here,
+  // not just in the calling page (which already pre-gates). Returns other customers'
+  // orders incl. access tokens, so throw rather than leak. Throwing keeps the return
+  // type a plain result object (no error union) so the page's destructure + tsc pass.
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id || !canAccessMektekStaffArea(session.user)) {
+    throw new Error("Forbidden");
+  }
+
   const pageSize = Math.min(Math.max(Number(input?.pageSize) || 10, 1), 50);
   const requestedPage = Math.max(Number(input?.page) || 1, 1);
   const createdAt: Prisma.DateTimeNullableFilter<"crm_Accounts_Tasks"> = {};
@@ -720,6 +730,15 @@ export const getMektekServiceOrders = async (input?: {
 };
 
 export const getMektekServiceOrderById = async (id: string) => {
+  // Defense-in-depth: this "use server" export is invocable directly, so authorize
+  // here too. Return null (not an error object) so the order|null contract the
+  // invoice/receipt routes and the detail page rely on stays intact. Anonymous
+  // customer PDF access does NOT go through here — it uses getPublicMektekServiceOrder*.
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id || !canAccessMektekStaffArea(session.user)) {
+    return null;
+  }
+
   return prismadb.crm_Accounts_Tasks.findFirst({
     where: {
       id,
