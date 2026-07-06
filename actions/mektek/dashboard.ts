@@ -2,34 +2,13 @@
 
 import { prismadb } from "@/lib/prisma";
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
-
-const MEKTEK_TITLE_PREFIXES = ["MEKTEK Service -", "MEKTEK AC -"];
+import { mektekOrderWhere, mektekPaymentSelect } from "@/lib/mektek/orders";
 
 const startOfDay = (date = new Date()) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
 const endOfDay = (date = new Date()) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
-
-const mektekOrderWhere = {
-  OR: MEKTEK_TITLE_PREFIXES.map((prefix) => ({
-    title: {
-      startsWith: prefix,
-    },
-  })),
-};
-
-const mektekPaymentSelect = {
-  id: true,
-  midtransOrderId: true,
-  grossAmount: true,
-  paymentType: true,
-  transactionStatus: true,
-  fraudStatus: true,
-  paidAt: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
 
 export async function getMektekDashboardSummary(
   now = new Date(),
@@ -49,7 +28,7 @@ export async function getMektekDashboardSummary(
 
   const [orders, recentOrdersTotalCount] = await Promise.all([
     prismadb.crm_Accounts_Tasks.findMany({
-      where: mektekOrderWhere,
+      where: mektekOrderWhere(),
       select: {
         id: true,
         dueDateAt: true,
@@ -66,7 +45,7 @@ export async function getMektekDashboardSummary(
       },
     }),
     prismadb.crm_Accounts_Tasks.count({
-      where: mektekOrderWhere,
+      where: mektekOrderWhere(),
     }),
   ]);
 
@@ -79,7 +58,7 @@ export async function getMektekDashboardSummary(
     recentOrdersTotalPages
   );
   const recentOrders = await prismadb.crm_Accounts_Tasks.findMany({
-    where: mektekOrderWhere,
+    where: mektekOrderWhere(),
     select: {
       id: true,
       title: true,
