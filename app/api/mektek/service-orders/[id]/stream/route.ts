@@ -66,9 +66,9 @@ export async function GET(
         );
       };
 
-      pushSnapshot(lastPayload);
-
       try {
+        pushSnapshot(lastPayload);
+
         while (!request.signal.aborted) {
           if (Date.now() - startedAt >= MAX_LIFETIME_MS) break;
 
