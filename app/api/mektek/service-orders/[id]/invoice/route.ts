@@ -5,6 +5,7 @@ import {
 } from "@/actions/mektek/service-orders";
 import { buildMektekInvoiceData, renderMektekInvoicePdf } from "@/actions/mektek/invoice-pdf";
 import { requireMektekStaffApiSession } from "@/lib/api-gates";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
@@ -19,6 +20,21 @@ export async function GET(
   const token = url.searchParams.get("token") ?? "";
   const code = url.searchParams.get("code") ?? "";
   const download = url.searchParams.get("download") === "1";
+
+  // PDF rendering (renderToBuffer) is CPU-heavy. Token/code entropy makes access
+  // brute-force infeasible, but a legitimate link holder can still hammer it — so
+  // throttle per IP + order id regardless of which auth branch is taken.
+  const ip = getClientIp(request.headers);
+  const rl = checkRateLimit(`pdf:${ip}:${id}`, 15, 10 * 60 * 1000);
+  if (!rl.ok) {
+    return new Response("Too many requests", {
+      status: 429,
+      headers: {
+        "Retry-After": String(Math.ceil(rl.retryAfterMs / 1000)),
+        "Referrer-Policy": "no-referrer",
+      },
+    });
+  }
 
   let order = null;
 
