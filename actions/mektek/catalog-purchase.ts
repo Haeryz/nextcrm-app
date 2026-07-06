@@ -10,9 +10,9 @@ import { createMektekPaymentIntent } from "@/actions/mektek/payments";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getSessionUser } from "@/lib/auth-guards";
 import { boundedText, MAX_ADDRESS_LEN, MAX_NAME_LEN } from "@/lib/mektek/sanitize";
+import { MEKTEK_TITLE_PREFIX } from "@/lib/mektek/orders";
 import type { MektekLineItem } from "@/lib/mektek/items";
 
-const MEKTEK_TITLE_PREFIX = "MEKTEK Service -";
 const STORE_TIMELINE_MESSAGE =
   "Pesanan sparepart Anda telah dibuat. Selesaikan pembayaran untuk memproses pesanan.";
 
