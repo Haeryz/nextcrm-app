@@ -14,10 +14,14 @@ const OTP_IP_LIMIT = 5;
 const OTP_PHONE_LIMIT = 3;
 const OTP_WINDOW_MS = 15 * 60 * 1000;
 
-// Generic success message — never reveal whether a phone already has an account.
-const GENERIC_OK = { success: true } as const;
+type OtpActionResult = { success?: true; error?: string };
 
-export async function requestCustomerPhoneOtp(rawPhone: string) {
+// Generic success message — never reveal whether a phone already has an account.
+const GENERIC_OK: OtpActionResult = { success: true };
+
+export async function requestCustomerPhoneOtp(
+  rawPhone: string
+): Promise<OtpActionResult> {
   const phone = String(rawPhone ?? "").trim();
   if (!phone || !isValidPhoneNumber(phone)) {
     return { error: "Nomor telepon tidak valid" };
