@@ -1,4 +1,5 @@
 "use server";
+import { headers } from "next/headers";
 import { prismadb } from "@/lib/prisma";
 import { hash } from "bcryptjs";
 import { newUserNotify } from "@/lib/new-user-notify";
@@ -9,6 +10,12 @@ import {
   normalizePhoneNumber,
 } from "@/lib/phone";
 import { boundedText, MAX_NAME_LEN } from "@/lib/mektek/sanitize";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+
+// Public registration writes a users row (+ bcrypt hash) per call. Throttle by IP
+// to blunt scripted account-creation floods.
+const REGISTER_LIMIT = 5;
+const REGISTER_WINDOW_MS = 15 * 60 * 1000;
 
 export const registerUser = async (data: {
   name: string;
@@ -32,6 +39,11 @@ export const registerUser = async (data: {
 
   if (password !== confirmPassword) {
     return { error: "Passwords do not match" };
+  }
+
+  const ip = getClientIp(await headers());
+  if (!checkRateLimit(`register-user:${ip}`, REGISTER_LIMIT, REGISTER_WINDOW_MS).ok) {
+    return { error: "Too many requests. Please try again later." };
   }
 
   const checkexisting = await prismadb.users.findFirst({
@@ -104,6 +116,21 @@ export const registerCustomerUser = async (data: {
 
   if (password !== confirmPassword) {
     return { error: "Passwords do not match" };
+  }
+
+  const ip = getClientIp(await headers());
+  const ipLimit = checkRateLimit(
+    `register-customer:ip:${ip}`,
+    REGISTER_LIMIT,
+    REGISTER_WINDOW_MS
+  );
+  const phoneLimit = checkRateLimit(
+    `register-customer:phone:${phoneNormalized}`,
+    REGISTER_LIMIT,
+    REGISTER_WINDOW_MS
+  );
+  if (!ipLimit.ok || !phoneLimit.ok) {
+    return { error: "Too many requests. Please try again later." };
   }
 
   const email = buildPhoneAccountEmail(phoneNormalized);
