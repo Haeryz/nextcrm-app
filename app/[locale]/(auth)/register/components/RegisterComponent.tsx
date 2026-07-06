@@ -15,6 +15,7 @@ import {
   registerCustomerUser,
   registerUser,
 } from "@/actions/auth/register-user";
+import { requestCustomerPhoneOtp } from "@/actions/auth/phone-otp";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -47,6 +48,7 @@ const customerSchema = z.object({
   phone: z.string().min(6).max(30),
   password: z.string().min(8).max(50),
   confirmPassword: z.string().min(8).max(50),
+  otpCode: z.string().length(6, "Enter the 6-digit WhatsApp code"),
 });
 
 const staffSchema = z.object({
@@ -102,8 +104,32 @@ export function RegisterComponent() {
       phone: initialPhone,
       password: "",
       confirmPassword: "",
+      otpCode: "",
     },
   });
+
+  const [otpSending, setOtpSending] = React.useState(false);
+
+  const onSendCustomerOtp = async () => {
+    const phone = customerForm.getValues("phone");
+    if (!phone?.trim()) {
+      toast.error("Enter your phone number first.");
+      return;
+    }
+    setOtpSending(true);
+    try {
+      const result = await requestCustomerPhoneOtp(phone);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Kode verifikasi dikirim via WhatsApp.");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to send code");
+    } finally {
+      setOtpSending(false);
+    }
+  };
 
   const staffForm = useForm<StaffFormValues>({
     resolver: zodResolver(staffSchema),
@@ -220,6 +246,42 @@ export function RegisterComponent() {
                           {...field}
                         />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={customerForm.control}
+                  name="otpCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>WhatsApp verification code</FormLabel>
+                      <div className="flex items-start gap-2">
+                        <FormControl>
+                          <Input
+                            disabled={isLoading}
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            placeholder="6-digit code"
+                            {...field}
+                            onChange={(event) =>
+                              field.onChange(
+                                event.target.value.replace(/\D/g, "").slice(0, 6)
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-9 shrink-0 whitespace-nowrap"
+                          disabled={isLoading || otpSending}
+                          onClick={onSendCustomerOtp}
+                        >
+                          {otpSending ? "Mengirim..." : "Kirim kode"}
+                        </Button>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
