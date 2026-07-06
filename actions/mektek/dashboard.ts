@@ -1,8 +1,11 @@
 "use server";
 
+import { authOptions } from "@/lib/auth";
+import { getServerSession } from "@/lib/session";
 import { prismadb } from "@/lib/prisma";
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
 import { mektekOrderWhere, mektekPaymentSelect } from "@/lib/mektek/orders";
+import { canViewMektekDashboard } from "@/lib/mektek/permissions";
 
 const startOfDay = (date = new Date()) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -17,6 +20,15 @@ export async function getMektekDashboardSummary(
     recentOrdersPageSize?: number;
   }
 ) {
+  // "use server" export → authorize independently of the calling page (which already
+  // pre-gates). Exposes full financials, so gate on the admin-only dashboard
+  // permission. Throw rather than return an error union so the page's direct field
+  // access (summary.openOrders, …) and tsc stay valid.
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id || !canViewMektekDashboard(session.user)) {
+    throw new Error("Forbidden");
+  }
+
   const recentOrdersPageSize = Math.min(
     Math.max(Number(options?.recentOrdersPageSize) || 6, 1),
     20
