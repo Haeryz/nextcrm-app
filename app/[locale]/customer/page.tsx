@@ -168,11 +168,11 @@ function MektekLanding({ locale }: { locale: string }) {
           <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-b from-transparent to-[#f7f8ff]" />
         </div>
 
-        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-5 md:px-6 lg:py-7">
+        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-4 md:px-6 lg:py-7">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <MektekBrandMark
               priority
-              markClassName="size-14"
+              markClassName="size-12 sm:size-14"
               textClassName="text-white"
             />
             <div className="flex items-center gap-2">
@@ -189,18 +189,18 @@ function MektekLanding({ locale }: { locale: string }) {
             </div>
           </div>
 
-          <div className="grid flex-1 gap-7 py-7 min-[900px]:grid-cols-[minmax(0,0.95fr)_minmax(320px,0.62fr)] min-[900px]:items-center min-[900px]:gap-10 lg:py-10">
-            <div className="max-w-4xl space-y-5 sm:space-y-7">
-              <div className="inline-flex items-center gap-2 rounded-md border border-[#fff200]/35 bg-white/10 px-3 py-2 text-xs font-semibold uppercase text-zinc-100">
+          <div className="flex flex-1 flex-col justify-center gap-5 py-5 sm:gap-7 sm:py-7 lg:gap-8 lg:py-10">
+            <div className="max-w-4xl space-y-4 sm:space-y-7">
+              <div className="inline-flex items-center gap-2 rounded-md border border-[#fff200]/35 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase text-zinc-100 sm:py-2">
                 <BadgeCheck className="size-4 text-[#fff200]" />
                 Denso Authorized Workshop & AC Dealer
               </div>
 
-              <div className="space-y-4 sm:space-y-5">
+              <div className="space-y-3 sm:space-y-5">
                 <h1 className="max-w-4xl text-4xl font-semibold leading-[1.04] sm:text-5xl lg:text-7xl">
                   PT Mektek Tanjung Lestari
                 </h1>
-                <p className="max-w-2xl text-base leading-7 text-zinc-200 sm:text-lg">
+                <p className="max-w-2xl text-sm leading-6 text-zinc-200 sm:text-lg sm:leading-7">
                   Dealer Authorized Air Conditioner dan Bengkel Resmi Denso di
                   Tabalong untuk AC mobil, engine tune up, ganti oli, battery,
                   brake, dan suspension.
@@ -208,7 +208,7 @@ function MektekLanding({ locale }: { locale: string }) {
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                <Button asChild size="lg" className="bg-[#fff200] text-[#10164f] hover:bg-[#f5e900]">
+                <Button asChild size="lg" className="h-10 bg-[#fff200] text-[#10164f] hover:bg-[#f5e900] sm:h-11">
                   <Link href={sparepartHref}>
                     Buka katalog
                     <ArrowRight className="size-4" />
@@ -218,7 +218,7 @@ function MektekLanding({ locale }: { locale: string }) {
                   asChild
                   size="lg"
                   variant="outline"
-                  className="border-white/30 bg-white/10 text-white hover:bg-white hover:text-[#10164f]"
+                  className="h-10 border-white/30 bg-white/10 text-white hover:bg-white hover:text-[#10164f] sm:h-11"
                 >
                   <Link href="#services">
                     Lihat layanan
@@ -228,38 +228,41 @@ function MektekLanding({ locale }: { locale: string }) {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 min-[900px]:grid-cols-1">
-              {contactDetails.map((item: LandingInfoCard) => {
-                const Icon = item.icon;
+            <div className="max-w-6xl rounded-md border border-white/15 bg-white/[0.07] p-2 shadow-sm backdrop-blur sm:p-2.5">
+              <dl className="grid gap-2 md:grid-cols-[minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.55fr)]">
+                {contactDetails.map((item: LandingInfoCard) => {
+                  const Icon = item.icon;
 
-                return (
-                  <div
-                    key={item.title}
-                    className="rounded-md border border-white/15 bg-white/[0.08] p-4 backdrop-blur"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="flex size-10 shrink-0 items-center justify-center rounded-md bg-[#fff200] text-[#10164f]">
-                        <Icon className="size-5" />
-                      </span>
-                      <div>
-                        <p className="text-xs font-medium uppercase text-blue-100/70">
+                  return (
+                    <div
+                      key={item.title}
+                      className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 rounded-md bg-white/[0.08] px-3 py-2.5"
+                    >
+                      <dt className="flex size-9 shrink-0 items-center justify-center rounded-md bg-[#fff200] text-[#10164f]">
+                        <Icon className="size-4" />
+                        <span className="sr-only">{item.title}</span>
+                      </dt>
+                      <dd className="min-w-0">
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-blue-100/70">
                           {item.title}
                         </p>
-                        <p className="mt-1 text-base font-semibold">{item.value}</p>
-                        <p className="mt-1 text-sm leading-5 text-blue-50/80">
+                        <p className="mt-0.5 text-sm font-semibold leading-5 text-white sm:text-base">
+                          {item.value}
+                        </p>
+                        <p className="mt-0.5 text-xs leading-5 text-blue-50/80">
                           {item.description}
                         </p>
-                      </div>
+                      </dd>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </dl>
             </div>
           </div>
         </div>
 
         <div className="relative z-10 shrink-0 overflow-hidden border-y border-[#fff200]/30 bg-[#fff200] text-[#10164f]">
-          <div className="animate-mektek-marquee flex w-max items-center py-3">
+          <div className="animate-mektek-marquee flex w-max items-center py-2 sm:py-3">
             {[0, 1].map((group) => (
               <div key={group} className="flex shrink-0 items-center gap-8 pr-8">
                 {marqueeItems.map((item: string) => (
