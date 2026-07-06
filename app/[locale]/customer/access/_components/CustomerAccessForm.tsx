@@ -3,10 +3,11 @@
 import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Eye, EyeOff, Lock, Phone, UserRound } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Lock, Phone, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
 import { registerCustomerUser } from "@/actions/auth/register-user";
+import { requestCustomerPhoneOtp } from "@/actions/auth/phone-otp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,9 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
   const [signupPhone, setSignupPhone] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
+  const [signupOtp, setSignupOtp] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] =
@@ -53,6 +57,27 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
     }
   }
 
+  async function onSendOtp() {
+    if (!signupPhone.trim()) {
+      toast.error("Enter your phone number first.");
+      return;
+    }
+    setOtpSending(true);
+    try {
+      const result = await requestCustomerPhoneOtp(signupPhone);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      setOtpSent(true);
+      toast.success("Kode verifikasi dikirim via WhatsApp.");
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to send code");
+    } finally {
+      setOtpSending(false);
+    }
+  }
+
   async function onSignupSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
@@ -63,6 +88,7 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
         phone: signupPhone,
         password: signupPassword,
         confirmPassword: signupConfirmPassword,
+        otpCode: signupOtp,
       });
 
       if (result.error) {
@@ -212,6 +238,41 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
                   disabled={isLoading}
                 />
               </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="signup-otp" className="text-[#10164f]">
+                WhatsApp verification code
+              </Label>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
+                  <Input
+                    id="signup-otp"
+                    value={signupOtp}
+                    onChange={(event) =>
+                      setSignupOtp(event.target.value.replace(/\D/g, "").slice(0, 6))
+                    }
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    placeholder="6-digit code"
+                    className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
+                    disabled={isLoading}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onSendOtp}
+                  disabled={isLoading || otpSending}
+                  className="h-12 whitespace-nowrap border-[#151a63]/20 text-[#10164f] hover:bg-[#eef1ff]"
+                >
+                  {otpSending ? "Mengirim..." : otpSent ? "Kirim ulang" : "Kirim kode"}
+                </Button>
+              </div>
+              <p className="text-xs text-[#4b5577]/80">
+                We send a code to your WhatsApp to confirm the number is yours.
+              </p>
             </div>
 
             <div className="grid gap-2">
