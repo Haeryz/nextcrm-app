@@ -94,18 +94,18 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
   }
 
   return (
-    <div className="w-full max-w-xl rounded-md border border-[#151a63]/10 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-white/[0.06] md:p-6">
+    <div className="w-full max-w-xl rounded-md border border-[#151a63]/10 bg-white p-5 shadow-sm md:p-6">
       <Tabs defaultValue="login" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 bg-[#eef1ff] dark:bg-[#070a18]">
+        <TabsList className="grid w-full grid-cols-2 bg-[#eef1ff]">
           <TabsTrigger
             value="login"
-            className="data-[state=active]:bg-[#151a63] data-[state=active]:text-[#fff200] dark:data-[state=active]:bg-[#fff200] dark:data-[state=active]:text-[#10164f]"
+            className="data-[state=active]:bg-[#151a63] data-[state=active]:text-[#fff200]"
           >
             Login
           </TabsTrigger>
           <TabsTrigger
             value="signup"
-            className="data-[state=active]:bg-[#151a63] data-[state=active]:text-[#fff200] dark:data-[state=active]:bg-[#fff200] dark:data-[state=active]:text-[#10164f]"
+            className="data-[state=active]:bg-[#151a63] data-[state=active]:text-[#fff200]"
           >
             Sign up
           </TabsTrigger>
@@ -114,43 +114,43 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
         <TabsContent value="login" className="mt-6">
           <form onSubmit={onLoginSubmit} className="grid gap-5">
             <div className="grid gap-2">
-              <Label htmlFor="login-phone" className="text-[#10164f] dark:text-white">
+              <Label htmlFor="login-phone" className="text-[#10164f]">
                 Phone number
               </Label>
               <div className="relative">
-                <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60 dark:text-[#fff200]" />
+                <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
                 <Input
                   id="login-phone"
                   value={loginPhone}
                   onChange={(event) => setLoginPhone(event.target.value)}
                   inputMode="tel"
                   placeholder="+628123456789"
-                  className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63] dark:border-white/15 dark:bg-[#070a18] dark:text-white dark:placeholder:text-blue-50/45 dark:focus-visible:ring-[#fff200]"
+                  className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}
                 />
               </div>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="login-password" className="text-[#10164f] dark:text-white">
+              <Label htmlFor="login-password" className="text-[#10164f]">
                 Password
               </Label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60 dark:text-[#fff200]" />
+                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
                 <Input
                   id="login-password"
                   value={loginPassword}
                   onChange={(event) => setLoginPassword(event.target.value)}
                   type={showLoginPassword ? "text" : "password"}
                   placeholder="Password"
-                  className="h-12 border-[#151a63]/20 bg-white pl-9 pr-12 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63] dark:border-white/15 dark:bg-[#070a18] dark:text-white dark:placeholder:text-blue-50/45 dark:focus-visible:ring-[#fff200]"
+                  className="h-12 border-[#151a63]/20 bg-white pl-9 pr-12 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-[#151a63]/70 hover:bg-[#eef1ff] hover:text-[#10164f] dark:text-blue-50/70 dark:hover:bg-white/10 dark:hover:text-[#fff200]"
+                  className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-[#151a63]/70 hover:bg-[#eef1ff] hover:text-[#10164f]"
                   onClick={() => setShowLoginPassword((value) => !value)}
                   disabled={isLoading}
                   aria-label={
@@ -168,7 +168,7 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
 
             <Button
               type="submit"
-              className="h-12 bg-[#151a63] text-[#fff200] hover:bg-[#10164f] dark:bg-[#fff200] dark:text-[#10164f] dark:hover:bg-[#f5e900]"
+              className="h-12 bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
               disabled={isLoading}
             >
               {isLoading ? "Logging in..." : "Login"}
@@ -180,60 +180,60 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
         <TabsContent value="signup" className="mt-6">
           <form onSubmit={onSignupSubmit} className="grid gap-5">
             <div className="grid gap-2">
-              <Label htmlFor="signup-name" className="text-[#10164f] dark:text-white">
+              <Label htmlFor="signup-name" className="text-[#10164f]">
                 Name
               </Label>
               <div className="relative">
-                <UserRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60 dark:text-[#fff200]" />
+                <UserRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
                 <Input
                   id="signup-name"
                   value={signupName}
                   onChange={(event) => setSignupName(event.target.value)}
                   placeholder="Customer name"
-                  className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63] dark:border-white/15 dark:bg-[#070a18] dark:text-white dark:placeholder:text-blue-50/45 dark:focus-visible:ring-[#fff200]"
+                  className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}
                 />
               </div>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="signup-phone" className="text-[#10164f] dark:text-white">
+              <Label htmlFor="signup-phone" className="text-[#10164f]">
                 Phone number
               </Label>
               <div className="relative">
-                <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60 dark:text-[#fff200]" />
+                <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
                 <Input
                   id="signup-phone"
                   value={signupPhone}
                   onChange={(event) => setSignupPhone(event.target.value)}
                   inputMode="tel"
                   placeholder="+628123456789"
-                  className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63] dark:border-white/15 dark:bg-[#070a18] dark:text-white dark:placeholder:text-blue-50/45 dark:focus-visible:ring-[#fff200]"
+                  className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}
                 />
               </div>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="signup-password" className="text-[#10164f] dark:text-white">
+              <Label htmlFor="signup-password" className="text-[#10164f]">
                 Password
               </Label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60 dark:text-[#fff200]" />
+                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
                 <Input
                   id="signup-password"
                   value={signupPassword}
                   onChange={(event) => setSignupPassword(event.target.value)}
                   type={showSignupPassword ? "text" : "password"}
                   placeholder="Password"
-                  className="h-12 border-[#151a63]/20 bg-white pl-9 pr-12 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63] dark:border-white/15 dark:bg-[#070a18] dark:text-white dark:placeholder:text-blue-50/45 dark:focus-visible:ring-[#fff200]"
+                  className="h-12 border-[#151a63]/20 bg-white pl-9 pr-12 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-[#151a63]/70 hover:bg-[#eef1ff] hover:text-[#10164f] dark:text-blue-50/70 dark:hover:bg-white/10 dark:hover:text-[#fff200]"
+                  className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-[#151a63]/70 hover:bg-[#eef1ff] hover:text-[#10164f]"
                   onClick={() => setShowSignupPassword((value) => !value)}
                   disabled={isLoading}
                   aria-label={
@@ -250,11 +250,11 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="signup-confirm-password" className="text-[#10164f] dark:text-white">
+              <Label htmlFor="signup-confirm-password" className="text-[#10164f]">
                 Confirm password
               </Label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60 dark:text-[#fff200]" />
+                <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
                 <Input
                   id="signup-confirm-password"
                   value={signupConfirmPassword}
@@ -263,14 +263,14 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
                   }
                   type={showSignupConfirmPassword ? "text" : "password"}
                   placeholder="Confirm password"
-                  className="h-12 border-[#151a63]/20 bg-white pl-9 pr-12 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63] dark:border-white/15 dark:bg-[#070a18] dark:text-white dark:placeholder:text-blue-50/45 dark:focus-visible:ring-[#fff200]"
+                  className="h-12 border-[#151a63]/20 bg-white pl-9 pr-12 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-[#151a63]/70 hover:bg-[#eef1ff] hover:text-[#10164f] dark:text-blue-50/70 dark:hover:bg-white/10 dark:hover:text-[#fff200]"
+                  className="absolute right-1 top-1/2 size-10 -translate-y-1/2 text-[#151a63]/70 hover:bg-[#eef1ff] hover:text-[#10164f]"
                   onClick={() =>
                     setShowSignupConfirmPassword((value) => !value)
                   }
@@ -292,7 +292,7 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
 
             <Button
               type="submit"
-              className="h-12 bg-[#151a63] text-[#fff200] hover:bg-[#10164f] dark:bg-[#fff200] dark:text-[#10164f] dark:hover:bg-[#f5e900]"
+              className="h-12 bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
               disabled={isLoading}
             >
               {isLoading ? "Creating account..." : "Create account"}

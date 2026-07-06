@@ -39,15 +39,15 @@ export function CustomerVoucherList({ vouchers }: CustomerVoucherListProps) {
   };
 
   return (
-    <Card className="border-[#151a63]/10 bg-white dark:border-white/10 dark:bg-white/[0.06]">
+    <Card className="border-[#151a63]/10 bg-white">
       <CardHeader className="gap-2">
         <div className="flex items-center justify-between gap-3">
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <TicketPercent className="size-5 text-[#151a63] dark:text-[#fff200]" />
+              <TicketPercent className="size-5 text-[#151a63]" />
               Available vouchers
             </CardTitle>
-            <p className="mt-1 text-sm text-[#4b5577] dark:text-blue-50/70">
+            <p className="mt-1 text-sm text-[#4b5577]">
               Use these codes when creating a service order or checking out spareparts.
             </p>
           </div>
@@ -58,7 +58,7 @@ export function CustomerVoucherList({ vouchers }: CustomerVoucherListProps) {
       </CardHeader>
       <CardContent>
         {availableVouchers.length === 0 ? (
-          <div className="rounded-md border border-[#151a63]/10 bg-[#fafbff] px-4 py-8 text-center text-sm text-[#4b5577] dark:border-white/10 dark:bg-[#070a18] dark:text-blue-50/70">
+          <div className="rounded-md border border-[#151a63]/10 bg-[#fafbff] px-4 py-8 text-center text-sm text-[#4b5577]">
             No vouchers are available for this account right now.
           </div>
         ) : (
@@ -66,23 +66,23 @@ export function CustomerVoucherList({ vouchers }: CustomerVoucherListProps) {
             {availableVouchers.map((voucher) => (
             <div
               key={voucher.id}
-              className="flex min-h-44 flex-col justify-between rounded-md border border-[#151a63]/10 bg-[#fafbff] p-4 dark:border-white/10 dark:bg-[#070a18]"
+              className="flex min-h-44 flex-col justify-between rounded-md border border-[#151a63]/10 bg-[#fafbff] p-4"
             >
               <div className="flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold">{voucher.title}</p>
-                    <p className="mt-1 text-xs leading-5 text-[#4b5577] dark:text-blue-50/70">
+                    <p className="mt-1 text-xs leading-5 text-[#4b5577]">
                       {voucher.description}
                     </p>
                   </div>
-                  <Badge className="bg-[#151a63] text-[#fff200] hover:bg-[#151a63] dark:bg-[#fff200] dark:text-[#10164f] dark:hover:bg-[#fff200]">
+                  <Badge className="bg-[#151a63] text-[#fff200] hover:bg-[#151a63]">
                     Ready
                   </Badge>
                 </div>
 
-                <div className="rounded-md border border-[#151a63]/10 bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.06]">
-                  <p className="text-xs text-[#4b5577] dark:text-blue-50/60">Code</p>
+                <div className="rounded-md border border-[#151a63]/10 bg-white px-3 py-2">
+                  <p className="text-xs text-[#4b5577]">Code</p>
                   <p className="mt-1 break-all font-mono text-sm font-semibold">
                     {voucher.code}
                   </p>
@@ -90,17 +90,17 @@ export function CustomerVoucherList({ vouchers }: CustomerVoucherListProps) {
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <p className="text-[#4b5577] dark:text-blue-50/60">Discount</p>
+                    <p className="text-[#4b5577]">Discount</p>
                     <p className="font-semibold">{formatDiscount(voucher)}</p>
                   </div>
                   <div>
-                    <p className="text-[#4b5577] dark:text-blue-50/60">Minimum</p>
+                    <p className="text-[#4b5577]">Minimum</p>
                     <p className="font-semibold">
                       {voucher.minSubtotal > 0 ? formatCurrency(voucher.minSubtotal) : "None"}
                     </p>
                   </div>
                 </div>
-                <p className="text-xs text-[#4b5577] dark:text-blue-50/60">
+                <p className="text-xs text-[#4b5577]">
                   {voucher.requirement}
                 </p>
               </div>
@@ -109,7 +109,7 @@ export function CustomerVoucherList({ vouchers }: CustomerVoucherListProps) {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="mt-4 border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff] dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                className="mt-4 border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff]"
                 onClick={() => copyCode(voucher.code)}
               >
                 <Copy data-icon="inline-start" />

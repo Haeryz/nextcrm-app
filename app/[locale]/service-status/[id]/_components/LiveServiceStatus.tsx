@@ -70,7 +70,7 @@ export default function LiveServiceStatus({
   );
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_10%_20%,rgba(148,163,184,0.14),transparent_35%),radial-gradient(circle_at_90%_10%,rgba(59,130,246,0.12),transparent_30%),hsl(var(--background))] px-4 py-8 md:px-8 md:py-10">
+    <div className="customer-light min-h-screen bg-[radial-gradient(circle_at_10%_20%,rgba(148,163,184,0.14),transparent_35%),radial-gradient(circle_at_90%_10%,rgba(59,130,246,0.12),transparent_30%),hsl(var(--background))] px-4 py-8 md:px-8 md:py-10">
       <div className="mx-auto max-w-5xl space-y-6">
         <div className="rounded-2xl border bg-card/95 p-5 shadow-sm backdrop-blur md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-3">
