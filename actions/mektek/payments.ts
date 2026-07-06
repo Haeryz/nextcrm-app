@@ -1,6 +1,9 @@
 "use server";
 
+import { headers } from "next/headers";
+
 import { prismadb } from "@/lib/prisma";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
 import {
   createSnapTransaction,
@@ -35,6 +38,12 @@ const parseTags = (tags: unknown): Record<string, unknown> => {
 const asString = (value: unknown): string =>
   typeof value === "string" ? value : "";
 
+// Each intent creation writes a pending mektekPayment row and mints a Midtrans
+// Snap transaction. A token/code holder could otherwise spam pending rows, so
+// throttle per IP and per service order independently.
+const INTENT_LIMIT = 8;
+const INTENT_WINDOW_MS = 10 * 60 * 1000;
+
 /** Midtrans order_id must be unique per attempt, alphanumeric-ish, <= 50 chars. */
 const buildMidtransOrderId = (serviceOrderId: string): string => {
   const shortId = serviceOrderId.replace(/-/g, "").slice(0, 20);
@@ -55,6 +64,18 @@ export const createMektekPaymentIntent = async (input: CreateIntentInput) => {
 
   if (!serviceOrderId) return { error: "Service order ID is required" };
   if (!token && !code) return { error: "Missing access token" };
+
+  // Throttle scripted abuse: keyed by client IP and by service order independently.
+  const ip = getClientIp(await headers());
+  const ipLimit = checkRateLimit(`payment-intent:ip:${ip}`, INTENT_LIMIT, INTENT_WINDOW_MS);
+  const orderLimit = checkRateLimit(
+    `payment-intent:order:${serviceOrderId}`,
+    INTENT_LIMIT,
+    INTENT_WINDOW_MS
+  );
+  if (!ipLimit.ok || !orderLimit.ok) {
+    return { error: "Terlalu banyak permintaan. Coba lagi dalam beberapa menit." };
+  }
 
   try {
     // Resolve + authorize the order via token or code.
