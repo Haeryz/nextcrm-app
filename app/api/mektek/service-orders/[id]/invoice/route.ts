@@ -45,6 +45,8 @@ export async function GET(
       "Content-Type": "application/pdf",
       "Content-Disposition": `${download ? "attachment" : "inline"}; filename=\"${filename}\"`,
       "Cache-Control": "no-store",
+      // These URLs carry ?token / ?code secrets — never leak them via Referer.
+      "Referrer-Policy": "no-referrer",
     },
   });
 }
