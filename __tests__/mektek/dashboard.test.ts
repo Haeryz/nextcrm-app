@@ -6,12 +6,21 @@ jest.mock("@/lib/prisma", () => ({
     },
   },
 }));
+jest.mock("@/lib/session", () => ({ getServerSession: jest.fn() }));
+jest.mock("@/lib/auth", () => ({ authOptions: {} }));
 
 import { prismadb } from "@/lib/prisma";
+import { getServerSession } from "@/lib/session";
 import { getMektekDashboardSummary } from "@/actions/mektek/dashboard";
 
 describe("getMektekDashboardSummary", () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // The action now authorizes independently: admin + ACTIVE session required.
+    (getServerSession as jest.Mock).mockResolvedValue({
+      user: { id: "admin1", isAdmin: true, mektekRole: null, userStatus: "ACTIVE" },
+    });
+  });
 
   it("aggregates operations-first dashboard metrics", async () => {
     (prismadb.crm_Accounts_Tasks.count as jest.Mock).mockResolvedValue(3);
@@ -68,5 +77,20 @@ describe("getMektekDashboardSummary", () => {
     expect(result.recentOrders).toHaveLength(3);
     expect(result.recentOrdersPage).toBe(1);
     expect(result.recentOrdersTotalPages).toBe(1);
+  });
+
+  it("throws for a non-admin session (item 22)", async () => {
+    (getServerSession as jest.Mock).mockResolvedValue({
+      user: { id: "cs1", isAdmin: false, mektekRole: "CS", userStatus: "ACTIVE" },
+    });
+    await expect(getMektekDashboardSummary()).rejects.toThrow("Forbidden");
+    expect(prismadb.crm_Accounts_Tasks.findMany).not.toHaveBeenCalled();
+  });
+
+  it("throws for a suspended admin session (item 23)", async () => {
+    (getServerSession as jest.Mock).mockResolvedValue({
+      user: { id: "admin1", isAdmin: true, mektekRole: null, userStatus: "INACTIVE" },
+    });
+    await expect(getMektekDashboardSummary()).rejects.toThrow("Forbidden");
   });
 });
