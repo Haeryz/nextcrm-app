@@ -11,7 +11,7 @@ export async function GET() {
   if (access.response) return access.response;
   const { session } = access;
 
-  getWhatsAppClient();
+  await getWhatsAppClient();
   const state = getWhatsAppState();
 
   // Only admins may see/scan the pairing QR. Strip it (and error detail) for

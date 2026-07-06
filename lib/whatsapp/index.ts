@@ -1,4 +1,3 @@
-import { MessageMedia } from "whatsapp-web.js";
 import { areExternalApisDisabled } from "@/lib/external-apis";
 import { getWhatsAppClient, getWhatsAppState } from "@/lib/whatsapp/client";
 import { toWhatsAppChatId } from "@/lib/phone";
@@ -27,7 +26,7 @@ export async function sendWhatsAppMessage(params: {
     return { ok: false, error: "External APIs are disabled" };
   }
 
-  const client = getWhatsAppClient();
+  const client = await getWhatsAppClient();
   const state = getWhatsAppState();
   if (state.status !== "ready") {
     return { ok: false, error: "WhatsApp session is not ready" };
@@ -42,6 +41,7 @@ export async function sendWhatsAppMessage(params: {
     await client.sendMessage(chatId, params.message);
 
     if (params.media?.length) {
+      const { MessageMedia } = await import("whatsapp-web.js");
       for (const item of params.media) {
         const media = new MessageMedia(
           item.mimeType,

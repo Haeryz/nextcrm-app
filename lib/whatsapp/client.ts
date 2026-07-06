@@ -1,5 +1,4 @@
 import type { Client } from "whatsapp-web.js";
-import { LocalAuth, Client as WhatsAppClient } from "whatsapp-web.js";
 import qrcode from "qrcode";
 import fs from "fs";
 import os from "os";
@@ -70,8 +69,15 @@ export function getWhatsAppState(): WhatsAppState {
   return { ...getStateRef() };
 }
 
-export function getWhatsAppClient(): Client {
+export async function getWhatsAppClient(): Promise<Client> {
   if (globalThis.whatsappClient) return globalThis.whatsappClient;
+
+  // Import whatsapp-web.js (and, transitively, puppeteer/Chromium) lazily. A
+  // top-level import would drag Chromium into every serverless function whose
+  // import graph reaches this module (mektek/customer pages, the status route),
+  // which crashes on Vercel's Node runtime. Loading it only when a session is
+  // actually being started keeps those routes free of the browser dependency.
+  const { LocalAuth, Client: WhatsAppClient } = await import("whatsapp-web.js");
 
   const authPath = process.env.WHATSAPP_SESSION_PATH || ".wwebjs_auth";
   const executablePath =
