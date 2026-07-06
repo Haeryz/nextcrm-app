@@ -6,6 +6,7 @@ import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { listAvailableMektekVouchersForCustomer } from "@/lib/mektek/voucher-db";
+import { verifyOtpCode } from "@/lib/otp";
 
 const mektekPaymentSelect = {
   id: true,
@@ -54,14 +55,19 @@ export async function getMektekCustomerProfile(locale = "en") {
         customer: null,
         services: [],
         needsPhoneAccount: true,
+        claimAvailable: false,
         vouchers: [],
       },
     };
   }
 
+  // Match the customer record by verified ownership (userId) ONLY. A phoneNormalized
+  // fallback here would let any logged-in user read another person's walk-in record
+  // just by having a matching phone on their account. Linking a walk-in record now
+  // happens exclusively through claimMektekCustomerByPhone (OTP-verified) below.
   const customer = await prismadb.catalogCustomer.findFirst({
     where: {
-      OR: [{ userId: user.id }, { phoneNormalized }],
+      userId: user.id,
     },
     include: {
       serviceLinks: {
@@ -92,6 +98,13 @@ export async function getMektekCustomerProfile(locale = "en") {
   });
 
   if (!customer) {
+    // Offer to claim an existing unclaimed (walk-in) record with a matching phone,
+    // but never return its data until the user proves phone ownership via OTP.
+    const claimable = await prismadb.catalogCustomer.findFirst({
+      where: { phoneNormalized, userId: null },
+      select: { id: true },
+    });
+
     const vouchers = await listAvailableMektekVouchersForCustomer(prismadb, {
       customerId: null,
       customerType: null,
@@ -103,20 +116,10 @@ export async function getMektekCustomerProfile(locale = "en") {
         customer: null,
         services: [],
         needsPhoneAccount: false,
+        claimAvailable: !!claimable,
         vouchers,
       },
     };
-  }
-
-  if (!customer.userId) {
-    await prismadb.catalogCustomer.update({
-      where: {
-        id: customer.id,
-      },
-      data: {
-        userId: user.id,
-      },
-    });
   }
 
   const services = customer.serviceLinks
@@ -173,6 +176,63 @@ export async function getMektekCustomerProfile(locale = "en") {
         customerType: customer.customerType,
       }),
       needsPhoneAccount: false,
+      claimAvailable: false,
     },
   };
+}
+
+// Claim an unclaimed (walk-in) CatalogCustomer record for the logged-in user after
+// verifying ownership of their phone via WhatsApp OTP. This replaces the previous
+// silent phoneNormalized auto-link, which let anyone bind another person's record.
+export async function claimMektekCustomerByPhone(otpCode: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return { error: "Unauthorized" };
+  }
+
+  const user = await prismadb.users.findUnique({
+    where: { id: session.user.id },
+    select: { id: true, phone: true, phoneNormalized: true },
+  });
+  if (!user) {
+    return { error: "User not found" };
+  }
+
+  const phoneNormalized =
+    user.phoneNormalized || normalizePhoneNumber(user.phone || "");
+  if (!phoneNormalized) {
+    return { error: "Akun Anda tidak memiliki nomor telepon" };
+  }
+
+  const code = String(otpCode ?? "").trim();
+  if (!code) {
+    return { error: "Kode verifikasi wajib diisi" };
+  }
+
+  const otpValid = await verifyOtpCode(phoneNormalized, code);
+  if (!otpValid) {
+    return { error: "Kode verifikasi salah atau kedaluwarsa" };
+  }
+
+  const target = await prismadb.catalogCustomer.findFirst({
+    where: { phoneNormalized },
+    select: { id: true, userId: true },
+  });
+
+  if (!target) {
+    return { error: "Tidak ada riwayat untuk nomor ini" };
+  }
+  if (target.userId && target.userId !== user.id) {
+    return { error: "Nomor ini sudah tertaut ke akun lain" };
+  }
+  if (target.userId === user.id) {
+    return { success: true };
+  }
+
+  await prismadb.catalogCustomer.update({
+    where: { id: target.id },
+    data: { userId: user.id },
+  });
+
+  return { success: true };
 }
