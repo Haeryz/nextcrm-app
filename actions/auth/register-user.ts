@@ -37,6 +37,13 @@ export const registerUser = async (data: {
     return { error: `Missing required fields: ${missingFields.join(", ")}` };
   }
 
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters" };
+  }
+  if (password.length > 100) {
+    return { error: "Password is too long" };
+  }
+
   if (password !== confirmPassword) {
     return { error: "Passwords do not match" };
   }
@@ -112,6 +119,9 @@ export const registerCustomerUser = async (data: {
 
   if (password.length < 8) {
     return { error: "Password must be at least 8 characters" };
+  }
+  if (password.length > 100) {
+    return { error: "Password is too long" };
   }
 
   if (password !== confirmPassword) {
