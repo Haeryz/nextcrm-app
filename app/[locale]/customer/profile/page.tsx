@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CustomerServiceLiveCard } from "./_components/CustomerServiceLiveCard";
+import { CustomerClaimCard } from "./_components/CustomerClaimCard";
 import { CustomerVoucherList } from "./_components/CustomerVoucherList";
 import { MektekBrandMark } from "@/components/mektek/MektekBrandMark";
 
@@ -134,7 +135,11 @@ export default async function CustomerProfilePage({
           </Card>
         )}
 
-        {!profile.needsPhoneAccount && (
+        {profile.claimAvailable && (
+          <CustomerClaimCard phone={profile.user.phone || ""} />
+        )}
+
+        {!profile.needsPhoneAccount && profile.vouchers.length > 0 && (
           <CustomerVoucherList vouchers={profile.vouchers} />
         )}
 
