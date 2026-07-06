@@ -1,7 +1,15 @@
-import { Activity, ClipboardList, MessageCircle, PackageSearch, Users } from "lucide-react";
+import {
+  Activity,
+  ClipboardList,
+  MessageCircle,
+  PackageSearch,
+  TicketPercent,
+  Users,
+} from "lucide-react";
 import {
   canCreateMektekOrders,
   canManageMektekCustomers,
+  canManageMektekVouchers,
   canUseMektekCustomerTools,
   canViewMektekDashboard,
 } from "@/lib/mektek/permissions";
@@ -51,6 +59,14 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
       title: "Customers",
       url: "/mektek/customers",
       icon: Users,
+    });
+  }
+
+  if (canManageMektekVouchers(user)) {
+    items.push({
+      title: "Voucher",
+      url: "/mektek/vouchers",
+      icon: TicketPercent,
     });
   }
 

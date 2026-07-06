@@ -26,6 +26,10 @@ import {
 import { calculateMektekDiscountAmount } from "@/lib/mektek/loyalty";
 import { parseMoney } from "@/lib/mektek/items";
 import {
+  findMektekVoucherRecordByCode,
+  reserveMektekVoucherUse,
+} from "@/lib/mektek/voucher-db";
+import {
   MEKTEK_TITLE_PREFIX,
   mektekOrderWhere,
   mektekPaymentSelect,
@@ -40,7 +44,8 @@ import {
 } from "@/lib/mektek/sanitize";
 import {
   calculateMektekVoucherDiscount,
-  findMektekVoucherByCode,
+  isMektekVoucherAvailable,
+  toMektekVoucher,
 } from "@/lib/mektek/vouchers";
 
 const DEFAULT_TIMELINE_MESSAGE =
@@ -276,33 +281,34 @@ export const createMektekServiceOrder = async (
         complaint
       ).subtotal;
       const loyalty = calculateMektekDiscountAmount(subtotal, completedVisitCount);
-      const voucher = voucherCode
-        ? findMektekVoucherByCode(
-            {
-              customerId: catalogCustomer.id,
-              phoneNormalized,
-              completedVisitCount,
-            },
-            voucherCode
-          )
+      const voucherRecord = voucherCode
+        ? await findMektekVoucherRecordByCode(tx, voucherCode)
+        : null;
+      const voucherContext = {
+        customerId: catalogCustomer.id,
+        customerType: catalogCustomer.customerType,
+      };
+      const voucher = voucherRecord
+        ? toMektekVoucher(voucherRecord, voucherContext)
         : null;
       const voucherDiscount = voucher
         ? calculateMektekVoucherDiscount(voucher, subtotal)
         : 0;
 
-      if (voucherCode && !voucher) {
+      if (voucherCode && !voucherRecord) {
         throw new Error("INVALID_VOUCHER");
       }
-      if (voucher && !voucher.available) {
+      if (voucherRecord && !isMektekVoucherAvailable(voucherRecord, voucherContext)) {
         throw new Error("LOCKED_VOUCHER");
       }
       if (voucher && voucherDiscount <= 0) {
         throw new Error("VOUCHER_MINIMUM_NOT_MET");
       }
 
+      const appliesVoucher = manualDiscount <= 0 && voucherDiscount > 0;
       const discount = manualDiscount > 0
         ? manualDiscount
-        : voucherDiscount > 0
+        : appliesVoucher
           ? voucherDiscount
           : loyalty.discountAmount;
 
@@ -341,7 +347,7 @@ export const createMektekServiceOrder = async (
             loyaltyTier: loyalty.tier?.label ?? null,
             loyaltyDiscountRate: loyalty.discountRate,
             manualDiscount: manualDiscount || null,
-            voucher: voucher
+            voucher: voucher && appliesVoucher
               ? {
                   id: voucher.id,
                   code: voucher.code,
@@ -389,6 +395,13 @@ export const createMektekServiceOrder = async (
           token: customerToken,
         },
       });
+
+      if (voucherRecord && appliesVoucher) {
+        const reserved = await reserveMektekVoucherUse(tx, voucherRecord);
+        if (!reserved) {
+          throw new Error("LOCKED_VOUCHER");
+        }
+      }
 
       return serviceOrder;
     });

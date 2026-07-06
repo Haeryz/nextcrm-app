@@ -33,6 +33,17 @@ enum CatalogCustomerType {
   B2B
 }
 
+enum MektekVoucherDiscountType {
+  FIXED
+  PERCENTAGE
+}
+
+enum MektekVoucherScope {
+  ALL
+  CUSTOMER_TYPE
+  CUSTOMER
+}
+
 enum Language {
   cz
   en
@@ -41,23 +52,23 @@ enum Language {
 }
 
 model Users {
-  id               String       @id @default(uuid()) @db.Uuid
-  v                Int          @default(0) @map("__v")
+  id               String           @id @default(uuid()) @db.Uuid
+  v                Int              @default(0) @map("__v")
   account_name     String?
   avatar           String?
-  email            String       @unique
-  is_account_admin Boolean      @default(false)
-  is_admin         Boolean      @default(false)
+  email            String           @unique
+  is_account_admin Boolean          @default(false)
+  is_admin         Boolean          @default(false)
   mektekRole       MektekStaffRole?
-  created_on       DateTime     @default(now())
+  created_on       DateTime         @default(now())
   lastLoginAt      DateTime?
   name             String?
   password         String?
   phone            String?
-  phoneNormalized  String?      @unique
+  phoneNormalized  String?          @unique
   username         String?
-  userStatus       ActiveStatus @default(PENDING)
-  userLanguage     Language     @default(en)
+  userStatus       ActiveStatus     @default(PENDING)
+  userLanguage     Language         @default(en)
 
   tasksComment       tasksComments[]
   crm_accounts_tasks crm_Accounts_Tasks[]
@@ -91,7 +102,7 @@ model crm_Accounts_Tasks {
   taskStatus taskStatus? @default(ACTIVE)
 
   comments            tasksComments[]
-  assigned_user       Users?              @relation(fields: [user], references: [id])
+  assigned_user       Users?               @relation(fields: [user], references: [id])
   catalogServiceLinks CatalogServiceLink[]
   mektekPayments      MektekPayment[]
 
@@ -122,17 +133,18 @@ model tasksComments {
 }
 
 model CatalogCustomer {
-  id              String   @id @default(uuid()) @db.Uuid
+  id              String              @id @default(uuid()) @db.Uuid
   username        String
   phone           String
-  phoneNormalized String   @unique
+  phoneNormalized String              @unique
   customerType    CatalogCustomerType @default(STANDARD)
-  userId          String?  @unique @db.Uuid
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  userId          String?             @unique @db.Uuid
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
 
   user         Users?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   serviceLinks CatalogServiceLink[]
+  vouchers     MektekVoucher[]
 
   @@index([phoneNormalized])
   @@index([customerType])
@@ -199,13 +211,45 @@ model MektekPayment {
   @@index([createdAt])
 }
 
+model MektekVoucher {
+  id              String                    @id @default(uuid()) @db.Uuid
+  code            String                    @unique
+  normalizedCode  String                    @unique
+  title           String
+  description     String
+  minSubtotal     Int                       @default(0)
+  discountType    MektekVoucherDiscountType
+  discountAmount  Int?
+  discountPercent Int?
+  maxDiscount     Int?
+  scope           MektekVoucherScope        @default(ALL)
+  customerType    CatalogCustomerType?
+  customerId      String?                   @db.Uuid
+  isActive        Boolean                   @default(true)
+  startsAt        DateTime?
+  expiresAt       DateTime?
+  usageLimit      Int?
+  usedCount       Int                       @default(0)
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  customer CatalogCustomer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([scope])
+  @@index([customerType])
+  @@index([customerId])
+  @@index([isActive])
+  @@index([startsAt])
+  @@index([expiresAt])
+}
+
 model PasswordResetToken {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  tokenHash String   @unique
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId])
   @@index([expiresAt])

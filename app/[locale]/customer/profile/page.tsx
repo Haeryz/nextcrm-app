@@ -136,7 +136,7 @@ export default async function CustomerProfilePage({
           </Card>
         )}
 
-        {!profile.needsPhoneAccount && profile.vouchers.length > 0 && (
+        {!profile.needsPhoneAccount && (
           <CustomerVoucherList vouchers={profile.vouchers} />
         )}
 

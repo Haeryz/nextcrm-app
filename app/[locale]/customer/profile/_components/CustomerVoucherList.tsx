@@ -57,8 +57,13 @@ export function CustomerVoucherList({ vouchers }: CustomerVoucherListProps) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {availableVouchers.map((voucher) => (
+        {availableVouchers.length === 0 ? (
+          <div className="rounded-md border border-[#151a63]/10 bg-[#fafbff] px-4 py-8 text-center text-sm text-[#4b5577] dark:border-white/10 dark:bg-[#070a18] dark:text-blue-50/70">
+            No vouchers are available for this account right now.
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {availableVouchers.map((voucher) => (
             <div
               key={voucher.id}
               className="flex min-h-44 flex-col justify-between rounded-md border border-[#151a63]/10 bg-[#fafbff] p-4 dark:border-white/10 dark:bg-[#070a18]"
@@ -111,8 +116,9 @@ export function CustomerVoucherList({ vouchers }: CustomerVoucherListProps) {
                 Copy code
               </Button>
             </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

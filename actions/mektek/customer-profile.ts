@@ -5,7 +5,7 @@ import { buildMektekPublicSnapshot } from "@/lib/mektek/public-status";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { normalizePhoneNumber } from "@/lib/phone";
-import { buildMektekVouchers } from "@/lib/mektek/vouchers";
+import { listAvailableMektekVouchersForCustomer } from "@/lib/mektek/voucher-db";
 
 const mektekPaymentSelect = {
   id: true,
@@ -92,16 +92,18 @@ export async function getMektekCustomerProfile(locale = "en") {
   });
 
   if (!customer) {
+    const vouchers = await listAvailableMektekVouchersForCustomer(prismadb, {
+      customerId: null,
+      customerType: null,
+    });
+
     return {
       data: {
         user,
         customer: null,
         services: [],
         needsPhoneAccount: false,
-        vouchers: buildMektekVouchers({
-          phoneNormalized,
-          completedVisitCount: 0,
-        }),
+        vouchers,
       },
     };
   }
@@ -155,10 +157,6 @@ export async function getMektekCustomerProfile(locale = "en") {
       return bTime - aTime;
     });
 
-  const completedVisitCount = services.filter(
-    (service) => service.snapshot.taskStatus === "COMPLETE"
-  ).length;
-
   return {
     data: {
       user,
@@ -170,10 +168,9 @@ export async function getMektekCustomerProfile(locale = "en") {
         customerType: customer.customerType,
       },
       services,
-      vouchers: buildMektekVouchers({
+      vouchers: await listAvailableMektekVouchersForCustomer(prismadb, {
         customerId: customer.id,
-        phoneNormalized: customer.phoneNormalized,
-        completedVisitCount,
+        customerType: customer.customerType,
       }),
       needsPhoneAccount: false,
     },

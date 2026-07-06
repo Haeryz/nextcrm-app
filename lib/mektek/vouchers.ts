@@ -1,5 +1,3 @@
-import crypto from "crypto";
-
 export type MektekVoucherDiscount =
   | {
       type: "percentage";
@@ -22,93 +20,131 @@ export type MektekVoucher = {
   available: boolean;
 };
 
-type VoucherContext = {
-  customerId?: string | null;
-  phoneNormalized: string;
-  completedVisitCount: number;
+export type MektekVoucherScopeValue = "ALL" | "CUSTOMER_TYPE" | "CUSTOMER";
+export type MektekVoucherDiscountTypeValue = "FIXED" | "PERCENTAGE";
+export type MektekCustomerTypeValue = "STANDARD" | "B2B";
+
+export type MektekVoucherRecord = {
+  id: string;
+  code: string;
+  normalizedCode: string;
+  title: string;
+  description: string;
+  minSubtotal: number;
+  discountType: MektekVoucherDiscountTypeValue;
+  discountAmount: number | null;
+  discountPercent: number | null;
+  maxDiscount: number | null;
+  scope: MektekVoucherScopeValue;
+  customerType: MektekCustomerTypeValue | null;
+  customerId: string | null;
+  isActive: boolean;
+  startsAt: Date | string | null;
+  expiresAt: Date | string | null;
+  usageLimit: number | null;
+  usedCount: number;
 };
 
-function cleanCode(value: string) {
+export type VoucherEligibilityContext = {
+  customerId?: string | null;
+  customerType?: MektekCustomerTypeValue | null;
+  now?: Date;
+};
+
+export function cleanMektekVoucherCode(value: string) {
   return value.replace(/[^a-z0-9]/gi, "").toUpperCase();
 }
 
-function voucherSuffix(context: VoucherContext) {
-  const seed = context.phoneNormalized;
-  return crypto.createHash("sha256").update(seed).digest("hex").slice(0, 6).toUpperCase();
+export function normalizeMektekVoucherCode(value: string) {
+  return value
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/gi, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toUpperCase();
 }
 
-function formatVoucherCode(prefix: string, context: VoucherContext) {
-  return `${prefix}-${voucherSuffix(context)}`;
+function toDate(value: Date | string | null) {
+  return value ? new Date(value) : null;
 }
 
-function isVisitEligible(context: VoucherContext, minVisits: number) {
-  return context.completedVisitCount >= minVisits;
+function isWithinActiveWindow(
+  voucher: MektekVoucherRecord,
+  now = new Date()
+) {
+  const startsAt = toDate(voucher.startsAt);
+  const expiresAt = toDate(voucher.expiresAt);
+
+  if (startsAt && startsAt.getTime() > now.getTime()) return false;
+  if (expiresAt && expiresAt.getTime() < now.getTime()) return false;
+
+  return true;
 }
 
-export function buildMektekVouchers(context: VoucherContext): MektekVoucher[] {
-  const vouchers: Omit<MektekVoucher, "code" | "available">[] = [
-    {
-      id: "welcome",
-      title: "Welcome voucher",
-      description: "Rp25.000 off the next MekTek service.",
-      minSubtotal: 250000,
-      discount: { type: "fixed", amount: 25000 },
-      requirement: "Available for every customer account",
-    },
-    {
-      id: "service5",
-      title: "Service saver",
-      description: "5% off service work, capped at Rp75.000.",
-      minSubtotal: 300000,
-      discount: { type: "percentage", percent: 5, maxDiscount: 75000 },
-      requirement: "Available for every customer account",
-    },
-    {
-      id: "parts10",
-      title: "Sparepart deal",
-      description: "10% off orders with spareparts, capped at Rp150.000.",
-      minSubtotal: 500000,
-      discount: { type: "percentage", percent: 10, maxDiscount: 150000 },
-      requirement: "Available for every customer account",
-    },
-    {
-      id: "silver",
-      title: "Silver loyalty",
-      description: "5% loyalty discount for returning customers.",
-      minSubtotal: 0,
-      discount: { type: "percentage", percent: 5 },
-      requirement: "Requires 3 completed services",
-    },
-    {
-      id: "gold",
-      title: "Gold loyalty",
-      description: "10% loyalty discount for frequent customers.",
-      minSubtotal: 0,
-      discount: { type: "percentage", percent: 10 },
-      requirement: "Requires 6 completed services",
-    },
-    {
-      id: "platinum",
-      title: "Platinum loyalty",
-      description: "15% loyalty discount for top customers.",
-      minSubtotal: 0,
-      discount: { type: "percentage", percent: 15 },
-      requirement: "Requires 11 completed services",
-    },
-  ];
+export function isMektekVoucherAvailable(
+  voucher: MektekVoucherRecord,
+  context: VoucherEligibilityContext = {}
+) {
+  if (!voucher.isActive) return false;
+  if (!isWithinActiveWindow(voucher, context.now)) return false;
+  if (
+    voucher.usageLimit !== null &&
+    voucher.usageLimit !== undefined &&
+    voucher.usedCount >= voucher.usageLimit
+  ) {
+    return false;
+  }
 
-  return vouchers.map((voucher) => ({
-    ...voucher,
-    code: formatVoucherCode(`MEKTEK-${voucher.id.toUpperCase()}`, context),
-    available:
-      voucher.id === "silver"
-        ? isVisitEligible(context, 3)
-        : voucher.id === "gold"
-          ? isVisitEligible(context, 6)
-          : voucher.id === "platinum"
-            ? isVisitEligible(context, 11)
-            : true,
-  }));
+  if (voucher.scope === "ALL") return true;
+
+  if (voucher.scope === "CUSTOMER_TYPE") {
+    return !!voucher.customerType && voucher.customerType === context.customerType;
+  }
+
+  return !!voucher.customerId && voucher.customerId === context.customerId;
+}
+
+function buildDiscount(voucher: MektekVoucherRecord): MektekVoucherDiscount {
+  if (voucher.discountType === "FIXED") {
+    return {
+      type: "fixed",
+      amount: Math.max(0, voucher.discountAmount ?? 0),
+    };
+  }
+
+  return {
+    type: "percentage",
+    percent: Math.max(0, voucher.discountPercent ?? 0),
+    ...(voucher.maxDiscount && voucher.maxDiscount > 0
+      ? { maxDiscount: voucher.maxDiscount }
+      : {}),
+  };
+}
+
+function formatRequirement(voucher: MektekVoucherRecord) {
+  if (voucher.scope === "CUSTOMER") return "Assigned to your customer account";
+  if (voucher.scope === "CUSTOMER_TYPE") {
+    return voucher.customerType === "B2B"
+      ? "Available for B2B customers"
+      : "Available for standard customers";
+  }
+  return "Available for every customer account";
+}
+
+export function toMektekVoucher(
+  voucher: MektekVoucherRecord,
+  context: VoucherEligibilityContext = {}
+): MektekVoucher {
+  return {
+    id: voucher.id,
+    code: voucher.code,
+    title: voucher.title,
+    description: voucher.description,
+    minSubtotal: voucher.minSubtotal,
+    discount: buildDiscount(voucher),
+    requirement: formatRequirement(voucher),
+    available: isMektekVoucherAvailable(voucher, context),
+  };
 }
 
 export function calculateMektekVoucherDiscount(
@@ -126,18 +162,4 @@ export function calculateMektekVoucherDiscount(
   return voucher.discount.maxDiscount
     ? Math.min(percentageDiscount, voucher.discount.maxDiscount)
     : percentageDiscount;
-}
-
-export function findMektekVoucherByCode(
-  context: VoucherContext,
-  code: string
-) {
-  const normalizedCode = cleanCode(code);
-  if (!normalizedCode) return null;
-
-  return (
-    buildMektekVouchers(context).find(
-      (voucher) => cleanCode(voucher.code) === normalizedCode
-    ) ?? null
-  );
 }

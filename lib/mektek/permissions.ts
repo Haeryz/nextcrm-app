@@ -30,3 +30,7 @@ export function canManageMektekPayments(user?: MektekSessionUser | null) {
 export function canManageMektekCustomers(user?: MektekSessionUser | null) {
   return !!user?.isAdmin;
 }
+
+export function canManageMektekVouchers(user?: MektekSessionUser | null) {
+  return !!user?.isAdmin;
+}

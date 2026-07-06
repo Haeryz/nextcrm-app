@@ -1,6 +1,7 @@
 import {
   canAccessMektekStaffArea,
   canCreateMektekOrders,
+  canManageMektekVouchers,
   canManageMektekPayments,
   canUpdateMektekProgress,
   canUseMektekCustomerTools,
@@ -15,6 +16,7 @@ describe("MekTek permissions", () => {
     expect(canUseMektekCustomerTools(admin)).toBe(true);
     expect(canUpdateMektekProgress(admin)).toBe(true);
     expect(canManageMektekPayments(admin)).toBe(true);
+    expect(canManageMektekVouchers(admin)).toBe(true);
     expect(canViewMektekDashboard(admin)).toBe(true);
   });
 
@@ -26,12 +28,14 @@ describe("MekTek permissions", () => {
     expect(canUseMektekCustomerTools(cs)).toBe(true);
     expect(canUpdateMektekProgress(cs)).toBe(false);
     expect(canManageMektekPayments(cs)).toBe(false);
+    expect(canManageMektekVouchers(cs)).toBe(false);
     expect(canViewMektekDashboard(cs)).toBe(false);
 
     expect(canCreateMektekOrders(technician)).toBe(false);
     expect(canUseMektekCustomerTools(technician)).toBe(false);
     expect(canUpdateMektekProgress(technician)).toBe(true);
     expect(canManageMektekPayments(technician)).toBe(false);
+    expect(canManageMektekVouchers(technician)).toBe(false);
     expect(canViewMektekDashboard(technician)).toBe(false);
   });
 
@@ -45,6 +49,7 @@ describe("MekTek permissions", () => {
       expect(canUseMektekCustomerTools(customer)).toBe(false);
       expect(canUpdateMektekProgress(customer)).toBe(false);
       expect(canManageMektekPayments(customer)).toBe(false);
+      expect(canManageMektekVouchers(customer)).toBe(false);
       expect(canViewMektekDashboard(customer)).toBe(false);
     }
   });
