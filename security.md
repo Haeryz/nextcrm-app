@@ -375,7 +375,7 @@ same-length token, different-length token, missing token, missing id/token short
 
 ## P0 — Critical
 
-### [ ] 19. Customer account takeover via unverified phone linking (IDOR / broken auth)
+### [x] 19. Customer account takeover via unverified phone linking (IDOR / broken auth)
 **Files:** `actions/auth/register-user.ts` (`registerCustomerUser`, lines ~180-197),
 `actions/mektek/customer-profile.ts` (`getMektekCustomerProfile`, lines ~62-118)
 
@@ -423,7 +423,24 @@ This is the live customer-facing surface.
    WhatsApp session must be paired or self-registration is unavailable (by design). Document
    the OTP dependency in CLAUDE.md.
 
-### [ ] 20. Bcrypt password hash returned to the client
+**Done (2026-07-06):** Implemented as specified. New Prisma model `CustomerPhoneVerification`
+(+ migration `20260706000000_customer_phone_verification`). `lib/otp.ts` is a **plain
+server-only module** (not `"use server"`, so `verifyOtpCode` is never a browser-reachable
+action): `issueOtpCode` stores only a SHA-256 hash (5-min TTL, one row per phone via upsert);
+`verifyOtpCode` enforces expiry, single-use (`consumedAt`), ≤5 attempts (incremented per wrong
+guess), and constant-time compare. `actions/auth/phone-otp.ts` `requestCustomerPhoneOtp`
+rate-limits IP 5/15min + phone 3/15min, sends via `sendWhatsAppMessage`, and **fails closed in
+production** when WhatsApp is unavailable (dev logs the code so local flow stays testable).
+`registerCustomerUser` now requires `otpCode` and verifies it before the create transaction.
+`getMektekCustomerProfile` matches by `{ userId }` **only** — the `phoneNormalized` OR-fallback
+and the silent auto-link block are gone — and returns `claimAvailable` without any record data.
+New `claimMektekCustomerByPhone(otpCode)` re-links an unclaimed (`userId: null`) walk-in record
+only after OTP, refusing records already linked to another user. UI: OTP field + "Kirim kode"
+on both registration forms (`customer/access` and `/register`), plus a `CustomerClaimCard`
+verify-to-claim prompt on the profile page. Tests: `__tests__/lib/otp.test.ts` (7 cases).
+**Deploy:** `pnpm prisma migrate deploy` on Neon; production WhatsApp session must be paired.
+
+### [x] 20. Bcrypt password hash returned to the client
 **File:** `actions/auth/register-user.ts` (lines ~87 and ~202)
 
 Both `registerUser` and `registerCustomerUser` end with `return { data: user }` — the full
@@ -433,9 +450,15 @@ internal flags. Server-action return values are serialized to the browser.
 **Fix:** return only safe fields (`{ data: { id, email, name } }`). Check the registration
 form components' usage of the return value first so nothing breaks.
 
+**Done (2026-07-06):** Both `registerUser` and `registerCustomerUser` now
+`return { data: { id, email, name } }` — the bcrypt hash, phone, and internal flags no longer
+cross the server-action boundary. Verified both consumers (`CustomerAccessForm`,
+`/register` `RegisterComponent`) only read `result.error`/`result.data` as `{id,email,name}`,
+so nothing broke.
+
 ## P1 — High
 
-### [ ] 21. No global security headers (clickjacking; missing nosniff/HSTS)
+### [x] 21. No global security headers (clickjacking; missing nosniff/HSTS)
 **File:** `next.config.js` (`headers()`, currently only sets `Referrer-Policy` on two paths)
 
 No `X-Frame-Options` or CSP `frame-ancestors` anywhere — the entire admin panel and customer
@@ -452,7 +475,16 @@ existing `no-referrer` entries for `/:locale/s/:path*` and `/:locale/service-sta
 and verify they still win on those paths (Next applies all matching entries; last-set wins per
 header — check ordering).
 
-### [ ] 22. `"use server"` exports with no internal authorization (worst case: arbitrary WhatsApp send)
+**Done (2026-07-06):** `next.config.js` `headers()` now emits a global `source: "/:path*"`
+entry with `X-Frame-Options: DENY`, `Content-Security-Policy: frame-ancestors 'none'`
+(frame-ancestors only — full CSP deferred so Next inline scripts + Midtrans Snap keep working),
+`X-Content-Type-Options: nosniff`, `Strict-Transport-Security: max-age=63072000;
+includeSubDomains`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, and
+`Referrer-Policy: strict-origin-when-cross-origin`. `poweredByHeader: false` removes
+`X-Powered-By`. The two `no-referrer` entries are kept and ordered **after** the global entry
+so they still win on the token-bearing tracking paths.
+
+### [x] 22. `"use server"` exports with no internal authorization (worst case: arbitrary WhatsApp send)
 **Files:** `actions/mektek/service-orders.ts` (`getMektekServiceOrders` ~:648,
 `getMektekServiceOrderById` ~:709), `actions/mektek/dashboard.ts`
 (`getMektekDashboardSummary` :13), `actions/mektek/whatsapp-notifications.ts`
@@ -487,9 +519,20 @@ the browser — but one client import away from being live endpoints. Fix now as
 - `listMektekCatalogItems` (`catalog-items.ts` ~:144) is intentionally public (storefront) —
   leave as is.
 
+**Done (2026-07-06):** `getMektekServiceOrders` and `getMektekServiceOrderById`
+(`service-orders.ts`) now authorize via `getServerSession` + `canAccessMektekStaffArea`. The
+list action throws `Forbidden`; the by-id action returns `null` (preserving its `order|null`
+contract so the invoice/receipt routes — which pre-gate with `requireMektekStaffApiSession` —
+and the detail page keep working; anonymous customer PDF access uses
+`getPublicMektekServiceOrder*`, not this path). `getMektekDashboardSummary` (`dashboard.ts`)
+throws unless `canViewMektekDashboard`. `whatsapp-notifications.ts` dropped its `"use server"`
+directive (now `import "server-only"`) so `notifyMektekOrderCreated`/`notifyMektekOrderCompleted`
+are internal helpers, not network-invocable actions — closing the arbitrary-WhatsApp-send
+vector. Authorization tests added in `__tests__/mektek/dashboard.test.ts`.
+
 ## P2 — Medium / hardening
 
-### [ ] 23. `userStatus` not enforced in action/API gates (suspended staff keep working sessions)
+### [x] 23. `userStatus` not enforced in action/API gates (suspended staff keep working sessions)
 **Files:** `lib/auth.ts` (~:90-157), `lib/api-gates.ts`, Mektek action guards in
 `actions/mektek/*`
 
@@ -503,7 +546,18 @@ and API routes.
 (`lib/api-gates.ts`, return 403) and in a shared helper used by the Mektek action guards.
 Keep `lib/session.ts` no-auth/guest mode behavior intact (guest is hard-coded ACTIVE).
 
-### [ ] 24. No rate limit on PDF invoice/receipt generation (CPU DoS by a token holder)
+**Done (2026-07-06):** Centralized in the one surface both sides already authorize through:
+`lib/mektek/permissions.ts` predicates now AND in a shared `isActive(user)` gate
+(`userStatus === "ACTIVE"`; missing status treated as inactive). Because the Mektek server
+actions call `can*(session.user)` and `requireMektekStaffApiSession` /
+`requireMektekCustomerToolApiSession` call `canAccessMektekStaffArea` /
+`canUseMektekCustomerTools`, a suspended (PENDING/INACTIVE) user's still-valid JWT is now
+rejected everywhere — 403 at the API gates, `Forbidden` in the actions — without editing each
+action. The no-auth guest session is hard-coded `userStatus: "ACTIVE"` (`lib/session.ts`), so
+local no-auth dev is unaffected. `__tests__/mektek/permissions.test.ts` fixtures updated + a
+suspended-staff denial test added.
+
+### [x] 24. No rate limit on PDF invoice/receipt generation (CPU DoS by a token holder)
 **Files:** `app/api/mektek/service-orders/[id]/invoice/route.ts`, `.../receipt/route.ts`
 
 Both call `renderToBuffer` (CPU-heavy) with no throttle. Token/code entropy makes brute-force
@@ -511,6 +565,13 @@ infeasible, so it's not an access issue — but a legitimate link holder can ham
 
 **Fix:** `checkRateLimit` keyed `pdf:{ip}:{orderId}` (e.g. 15/10min), 429 + `Retry-After` on
 exceed (mirror the stream route's load-shedding style).
+
+**Done (2026-07-06):** Both routes (`invoice`, `receipt`) now call
+`checkRateLimit("pdf:{ip}:{id}", 15, 10*60*1000)` (via `lib/rate-limit.ts` + `getClientIp`)
+immediately after parsing params — before any auth branch or `renderToBuffer` — and return
+`429` with `Retry-After` (seconds, from `retryAfterMs`) + `Referrer-Policy: no-referrer` when
+exceeded. Applies to the anonymous token/code branches and the staff branch alike. (Limiter is
+per-instance; back with Redis for cross-instance guarantees later, as already noted for item 9.)
 
 ## Round 2 — verified OK (no action needed)
 - `.env` not git-tracked (only `.env.example`/`.env.production.example`); `.gitignore` covers
