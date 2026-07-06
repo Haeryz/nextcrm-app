@@ -1,5 +1,10 @@
-"use server";
-
+// NOT a "use server" module. These are internal helpers (invoked only from
+// service-orders.ts / catalog-purchase.ts on the server). If this carried the
+// "use server" directive, notifyMektekOrderCreated/Completed would each be a
+// network-invocable server action that sends a WhatsApp message + PDFs to a
+// caller-supplied phone — i.e. arbitrary spam/phishing from the business number.
+// No client component imports this module, so it stays a plain server module.
+import "server-only";
 import { buildMektekInvoiceData, renderMektekInvoicePdf, renderMektekReceiptPdf } from "@/actions/mektek/invoice-pdf";
 import { areExternalApisDisabled } from "@/lib/external-apis";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
