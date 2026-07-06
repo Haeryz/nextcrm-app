@@ -2,7 +2,7 @@ import { prismadb } from "@/lib/prisma";
 import { hashOtpCode, verifyOtpCode, OTP_MAX_ATTEMPTS } from "@/lib/otp";
 
 // server-only throws outside a real server bundle; stub it for the unit test.
-jest.mock("server-only", () => ({}));
+jest.mock("server-only", () => ({}), { virtual: true });
 jest.mock("@/lib/prisma", () => ({
   prismadb: {
     customerPhoneVerification: {
