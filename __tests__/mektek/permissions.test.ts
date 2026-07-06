@@ -10,7 +10,7 @@ import {
 
 describe("MekTek permissions", () => {
   it("keeps admin access broad", () => {
-    const admin = { isAdmin: true, mektekRole: null };
+    const admin = { isAdmin: true, mektekRole: null, userStatus: "ACTIVE" };
     expect(canAccessMektekStaffArea(admin)).toBe(true);
     expect(canCreateMektekOrders(admin)).toBe(true);
     expect(canUseMektekCustomerTools(admin)).toBe(true);
@@ -21,8 +21,12 @@ describe("MekTek permissions", () => {
   });
 
   it("splits CS and technician capabilities", () => {
-    const cs = { isAdmin: false, mektekRole: "CS" as const };
-    const technician = { isAdmin: false, mektekRole: "TECHNICIAN" as const };
+    const cs = { isAdmin: false, mektekRole: "CS" as const, userStatus: "ACTIVE" };
+    const technician = {
+      isAdmin: false,
+      mektekRole: "TECHNICIAN" as const,
+      userStatus: "ACTIVE",
+    };
 
     expect(canCreateMektekOrders(cs)).toBe(true);
     expect(canUseMektekCustomerTools(cs)).toBe(true);
@@ -40,8 +44,8 @@ describe("MekTek permissions", () => {
   });
 
   it("keeps standard and B2B customer accounts out of staff/admin areas", () => {
-    const standardCustomer = { isAdmin: false, mektekRole: null };
-    const b2bCustomer = { isAdmin: false, mektekRole: null };
+    const standardCustomer = { isAdmin: false, mektekRole: null, userStatus: "ACTIVE" };
+    const b2bCustomer = { isAdmin: false, mektekRole: null, userStatus: "ACTIVE" };
 
     for (const customer of [standardCustomer, b2bCustomer]) {
       expect(canAccessMektekStaffArea(customer)).toBe(false);
@@ -51,6 +55,23 @@ describe("MekTek permissions", () => {
       expect(canManageMektekPayments(customer)).toBe(false);
       expect(canManageMektekVouchers(customer)).toBe(false);
       expect(canViewMektekDashboard(customer)).toBe(false);
+    }
+  });
+
+  it("denies suspended (non-ACTIVE) staff even with a role", () => {
+    // A PENDING/INACTIVE user keeps a valid JWT with their role; userStatus must
+    // still shut every capability off. Missing userStatus is treated as inactive.
+    const suspendedAdmin = { isAdmin: true, mektekRole: null, userStatus: "INACTIVE" };
+    const pendingCs = { isAdmin: false, mektekRole: "CS" as const, userStatus: "PENDING" };
+    const noStatusAdmin = { isAdmin: true, mektekRole: null };
+
+    for (const user of [suspendedAdmin, pendingCs, noStatusAdmin]) {
+      expect(canAccessMektekStaffArea(user)).toBe(false);
+      expect(canCreateMektekOrders(user)).toBe(false);
+      expect(canUseMektekCustomerTools(user)).toBe(false);
+      expect(canUpdateMektekProgress(user)).toBe(false);
+      expect(canManageMektekPayments(user)).toBe(false);
+      expect(canViewMektekDashboard(user)).toBe(false);
     }
   });
 });
