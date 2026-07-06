@@ -170,7 +170,8 @@ unbounded name/address) are now closed by a single shared validation surface —
 `lib/phone.ts` (`isValidPhoneNumber`, canonical `normalizePhoneNumber`) and
 `lib/mektek/sanitize.ts` (`boundedText`, length caps, `sanitizeMektekCustomer`) — used across the
 Mektek and auth mutation actions. Payment `method`/`status` enums are already whitelist-checked in
-`updateMektekPayment`. Note: this consolidates validation without a full `createSafeAction`
+`updateMektekPayment` (which lives in `actions/mektek/service-orders.ts`; `status` is
+server-derived from amounts, not client input). Note: this consolidates validation without a full `createSafeAction`
 rewrite of every action; a broader migration to `createSafeAction` remains available as
 follow-up hardening but is no longer needed to fix the security gaps listed here.
 
@@ -196,7 +197,8 @@ poller or switching to DB `LISTEN/NOTIFY` instead of per-connection polling.
 `lib/rate-limit.ts` helper (`checkRateLimit` + `getClientIp`, IP + subject key). Newly
 covered this pass: `registerUser` (IP, 5/15min) and `registerCustomerUser` (IP + phone,
 5/15min) in `register-user.ts`, and `createMektekPaymentIntent` (IP + service order, 8/10min)
-in `payments.ts`. `password-reset.ts` and `catalog-purchase.ts` were already limited.
+in `payments.ts`. `password-reset.ts` and `catalog-purchase.ts` were already limited (catalog-purchase uses a
+10-min window).
 The SSE `stream` route now caps lifetime at 10 min (client auto-reconnects), backs the poll
 interval off from 2s → 15s while the snapshot is unchanged (resets to 2s on activity), and
 sheds load with a 503 + `Retry-After` once `MAX_CONCURRENT` (200) streams are open per instance.
@@ -357,6 +359,176 @@ on the fixed-length digests — constant-time regardless of input, and safe agai
 `timingSafeEqual`'s unequal-length throw. Empty/missing stored tokens still short-circuit to
 `null`. Unit tests in `__tests__/mektek/public-order-token.test.ts` (exact match, wrong
 same-length token, different-length token, missing token, missing id/token short-circuit).
+
+---
+
+# Round 2 — Audit 2026-07-06 (pre-production re-sweep)
+
+> Verification pass: all 18 items above were re-checked against the code on 2026-07-06 and
+> **all 18 are genuinely implemented** (two doc corrections: item 8's `updateMektekPayment`
+> lives in `actions/mektek/service-orders.ts`, not `payments.ts`; item 9's catalog-purchase
+> window is 10 min, not 15).
+>
+> The items below are **new findings** from a full re-sweep of every `app/api/**/route.ts`
+> handler and every `actions/**` `"use server"` file. Nothing here is fixed yet. Same rules
+> as above: fix, test (Jest + curl/Playwright), then check the box.
+
+## P0 — Critical
+
+### [ ] 19. Customer account takeover via unverified phone linking (IDOR / broken auth)
+**Files:** `actions/auth/register-user.ts` (`registerCustomerUser`, lines ~180-197),
+`actions/mektek/customer-profile.ts` (`getMektekCustomerProfile`, lines ~62-118)
+
+`registerCustomerUser` upserts `catalogCustomer` keyed on `phoneNormalized` and sets
+`userId: createdUser.id`. The only pre-check is that no **Users** row already owns that phone —
+a walk-in `catalogCustomer` created by staff has no linked user, so it is claimable by anyone.
+`getMektekCustomerProfile` then matches the customer by `OR: [{ userId }, { phoneNormalized }]`,
+**auto-links** `userId` if empty, and returns every `serviceLink` including the `customerToken`,
+invoice/receipt/stream hrefs, address, and payment history.
+
+**Attack:** register a customer account with a *victim's* phone number (there is no OTP or any
+phone-ownership verification anywhere). Registration silently binds the victim's existing
+`catalogCustomer` — full service history, access tokens, PII — to the attacker's account.
+This is the live customer-facing surface.
+
+**Fix (decided: WhatsApp OTP, reusing the existing whatsapp-web.js integration):**
+1. New Prisma model `customerPhoneVerification` (`phoneNormalized @unique`, `codeHash`,
+   `expiresAt`, `attempts Int @default(0)`, `consumedAt`, `createdAt`) + migration.
+2. New `actions/auth/phone-otp.ts`:
+   - `requestCustomerPhoneOtp(phone)` — validate via `isValidPhoneNumber`/`normalizePhoneNumber`
+     (`lib/phone.ts`); rate-limit via `checkRateLimit`/`getClientIp` (`lib/rate-limit.ts`), IP
+     5/15min + phone 3/15min; 6-digit code from `crypto.randomInt`; store SHA-256 hash, 5-min
+     TTL, upsert per phone; send via `sendWhatsAppMessage` (`lib/whatsapp/index.ts`).
+     When `areExternalApisDisabled()` or the WhatsApp session isn't `ready`: in dev, log the
+     code to the server console and return success (keeps local flow testable); in production
+     return an error ("Verifikasi WhatsApp sedang tidak tersedia") — **fail closed**, never
+     skip verification.
+   - Internal `verifyOtpCode(phoneNormalized, code)` helper (NOT exported as an action):
+     expiry + `attempts < 5` (increment on failure), constant-time compare (SHA-256 both sides
+     + `crypto.timingSafeEqual`, same pattern as `constantTimeEqual` in `service-orders.ts`),
+     set `consumedAt` on success (single-use).
+3. `registerCustomerUser` takes a required `otpCode` and verifies it before the transaction.
+4. `getMektekCustomerProfile`: look up by `{ userId: user.id }` **only** — delete the
+   `phoneNormalized` fallback and the auto-link block. Linking happens only at OTP-verified
+   registration or via the claim action below.
+5. New `claimMektekCustomerByPhone(otpCode)` (preserves the walk-in-history feature the
+   auto-link provided): logged-in user verifies OTP to their phone; on success, link the
+   **unclaimed** (`userId: null`) `catalogCustomer` with matching `phoneNormalized`. Refuse if
+   already linked to another user. Profile action returns a `claimAvailable: true` flag (never
+   record data pre-verification); profile page shows a "verify phone to see your service
+   history" prompt.
+6. UI: registration form under `app/[locale]/customer/access/` gets a "Kirim kode" button +
+   code input.
+7. **Deploy notes:** run the migration on Neon (`pnpm prisma migrate deploy`); production
+   WhatsApp session must be paired or self-registration is unavailable (by design). Document
+   the OTP dependency in CLAUDE.md.
+
+### [ ] 20. Bcrypt password hash returned to the client
+**File:** `actions/auth/register-user.ts` (lines ~87 and ~202)
+
+Both `registerUser` and `registerCustomerUser` end with `return { data: user }` — the full
+Prisma `users` row from `create()`, **including the bcrypt `password` hash**, phone, and
+internal flags. Server-action return values are serialized to the browser.
+
+**Fix:** return only safe fields (`{ data: { id, email, name } }`). Check the registration
+form components' usage of the return value first so nothing breaks.
+
+## P1 — High
+
+### [ ] 21. No global security headers (clickjacking; missing nosniff/HSTS)
+**File:** `next.config.js` (`headers()`, currently only sets `Referrer-Policy` on two paths)
+
+No `X-Frame-Options` or CSP `frame-ancestors` anywhere — the entire admin panel and customer
+portal can be iframed (clickjacking). Also missing `X-Content-Type-Options: nosniff`,
+`Strict-Transport-Security`, `Permissions-Policy`; `poweredByHeader` is left on.
+
+**Fix:** add a `source: "/:path*"` headers entry with `X-Frame-Options: DENY`,
+`Content-Security-Policy: frame-ancestors 'none'` (frame-ancestors **only** — a full CSP would
+break Next inline scripts + Midtrans Snap; defer that), `X-Content-Type-Options: nosniff`,
+`Strict-Transport-Security: max-age=63072000; includeSubDomains`,
+`Permissions-Policy: camera=(), microphone=(), geolocation=()`, and a global
+`Referrer-Policy: strict-origin-when-cross-origin`. Set `poweredByHeader: false`. Keep the
+existing `no-referrer` entries for `/:locale/s/:path*` and `/:locale/service-status/:path*`
+and verify they still win on those paths (Next applies all matching entries; last-set wins per
+header — check ordering).
+
+### [ ] 22. `"use server"` exports with no internal authorization (worst case: arbitrary WhatsApp send)
+**Files:** `actions/mektek/service-orders.ts` (`getMektekServiceOrders` ~:648,
+`getMektekServiceOrderById` ~:709), `actions/mektek/dashboard.ts`
+(`getMektekDashboardSummary` :13), `actions/mektek/whatsapp-notifications.ts`
+(`notifyMektekOrderCreated` :63, `notifyMektekOrderCompleted` :87)
+
+Every exported function in a `"use server"` module is a server-action endpoint that must
+authorize independently. These have **no session/role check**:
+- `getMektekServiceOrders` / `getMektekServiceOrderById` — list/fetch any order incl.
+  `tags.customerToken`, phone, address.
+- `getMektekDashboardSummary` — full financials (compare `canViewMektekDashboard`, which is
+  admin-only but not enforced here).
+- `notifyMektekOrderCreated`/`notifyMektekOrderCompleted` — send WhatsApp messages + PDFs to a
+  **caller-supplied** phone (`params.order.tags.phone`) → arbitrary spam/phishing from the
+  business number.
+
+Currently not imported by any `"use client"` component, so the action IDs aren't published to
+the browser — but one client import away from being live endpoints. Fix now as defense-in-depth.
+
+**Fix:**
+- Gate `getMektekServiceOrders`/`getMektekServiceOrderById` with session +
+  `canAccessMektekStaffArea` (same pattern as the gated mutations in the same file). Note the
+  invoice/receipt API routes call `getMektekServiceOrderById` **after** their own gate — either
+  refactor them onto an ungated internal (non-exported) fetch or accept the double check
+  (token/code branches must keep working for anonymous customers, so don't let the new gate
+  break those routes' token path).
+- Gate `getMektekDashboardSummary` with `canViewMektekDashboard`
+  (`lib/mektek/permissions.ts`).
+- `whatsapp-notifications.ts`: **remove `"use server"`** — it's an internal helper called from
+  `service-orders.ts` and `catalog-purchase.ts` (customer checkout calls it, so a staff gate
+  would break checkout). Verified no client component imports it; dropping the directive makes
+  it a plain server module instead of an endpoint.
+- `listMektekCatalogItems` (`catalog-items.ts` ~:144) is intentionally public (storefront) —
+  leave as is.
+
+## P2 — Medium / hardening
+
+### [ ] 23. `userStatus` not enforced in action/API gates (suspended staff keep working sessions)
+**Files:** `lib/auth.ts` (~:90-157), `lib/api-gates.ts`, Mektek action guards in
+`actions/mektek/*`
+
+`lib/auth.ts` builds a full session (with `isAdmin`/`mektekRole`) regardless of `userStatus`.
+Status is only enforced by `requireUser()` page redirects (`lib/auth-guards.ts`); the Mektek
+server actions and `requireMektekStaffApiSession` check role but not status, so a
+`PENDING`/`INACTIVE` (suspended) user's still-valid JWT keeps working against server actions
+and API routes.
+
+**Fix:** reject non-`ACTIVE` users centrally — in `requireMektekStaffApiSession`
+(`lib/api-gates.ts`, return 403) and in a shared helper used by the Mektek action guards.
+Keep `lib/session.ts` no-auth/guest mode behavior intact (guest is hard-coded ACTIVE).
+
+### [ ] 24. No rate limit on PDF invoice/receipt generation (CPU DoS by a token holder)
+**Files:** `app/api/mektek/service-orders/[id]/invoice/route.ts`, `.../receipt/route.ts`
+
+Both call `renderToBuffer` (CPU-heavy) with no throttle. Token/code entropy makes brute-force
+infeasible, so it's not an access issue — but a legitimate link holder can hammer it.
+
+**Fix:** `checkRateLimit` keyed `pdf:{ip}:{orderId}` (e.g. 15/10min), 429 + `Retry-After` on
+exceed (mirror the stream route's load-shedding style).
+
+## Round 2 — verified OK (no action needed)
+- `.env` not git-tracked (only `.env.example`/`.env.production.example`); `.gitignore` covers
+  `.env*`. No committed secrets.
+- Midtrans notification route: signature verified, authoritative re-fetch, idempotent, no
+  body-trust path.
+- Stream route: token-authorized, capped (lifetime/backoff/concurrency), snapshot strips PII.
+- Invoice/receipt: staff gate on the no-token branch; token/code branches sound.
+- Admin-side Mektek actions (`catalog-items`, `customers`, order mutations, `payments`):
+  correctly role-gated, input bounded, amounts server-computed, no mass assignment; protected
+  accounts can't be edited/deleted, no self-delete.
+- No SSRF (no user-supplied URL fetches; Midtrans endpoints fixed), no path traversal
+  (`lib/catalog-images.ts` blocks `..`), no state-changing GET handlers (CSRF), no MCP/Inngest/
+  cron/upload route handlers exist in this deployment.
+- No root `middleware.ts` — auth is layout-guard + per-action gates only. Everything under
+  `app/[locale]/customer/*`, `/s/*`, `/service-status/*` is outside the layout guard and relies
+  on per-action checks — which is exactly why items 19 and 22 matter. Optional follow-up:
+  add middleware as defense-in-depth.
 
 ---
 
