@@ -11,6 +11,7 @@ import {
 } from "@/lib/phone";
 import { boundedText, MAX_NAME_LEN } from "@/lib/mektek/sanitize";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { verifyOtpCode } from "@/lib/otp";
 
 // Public registration writes a users row (+ bcrypt hash) per call. Throttle by IP
 // to blunt scripted account-creation floods.
@@ -84,7 +85,9 @@ export const registerUser = async (data: {
     // through the backend script, never through public registration.
     newUserNotify(user);
 
-    return { data: user };
+    // Never return the full users row — it carries the bcrypt password hash and
+    // internal flags, and server-action return values are serialized to the browser.
+    return { data: { id: user.id, email: user.email, name: user.name } };
   } catch (error) {
     console.error("[REGISTER_USER]", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -97,19 +100,22 @@ export const registerCustomerUser = async (data: {
   phone: string;
   password: string;
   confirmPassword: string;
+  otpCode: string;
 }) => {
   const name = boundedText(data?.name, MAX_NAME_LEN);
   const phone = String(data?.phone ?? "").trim();
   const password = String(data?.password ?? "");
   const confirmPassword = String(data?.confirmPassword ?? "");
+  const otpCode = String(data?.otpCode ?? "").trim();
   const phoneNormalized = normalizePhoneNumber(phone);
 
-  if (!name || !phone || !password || !confirmPassword) {
+  if (!name || !phone || !password || !confirmPassword || !otpCode) {
     const missingFields = [];
     if (!name) missingFields.push("name");
     if (!phone) missingFields.push("phone");
     if (!password) missingFields.push("password");
     if (!confirmPassword) missingFields.push("confirmPassword");
+    if (!otpCode) missingFields.push("otpCode");
     return { error: `Missing required fields: ${missingFields.join(", ")}` };
   }
 
@@ -159,6 +165,14 @@ export const registerCustomerUser = async (data: {
       return { error: "Phone number already has an account" };
     }
 
+    // Prove ownership of the phone before binding it to an account. Without this,
+    // anyone could register with a victim's number and (via the profile flow) claim
+    // the victim's existing walk-in customer record, tokens, and PII.
+    const otpValid = await verifyOtpCode(phoneNormalized, otpCode);
+    if (!otpValid) {
+      return { error: "Kode verifikasi salah atau kedaluwarsa" };
+    }
+
     const user = await prismadb.$transaction(async (tx) => {
       const createdUser = await tx.users.create({
         data: {
@@ -199,7 +213,9 @@ export const registerCustomerUser = async (data: {
       return createdUser;
     });
 
-    return { data: user };
+    // Never return the full users row — it carries the bcrypt password hash and
+    // internal flags, and server-action return values are serialized to the browser.
+    return { data: { id: user.id, email: user.email, name: user.name } };
   } catch (error) {
     console.error("[REGISTER_CUSTOMER_USER]", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
