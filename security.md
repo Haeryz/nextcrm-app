@@ -178,7 +178,7 @@ follow-up hardening but is no longer needed to fix the security gaps listed here
 
 ## P2 — Medium
 
-### [ ] 9. No rate limiting anywhere
+### [x] 9. No rate limiting anywhere
 **Files:** `actions/auth/password-reset.ts`, `actions/auth/register-user.ts`
 (`registerCustomerUser`), `actions/mektek/catalog-purchase.ts`,
 `actions/mektek/payments.ts` (`createMektekPaymentIntent`), `app/api/mektek/service-orders/[id]/stream/route.ts`.
@@ -192,7 +192,18 @@ duration or concurrency cap — many open connections = sustained DB load (cheap
 lifetime (e.g. close after N minutes) and back off the poll interval; consider a shared
 poller or switching to DB `LISTEN/NOTIFY` instead of per-connection polling.
 
-### [ ] 10. Confirm PDF/WhatsApp rendering escapes customer-supplied text
+**Done (2026-07-06):** All listed endpoints now throttle via the shared
+`lib/rate-limit.ts` helper (`checkRateLimit` + `getClientIp`, IP + subject key). Newly
+covered this pass: `registerUser` (IP, 5/15min) and `registerCustomerUser` (IP + phone,
+5/15min) in `register-user.ts`, and `createMektekPaymentIntent` (IP + service order, 8/10min)
+in `payments.ts`. `password-reset.ts` and `catalog-purchase.ts` were already limited.
+The SSE `stream` route now caps lifetime at 10 min (client auto-reconnects), backs the poll
+interval off from 2s → 15s while the snapshot is unchanged (resets to 2s on activity), and
+sheds load with a 503 + `Retry-After` once `MAX_CONCURRENT` (200) streams are open per instance.
+The in-memory limiter is per-instance (documented in `lib/rate-limit.ts`); back it with
+Redis/Upstash for cross-instance guarantees later.
+
+### [x] 10. Confirm PDF/WhatsApp rendering escapes customer-supplied text
 **Files:** `actions/mektek/invoice-pdf.ts`, `actions/mektek/whatsapp-notifications.ts`
 (consumers of `customerName`, `address`, item names).
 
@@ -202,7 +213,18 @@ PDF renderer interpolates raw HTML/markup, stored-XSS or layout-injection is pos
 
 **Fix:** Verify the PDF path escapes/So sanitizes these fields; bound their length (item 6).
 
-### [ ] 11. Authenticated invoice/receipt fetch is not role-scoped (IDOR for any logged-in user)
+**Done (2026-07-06):** Confirmed safe by construction — no code change needed.
+- **PDF:** `invoice-pdf.ts` renders exclusively through `@react-pdf/renderer` primitives
+  (`<Text>`/`<View>` via `React.createElement`). `<Text>` draws its children as literal glyphs;
+  there is no HTML/markup parser in the PDF pipeline, so `customer.name`, `address`, and item
+  `name`/`sku` cannot inject markup or break layout beyond wrapping. No raw-string HTML
+  interpolation exists anywhere in the renderer.
+- **WhatsApp:** `whatsapp-notifications.ts` builds message bodies with a plain `String.replace`
+  template (`applyTemplate`) and sends them as plaintext via whatsapp-web.js — no HTML sink.
+- Lengths of `customerName`/`address` are already bounded at write time by
+  `lib/mektek/sanitize.ts` (item 6), so unbounded-growth layout abuse is also closed.
+
+### [x] 11. Authenticated invoice/receipt fetch is not role-scoped (IDOR for any logged-in user)
 **Files:** `app/api/mektek/service-orders/[id]/invoice/route.ts`,
 `app/api/mektek/service-orders/[id]/receipt/route.ts`
 
@@ -215,7 +237,13 @@ they don't inherit its session/role enforcement.
 **Fix:** In the authenticated branch, require `canAccessMektekStaffArea(session.user)` before
 returning the invoice.
 
-### [ ] 12. Access secrets travel in URL query strings
+**Done (2026-07-06):** Both routes' authenticated branch now goes through
+`requireMektekStaffApiSession()` (`lib/api-gates.ts`), which returns 401 for anonymous and 403
+for any session that fails `canAccessMektekStaffArea` — so a logged-in non-staff user can no
+longer enumerate other orders' invoices. The token/code branches are unchanged (still gated by
+the unguessable per-order secret).
+
+### [x] 12. Access secrets travel in URL query strings
 **Files:** invoice/receipt/stream routes (`?token=`, `?code=`), tracking links.
 
 `customerToken` (20 bytes) and `customerCode` (12 bytes) are passed as query parameters. URLs
@@ -226,7 +254,20 @@ PDF responses correctly set `Cache-Control: no-store`; the concern is log/referr
 params from access logs and set `Referrer-Policy: no-referrer` on the customer pages that embed
 them. Keep token entropy where it is (it's fine).
 
-### [ ] 13. Webhook falls back to trusting the POST body when the status re-fetch fails
+**Done (2026-07-06):** Closed the `Referer`-leak vector (the practical exposure).
+`Referrer-Policy: no-referrer` is now set on:
+- the customer tracking pages that carry the secret — `/:locale/s/:path*` and
+  `/:locale/service-status/:path*` — via `next.config.js` `headers()`, so an outbound link or
+  embedded resource from those pages never carries the token in a `Referer`; and
+- the `invoice`, `receipt`, and `stream` API responses (which already set `Cache-Control:
+  no-store`).
+Token entropy is unchanged (fine, per note). Access-log scrubbing of query params is a
+deploy/proxy-layer concern (Vercel/CDN log config) rather than app code and is out of scope for
+this repo; the referrer defense above removes the browser-side leak. Moving the secret to a
+header/POST body would require reworking the `<a href>`-based PDF download + `EventSource`
+stream (which can only pass state via URL), so it was deliberately not pursued.
+
+### [x] 13. Webhook falls back to trusting the POST body when the status re-fetch fails
 **File:** `app/api/mektek/payments/notification/route.ts`
 
 The handler correctly verifies the SHA-512 signature and then re-fetches authoritative status
@@ -237,6 +278,13 @@ low risk, but a transient Midtrans outage could finalize a payment on unverified
 
 **Fix:** On re-fetch failure, do **not** finalize as `paid`; leave the payment pending and let
 Midtrans retry (return 200 without mutating to paid), or retry the status lookup with backoff.
+
+**Done (2026-07-06):** The `authoritative = body` fallback is removed. On
+`statusResult.ok === false` the handler now logs and returns `200 { ok: true, note:
+"Status re-fetch failed; left pending" }` **without mutating the payment** — the row stays
+pending and Midtrans retries the notification later (Midtrans retries non-finalized webhooks).
+No verdict is ever derived from the POST body now; the only mutation path is the
+signature-verified re-fetch succeeding.
 
 ---
 
