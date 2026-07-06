@@ -24,6 +24,12 @@ import {
   canUseMektekCustomerTools,
 } from "@/lib/mektek/permissions";
 import { calculateMektekDiscountAmount } from "@/lib/mektek/loyalty";
+import { parseMoney } from "@/lib/mektek/items";
+import {
+  MEKTEK_TITLE_PREFIX,
+  mektekOrderWhere,
+  mektekPaymentSelect,
+} from "@/lib/mektek/orders";
 import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/phone";
 import {
   boundedText,
@@ -37,31 +43,21 @@ import {
   findMektekVoucherByCode,
 } from "@/lib/mektek/vouchers";
 
-const MEKTEK_TITLE_PREFIX = "MEKTEK Service -";
-const LEGACY_MEKTEK_TITLE_PREFIX = "MEKTEK AC -";
-const MEKTEK_TITLE_PREFIXES = [MEKTEK_TITLE_PREFIX, LEGACY_MEKTEK_TITLE_PREFIX];
 const DEFAULT_TIMELINE_MESSAGE =
   "Layanan Anda telah terbuat. Tim kami sedang menyiapkan pemeriksaan awal kendaraan.";
 
-const mektekOrderWhere = (): Prisma.crm_Accounts_TasksWhereInput => ({
-  OR: MEKTEK_TITLE_PREFIXES.map((prefix) => ({
-    title: {
-      startsWith: prefix,
-    },
-  })),
-});
-
-const mektekPaymentSelect = {
-  id: true,
-  midtransOrderId: true,
-  grossAmount: true,
-  paymentType: true,
-  transactionStatus: true,
-  fraudStatus: true,
-  paidAt: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.MektekPaymentSelect;
+/**
+ * Constant-time string comparison for access secrets (customer tokens). Hashing
+ * both sides to a fixed-length digest lets us compare with `timingSafeEqual`
+ * without leaking length and without it throwing on differing input lengths.
+ * Low risk at 20-byte entropy, but keeps this consistent with the webhook's
+ * `timingSafeEqual` signature check.
+ */
+const constantTimeEqual = (a: string, b: string): boolean => {
+  const ha = crypto.createHash("sha256").update(a).digest();
+  const hb = crypto.createHash("sha256").update(b).digest();
+  return crypto.timingSafeEqual(ha, hb);
+};
 
 type MektekTimelineEntry = {
   id: string;
@@ -81,12 +77,6 @@ const parseWhatsappMeta = (tags: Record<string, unknown>): Record<string, unknow
   const whatsapp = tags.whatsapp;
   if (!whatsapp || typeof whatsapp !== "object" || Array.isArray(whatsapp)) return {};
   return whatsapp as Record<string, unknown>;
-};
-
-const parseMoney = (value: unknown) => {
-  const cleaned = String(value ?? "").replace(/\D/g, "");
-  const amount = Number(cleaned);
-  return Number.isFinite(amount) && amount > 0 ? amount : 0;
 };
 
 type CreateMektekServiceOrderInput = {
@@ -787,7 +777,9 @@ export const getPublicMektekServiceOrder = async (id: string, token: string) => 
       ? (order.tags as Record<string, unknown>)
       : null;
 
-  if (!tags || tags.customerToken !== token) {
+  const storedToken =
+    typeof tags?.customerToken === "string" ? tags.customerToken : "";
+  if (!tags || !storedToken || !constantTimeEqual(storedToken, token)) {
     return null;
   }
 
