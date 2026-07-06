@@ -290,36 +290,73 @@ signature-verified re-fetch succeeding.
 
 ## P3 — Low / hardening
 
-### [ ] 14. Staff registration has no password strength requirement
+### [x] 14. Staff registration has no password strength requirement
 **File:** `actions/auth/register-user.ts` → `registerUser`
 
 `registerCustomerUser` enforces `password.length >= 8`, but the staff `registerUser` path has
 **no length or complexity check at all**. Add at least the same 8-char minimum (ideally
 stronger for staff/admin accounts).
 
-### [ ] 15. First-registrant-becomes-admin bootstrap
+**Done (2026-07-06):** `registerUser` now enforces `password.length >= 8` and `<= 100`
+(matching `registerCustomerUser`). Also added the missing upper bound (`<= 100`) to
+`registerCustomerUser` so neither path can submit an unbounded password (bcrypt-hash DoS).
+
+### [x] 15. First-registrant-becomes-admin bootstrap
 **File:** `actions/auth/register-user.ts`
 
 `registerUser` grants `is_admin: true` + `ACTIVE` to the first user when the users table is
 empty. Fine for initial setup, but if the table is ever emptied in production this silently
 re-opens admin signup. Consider gating behind an explicit bootstrap env flag.
 
-### [ ] 16. Two divergent `parseMoney` implementations
+**Done (2026-07-06):** Already resolved by design — the described pattern no longer exists.
+Both `registerUser` and `registerCustomerUser` hard-code `is_admin: false` (verified: no
+`users.count` / first-user branch in `register-user.ts`). Admin creation is exclusively via
+`bootstrapFirstAdmin` (`actions/auth/bootstrap-admin.ts`, the `/setup` wizard), which
+**self-disables** the moment `adminAccountExists()` returns true — a hard gate that also
+defends against replay/race. Emptying the users table only re-enables the one-time `/setup`
+flow, not silent admin signup through registration. No code change required.
+
+### [x] 16. Two divergent `parseMoney` implementations
 **Files:** `actions/mektek/service-orders.ts` (strips all non-digits) vs
 `app/api/mektek/payments/notification/route.ts` (allows `.`/`-`). Consolidate into one shared
 money helper in `lib/mektek/` to avoid rounding/parsing drift.
 
-### [ ] 17. Duplicated Mektek order `where` / title-prefix constants
+**Done (2026-07-06):** The notification route no longer parses money strings (that path was
+refactored — the webhook trusts the DB `grossAmount` number and the re-fetched authoritative
+status, never a string parse), so the divergence is gone. The remaining duplicate was an
+identical `parseMoney` copy in `service-orders.ts`; it now imports the single shared
+`parseMoney` from `lib/mektek/items.ts` (already used by `financials.ts`). One money helper
+across the module.
+
+### [x] 17. Duplicated Mektek order `where` / title-prefix constants
 **Files:** `service-orders.ts`, `dashboard.ts`, `catalog-purchase.ts` each redefine the
 `MEKTEK Service -` / `MEKTEK AC -` prefixes and the `mektekOrderWhere` filter. Centralize to
 prevent one copy drifting (e.g. dashboard already omits the soft-delete `deletedAt: null`
 filter that CRM queries are supposed to apply — verify Mektek task queries filter deleted rows
 per the CLAUDE.md soft-delete rule).
 
-### [ ] 18. Token comparison is not constant-time
+**Done (2026-07-06):** New shared module `lib/mektek/orders.ts` exports
+`MEKTEK_TITLE_PREFIX`, `LEGACY_MEKTEK_TITLE_PREFIX`, `MEKTEK_TITLE_PREFIXES`,
+`mektekOrderWhere()`, and the shared `mektekPaymentSelect`. `service-orders.ts`, `dashboard.ts`,
+and `catalog-purchase.ts` now import from it instead of redefining (dashboard's `where` object
+became the shared `mektekOrderWhere()` function at all call sites). **Soft-delete check:**
+verified against `prisma/schema.prisma` — `crm_Accounts_Tasks` has **no** `deletedAt`/`deletedBy`
+column, so Mektek orders are not soft-deleted (they track state via `taskStatus`). The
+CLAUDE.md soft-delete rule does not apply to these queries; this is documented in the new
+module's header comment so the "missing `deletedAt: null`" observation doesn't get
+re-introduced as a bug report.
+
+### [x] 18. Token comparison is not constant-time
 **File:** `actions/mektek/service-orders.ts` → `getPublicMektekServiceOrder`
 (`tags.customerToken !== token`). Low risk at 20-byte entropy, but for consistency with the
 webhook (which already uses `crypto.timingSafeEqual`) consider a constant-time compare.
+
+**Done (2026-07-06):** `getPublicMektekServiceOrder` now compares via a `constantTimeEqual`
+helper that SHA-256-hashes both the stored and supplied token and runs `crypto.timingSafeEqual`
+on the fixed-length digests — constant-time regardless of input, and safe against
+`timingSafeEqual`'s unequal-length throw. Empty/missing stored tokens still short-circuit to
+`null`. Unit tests in `__tests__/mektek/public-order-token.test.ts` (exact match, wrong
+same-length token, different-length token, missing token, missing id/token short-circuit).
 
 ---
 
