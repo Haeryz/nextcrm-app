@@ -64,8 +64,21 @@ export async function POST(request: NextRequest) {
   }
 
   // 2. Re-fetch authoritative status (do not trust the POST body for the verdict).
+  //    If the re-fetch fails we must NOT fall back to the POST body to finalize the
+  //    payment — a transient Midtrans outage would otherwise settle a payment on
+  //    unverified amounts. Leave the payment pending (no mutation) and return 200 so
+  //    Midtrans retries the notification later, when the status lookup can succeed.
   const statusResult = await getTransactionStatus(orderId);
-  const authoritative = statusResult.ok ? statusResult.data : body;
+  if (!statusResult.ok) {
+    console.log(
+      "[MIDTRANS_WEBHOOK] status re-fetch failed, leaving payment pending for retry",
+      orderId,
+      statusResult.error
+    );
+    return Response.json({ ok: true, note: "Status re-fetch failed; left pending" });
+  }
+
+  const authoritative = statusResult.data;
   const verdict = interpretTransactionStatus(authoritative);
 
   try {
