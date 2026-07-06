@@ -184,7 +184,9 @@ export async function getMektekCustomerProfile(locale = "en") {
 // Claim an unclaimed (walk-in) CatalogCustomer record for the logged-in user after
 // verifying ownership of their phone via WhatsApp OTP. This replaces the previous
 // silent phoneNormalized auto-link, which let anyone bind another person's record.
-export async function claimMektekCustomerByPhone(otpCode: string) {
+export async function claimMektekCustomerByPhone(
+  otpCode: string
+): Promise<{ success?: true; error?: string }> {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return { error: "Unauthorized" };
