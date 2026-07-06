@@ -126,6 +126,8 @@ Mektek sends customer notifications over WhatsApp via **whatsapp-web.js** (a hea
 
 The Chrome binary is installed automatically by `scripts/ensure-whatsapp-browser.js` (run on `postinstall` and before `pnpm dev`). Skip/override with `NEXTCRM_SKIP_WHATSAPP_BROWSER_INSTALL=true`, `PUPPETEER_SKIP_DOWNLOAD=true`, or `WHATSAPP_CHROME_PATH`/`PUPPETEER_EXECUTABLE_PATH`.
 
+**Customer phone verification (WhatsApp OTP)**: customer self-registration (`registerCustomerUser`) and claiming a walk-in customer record (`claimMektekCustomerByPhone`) require a one-time code sent over WhatsApp. Core logic is in `lib/otp.ts` (`issueOtpCode`/`verifyOtpCode`, single-use, 5-min TTL, ≤5 attempts, hash-only storage) with the request action in `actions/auth/phone-otp.ts`. It **fails closed in production**: if `areExternalApisDisabled()` or the WhatsApp session isn't `ready`, registration is unavailable (so the production WhatsApp session must be paired). In dev/prototype the code is logged to the server console instead, so the local flow stays testable. The `CustomerPhoneVerification` model requires a migration — run `pnpm prisma migrate deploy` on every environment (incl. Neon) after pulling.
+
 ### Audit Log
 
 All CRM entities track field-level change history. A `diffObjects` utility computes before/after diffs stored as structured JSON. The global admin audit log is at `/admin/audit-log`. The `AuditTimeline` and `AuditEntry` components render per-entity history.
