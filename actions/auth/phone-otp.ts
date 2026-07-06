@@ -1,0 +1,74 @@
+"use server";
+
+import { headers } from "next/headers";
+import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/phone";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { areExternalApisDisabled } from "@/lib/external-apis";
+import { getWhatsAppState } from "@/lib/whatsapp/client";
+import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { issueOtpCode } from "@/lib/otp";
+
+// OTP requests write a DB row + trigger a WhatsApp send. Throttle hard by both IP
+// and phone so it can't be used to spam a victim's number or flood the table.
+const OTP_IP_LIMIT = 5;
+const OTP_PHONE_LIMIT = 3;
+const OTP_WINDOW_MS = 15 * 60 * 1000;
+
+// Generic success message — never reveal whether a phone already has an account.
+const GENERIC_OK = { success: true } as const;
+
+export async function requestCustomerPhoneOtp(rawPhone: string) {
+  const phone = String(rawPhone ?? "").trim();
+  if (!phone || !isValidPhoneNumber(phone)) {
+    return { error: "Nomor telepon tidak valid" };
+  }
+  const phoneNormalized = normalizePhoneNumber(phone);
+  if (!phoneNormalized) {
+    return { error: "Nomor telepon tidak valid" };
+  }
+
+  const ip = getClientIp(await headers());
+  const ipLimit = checkRateLimit(`otp:ip:${ip}`, OTP_IP_LIMIT, OTP_WINDOW_MS);
+  const phoneLimit = checkRateLimit(
+    `otp:phone:${phoneNormalized}`,
+    OTP_PHONE_LIMIT,
+    OTP_WINDOW_MS
+  );
+  if (!ipLimit.ok || !phoneLimit.ok) {
+    return { error: "Terlalu banyak permintaan. Coba lagi nanti." };
+  }
+
+  const code = await issueOtpCode(phoneNormalized);
+  const message =
+    `Kode verifikasi Mektek Anda: ${code}. ` +
+    `Berlaku 5 menit. Jangan bagikan kode ini kepada siapa pun.`;
+
+  // WhatsApp availability gate. If the session can't send, we FAIL CLOSED in
+  // production (never skip verification). In dev/prototype we log the code so the
+  // local flow stays testable without a paired WhatsApp session.
+  const whatsappAvailable =
+    !areExternalApisDisabled() && getWhatsAppState().status === "ready";
+
+  if (!whatsappAvailable) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(
+        `[phone-otp] WhatsApp unavailable; dev OTP for ${phoneNormalized}: ${code}`
+      );
+      return GENERIC_OK;
+    }
+    return { error: "Verifikasi WhatsApp sedang tidak tersedia" };
+  }
+
+  const sent = await sendWhatsAppMessage({ to: phoneNormalized, message });
+  if (!sent.ok) {
+    if (process.env.NODE_ENV !== "production") {
+      console.log(
+        `[phone-otp] WhatsApp send failed (${sent.error}); dev OTP for ${phoneNormalized}: ${code}`
+      );
+      return GENERIC_OK;
+    }
+    return { error: "Gagal mengirim kode verifikasi. Coba lagi nanti." };
+  }
+
+  return GENERIC_OK;
+}
