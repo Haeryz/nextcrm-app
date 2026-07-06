@@ -19,6 +19,22 @@ const nextConfig = {
     ],
   },
 
+  async headers() {
+    // The customer tracking pages embed access secrets in the URL (?token / ?code,
+    // or a short /s/<code> path). Suppress the Referer header on these pages so the
+    // secret can't leak to third parties via outbound links or embedded resources.
+    return [
+      {
+        source: "/:locale/s/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
+      {
+        source: "/:locale/service-status/:path*",
+        headers: [{ key: "Referrer-Policy", value: "no-referrer" }],
+      },
+    ];
+  },
+
   async redirects() {
     return [
       {
