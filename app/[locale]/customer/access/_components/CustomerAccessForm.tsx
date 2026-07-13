@@ -2,7 +2,6 @@
 
 import { useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, Lock, Phone, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
@@ -14,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function CustomerAccessForm({ locale }: { locale: string }) {
-  const router = useRouter();
   const [loginPhone, setLoginPhone] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [signupName, setSignupName] = useState("");
@@ -48,8 +46,7 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
       }
 
       toast.success("Login successful.");
-      router.push(`/${locale}/customer/profile`);
-      router.refresh();
+      window.location.assign(`/${locale}/customer/profile`);
     } catch (error: any) {
       toast.error(error?.message || "Login failed");
     } finally {
@@ -110,8 +107,7 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
       }
 
       toast.success("Customer account created.");
-      router.push(`/${locale}/customer/profile`);
-      router.refresh();
+      window.location.assign(`/${locale}/customer/profile`);
     } catch (error: any) {
       toast.error(error?.message || "Signup failed");
     } finally {
