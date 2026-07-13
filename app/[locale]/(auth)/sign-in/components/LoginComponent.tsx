@@ -78,6 +78,7 @@ export function LoginComponent() {
         redirect: false,
         email: data.email,
         password: data.password,
+        staffOnly: "true",
         callbackUrl: adminDashboardPath,
       });
       if (status?.error) {
