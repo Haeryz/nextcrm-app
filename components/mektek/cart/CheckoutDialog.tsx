@@ -19,6 +19,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { createMektekCatalogPurchaseIntent } from "@/actions/mektek/catalog-purchase";
+import { syncMektekPaymentStatus } from "@/actions/mektek/payments";
+import { confirmPaymentWithRetry } from "@/lib/mektek/payment-confirmation";
 import { useCart } from "./CartProvider";
 import { loadSnapScript, formatIDR } from "./snap";
 
@@ -91,7 +93,15 @@ export function CheckoutDialog() {
         return;
       }
 
-      const { snapToken, clientKey, snapScriptUrl, trackingPath } = result.data;
+      const {
+        snapToken,
+        clientKey,
+        snapScriptUrl,
+        trackingPath,
+        trackingCode,
+        serviceOrderId,
+        orderId,
+      } = result.data;
       await loadSnapScript(snapScriptUrl, clientKey);
 
       if (!window.snap) {
@@ -102,10 +112,29 @@ export function CheckoutDialog() {
 
       window.snap.pay(snapToken, {
         onSuccess: () => {
-          toast.success("Pembayaran berhasil.");
-          if (isCart) clear();
-          setDone({ trackingPath });
-          setLoading(false);
+          void (async () => {
+            try {
+              const confirmation = await confirmPaymentWithRetry(() =>
+                syncMektekPaymentStatus({
+                  serviceOrderId,
+                  code: trackingCode,
+                  orderId,
+                })
+              );
+
+              if (confirmation.data?.status === "paid") {
+                toast.success("Pembayaran berhasil. Status sudah diperbarui.");
+              } else {
+                toast.info("Pembayaran berhasil dan sedang dikonfirmasi Midtrans.");
+              }
+            } catch {
+              toast.info("Pembayaran berhasil dan sedang dikonfirmasi Midtrans.");
+            } finally {
+              if (isCart) clear();
+              setDone({ trackingPath });
+              setLoading(false);
+            }
+          })();
         },
         onPending: () => {
           toast.info("Menunggu pembayaran Anda.");
