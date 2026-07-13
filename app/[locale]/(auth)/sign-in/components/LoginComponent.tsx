@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -38,6 +38,7 @@ import {
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { requestPasswordReset } from "@/actions/auth/password-reset";
+import { getPostLoginDestination } from "@/lib/mektek/post-login-destination";
 
 export function LoginComponent() {
   const [isLoading, setIsLoading] = useState(false);
@@ -47,7 +48,6 @@ export function LoginComponent() {
 
   const [email, setEmail] = useState("");
 
-  const router = useRouter();
   const params = useParams<{ locale?: string }>();
   const searchParams = useSearchParams();
   const locale = params.locale || "en";
@@ -88,12 +88,9 @@ export function LoginComponent() {
         toast.success("Login successful.");
         const session = await getSession();
         const destination = session?.user
-          ? session.user.isAdmin
-            ? adminDashboardPath
-            : `/${locale}/customer/profile`
+          ? getPostLoginDestination(locale, session.user)
           : status.url || adminDashboardPath;
-        router.push(destination);
-        router.refresh();
+        window.location.assign(destination);
       }
     } catch (error: any) {
       console.log(error);
