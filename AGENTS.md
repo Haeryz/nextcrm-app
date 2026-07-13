@@ -58,3 +58,25 @@ This file is the authoritative guide for AI agents (Claude Code and other LLM ag
 | receiving-code-review          | `.claude/skills/receiving-code-review/`          | Flexible |
 
 ---
+
+## 3. Production E2E Customer Account
+
+Use this existing synthetic customer account for production storefront E2E tests.
+Do not create another customer account unless this account has been removed or
+explicitly invalidated.
+
+- Production URL: `https://mektek-bice.vercel.app`
+- Customer login URL: `https://mektek-bice.vercel.app/en/customer/access`
+- Phone: `+6200798201014`
+- Password: `CodexE2E!98201014`
+- Customer name: `Codex E2E 98201014`
+
+This account is test-only. The production storefront currently connects to
+Midtrans Sandbox, so use only Midtrans sandbox cards, simulators, virtual
+accounts, and QRIS flows. Never enter real payment credentials for this account.
+
+The account already has completed BCA virtual-account, credit-card, and
+QRIS/GoPay E2E orders. Reuse it for regression testing login, direct purchase,
+cart checkout, payment reconciliation, invoices, and receipts.
+
+---
