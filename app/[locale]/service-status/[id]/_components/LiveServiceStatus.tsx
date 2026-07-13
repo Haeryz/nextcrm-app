@@ -8,6 +8,10 @@ import { Download, ExternalLink, FileText, Receipt } from "lucide-react";
 import type { MektekPublicSnapshot } from "@/lib/mektek/public-status";
 import { getStatusMeta } from "@/app/[locale]/(routes)/mektek/_lib/constants";
 import { PayNowButton } from "@/components/mektek/PayNowButton";
+import {
+  formatCustomerDate,
+  formatCustomerDateTime,
+} from "@/lib/mektek/customer-display";
 
 type LiveServiceStatusProps = {
   initialSnapshot: MektekPublicSnapshot;
@@ -25,18 +29,6 @@ const formatCurrency = (amount: number) =>
     currency: "IDR",
     minimumFractionDigits: 0,
   });
-
-const formatDate = (value: string | null) =>
-  value ? new Date(value).toLocaleDateString() : "Belum ditentukan";
-
-const formatDateTime = (value: string | null) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  return `${date.toLocaleDateString()} - ${date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
-};
 
 export default function LiveServiceStatus({
   initialSnapshot,
@@ -118,7 +110,9 @@ export default function LiveServiceStatus({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-sm font-semibold">{formatDate(snapshot.dueDateAt)}</p>
+              <p className="text-sm font-semibold">
+                {formatCustomerDate(snapshot.dueDateAt)}
+              </p>
             </CardContent>
           </Card>
 
@@ -279,7 +273,7 @@ export default function LiveServiceStatus({
                   >
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold text-muted-foreground">
-                        {formatDateTime(item.createdAt)}
+                        {formatCustomerDateTime(item.createdAt)}
                       </p>
                       <Badge variant={item.completed ? "default" : "secondary"}>
                         {item.completed ? "Done" : "Pending"}
@@ -305,7 +299,7 @@ export default function LiveServiceStatus({
                 {snapshot.latestTimeline?.description || "Belum ada update."}
               </p>
               <p className="text-xs text-muted-foreground">
-                {formatDateTime(snapshot.latestTimeline?.createdAt ?? null)}
+                {formatCustomerDateTime(snapshot.latestTimeline?.createdAt ?? null)}
               </p>
             </CardContent>
           </Card>
