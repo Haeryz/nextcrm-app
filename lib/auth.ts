@@ -4,6 +4,8 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
 import { newUserNotify } from "./new-user-notify";
 import { normalizePhoneNumber } from "./phone";
+import { canAuthenticateOnStaffPortal } from "./mektek/staff-auth";
+import { checkRateLimit } from "./rate-limit";
 
 const defaultAuthUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -30,15 +32,29 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "email or phone", type: "text" },
         password: { label: "password", type: "password" },
+        staffOnly: { label: "staff login", type: "text" },
       },
 
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         // console.log(credentials, "credentials");
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Email or password is missing");
         }
 
         const identifier = credentials.email.trim();
+        const forwardedFor = request.headers?.["x-forwarded-for"];
+        const clientIp =
+          forwardedFor?.split(",")[0]?.trim() ||
+          request.headers?.["x-real-ip"] ||
+          "unknown";
+        const loginLimit = checkRateLimit(
+          `credentials:${clientIp}:${identifier.toLowerCase()}`,
+          10,
+          60_000,
+        );
+        if (!loginLimit.ok) {
+          throw new Error("Too many login attempts. Please try again shortly.");
+        }
         const phoneNormalized = normalizePhoneNumber(identifier);
         const isEmail = identifier.includes("@");
 
@@ -58,7 +74,7 @@ export const authOptions: NextAuthOptions = {
         const trimmedPassword = credentials.password.trim();
 
         if (!user || !user?.password) {
-          throw new Error("User not found, please register first");
+          throw new Error("Invalid email/phone or password");
         }
 
         const isCorrectPassword = await bcrypt.compare(
@@ -67,7 +83,14 @@ export const authOptions: NextAuthOptions = {
         );
 
         if (!isCorrectPassword) {
-          throw new Error("Password is incorrect");
+          throw new Error("Invalid email/phone or password");
+        }
+
+        if (
+          credentials.staffOnly === "true" &&
+          !canAuthenticateOnStaffPortal(user)
+        ) {
+          throw new Error("This account is not authorized for staff access");
         }
 
         //console.log(user, "user");
