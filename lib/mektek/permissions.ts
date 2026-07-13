@@ -46,5 +46,5 @@ export function canManageMektekCustomers(user?: MektekSessionUser | null) {
 }
 
 export function canManageMektekVouchers(user?: MektekSessionUser | null) {
-  return !!user?.isAdmin;
+  return isActive(user) && !!user?.isAdmin;
 }
