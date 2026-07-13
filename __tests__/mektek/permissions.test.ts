@@ -71,6 +71,7 @@ describe("MekTek permissions", () => {
       expect(canUseMektekCustomerTools(user)).toBe(false);
       expect(canUpdateMektekProgress(user)).toBe(false);
       expect(canManageMektekPayments(user)).toBe(false);
+      expect(canManageMektekVouchers(user)).toBe(false);
       expect(canViewMektekDashboard(user)).toBe(false);
     }
   });
