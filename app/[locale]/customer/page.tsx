@@ -441,7 +441,7 @@ export default async function CustomerCatalogPage({
   };
 
   return (
-    <CartProvider locale={locale}>
+    <CartProvider locale={locale} isAuthenticated={isAuthenticated}>
     <main className="min-h-screen bg-[#f7f8ff] text-[#091247]">
       <section className="border-b border-[#151a63]/10 bg-white/80 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-6">
@@ -619,26 +619,34 @@ export default async function CustomerCatalogPage({
             Page {catalog.page} of {catalog.totalPages}
           </p>
           <div className="flex gap-2">
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              disabled={catalog.page <= 1}
-              className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff]"
-            >
-              <Link href={pageHref(Math.max(1, catalog.page - 1))}>Previous</Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              disabled={catalog.page >= catalog.totalPages}
-              className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff]"
-            >
-              <Link href={pageHref(Math.min(catalog.totalPages, catalog.page + 1))}>
+            {catalog.page <= 1 ? (
+              <Button variant="outline" size="sm" disabled>
+                Previous
+              </Button>
+            ) : (
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff]"
+              >
+                <Link href={pageHref(catalog.page - 1)}>Previous</Link>
+              </Button>
+            )}
+            {catalog.page >= catalog.totalPages ? (
+              <Button variant="outline" size="sm" disabled>
                 Next
-              </Link>
-            </Button>
+              </Button>
+            ) : (
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff]"
+              >
+                <Link href={pageHref(catalog.page + 1)}>Next</Link>
+              </Button>
+            )}
           </div>
         </div>
       </section>
