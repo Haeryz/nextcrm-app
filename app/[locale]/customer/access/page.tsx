@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { MektekBrandMark } from "@/components/mektek/MektekBrandMark";
@@ -25,6 +25,12 @@ export default async function CustomerAccessPage({
             <MektekBrandMark textClassName="text-[#10164f]" />
           </Link>
           <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end">
+            <Button asChild variant="ghost">
+              <Link href={`/${locale}/sign-in`}>
+                <ShieldCheck className="size-4" />
+                Staff login
+              </Link>
+            </Button>
             <Button
               asChild
               variant="outline"
