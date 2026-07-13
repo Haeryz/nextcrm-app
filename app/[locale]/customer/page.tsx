@@ -156,6 +156,7 @@ const processSteps: LandingProcessStep[] = [
 function MektekLanding({ locale }: { locale: string }) {
   const sparepartHref = `/${locale}/customer?view=sparepart`;
   const accessHref = `/${locale}/customer/access`;
+  const staffLoginHref = `/${locale}/sign-in`;
 
   return (
     <main className="min-h-screen bg-[#f7f8ff] text-[#091247]">
@@ -176,6 +177,16 @@ function MektekLanding({ locale }: { locale: string }) {
               textClassName="text-white"
             />
             <div className="flex items-center gap-2">
+              <Button
+                asChild
+                variant="ghost"
+                className="text-white/80 hover:bg-white/10 hover:text-white"
+              >
+                <Link href={staffLoginHref}>
+                  Staff login
+                  <ShieldCheck className="size-4" />
+                </Link>
+              </Button>
               <Button
                 asChild
                 variant="outline"
@@ -395,6 +406,16 @@ function MektekLanding({ locale }: { locale: string }) {
               <Link href={accessHref}>
                 Customer access
                 <LogIn className="size-4" />
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="ghost"
+              className="text-white/80 hover:bg-white/10 hover:text-white"
+            >
+              <Link href={staffLoginHref}>
+                Staff login
+                <ShieldCheck className="size-4" />
               </Link>
             </Button>
           </div>
