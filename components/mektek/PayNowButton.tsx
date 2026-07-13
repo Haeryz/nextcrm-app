@@ -10,6 +10,7 @@ import {
   createMektekPaymentIntent,
   syncMektekPaymentStatus,
 } from "@/actions/mektek/payments";
+import { confirmPaymentWithRetry } from "@/lib/mektek/payment-confirmation";
 
 type SnapCallbacks = {
   onSuccess?: (result: unknown) => void;
@@ -86,12 +87,14 @@ export function PayNowButton({
   const router = useRouter();
 
   const confirmPayment = async (orderId: string) => {
-    const result = await syncMektekPaymentStatus({
-      serviceOrderId,
-      token,
-      code,
-      orderId,
-    });
+    const result = await confirmPaymentWithRetry(() =>
+      syncMektekPaymentStatus({
+        serviceOrderId,
+        token,
+        code,
+        orderId,
+      })
+    );
 
     if (result?.error) {
       toast.error(result.error);
