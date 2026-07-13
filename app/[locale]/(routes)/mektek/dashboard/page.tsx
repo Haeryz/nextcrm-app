@@ -7,6 +7,7 @@ import { getServerSession } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import MektekOrderList from "../_components/MektekOrderList";
 import MektekPagination from "../_components/MektekPagination";
+import { redirect } from "next/navigation";
 
 interface MektekDashboardPageProps {
   params?: Promise<{ locale: string }>;
@@ -37,15 +38,7 @@ export default async function MektekDashboardPage({
   const { locale = "en" } = params ? await params : { locale: "en" };
   const session = await getServerSession(authOptions);
   if (!canViewMektekDashboard(session?.user)) {
-    return (
-      <Container title="MEKTEK" description="Operational dashboard">
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            Only admins can access the MekTek dashboard.
-          </CardContent>
-        </Card>
-      </Container>
-    );
+    redirect(`/${locale}/mektek`);
   }
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
