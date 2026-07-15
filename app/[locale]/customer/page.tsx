@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 import { listMektekCatalogItems } from "@/actions/mektek/catalog-items";
-import { getSessionUser } from "@/lib/auth-guards";
+import { getCustomerSessionUser } from "@/lib/customer-auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -153,9 +153,22 @@ const processSteps: LandingProcessStep[] = [
   },
 ];
 
-function MektekLanding({ locale }: { locale: string }) {
+function MektekLanding({
+  locale,
+  isAuthenticated,
+  customerName,
+}: {
+  locale: string;
+  isAuthenticated: boolean;
+  customerName?: string | null;
+}) {
   const sparepartHref = `/${locale}/customer?view=sparepart`;
-  const accessHref = `/${locale}/customer/access`;
+  const accessHref = isAuthenticated
+    ? `/${locale}/customer/profile`
+    : `/${locale}/customer/access`;
+  const accessLabel = isAuthenticated
+    ? customerName?.trim() || "My account"
+    : "Customer access";
 
   return (
     <main className="min-h-screen bg-[#f7f8ff] text-[#091247]">
@@ -182,8 +195,12 @@ function MektekLanding({ locale }: { locale: string }) {
                 className="border-white/25 bg-white/10 text-white hover:bg-[#fff200] hover:text-[#10164f]"
               >
                 <Link href={accessHref}>
-                  Customer access
-                  <LogIn className="size-4" />
+                  {accessLabel}
+                  {isAuthenticated ? (
+                    <UserRound className="size-4" />
+                  ) : (
+                    <LogIn className="size-4" />
+                  )}
                 </Link>
               </Button>
             </div>
@@ -393,8 +410,12 @@ function MektekLanding({ locale }: { locale: string }) {
               className="border-white/25 bg-transparent text-white hover:bg-white/10 hover:text-white"
             >
               <Link href={accessHref}>
-                Customer access
-                <LogIn className="size-4" />
+                {accessLabel}
+                {isAuthenticated ? (
+                  <UserRound className="size-4" />
+                ) : (
+                  <LogIn className="size-4" />
+                )}
               </Link>
             </Button>
           </div>
@@ -414,21 +435,25 @@ export default async function CustomerCatalogPage({
   const query = readSearchParam(resolvedSearchParams, "q");
   const machine = readSearchParam(resolvedSearchParams, "machine");
   const page = Math.max(Number(readSearchParam(resolvedSearchParams, "page")) || 1, 1);
+  const sessionUser = await getCustomerSessionUser();
+  const isAuthenticated = !!sessionUser?.id;
 
   if (view !== "sparepart" && !query && !machine && page === 1) {
-    return <MektekLanding locale={locale} />;
+    return (
+      <MektekLanding
+        locale={locale}
+        isAuthenticated={isAuthenticated}
+        customerName={sessionUser?.name}
+      />
+    );
   }
 
-  const [catalog, sessionUser] = await Promise.all([
-    listMektekCatalogItems({
-      query,
-      machine,
-      page,
-      pageSize: 24,
-    }),
-    getSessionUser(),
-  ]);
-  const isAuthenticated = !!sessionUser?.id;
+  const catalog = await listMektekCatalogItems({
+    query,
+    machine,
+    page,
+    pageSize: 24,
+  });
 
   const baseParams = new URLSearchParams();
   baseParams.set("view", "sparepart");
@@ -479,9 +504,15 @@ export default async function CustomerCatalogPage({
                 asChild
                 className="bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
               >
-                <Link href={`/${locale}/customer/profile`}>
+                <Link
+                  href={
+                    isAuthenticated
+                      ? `/${locale}/customer/profile`
+                      : `/${locale}/customer/access?next=${encodeURIComponent(`/${locale}/customer?view=sparepart`)}`
+                  }
+                >
                   <UserRound className="size-4" />
-                  Back to profile
+                  {isAuthenticated ? "My account" : "Customer access"}
                 </Link>
               </Button>
               <CartButton />

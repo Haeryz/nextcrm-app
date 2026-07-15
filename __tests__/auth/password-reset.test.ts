@@ -17,6 +17,9 @@ jest.mock("@/lib/prisma", () => ({
       create: jest.fn(),
       findUnique: jest.fn(),
     },
+    customerSession: {
+      updateMany: jest.fn(),
+    },
     $transaction: jest.fn(async (ops: unknown) =>
       Array.isArray(ops) ? Promise.all(ops) : ops
     ),
@@ -33,8 +36,8 @@ jest.mock("@/emails/PasswordReset", () => ({
   default: jest.fn(() => null),
 }));
 
-jest.mock("bcryptjs", () => ({
-  hash: jest.fn(async () => "hashed-password"),
+jest.mock("@/lib/password", () => ({
+  hashPassword: jest.fn(async () => "hashed-password"),
 }));
 
 // Requests carry no real headers in unit tests; return an empty header bag.
@@ -44,8 +47,15 @@ jest.mock("next/headers", () => ({
 
 // Never rate-limit in unit tests.
 jest.mock("@/lib/rate-limit", () => ({
-  checkRateLimit: jest.fn(() => ({ ok: true })),
   getClientIp: jest.fn(() => "127.0.0.1"),
+}));
+
+jest.mock("@/lib/auth-rate-limit", () => ({
+  consumeAuthRateLimit: jest.fn(async () => ({ ok: true, retryAfterMs: 0 })),
+}));
+
+jest.mock("@/lib/trusted-origin", () => ({
+  hasTrustedMutationOrigin: jest.fn(async () => true),
 }));
 
 const mockedPrisma = prismadb as unknown as {
@@ -55,6 +65,7 @@ const mockedPrisma = prismadb as unknown as {
     create: jest.Mock;
     findUnique: jest.Mock;
   };
+  customerSession: { updateMany: jest.Mock };
   $transaction: jest.Mock;
 };
 const mockedResendHelper = resendHelper as jest.Mock;
@@ -135,5 +146,16 @@ describe("resetPassword", () => {
 
     expect(result).toMatchObject({ success: true });
     expect(mockedPrisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(mockedPrisma.users.update).toHaveBeenCalledWith({
+      where: { id: "user-id" },
+      data: {
+        password: "hashed-password",
+        authVersion: { increment: 1 },
+      },
+    });
+    expect(mockedPrisma.customerSession.updateMany).toHaveBeenCalledWith({
+      where: { userId: "user-id", revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
   });
 });

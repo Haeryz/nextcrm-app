@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { hash } from "bcryptjs";
+import { hashPassword } from "../lib/password-core";
 import dotenv from "dotenv";
 import { Pool } from "pg";
 
@@ -39,7 +39,7 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  const passwordHash = await hash(password, 12);
+  const passwordHash = await hashPassword(password);
 
   const admin = await prisma.users.upsert({
     where: { email },

@@ -1,8 +1,8 @@
 "use server";
 import { headers } from "next/headers";
-import { hash } from "bcryptjs";
 
 import { prismadb } from "@/lib/prisma";
+import { hashPassword } from "@/lib/password";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 /**
@@ -85,7 +85,7 @@ export const bootstrapFirstAdmin = async (data: {
         email,
         userLanguage: "en",
         userStatus: "ACTIVE",
-        password: await hash(password, 12),
+        password: await hashPassword(password),
       },
     });
 

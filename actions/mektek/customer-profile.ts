@@ -1,12 +1,12 @@
 "use server";
 
-import { authOptions } from "@/lib/auth";
 import { buildMektekPublicSnapshot } from "@/lib/mektek/public-status";
 import { prismadb } from "@/lib/prisma";
-import { getServerSession } from "@/lib/session";
+import { getCustomerAuthSession } from "@/lib/customer-auth";
 import { normalizePhoneNumber } from "@/lib/phone";
 import { listAvailableMektekVouchersForCustomer } from "@/lib/mektek/voucher-db";
 import { verifyOtpCode } from "@/lib/otp";
+import { hasTrustedMutationOrigin } from "@/lib/trusted-origin";
 
 const mektekPaymentSelect = {
   id: true,
@@ -26,7 +26,7 @@ const parseTags = (tags: unknown): Record<string, unknown> => {
 };
 
 export async function getMektekCustomerProfile(locale = "en") {
-  const session = await getServerSession(authOptions);
+  const session = await getCustomerAuthSession();
   if (!session?.user?.id) {
     return { error: "Unauthorized" };
   }
@@ -187,7 +187,11 @@ export async function getMektekCustomerProfile(locale = "en") {
 export async function claimMektekCustomerByPhone(
   otpCode: string
 ): Promise<{ success?: true; error?: string }> {
-  const session = await getServerSession(authOptions);
+  if (!(await hasTrustedMutationOrigin())) {
+    return { error: "Request could not be verified" };
+  }
+
+  const session = await getCustomerAuthSession();
   if (!session?.user?.id) {
     return { error: "Unauthorized" };
   }

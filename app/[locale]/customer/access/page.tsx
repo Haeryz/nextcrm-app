@@ -1,18 +1,29 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { MektekBrandMark } from "@/components/mektek/MektekBrandMark";
 import { CustomerAccessForm } from "./_components/CustomerAccessForm";
+import { getCustomerSessionUser } from "@/lib/customer-auth";
+import { getSafeCustomerReturnPath } from "@/lib/customer-return-path";
 
 interface CustomerAccessPageProps {
   params: Promise<{ locale: string }>;
+  searchParams?: Promise<{ next?: string | string[] }>;
 }
 
 export default async function CustomerAccessPage({
   params,
+  searchParams,
 }: CustomerAccessPageProps) {
   const { locale } = await params;
+  const query = searchParams ? await searchParams : {};
+  const requestedNext = Array.isArray(query.next) ? query.next[0] : query.next;
+  const returnTo = getSafeCustomerReturnPath(requestedNext, locale);
+  const sessionUser = await getCustomerSessionUser();
+
+  if (sessionUser?.id) redirect(returnTo);
 
   return (
     <main className="min-h-screen bg-[#f7f8ff] text-[#091247]">
@@ -60,7 +71,7 @@ export default async function CustomerAccessPage({
           </div>
         </div>
 
-        <CustomerAccessForm locale={locale} />
+        <CustomerAccessForm locale={locale} returnTo={returnTo} />
       </section>
     </main>
   );

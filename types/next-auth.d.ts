@@ -10,6 +10,7 @@ declare module "next-auth/jwt" {
     mektekRole?: "CS" | "TECHNICIAN" | null;
     phone?: string | null;
     phoneNormalized?: string | null;
+    authVersion?: number;
   }
 }
 

@@ -20,6 +20,13 @@ const nextConfig = {
   // Don't advertise the framework (removes the X-Powered-By: Next.js header).
   poweredByHeader: false,
 
+  // Server Action arguments can contain passwords, OTPs, reset tokens, phone
+  // numbers, or payment details. Next.js logs serialized arguments in development
+  // by default, so disable that channel rather than relying on per-action redaction.
+  logging: {
+    serverFunctions: false,
+  },
+
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "localhost" },

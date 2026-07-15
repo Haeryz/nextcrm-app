@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { hash } from "bcryptjs";
 import type { ActiveStatus, CatalogCustomerType, Language, Prisma } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth";
@@ -14,6 +13,7 @@ import {
 import { boundedText, MAX_NAME_LEN } from "@/lib/mektek/sanitize";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { hashPassword } from "@/lib/password";
 
 const DEFAULT_PAGE_SIZE = 12;
 const activeStatuses = new Set(["ACTIVE", "PENDING", "INACTIVE"]);
@@ -219,7 +219,9 @@ export async function createMektekCustomerUser(input: CustomerUserInput) {
 
   try {
     const customer = await prismadb.$transaction(async (tx) => {
-      const password = data.password ? await hash(data.password, 12) : undefined;
+      const password = data.password
+        ? await hashPassword(data.password)
+        : undefined;
       const user = await tx.users.create({
         data: {
           name: data.name,
@@ -292,7 +294,9 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
         throw new Error("PROTECTED_ACCOUNT");
       }
 
-      const password = data.password ? await hash(data.password, 12) : undefined;
+      const password = data.password
+        ? await hashPassword(data.password)
+        : undefined;
       const userPayload = {
         name: data.name,
         username: data.name,
@@ -311,8 +315,17 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
       if (userId) {
         await tx.users.update({
           where: { id: userId },
-          data: userPayload,
+          data: {
+            ...userPayload,
+            ...(password ? { authVersion: { increment: 1 } } : {}),
+          },
         });
+        if (password) {
+          await tx.customerSession.updateMany({
+            where: { userId, revokedAt: null },
+            data: { revokedAt: new Date() },
+          });
+        }
       } else {
         const user = await tx.users.create({
           data: {

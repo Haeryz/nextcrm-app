@@ -10,6 +10,7 @@ import { CustomerServiceLiveCard } from "./_components/CustomerServiceLiveCard";
 import { CustomerClaimCard } from "./_components/CustomerClaimCard";
 import { CustomerVoucherList } from "./_components/CustomerVoucherList";
 import { MektekBrandMark } from "@/components/mektek/MektekBrandMark";
+import { CustomerLogoutButton } from "./_components/CustomerLogoutButton";
 
 interface CustomerProfilePageProps {
   params: Promise<{ locale: string }>;
@@ -22,7 +23,7 @@ export default async function CustomerProfilePage({
   const result = await getMektekCustomerProfile(locale);
 
   if (result.error === "Unauthorized") {
-    redirect("/sign-in");
+    redirect(`/${locale}/customer/access?next=${encodeURIComponent(`/${locale}/customer/profile`)}`);
   }
 
   const profile = result.data;
@@ -86,6 +87,7 @@ export default async function CustomerProfilePage({
               >
                 <Link href={`/${locale}/customer?view=sparepart`}>Open catalogue</Link>
               </Button>
+              <CustomerLogoutButton locale={locale} />
             </div>
           </div>
 

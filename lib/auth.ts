@@ -1,11 +1,10 @@
 import { prismadb } from "@/lib/prisma";
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import bcrypt from "bcrypt";
-import { newUserNotify } from "./new-user-notify";
 import { normalizePhoneNumber } from "./phone";
 import { canAuthenticateOnStaffPortal } from "./mektek/staff-auth";
-import { checkRateLimit } from "./rate-limit";
+import { consumeAuthRateLimit } from "./auth-rate-limit";
+import { hashPassword, verifyPassword } from "./password";
 
 const defaultAuthUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -19,6 +18,8 @@ const authSecret =
   (process.env.NODE_ENV !== "production"
     ? "nextcrm-dev-secret-change-in-production"
     : undefined);
+const DUMMY_PASSWORD_HASH =
+  "$2b$12$yN9.V3124cVB69Brg/uOMeXaQn3Lpi1C9CdVHxnprIsbiEc9l5pXO";
 
 export const authOptions: NextAuthOptions = {
   secret: authSecret,
@@ -47,12 +48,19 @@ export const authOptions: NextAuthOptions = {
           forwardedFor?.split(",")[0]?.trim() ||
           request.headers?.["x-real-ip"] ||
           "unknown";
-        const loginLimit = checkRateLimit(
-          `credentials:${clientIp}:${identifier.toLowerCase()}`,
-          10,
-          60_000,
-        );
-        if (!loginLimit.ok) {
+        const [accountLimit, ipLimit] = await Promise.all([
+          consumeAuthRateLimit(
+            `credentials:account:${identifier.toLowerCase()}`,
+            10,
+            15 * 60_000,
+          ),
+          consumeAuthRateLimit(
+            `credentials:ip:${clientIp}`,
+            30,
+            15 * 60_000,
+          ),
+        ]);
+        if (!accountLimit.ok || !ipLimit.ok) {
           throw new Error("Too many login attempts. Please try again shortly.");
         }
         const phoneNormalized = normalizePhoneNumber(identifier);
@@ -70,19 +78,13 @@ export const authOptions: NextAuthOptions = {
               },
         });
 
-        //clear white space from password
-        const trimmedPassword = credentials.password.trim();
-
-        if (!user || !user?.password) {
-          throw new Error("Invalid email/phone or password");
-        }
-
-        const isCorrectPassword = await bcrypt.compare(
-          trimmedPassword,
-          user.password
+        const password = credentials.password;
+        const verification = await verifyPassword(
+          password.slice(0, 200),
+          user?.password || DUMMY_PASSWORD_HASH,
         );
 
-        if (!isCorrectPassword) {
+        if (!user?.password || !verification.valid) {
           throw new Error("Invalid email/phone or password");
         }
 
@@ -91,6 +93,13 @@ export const authOptions: NextAuthOptions = {
           !canAuthenticateOnStaffPortal(user)
         ) {
           throw new Error("This account is not authorized for staff access");
+        }
+
+        if (verification.needsRehash) {
+          await prismadb.users.update({
+            where: { id: user.id },
+            data: { password: await hashPassword(password.slice(0, 200)) },
+          });
         }
 
         //console.log(user, "user");
@@ -106,80 +115,51 @@ export const authOptions: NextAuthOptions = {
         token.mektekRole = user.mektekRole ?? null;
         token.phone = user.phone ?? null;
         token.phoneNormalized = user.phoneNormalized ?? null;
+        token.authVersion = user.authVersion ?? 0;
       }
       return token;
     },
-    //TODO: fix this any
     async session({ token, session }: any) {
-      const user = await prismadb.users.findFirst({
-        where: {
-          email: token.email,
-        },
-      });
+      const userId = typeof token.id === "string" ? token.id : "";
+      const user = userId
+        ? await prismadb.users.findUnique({ where: { id: userId } })
+        : null;
 
-      if (!user) {
-        try {
-          const newUser = await prismadb.users.create({
-            data: {
-              email: token.email,
-              name: token.name,
-              avatar: token.picture,
-              is_admin: false,
-              is_account_admin: false,
-              lastLoginAt: new Date(),
-              userStatus:
-                process.env.NEXT_PUBLIC_APP_URL === "https://demo.nextcrm.io"
-                  ? "ACTIVE"
-                  : "PENDING",
-            },
-          });
-
-          await newUserNotify(newUser);
-
-          //Put new created user data in session
-          session.user.id = newUser.id;
-          session.user._id = newUser.id;
-          session.user.name = newUser.name;
-          session.user.email = newUser.email;
-          session.user.avatar = newUser.avatar;
-          session.user.image = newUser.avatar;
-          session.user.isAdmin = false;
-          session.user.mektekRole = null;
-          session.user.phone = newUser.phone;
-          session.user.phoneNormalized = newUser.phoneNormalized;
-          session.user.userLanguage = newUser.userLanguage;
-          session.user.userStatus = newUser.userStatus;
-          session.user.lastLoginAt = newUser.lastLoginAt;
-          return session;
-        } catch (error) {
-          return console.log(error);
-        }
-      } else {
-        await prismadb.users.update({
-          where: {
-            id: user.id,
-          },
-          data: {
-            lastLoginAt: new Date(),
-          },
-        });
-        //User allready exist in localDB, put user data in session
-        session.user.id = user.id;
-        session.user._id = user.id;
-        session.user.name = user.name;
-        session.user.email = user.email;
-        session.user.avatar = user.avatar;
-        session.user.image = user.avatar;
-        session.user.isAdmin = user.is_admin;
-        session.user.mektekRole = user.mektekRole;
-        session.user.phone = user.phone;
-        session.user.phoneNormalized = user.phoneNormalized;
-        session.user.userLanguage = user.userLanguage;
-        session.user.userStatus = user.userStatus;
-        session.user.lastLoginAt = user.lastLoginAt;
+      if (!user || Number(token.authVersion ?? 0) !== user.authVersion) {
+        // Password changes increment authVersion. Old JWTs remain cryptographically
+        // valid but lose every server-side authorization capability immediately.
+        session.user.id = "";
+        session.user._id = "";
+        session.user.isAdmin = false;
+        session.user.mektekRole = null;
+        session.user.userStatus = "INACTIVE";
+        return session;
       }
 
-      //console.log(session, "session");
+      const now = new Date();
+      if (
+        !user.lastLoginAt ||
+        now.getTime() - user.lastLoginAt.getTime() >= 5 * 60_000
+      ) {
+        await prismadb.users.update({
+          where: { id: user.id },
+          data: { lastLoginAt: now },
+        });
+      }
+
+      session.user.id = user.id;
+      session.user._id = user.id;
+      session.user.name = user.name;
+      session.user.email = user.email;
+      session.user.avatar = user.avatar;
+      session.user.image = user.avatar;
+      session.user.isAdmin = user.is_admin;
+      session.user.mektekRole = user.mektekRole;
+      session.user.phone = user.phone;
+      session.user.phoneNormalized = user.phoneNormalized;
+      session.user.userLanguage = user.userLanguage;
+      session.user.userStatus = user.userStatus;
+      session.user.lastLoginAt = user.lastLoginAt;
       return session;
     },
   },

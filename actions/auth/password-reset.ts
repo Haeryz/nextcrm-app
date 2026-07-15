@@ -1,12 +1,14 @@
 "use server";
 import crypto from "crypto";
 import { headers } from "next/headers";
-import { hash } from "bcryptjs";
 
 import { prismadb } from "@/lib/prisma";
 import PasswordResetEmail from "@/emails/PasswordReset";
 import resendHelper from "@/lib/resend";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/rate-limit";
+import { hashPassword } from "@/lib/password";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { hasTrustedMutationOrigin } from "@/lib/trusted-origin";
 
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 const GENERIC_SUCCESS =
@@ -30,13 +32,17 @@ const baseUrl = () =>
  * time-limited *link* rather than a new plaintext password. Rate limited per IP.
  */
 export const requestPasswordReset = async (email: string) => {
+  if (!(await hasTrustedMutationOrigin())) {
+    return { error: "Request could not be verified." };
+  }
+
   const normalizedEmail = String(email ?? "").trim().toLowerCase();
   if (!normalizedEmail) {
     return { error: "Email is required!" };
   }
 
   const ip = getClientIp(await headers());
-  const limit = checkRateLimit(
+  const limit = await consumeAuthRateLimit(
     `password-reset-request:${ip}`,
     REQUEST_LIMIT,
     REQUEST_WINDOW_MS
@@ -98,6 +104,10 @@ export const requestPasswordReset = async (email: string) => {
  * new password chosen by the user. The token is single-use.
  */
 export const resetPassword = async (token: string, newPassword: string) => {
+  if (!(await hasTrustedMutationOrigin())) {
+    return { error: "Request could not be verified." };
+  }
+
   const rawToken = String(token ?? "").trim();
   const password = String(newPassword ?? "");
 
@@ -112,7 +122,7 @@ export const resetPassword = async (token: string, newPassword: string) => {
   }
 
   const ip = getClientIp(await headers());
-  const limit = checkRateLimit(
+  const limit = await consumeAuthRateLimit(
     `password-reset-confirm:${ip}`,
     CONFIRM_LIMIT,
     CONFIRM_WINDOW_MS
@@ -131,14 +141,23 @@ export const resetPassword = async (token: string, newPassword: string) => {
       return { error: "Invalid or expired reset link." };
     }
 
+    const revokedAt = new Date();
     await prismadb.$transaction([
       prismadb.users.update({
         where: { id: record.userId },
-        data: { password: await hash(password, 12) },
+        data: {
+          password: await hashPassword(password),
+          authVersion: { increment: 1 },
+        },
       }),
       // Single-use: burn every token for this user once one is redeemed.
       prismadb.passwordResetToken.deleteMany({
         where: { userId: record.userId },
+      }),
+      // A credential reset is a security boundary: revoke every remembered device.
+      prismadb.customerSession.updateMany({
+        where: { userId: record.userId, revokedAt: null },
+        data: { revokedAt },
       }),
     ]);
 

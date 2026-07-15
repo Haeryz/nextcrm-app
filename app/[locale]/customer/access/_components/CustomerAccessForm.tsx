@@ -1,18 +1,28 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { signIn } from "next-auth/react";
 import { ArrowRight, Eye, EyeOff, Lock, Phone, ShieldCheck, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
 import { registerCustomerUser } from "@/actions/auth/register-user";
+import { loginCustomer } from "@/actions/auth/customer-session";
 import { requestCustomerPhoneOtp } from "@/actions/auth/phone-otp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-export function CustomerAccessForm({ locale }: { locale: string }) {
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+export function CustomerAccessForm({
+  locale,
+  returnTo,
+}: {
+  locale: string;
+  returnTo: string;
+}) {
   const [loginPhone, setLoginPhone] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [signupName, setSignupName] = useState("");
@@ -27,28 +37,30 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] =
     useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [rememberDevice, setRememberDevice] = useState(false);
 
   async function onLoginSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
 
     try {
-      const status = await signIn("credentials", {
-        redirect: false,
-        email: loginPhone,
+      const result = await loginCustomer({
+        phone: loginPhone,
         password: loginPassword,
-        callbackUrl: `/${locale}/customer/profile`,
+        rememberDevice,
+        returnTo,
+        locale,
       });
 
-      if (status?.error) {
-        toast.error(status.error);
+      if ("error" in result) {
+        toast.error(result.error);
         return;
       }
 
       toast.success("Login successful.");
-      window.location.assign(`/${locale}/customer/profile`);
-    } catch (error: any) {
-      toast.error(error?.message || "Login failed");
+      window.location.assign(result.redirectTo);
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Login failed"));
     } finally {
       setIsLoading(false);
     }
@@ -68,8 +80,8 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
       }
       setOtpSent(true);
       toast.success("Kode verifikasi dikirim via WhatsApp.");
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to send code");
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Failed to send code"));
     } finally {
       setOtpSending(false);
     }
@@ -93,23 +105,23 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
         return;
       }
 
-      const status = await signIn("credentials", {
-        redirect: false,
-        email: signupPhone,
+      const loginResult = await loginCustomer({
+        phone: signupPhone,
         password: signupPassword,
-        callbackUrl: `/${locale}/customer/profile`,
+        returnTo,
+        locale,
       });
 
-      if (status?.error) {
+      if ("error" in loginResult) {
         toast.success("Account created. Login with your phone and password.");
         setLoginPhone(signupPhone);
         return;
       }
 
       toast.success("Customer account created.");
-      window.location.assign(`/${locale}/customer/profile`);
-    } catch (error: any) {
-      toast.error(error?.message || "Signup failed");
+      window.location.assign(loginResult.redirectTo);
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Signup failed"));
     } finally {
       setIsLoading(false);
     }
@@ -146,6 +158,9 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
                   value={loginPhone}
                   onChange={(event) => setLoginPhone(event.target.value)}
                   inputMode="tel"
+                  autoComplete="tel"
+                  required
+                  maxLength={64}
                   placeholder="+628123456789"
                   className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}
@@ -164,6 +179,9 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
                   value={loginPassword}
                   onChange={(event) => setLoginPassword(event.target.value)}
                   type={showLoginPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                  maxLength={200}
                   placeholder="Password"
                   className="h-12 border-[#151a63]/20 bg-white pl-9 pr-12 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}
@@ -187,6 +205,19 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
                 </Button>
               </div>
             </div>
+
+            <label className="flex cursor-pointer items-start gap-3 text-sm text-[#4b5577]">
+              <input
+                type="checkbox"
+                checked={rememberDevice}
+                onChange={(event) => setRememberDevice(event.target.checked)}
+                className="mt-0.5 size-4 rounded border-[#151a63]/30 accent-[#151a63]"
+                disabled={isLoading}
+              />
+              <span>
+                Remember this device for up to 14 days. Avoid this on shared devices.
+              </span>
+            </label>
 
             <Button
               type="submit"
@@ -212,6 +243,9 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
                   value={signupName}
                   onChange={(event) => setSignupName(event.target.value)}
                   placeholder="Customer name"
+                  autoComplete="name"
+                  required
+                  maxLength={120}
                   className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}
                 />
@@ -229,6 +263,9 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
                   value={signupPhone}
                   onChange={(event) => setSignupPhone(event.target.value)}
                   inputMode="tel"
+                  autoComplete="tel"
+                  required
+                  maxLength={64}
                   placeholder="+628123456789"
                   className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}
@@ -252,6 +289,8 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
                     inputMode="numeric"
                     autoComplete="one-time-code"
                     placeholder="6-digit code"
+                    required
+                    minLength={6}
                     className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                     disabled={isLoading}
                   />
@@ -282,6 +321,10 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
                   value={signupPassword}
                   onChange={(event) => setSignupPassword(event.target.value)}
                   type={showSignupPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  maxLength={100}
                   placeholder="Password"
                   className="h-12 border-[#151a63]/20 bg-white pl-9 pr-12 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}
@@ -319,6 +362,10 @@ export function CustomerAccessForm({ locale }: { locale: string }) {
                     setSignupConfirmPassword(event.target.value)
                   }
                   type={showSignupConfirmPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  maxLength={100}
                   placeholder="Confirm password"
                   className="h-12 border-[#151a63]/20 bg-white pl-9 pr-12 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}

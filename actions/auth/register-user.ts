@@ -1,7 +1,6 @@
 "use server";
 import { headers } from "next/headers";
 import { prismadb } from "@/lib/prisma";
-import { hash } from "bcryptjs";
 import { newUserNotify } from "@/lib/new-user-notify";
 import { Language } from "@prisma/client";
 import {
@@ -10,8 +9,11 @@ import {
   normalizePhoneNumber,
 } from "@/lib/phone";
 import { boundedText, MAX_NAME_LEN } from "@/lib/mektek/sanitize";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/rate-limit";
 import { verifyOtpCode } from "@/lib/otp";
+import { hashPassword } from "@/lib/password";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { hasTrustedMutationOrigin } from "@/lib/trusted-origin";
 
 // Public registration writes a users row (+ bcrypt hash) per call. Throttle by IP
 // to blunt scripted account-creation floods.
@@ -26,6 +28,10 @@ export const registerUser = async (data: {
   password: string;
   confirmPassword: string;
 }) => {
+  if (!(await hasTrustedMutationOrigin())) {
+    return { error: "Request could not be verified" };
+  }
+
   const { name, username, email, language, password, confirmPassword } = data;
 
   if (!name || !email || !language || !password || !confirmPassword) {
@@ -50,7 +56,15 @@ export const registerUser = async (data: {
   }
 
   const ip = getClientIp(await headers());
-  if (!checkRateLimit(`register-user:${ip}`, REGISTER_LIMIT, REGISTER_WINDOW_MS).ok) {
+  if (
+    !(
+      await consumeAuthRateLimit(
+        `register-user:${ip}`,
+        REGISTER_LIMIT,
+        REGISTER_WINDOW_MS,
+      )
+    ).ok
+  ) {
     return { error: "Too many requests. Please try again later." };
   }
 
@@ -77,7 +91,7 @@ export const registerUser = async (data: {
           process.env.NEXT_PUBLIC_APP_URL === "https://demo.nextcrm.io"
             ? "ACTIVE"
             : "PENDING",
-        password: await hash(password, 12),
+        password: await hashPassword(password),
       },
     });
 
@@ -102,6 +116,10 @@ export const registerCustomerUser = async (data: {
   confirmPassword: string;
   otpCode: string;
 }) => {
+  if (!(await hasTrustedMutationOrigin())) {
+    return { error: "Request could not be verified" };
+  }
+
   const name = boundedText(data?.name, MAX_NAME_LEN);
   const phone = String(data?.phone ?? "").trim();
   const password = String(data?.password ?? "");
@@ -135,12 +153,12 @@ export const registerCustomerUser = async (data: {
   }
 
   const ip = getClientIp(await headers());
-  const ipLimit = checkRateLimit(
+  const ipLimit = await consumeAuthRateLimit(
     `register-customer:ip:${ip}`,
     REGISTER_LIMIT,
     REGISTER_WINDOW_MS
   );
-  const phoneLimit = checkRateLimit(
+  const phoneLimit = await consumeAuthRateLimit(
     `register-customer:phone:${phoneNormalized}`,
     REGISTER_LIMIT,
     REGISTER_WINDOW_MS
@@ -187,7 +205,7 @@ export const registerCustomerUser = async (data: {
           phoneNormalized,
           userLanguage: "en",
           userStatus: "ACTIVE",
-          password: await hash(password, 12),
+          password: await hashPassword(password),
         },
       });
 

@@ -64,7 +64,8 @@ export function CartProvider({
   isAuthenticated?: boolean;
   children: React.ReactNode;
 }) {
-  const loginHref = `/${locale}/customer/access`;
+  const returnTo = `/${locale}/customer?view=sparepart`;
+  const loginHref = `/${locale}/customer/access?next=${encodeURIComponent(returnTo)}`;
 
   const [lines, setLines] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);

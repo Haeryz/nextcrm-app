@@ -3,7 +3,7 @@ import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import dotenv from "dotenv";
 import path from "path";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "../../lib/password-core";
 
 // Load .env.local for test user credentials
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local") });
@@ -26,7 +26,7 @@ async function main() {
     where: { email: testUserEmail },
   });
 
-  const hashedPassword = await bcrypt.hash(testUserPassword, 10);
+  const hashedPassword = await hashPassword(testUserPassword);
 
   if (!existingTestUser) {
     await prisma.users.create({

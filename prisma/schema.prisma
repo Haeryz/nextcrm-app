@@ -64,6 +64,7 @@ model Users {
   lastLoginAt      DateTime?
   name             String?
   password         String?
+  authVersion      Int              @default(0)
   phone            String?
   phoneNormalized  String?          @unique
   username         String?
@@ -73,6 +74,7 @@ model Users {
   tasksComment       tasksComments[]
   crm_accounts_tasks crm_Accounts_Tasks[]
   customerProfile    CatalogCustomer?
+  customerSessions   CustomerSession[]
 
   @@index([email])
   @@index([phoneNormalized])
@@ -83,6 +85,38 @@ model Users {
   @@index([mektekRole])
   @@index([created_on])
   @@index([lastLoginAt])
+}
+
+model CustomerSession {
+  id             String   @id @default(uuid()) @db.Uuid
+  tokenHash      String   @unique @db.Char(64)
+  userId         String   @db.Uuid
+  rememberDevice Boolean  @default(false)
+  userAgent      String?  @db.VarChar(512)
+  ipAddress      String?  @db.VarChar(64)
+  createdAt      DateTime @default(now())
+  lastUsedAt     DateTime @default(now())
+  idleExpiresAt  DateTime
+  expiresAt      DateTime
+  revokedAt      DateTime?
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([idleExpiresAt])
+  @@index([expiresAt])
+  @@index([revokedAt])
+}
+
+model AuthRateLimit {
+  keyHash         String    @id @db.Char(64)
+  attempts        Int       @default(0)
+  windowStartedAt DateTime  @default(now())
+  blockedUntil    DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@index([blockedUntil])
+  @@index([updatedAt])
 }
 
 model crm_Accounts_Tasks {

@@ -2,11 +2,13 @@
 
 import { headers } from "next/headers";
 import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/phone";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/rate-limit";
 import { areExternalApisDisabled } from "@/lib/external-apis";
 import { getWhatsAppState } from "@/lib/whatsapp/client";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { issueOtpCode } from "@/lib/otp";
+import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
+import { hasTrustedMutationOrigin } from "@/lib/trusted-origin";
 
 // OTP requests write a DB row + trigger a WhatsApp send. Throttle hard by both IP
 // and phone so it can't be used to spam a victim's number or flood the table.
@@ -22,6 +24,10 @@ const GENERIC_OK: OtpActionResult = { success: true };
 export async function requestCustomerPhoneOtp(
   rawPhone: string
 ): Promise<OtpActionResult> {
+  if (!(await hasTrustedMutationOrigin())) {
+    return { error: "Request could not be verified" };
+  }
+
   const phone = String(rawPhone ?? "").trim();
   if (!phone || !isValidPhoneNumber(phone)) {
     return { error: "Nomor telepon tidak valid" };
@@ -32,8 +38,12 @@ export async function requestCustomerPhoneOtp(
   }
 
   const ip = getClientIp(await headers());
-  const ipLimit = checkRateLimit(`otp:ip:${ip}`, OTP_IP_LIMIT, OTP_WINDOW_MS);
-  const phoneLimit = checkRateLimit(
+  const ipLimit = await consumeAuthRateLimit(
+    `otp:ip:${ip}`,
+    OTP_IP_LIMIT,
+    OTP_WINDOW_MS,
+  );
+  const phoneLimit = await consumeAuthRateLimit(
     `otp:phone:${phoneNormalized}`,
     OTP_PHONE_LIMIT,
     OTP_WINDOW_MS
