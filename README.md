@@ -30,7 +30,9 @@ The app is built from the NextCRM codebase but is currently scoped to the Mektek
 - Jest for unit tests
 - Playwright for end-to-end tests
 - Midtrans Snap payments
-- WhatsApp Web integration
+- WhatsApp notifications via Baileys (multi-device protocol over a WebSocket, no browser).
+  Runs on serverless; needs `EMAIL_ENCRYPTION_KEY` and Vercel Fluid compute — see
+  [`docs/whatsapp-on-vercel.md`](docs/whatsapp-on-vercel.md)
 
 ## Project Structure
 

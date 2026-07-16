@@ -4,9 +4,12 @@ import { getSessionUser } from "@/lib/auth-guards";
 
 /**
  * WhatsApp pairing exposes the QR that links a device to the business WhatsApp
- * account. The page component is a client component (no server session access),
- * so this server layout enforces the admin-only gate. Non-admin staff see an
- * explanation instead of the pairing UI.
+ * account, so it is admin-only. Non-admin staff see an explanation instead of the
+ * pairing UI.
+ *
+ * This gate is for the UI only — the routes that actually do the work
+ * (/api/whatsapp/pair and /api/whatsapp/logout) re-check admin themselves rather
+ * than trusting that a caller came through this page.
  */
 export default async function MektekWhatsAppLayout({
   children,

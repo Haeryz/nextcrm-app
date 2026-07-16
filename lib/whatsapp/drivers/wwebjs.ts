@@ -1,23 +1,23 @@
+import "server-only";
 import type { Client } from "whatsapp-web.js";
 import qrcode from "qrcode";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { toWhatsAppChatId } from "@/lib/phone";
+import type {
+  WhatsAppSendParams,
+  WhatsAppSendResult,
+  WhatsAppState,
+} from "@/lib/whatsapp/types";
 
-export type WhatsAppSessionStatus =
-  | "disconnected"
-  | "connecting"
-  | "qr"
-  | "ready"
-  | "auth_failure";
-
-export type WhatsAppState = {
-  status: WhatsAppSessionStatus;
-  qrDataUrl?: string;
-  sessionPhone?: string;
-  lastQrAt?: string;
-  lastError?: string;
-};
+// The legacy whatsapp-web.js transport: a real Chromium driven by Puppeteer.
+//
+// LOCAL ONLY. It needs a writable session directory and a process that outlives a
+// request, so it cannot work on serverless — see the guard in ../index.ts. Kept as
+// an escape hatch while the Baileys driver proves itself; the Baileys driver is the
+// default in every environment, including local dev, so this path is opt-in via
+// WHATSAPP_DRIVER=wwebjs.
 
 declare global {
   var whatsappClient: Client | undefined;
@@ -59,7 +59,7 @@ function getClientSessionPhone(client?: Client): string | undefined {
   return undefined;
 }
 
-export function getWhatsAppState(): WhatsAppState {
+export async function getState(): Promise<WhatsAppState> {
   const state = getStateRef();
   if (state.status === "ready" && !state.sessionPhone) {
     const sessionPhone = getClientSessionPhone(globalThis.whatsappClient);
@@ -69,7 +69,7 @@ export function getWhatsAppState(): WhatsAppState {
   return { ...getStateRef() };
 }
 
-export async function getWhatsAppClient(): Promise<Client> {
+export async function getClient(): Promise<Client> {
   if (globalThis.whatsappClient) return globalThis.whatsappClient;
 
   // Import whatsapp-web.js (and, transitively, puppeteer/Chromium) lazily. A
@@ -137,6 +137,64 @@ export async function getWhatsAppClient(): Promise<Client> {
 
   globalThis.whatsappClient = client;
   return client;
+}
+
+export async function send(params: WhatsAppSendParams): Promise<WhatsAppSendResult> {
+  const client = await getClient();
+  const state = await getState();
+  if (state.status !== "ready") {
+    return { ok: false, error: "WhatsApp session is not ready" };
+  }
+
+  const chatId = toWhatsAppChatId(params.to);
+  if (!chatId) {
+    return { ok: false, error: "Invalid WhatsApp destination" };
+  }
+
+  try {
+    await client.sendMessage(chatId, params.message);
+
+    if (params.media?.length) {
+      const { MessageMedia } = await import("whatsapp-web.js");
+      for (const item of params.media) {
+        const media = new MessageMedia(
+          item.mimeType,
+          item.data.toString("base64"),
+          item.filename
+        );
+        await client.sendMessage(chatId, media, {
+          caption: item.caption,
+          sendMediaAsDocument: true,
+        });
+      }
+    }
+
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+export async function logout(): Promise<void> {
+  const client = globalThis.whatsappClient;
+  if (!client) return;
+
+  try {
+    await client.logout();
+  } finally {
+    await client.destroy().catch(() => {});
+    globalThis.whatsappClient = undefined;
+    globalThis.whatsappState = { ...defaultState };
+  }
+}
+
+/** Streams the QR this driver has already produced. Unlike Baileys, whatsapp-web.js
+ *  owns its own session lifecycle, so pairing here is just observing global state. */
+export async function startPairing(): Promise<void> {
+  await getClient();
 }
 
 function findPuppeteerChrome(): string | undefined {

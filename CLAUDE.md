@@ -94,7 +94,9 @@ Exposed at `/api/mcp/[transport]` (supports `sse` and `http`). Implemented with 
 
 - **Embeddings**: OpenAI `text-embedding-3-small` via Inngest jobs; stored in pgvector with HNSW indexes
 - **Enrichment agent**: Claude Sonnet 4.6 in an E2B cloud sandbox with real Chrome browser
-- **API key priority**: ENV variable → admin panel (`/admin/llm-keys`) → user profile. Keys encrypted with AES-256-GCM; `EMAIL_ENCRYPTION_KEY` (64-char hex) is required in env
+- **API key priority**: ENV variable → user profile
+
+> ⚠️ Much of this section is inherited from upstream NextCRM and does not match this Mektek fork. There is no `/admin/llm-keys` route, and no LLM key is encrypted anywhere — verify against the code before relying on it. `EMAIL_ENCRYPTION_KEY` (64-char hex) is real and required, but its only consumer is `lib/crypto/secret-box.ts`, which encrypts the **WhatsApp session** (see WhatsApp Integration below).
 
 ### UI
 
@@ -122,9 +124,31 @@ A custom vertical built on top of CRM Accounts for auto-service management. Serv
 
 ### WhatsApp Integration
 
-Mektek sends customer notifications over WhatsApp via **whatsapp-web.js** (a headless Puppeteer Chrome session, not an API). Core logic is in `lib/whatsapp/` (`client.ts` manages the global session/QR state; `index.ts` exposes `sendWhatsAppMessage`). The session is authenticated by scanning a QR code from `app/[locale]/(routes)/mektek/whatsapp/`, with status at `app/api/whatsapp/status/`. Phone numbers are normalized to Indonesian format (leading `0` → `62`). Sending is short-circuited when `areExternalApisDisabled()` is true or the session status is not `ready`.
+> 📄 **Full doc: [`docs/whatsapp-on-vercel.md`](docs/whatsapp-on-vercel.md)** — architecture, **what is and isn't actually verified**, known risks, prerequisites, and troubleshooting. Read it before debugging this or trusting it in production.
+>
+> ⚠️ **Status: the post-scan path is unproven.** Pairing produces a real QR (verified against WhatsApp's live servers), but nothing past the scan — credentials persisting, the 515 reconnect, an actual send, media — has ever been executed, because it needs a physical phone. Treat the first real scan on the deployed URL as a go/no-go gate.
 
-The Chrome binary is installed automatically by `scripts/ensure-whatsapp-browser.js` (run on `postinstall` and before `pnpm dev`). Skip/override with `NEXTCRM_SKIP_WHATSAPP_BROWSER_INSTALL=true`, `PUPPETEER_SKIP_DOWNLOAD=true`, or `WHATSAPP_CHROME_PATH`/`PUPPETEER_EXECUTABLE_PATH`.
+Mektek sends customer notifications over WhatsApp via **baileys** — WhatsApp's multi-device protocol spoken directly over a WebSocket, with **no browser**. `lib/whatsapp/index.ts` is the public surface (`sendWhatsAppMessage`, `getWhatsAppState`, `logoutWhatsApp`); it delegates to a driver in `lib/whatsapp/drivers/`. Phone numbers are normalized to Indonesian format (leading `0` → `62`); note Baileys addresses users as `<digits>@s.whatsapp.net` (`toWhatsAppJid`), **not** whatsapp-web.js's `@c.us` (`toWhatsAppChatId`) — the two are not interchangeable. Sending is short-circuited when `areExternalApisDisabled()` is true or no session is linked.
+
+**Why it is built this way.** Serverless has no persistent process, no writable disk, and no shared memory between instances, so a long-lived session is impossible. Instead:
+
+- **The session lives in Postgres**, not on disk (`lib/whatsapp/auth-state.ts`): `WhatsAppSession` holds the credentials, `WhatsAppSignalKey` the Signal key material. Both are encrypted at rest with AES-256-GCM (`lib/crypto/secret-box.ts`) under `EMAIL_ENCRYPTION_KEY` — the credentials are full send-as-the-business access. This is why a session now survives a redeploy.
+- **Pairing is a single held-open request**, not a poll (`app/api/whatsapp/pair/route.ts`, SSE, `maxDuration = 300`). The socket that shows the QR must still be alive when it is scanned, so it lives for exactly as long as that one streaming response. Expect a `restartRequired` (515) close immediately after a successful scan — that is normal, and the route reconnects once with the newly issued credentials.
+- **Sending connects, sends, and disconnects** per invocation (~3–8s). Sockets are deliberately **not** kept warm: WhatsApp allows one connection per linked device, so two instances on the same credentials would kick each other off (`440 connectionReplaced`). `lib/whatsapp/lease.ts` enforces one-at-a-time with a compare-and-swap lease row — **not** `pg_advisory_lock`, which is session-scoped and unreliable through Neon's PgBouncer pooler.
+- `GET /api/whatsapp/status` is **read-only** and must stay that way; starting a session is an explicit admin action (`/api/whatsapp/pair`, `/api/whatsapp/logout`, both admin-gated).
+
+**Local dev uses Baileys too**, so dev matches production. The legacy whatsapp-web.js + Puppeteer path is still available via `WHATSAPP_DRIVER=wwebjs` (`lib/whatsapp/drivers/wwebjs.ts`) for local debugging only — it is refused when `VERCEL=1`. Its Chrome binary is installed by `scripts/ensure-whatsapp-browser.js` (`postinstall`, and before `pnpm dev`); skip/override with `NEXTCRM_SKIP_WHATSAPP_BROWSER_INSTALL=true`, `PUPPETEER_SKIP_DOWNLOAD=true`, or `WHATSAPP_CHROME_PATH`/`PUPPETEER_EXECUTABLE_PATH`.
+
+Vercel notes: **Fluid compute must be enabled** (it is what allows the 300s pairing window, on Hobby too), and `EMAIL_ENCRYPTION_KEY` must be set or pairing fails closed. `baileys` and `protobufjs` are in `serverExternalPackages` — Baileys inlines its Rust bridge as base64 WASM, and bundling it is at best pointless.
+
+**Constraints to respect when changing this** (each is load-bearing; see the full doc for why):
+
+- Never keep a socket warm across invocations, and never bypass the lease — two connections on the same credentials get one kicked off (440).
+- Never treat a `515` close after a scan as an error; it is the expected hand-off to a reconnect.
+- Never let `GET /api/whatsapp/status` start a session again.
+- Never use `pg_advisory_lock` for the lease (Neon's pooler breaks it), and never `JSON.stringify` Baileys credentials without `BufferJSON`.
+- Baileys defaults are hostile here and are overridden on purpose: `syncFullHistory` would download the entire chat history **on every send**, and `markOnlineOnConnect` would suppress notifications on the owner's real phone.
+- Baileys is unofficial and `7.0.0-rc13` is a release candidate; using it risks the number being banned. This is outbound-only — **inbound messages are impossible in this architecture** and would force a persistent host.
 
 **Customer phone verification (WhatsApp OTP)**: customer self-registration (`registerCustomerUser`) and claiming a walk-in customer record (`claimMektekCustomerByPhone`) require a one-time code sent over WhatsApp. Core logic is in `lib/otp.ts` (`issueOtpCode`/`verifyOtpCode`, single-use, 5-min TTL, ≤5 attempts, hash-only storage) with the request action in `actions/auth/phone-otp.ts`. It **fails closed in production**: if `areExternalApisDisabled()` or the WhatsApp session isn't `ready`, registration is unavailable (so the production WhatsApp session must be paired). In dev/prototype the code is logged to the server console instead, so the local flow stays testable. The `CustomerPhoneVerification` model requires a migration — run `pnpm prisma migrate deploy` on every environment (incl. Neon) after pulling.
 
@@ -143,10 +167,14 @@ cp .env.local.example .env.local
 Minimum required for local dev with no-auth mode (no external services):
 - `DATABASE_URL` — PostgreSQL 17+ with pgvector extension
 - `NEXTCRM_DISABLE_AUTH=true` (already set in `.env.example`)
-- `EMAIL_ENCRYPTION_KEY` — 64-char hex, required for API key encryption (`openssl rand -hex 32`)
+- `EMAIL_ENCRYPTION_KEY` — 64-char hex (`openssl rand -hex 32`). Encrypts the stored WhatsApp
+  session; without it, WhatsApp pairing fails closed. Rotating it forces a re-scan of the QR.
 
 Required in every **deployed** environment:
 - `NEXTCRM_DISABLE_AUTH=false` — see the Authentication warning above.
+- `EMAIL_ENCRYPTION_KEY` — as above. It is **not** optional in production if WhatsApp is used.
+  Also enable **Fluid compute** on the Vercel project: QR pairing holds one request open for up
+  to 300s, which is what Fluid allows (on Hobby too).
 - `NEXT_PUBLIC_APP_URL` — the public origin (e.g. `https://mektek-bice.vercel.app`). Customer
   tracking links (sent over WhatsApp) and the password-reset link are built from this trusted
   config. `actions/mektek/service-orders.ts` `buildAppUrl` and `actions/auth/password-reset.ts`

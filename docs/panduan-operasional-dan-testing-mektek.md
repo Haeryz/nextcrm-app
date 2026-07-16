@@ -76,7 +76,15 @@ Sebelum testing dilakukan, pastikan kondisi berikut sudah terpenuhi:
 4. Minimal satu item katalog tersedia untuk testing pencarian sparepart.
 5. Nomor telepon testing menggunakan format yang konsisten, misalnya `+628123456789`.
 6. Browser testing menggunakan mode normal atau incognito sesuai kebutuhan.
-7. Jika menguji WhatsApp, pastikan backend WhatsApp dan session WhatsApp sudah dikonfigurasi.
+7. Jika menguji WhatsApp:
+   - `EMAIL_ENCRYPTION_KEY` sudah diisi (64 karakter hex, `openssl rand -hex 32`). Tanpa ini
+     pairing WhatsApp gagal total — sesi tidak bisa disimpan.
+   - Sesi WhatsApp sudah dipasangkan lewat QR di `/en/mektek/whatsapp` (lihat bagian 5.14).
+   - Khusus produksi (Vercel): **Fluid compute** harus aktif, jika tidak pairing tidak akan jalan.
+   - Notifikasi WhatsApp (order baru, order selesai, OTP login customer) hanya terkirim jika
+     sesi berstatus **Terhubung**. Jika belum, fitur tersebut gagal secara sengaja
+     (fail closed), bukan bug.
+   - Detail teknis dan troubleshooting: `docs/whatsapp-on-vercel.md`.
 
 Command teknis yang tersedia untuk verifikasi developer:
 
@@ -355,7 +363,9 @@ Hasil yang diharapkan:
 - Item baru dapat dicari oleh customer di halaman katalog.
 - Item dapat dipakai pada service intake sebagai sparepart.
 
-### 5.14 Mengelola Halaman WhatsApp
+### 5.14 Mengelola Halaman WhatsApp (Pairing QR)
+
+Halaman ini hanya bisa diakses **admin**.
 
 1. Buka halaman `/en/mektek/whatsapp`.
 2. Periksa **Status Sesi**:
@@ -364,18 +374,36 @@ Hasil yang diharapkan:
    - Scan QR
    - Auth gagal
    - Terhubung
-3. Jika QR code muncul, scan menggunakan WhatsApp pada ponsel pengirim.
-4. Klik **Refresh Status** untuk memperbarui status.
-5. Periksa bagian **Template Pesan**:
+3. Klik tombol **Hubungkan WhatsApp**. QR code **tidak muncul dengan sendirinya** — QR hanya
+   dibuat saat tombol ini ditekan.
+4. Di ponsel pengirim: buka WhatsApp → **Perangkat Tertaut** → **Tautkan Perangkat** → scan QR
+   yang tampil di layar.
+5. **Biarkan halaman ini tetap terbuka sampai status berubah menjadi Terhubung.** Menutup tab
+   atau menekan **Batalkan Pairing** akan membatalkan proses, dan pairing harus diulang dari
+   langkah 3.
+6. Setelah terhubung, nomor pengirim muncul otomatis pada **Akun WhatsApp Pengirim**.
+7. Tombol **Putuskan Sesi (Logout)** memutus tautan perangkat dari WhatsApp dan menghapus sesi
+   tersimpan. Setelah logout, notifikasi WhatsApp berhenti sampai QR discan ulang.
+8. Periksa bagian **Template Pesan**:
    - Order Baru
    - Update Status
    - Servis Selesai
-6. Ubah isi template jika perlu untuk testing tampilan.
+9. Ubah isi template jika perlu untuk testing tampilan.
 
-Catatan:
+Catatan penting:
 
-- Tombol **Simpan Template (Backend Pending)** dalam kondisi disabled.
-- Fitur simpan template backend belum aktif pada halaman ini.
+- **QR hanya berlaku selama halaman terbuka.** Server menahan koneksi WhatsApp selama proses
+  pairing berlangsung, maksimal 5 menit. Jika habis waktu, klik **Hubungkan WhatsApp** lagi.
+- **Sesi bertahan setelah deploy ulang.** Sesi tersimpan terenkripsi di database, jadi QR tidak
+  perlu discan ulang setiap kali aplikasi diperbarui.
+- **Hanya satu koneksi dalam satu waktu.** Jika muncul pesan "WhatsApp sedang sibuk", ada
+  pengiriman pesan yang sedang berjalan — tunggu sebentar lalu coba lagi. Sebaliknya, selama
+  pairing berlangsung, pengiriman notifikasi akan gagal sementara.
+- Pengiriman notifikasi butuh sekitar 3–8 detik per pesan karena koneksi dibuat saat itu juga.
+- Tombol **Simpan Template (Backend Pending)** masih disabled — fitur simpan template belum aktif.
+  Template yang benar-benar dipakai ada di `actions/mektek/whatsapp-notifications.ts`.
+- Di produksi, `EMAIL_ENCRYPTION_KEY` wajib diisi dan **Fluid compute** wajib aktif di Vercel.
+  Tanpa itu pairing tidak akan jalan. Detail teknis: `docs/whatsapp-on-vercel.md`.
 
 ---
 

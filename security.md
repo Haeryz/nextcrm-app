@@ -74,6 +74,20 @@ detail.
 the QR). Never return `qrDataUrl` to non-admins. The pairing page already lives under the
 guarded `(routes)` tree — the API route does not inherit that guard, so it needs its own.
 
+**Update 2026-07-15 — mechanism changed, finding still closed.** The WhatsApp transport moved to
+Baileys (`docs/whatsapp-on-vercel.md`), so the description above no longer matches the code:
+`getWhatsAppClient()` is gone, and `/api/whatsapp/status` is now **read-only** — it cannot start a
+session and never carries a QR. The QR moved to `app/api/whatsapp/pair/route.ts`, which is
+**admin-only** and re-checks admin itself rather than trusting the page guard; `/api/whatsapp/logout`
+is likewise admin-only and POST (so it can't be triggered by a prefetch or an `<img>` tag). Status
+remains staff-gated and still strips `lastError` for non-admins.
+
+Newly relevant to this finding: the paired credentials are now stored in Postgres
+(`WhatsAppSession.credsCipher`) rather than a Chromium profile on disk. They grant full
+send-as-the-business access, so they are encrypted at rest with AES-256-GCM (`lib/crypto/secret-box.ts`)
+under `EMAIL_ENCRYPTION_KEY` — a database dump alone does not yield a usable session. Signal key
+material in `WhatsAppSignalKey` is encrypted the same way.
+
 ---
 
 ## P1 — High

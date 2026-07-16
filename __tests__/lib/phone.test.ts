@@ -3,6 +3,7 @@ import {
   normalizePhoneNumber,
   phoneDigits,
   toWhatsAppChatId,
+  toWhatsAppJid,
 } from "@/lib/phone";
 
 describe("normalizePhoneNumber", () => {
@@ -49,5 +50,29 @@ describe("toWhatsAppChatId", () => {
 
   it("returns null for empty input", () => {
     expect(toWhatsAppChatId("")).toBeNull();
+  });
+});
+
+describe("toWhatsAppJid", () => {
+  it("derives the multi-device jid from the same canonical value the app stores", () => {
+    expect(toWhatsAppJid("0812-3456-7890")).toBe("6281234567890@s.whatsapp.net");
+    expect(toWhatsAppJid("+62 812 3456 7890")).toBe("6281234567890@s.whatsapp.net");
+    // Matches phoneDigits(normalizePhoneNumber(...)) exactly.
+    expect(toWhatsAppJid("081234567890")).toBe(
+      `${phoneDigits(normalizePhoneNumber("081234567890"))}@s.whatsapp.net`
+    );
+  });
+
+  it("returns null for empty input", () => {
+    expect(toWhatsAppJid("")).toBeNull();
+  });
+
+  it("does not produce the legacy @c.us suffix", () => {
+    // The two suffixes are not interchangeable: sending to a @c.us address over the
+    // multi-device protocol silently fails to deliver, so this guards against the
+    // drivers being wired to the wrong helper.
+    const jid = toWhatsAppJid("081234567890");
+    expect(jid).not.toContain("@c.us");
+    expect(jid).not.toBe(toWhatsAppChatId("081234567890"));
   });
 });

@@ -8,7 +8,7 @@ import "server-only";
 import { buildMektekInvoiceData, renderMektekInvoicePdf, renderMektekReceiptPdf } from "@/actions/mektek/invoice-pdf";
 import { areExternalApisDisabled } from "@/lib/external-apis";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
-import { getWhatsAppState } from "@/lib/whatsapp/client";
+import { getWhatsAppState } from "@/lib/whatsapp";
 
 type ServiceOrderSummary = {
   id: string;
@@ -72,7 +72,7 @@ export async function notifyMektekOrderCreated(params: {
   const context = buildContext(params.order);
   if (!context.phone) return { ok: false, error: "No phone" };
   if (areExternalApisDisabled()) return { ok: false, error: "External APIs are disabled" };
-  if (getWhatsAppState().status !== "ready") {
+  if ((await getWhatsAppState()).status !== "ready") {
     return { ok: false, error: "WhatsApp session is not ready" };
   }
 
@@ -96,7 +96,7 @@ export async function notifyMektekOrderCompleted(params: {
   const context = buildContext(params.order);
   if (!context.phone) return { ok: false, error: "No phone" };
   if (areExternalApisDisabled()) return { ok: false, error: "External APIs are disabled" };
-  if (getWhatsAppState().status !== "ready") {
+  if ((await getWhatsAppState()).status !== "ready") {
     return { ok: false, error: "WhatsApp session is not ready" };
   }
 

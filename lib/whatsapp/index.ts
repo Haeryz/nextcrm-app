@@ -1,65 +1,88 @@
+import "server-only";
 import { areExternalApisDisabled } from "@/lib/external-apis";
-import { getWhatsAppClient, getWhatsAppState } from "@/lib/whatsapp/client";
-import { toWhatsAppChatId } from "@/lib/phone";
+import type {
+  WhatsAppMedia,
+  WhatsAppSendParams,
+  WhatsAppSendResult,
+  WhatsAppState,
+} from "@/lib/whatsapp/types";
 
-export type WhatsAppMedia = {
-  mimeType: string;
-  filename: string;
-  data: Buffer;
-  caption?: string;
-};
+export type { WhatsAppMedia, WhatsAppSendResult, WhatsAppState };
 
-export type WhatsAppSendResult =
-  | { ok: true }
-  | { ok: false; error: string };
+// Public surface of the WhatsApp integration. Callers never learn which transport
+// is active — they get the same two functions regardless.
 
-// Chat id is derived from the same canonical E.164 normalizer the rest of the
-// app uses, so WhatsApp always messages the exact number we stored.
-const buildChatId = toWhatsAppChatId;
+export type WhatsAppDriverName = "baileys" | "wwebjs";
 
-export async function sendWhatsAppMessage(params: {
-  to: string;
-  message: string;
-  media?: WhatsAppMedia[];
-}): Promise<WhatsAppSendResult> {
+/**
+ * Baileys is the default everywhere, including local dev, so what you test is what
+ * production runs. whatsapp-web.js remains available for local debugging but is
+ * refused on Vercel, where its Chromium cannot work — better a clear error at the
+ * call site than a mystifying crash inside Puppeteer.
+ */
+export function getWhatsAppDriverName(): WhatsAppDriverName {
+  const requested = process.env.WHATSAPP_DRIVER?.trim().toLowerCase();
+  if (requested === "wwebjs") {
+    if (process.env.VERCEL) {
+      throw new Error(
+        "WHATSAPP_DRIVER=wwebjs cannot run on Vercel (it needs a persistent Chromium). " +
+          "Unset it to use the default `baileys` driver."
+      );
+    }
+    return "wwebjs";
+  }
+  return "baileys";
+}
+
+async function getDriver() {
+  return getWhatsAppDriverName() === "wwebjs"
+    ? import("@/lib/whatsapp/drivers/wwebjs")
+    : import("@/lib/whatsapp/drivers/baileys");
+}
+
+/**
+ * Current session state.
+ *
+ * Async because the Baileys driver reads it from Postgres — under serverless there
+ * is no in-process session to inspect, and the database is the only thing that
+ * outlives a request.
+ */
+export async function getWhatsAppState(): Promise<WhatsAppState> {
+  if (areExternalApisDisabled()) {
+    return { status: "disconnected", lastError: "External APIs are disabled" };
+  }
+
+  try {
+    const driver = await getDriver();
+    return await driver.getState();
+  } catch (error) {
+    return {
+      status: "auth_failure",
+      lastError: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+export async function sendWhatsAppMessage(
+  params: WhatsAppSendParams
+): Promise<WhatsAppSendResult> {
   if (areExternalApisDisabled()) {
     return { ok: false, error: "External APIs are disabled" };
   }
 
-  const client = await getWhatsAppClient();
-  const state = getWhatsAppState();
-  if (state.status !== "ready") {
-    return { ok: false, error: "WhatsApp session is not ready" };
-  }
-
-  const chatId = buildChatId(params.to);
-  if (!chatId) {
-    return { ok: false, error: "Invalid WhatsApp destination" };
-  }
-
   try {
-    await client.sendMessage(chatId, params.message);
-
-    if (params.media?.length) {
-      const { MessageMedia } = await import("whatsapp-web.js");
-      for (const item of params.media) {
-        const media = new MessageMedia(
-          item.mimeType,
-          item.data.toString("base64"),
-          item.filename
-        );
-        await client.sendMessage(chatId, media, {
-          caption: item.caption,
-          sendMediaAsDocument: true,
-        });
-      }
-    }
-
-    return { ok: true };
+    const driver = await getDriver();
+    return await driver.send(params);
   } catch (error) {
     return {
       ok: false,
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+/** Unlinks the device and clears stored credentials. */
+export async function logoutWhatsApp(): Promise<void> {
+  const driver = await getDriver();
+  await driver.logout();
 }

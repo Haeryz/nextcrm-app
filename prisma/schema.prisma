@@ -305,3 +305,55 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
 }
+
+// The paired WhatsApp (Baileys) session. This lives in Postgres rather than on
+// disk because serverless instances share no filesystem and keep nothing between
+// invocations — the DB is the only thing that survives, so it is the source of
+// truth for both "are we linked?" and the credentials themselves.
+//
+// Exactly one row, `slug = "default"`. `credsCipher` is AES-256-GCM(BufferJSON(creds))
+// — it grants full send-as-the-business access, so it is never stored in the clear.
+//
+// lockOwner/lockedUntil are a compare-and-swap lease, not decoration: two sockets
+// on the same credentials make WhatsApp kick one off with 440 connectionReplaced,
+// so only one invocation may hold a connection at a time. The lease expires on its
+// own so a crashed invocation cannot deadlock sending forever.
+model WhatsAppSession {
+  id           String    @id @default(uuid()) @db.Uuid
+  slug         String    @unique
+  credsCipher  String?
+  status       String    @default("not_linked")
+  sessionPhone String?
+  lastError    String?
+  lastQrAt     DateTime?
+  linkedAt     DateTime?
+  lockOwner    String?
+  lockedUntil  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  signalKeys WhatsAppSignalKey[]
+
+  @@index([lockedUntil])
+}
+
+// Signal-protocol key material for the session above (pre-keys, sessions, sender
+// keys, app-state sync keys). Baileys reads and writes these constantly, so they
+// are separate rows rather than one blob: a send touches a handful of keys, and
+// rewriting the whole keyspace each time would be both slow and a lost-update race.
+//
+// Cascades with the session — orphaned key rows would silently corrupt a later
+// re-pair.
+model WhatsAppSignalKey {
+  id        String   @id @default(uuid()) @db.Uuid
+  sessionId String   @db.Uuid
+  type      String
+  keyId     String
+  valCipher String
+  updatedAt DateTime @updatedAt
+
+  session WhatsAppSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, type, keyId])
+  @@index([sessionId, type])
+}

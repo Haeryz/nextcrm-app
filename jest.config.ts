@@ -7,6 +7,7 @@ const config: Config = {
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
     "^e2b$": "<rootDir>/__mocks__/e2b.ts",
+    "^server-only$": "<rootDir>/__mocks__/server-only.ts",
   },
   testMatch: ["**/__tests__/**/*.test.ts", "**/__tests__/**/*.test.tsx"],
   transform: {

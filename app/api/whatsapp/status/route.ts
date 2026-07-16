@@ -1,22 +1,24 @@
-import { getWhatsAppClient, getWhatsAppState } from "@/lib/whatsapp/client";
+import { getWhatsAppState } from "@/lib/whatsapp";
 import { requireMektekStaffApiSession } from "@/lib/api-gates";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  // This endpoint triggers client init and exposes the pairing QR, which links a
-  // device to the business WhatsApp. It must never be reachable anonymously.
+  // Staff-only: it reveals whether the business WhatsApp is linked and which number
+  // is behind it.
   const access = await requireMektekStaffApiSession();
   if (access.response) return access.response;
   const { session } = access;
 
-  await getWhatsAppClient();
-  const state = getWhatsAppState();
+  // Read-only. This used to call getWhatsAppClient(), so a plain GET started a
+  // session as a side effect — which on serverless would mean a connection per
+  // instance, all fighting over the same credentials. Starting a session is now an
+  // explicit, admin-only action: GET /api/whatsapp/pair.
+  const state = await getWhatsAppState();
 
-  // Only admins may see/scan the pairing QR. Strip it (and error detail) for
-  // non-admin staff so they can still see connection status without being able
-  // to hijack the session.
+  // lastError can carry configuration detail (env var names, database errors), so
+  // only admins — who are the ones who can act on it — see the full state.
   const isAdmin = !!session.user.isAdmin;
   const payload = isAdmin
     ? state

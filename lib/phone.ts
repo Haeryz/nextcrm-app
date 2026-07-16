@@ -51,11 +51,26 @@ export function phoneDigits(normalizedPhone: string): string {
 /**
  * WhatsApp chat id derived from the same canonical E.164 value the rest of the
  * app stores, so the number we message always matches the number we saved.
+ *
+ * This is the whatsapp-web.js (`@c.us`) form. For the Baileys driver use
+ * `toWhatsAppJid` — the two libraries address the same user differently.
  */
 export function toWhatsAppChatId(phone: string): string | null {
   const digits = phoneDigits(normalizePhoneNumber(phone));
   if (!digits) return null;
   return `${digits}@c.us`;
+}
+
+/**
+ * WhatsApp JID in the multi-device (Baileys) form: `<digits>@s.whatsapp.net`.
+ *
+ * whatsapp-web.js's legacy `@c.us` suffix is not interchangeable with this one —
+ * sending to `@c.us` over the multi-device protocol silently fails to deliver.
+ */
+export function toWhatsAppJid(phone: string): string | null {
+  const digits = phoneDigits(normalizePhoneNumber(phone));
+  if (!digits) return null;
+  return `${digits}@s.whatsapp.net`;
 }
 
 export function buildPhoneAccountEmail(normalizedPhone: string): string {

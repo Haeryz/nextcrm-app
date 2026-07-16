@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/phone";
 import { getClientIp } from "@/lib/rate-limit";
 import { areExternalApisDisabled } from "@/lib/external-apis";
-import { getWhatsAppState } from "@/lib/whatsapp/client";
+import { getWhatsAppState } from "@/lib/whatsapp";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { issueOtpCode } from "@/lib/otp";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
@@ -61,7 +61,7 @@ export async function requestCustomerPhoneOtp(
   // production (never skip verification). In dev/prototype we log the code so the
   // local flow stays testable without a paired WhatsApp session.
   const whatsappAvailable =
-    !areExternalApisDisabled() && getWhatsAppState().status === "ready";
+    !areExternalApisDisabled() && (await getWhatsAppState()).status === "ready";
 
   if (!whatsappAvailable) {
     if (process.env.NODE_ENV !== "production") {

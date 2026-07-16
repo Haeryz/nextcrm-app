@@ -2,6 +2,63 @@
 
 This file documents the current auth, admin/customer, MekTek, and routing changes made in this worktree.
 
+## WhatsApp transport moved to Baileys so QR pairing works on Vercel (2026-07-15)
+
+Full detail: **[`docs/whatsapp-on-vercel.md`](docs/whatsapp-on-vercel.md)**.
+
+WhatsApp notifications were dead in production. `whatsapp-web.js` drives a real Chromium and
+holds a long-lived session, which serverless cannot provide (no persistent process, read-only
+disk, no shared memory between instances). Constraints ruled out both the official Cloud API and
+a separate VM.
+
+Fix: swap the transport to **`baileys@7.0.0-rc13`** (WhatsApp's multi-device protocol over a plain
+WebSocket, **no browser**) and stop holding a connection at all — connect, work, disconnect, all
+inside one invocation, with the session in Postgres in between. Pairing streams the QR out of a
+single held-open SSE request (`maxDuration = 300`, allowed by Vercel Fluid compute).
+
+- Session lives in `WhatsAppSession` / `WhatsAppSignalKey`, encrypted at rest (AES-256-GCM) — so
+  it now **survives a redeploy**.
+- One socket at a time via a compare-and-swap lease row (**not** `pg_advisory_lock` — Neon's
+  PgBouncer breaks session-scoped locks). Verified: 8 concurrent acquirers against real Neon → 1 winner.
+- `GET /api/whatsapp/status` is now read-only; it used to start a session as a side effect.
+- Added a working **Logout**; there was previously no way to reset a session.
+- Baileys is the default in **all** environments, so dev matches prod. `whatsapp-web.js` remains
+  as `WHATSAPP_DRIVER=wwebjs`, local-only, refused when `VERCEL=1`.
+
+> ⚠️ **Unproven:** pairing emits a real QR (verified against WhatsApp's live servers), but nothing
+> **past the scan** has been executed — credential persistence, the 515 reconnect, an actual send,
+> media — because it needs a physical phone. See the doc's *Verification status*.
+
+**Requires before it works in production:** enable **Fluid compute** on Vercel, set
+**`EMAIL_ENCRYPTION_KEY`** (empty in `.env.production.example` and unread by any code until now,
+so almost certainly unset), then `pnpm prisma migrate deploy`.
+
+Also corrected: CLAUDE.md claimed an AES-256-GCM helper and an `/admin/llm-keys` panel that never
+existed in this fork (stale upstream docs).
+
+### Changed files (WhatsApp)
+
+| File | What changed |
+| --- | --- |
+| `lib/whatsapp/index.ts` | Public surface unchanged in shape; now picks a driver. `getWhatsAppState()` is **async** (DB-backed). |
+| `lib/whatsapp/client.ts` → `lib/whatsapp/drivers/wwebjs.ts` | Old Chromium transport moved behind the driver interface; local-only. |
+| `lib/whatsapp/drivers/baileys.ts` | New default transport: connect-per-send, ack-before-close, 515/401 handling, pairing runner. |
+| `lib/whatsapp/auth-state.ts` | Baileys `AuthenticationState` over Prisma; BufferJSON + encryption; throws loudly if a write is swallowed by the mock Prisma client. |
+| `lib/whatsapp/lease.ts` | Compare-and-swap single-socket mutex with TTL takeover. |
+| `lib/whatsapp/types.ts` | Shared types, so routes don't pull a transport into their graph. |
+| `lib/crypto/secret-box.ts` | **New.** AES-256-GCM encrypt/decrypt on `EMAIL_ENCRYPTION_KEY`. Did not previously exist despite CLAUDE.md saying so. |
+| `lib/phone.ts` | Added `toWhatsAppJid` (`@s.whatsapp.net`). Not interchangeable with `toWhatsAppChatId` (`@c.us`). |
+| `app/api/whatsapp/pair/route.ts` | **New.** Admin-only SSE pairing stream. |
+| `app/api/whatsapp/logout/route.ts` | **New.** Admin-only POST; unlinks the device and clears the session. |
+| `app/api/whatsapp/status/route.ts` | No longer starts a session; reads the DB row. |
+| `app/[locale]/(routes)/mektek/whatsapp/page.tsx` | Now a server component; reads state on the way in. |
+| `app/[locale]/(routes)/mektek/whatsapp/_components/WhatsAppPairingPanel.tsx` | **New.** EventSource pairing + real Logout, replacing the 5s poll and the reload-only "Refresh". |
+| `actions/auth/phone-otp.ts`, `actions/mektek/whatsapp-notifications.ts` | `await getWhatsAppState()`. |
+| `prisma/schema.prisma`, `prisma/migrations/20260715120000_whatsapp_session/` | New tables; migration seeds the singleton row (the lease CAS needs it to exist). |
+| `next.config.js` | `baileys` + `protobufjs` added to `serverExternalPackages`. |
+| `jest.config.ts`, `__mocks__/server-only.ts` | Map `server-only` to a no-op so server libs can be unit-tested. |
+| `__tests__/lib/{secret-box,whatsapp-lease,whatsapp-auth-state}.test.ts` | **New.** 110 tests / 26 suites green. |
+
 ## Summary
 
 - Authentication is now credentials-only. Google and GitHub login buttons and NextAuth providers were removed.

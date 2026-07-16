@@ -10,12 +10,23 @@ const nextConfig = {
 
   output: "standalone",
 
+  // `baileys` ships a 2MB bundle with its Rust bridge inlined as base64 WASM, and
+  // pulls in protobufjs (which resolves modules dynamically). Bundling either one
+  // is pointless work at best and breaks the WASM/proto loading at worst, so leave
+  // both to Node's own resolver.
+  //
   // whatsapp-web.js drives a real Chromium via puppeteer. Keep it (and puppeteer)
   // out of the bundler so it is never traced/bundled into serverless routes — it
   // only runs on a long-lived server with Chrome, and bundling Chromium crashes
   // Vercel functions. Combined with the lazy `import()` in lib/whatsapp/*, routes
   // that merely reference the module no longer pull the browser in at cold start.
-  serverExternalPackages: ["whatsapp-web.js", "puppeteer", "puppeteer-core"],
+  serverExternalPackages: [
+    "baileys",
+    "protobufjs",
+    "whatsapp-web.js",
+    "puppeteer",
+    "puppeteer-core",
+  ],
 
   // Don't advertise the framework (removes the X-Powered-By: Next.js header).
   poweredByHeader: false,
