@@ -7,6 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { QrCode, Smartphone, MessageSquare, CheckCircle2, AlertCircle } from "lucide-react";
+import {
+  openWhatsAppPairingStream,
+  type PairingEventSource,
+} from "@/lib/whatsapp/pairing-stream";
 
 const DEFAULT_TEMPLATES = [
   {
@@ -93,7 +97,7 @@ export default function WhatsAppPairingPanel({
   // Held so the stream can be torn down explicitly: the server keeps a live
   // WhatsApp socket open for as long as this connection lasts, so an abandoned
   // stream would keep the send lease held.
-  const pairingStreamRef = useRef<EventSource | null>(null);
+  const pairingStreamRef = useRef<PairingEventSource | null>(null);
 
   const updateTemplate = (id: string, body: string) => {
     setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, body } : t)));
@@ -101,7 +105,10 @@ export default function WhatsAppPairingPanel({
 
   const refreshStatus = useCallback(async () => {
     try {
-      const response = await fetch("/api/whatsapp/status", { cache: "no-store" });
+      const response = await fetch("/api/whatsapp/status", {
+        cache: "no-store",
+        credentials: "include",
+      });
       if (!response.ok) return;
       const data = await response.json();
 
@@ -125,7 +132,7 @@ export default function WhatsAppPairingPanel({
   // WhatsApp socket is open, and that socket lives exactly as long as this request
   // — so closing this connection ends the pairing attempt, and holding it open is
   // what makes pairing possible on serverless at all.
-  const startPairing = useCallback(() => {
+  const startPairing = useCallback(async () => {
     if (pairingStreamRef.current) return;
 
     setIsPairing(true);
@@ -133,57 +140,70 @@ export default function WhatsAppPairingPanel({
     setQrDataUrl(null);
     setSessionStatus("connecting");
 
-    const source = new EventSource("/api/whatsapp/pair");
-    pairingStreamRef.current = source;
+    try {
+      // A normal fetch gives us the HTTP status and configuration detail that
+      // EventSource hides. It also verifies the browser is sending the admin cookie
+      // before we allocate a live WhatsApp socket on the server.
+      const preflight = await fetch("/api/whatsapp/status", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const state = await preflight.json().catch(() => ({}));
 
-    source.addEventListener("qr", (event) => {
-      const { qrDataUrl: dataUrl } = JSON.parse((event as MessageEvent).data);
-      setQrDataUrl(dataUrl);
-      setSessionStatus("qr");
-    });
-
-    source.addEventListener("linked", (event) => {
-      const { sessionPhone } = JSON.parse((event as MessageEvent).data);
-      setConnectedPhone(formatWhatsAppPhone(sessionPhone));
-      setSessionStatus("connected");
-      setQrDataUrl(null);
-      setLastError(null);
-      stopPairing();
-    });
-
-    source.addEventListener("error", (event) => {
-      const raw = (event as MessageEvent).data;
-      if (raw) {
-        try {
-          setLastError(JSON.parse(raw).message ?? "Pairing gagal.");
-        } catch {
-          setLastError("Pairing gagal.");
-        }
-      } else {
-        // No payload means the connection itself dropped (network, or the 5-minute
-        // cap) rather than the server reporting a problem.
-        setLastError("Koneksi pairing terputus. Coba hubungkan lagi.");
+      if (!preflight.ok) {
+        setLastError(
+          preflight.status === 401
+            ? "Sesi admin berakhir. Silakan login kembali."
+            : state.error ?? "Tidak dapat memulai pairing WhatsApp."
+        );
+        setSessionStatus("auth_failure");
+        setIsPairing(false);
+        return;
       }
+
+      if (state.status === "auth_failure" && state.lastError) {
+        setLastError(state.lastError);
+        setSessionStatus("auth_failure");
+        setIsPairing(false);
+        return;
+      }
+
+      const source = openWhatsAppPairingStream({
+        onQr: (dataUrl) => {
+          setQrDataUrl(dataUrl);
+          setSessionStatus("qr");
+        },
+        onLinked: (sessionPhone) => {
+          setConnectedPhone(formatWhatsAppPhone(sessionPhone));
+          setSessionStatus("connected");
+          setQrDataUrl(null);
+          setLastError(null);
+          stopPairing();
+        },
+        onError: (message) => {
+          pairingStreamRef.current = null;
+          setLastError(message);
+          setSessionStatus("auth_failure");
+          setIsPairing(false);
+          setQrDataUrl(null);
+        },
+      });
+      pairingStreamRef.current = source;
+    } catch (error) {
+      setLastError(error instanceof Error ? error.message : "Pairing gagal.");
       setSessionStatus("auth_failure");
-      stopPairing();
-    });
-
-    source.onerror = () => {
-      // Never let EventSource auto-reconnect: a retry would silently open a whole
-      // new WhatsApp socket behind the user's back.
-      if (source.readyState === EventSource.CLOSED) {
-        setLastError((prev) => prev ?? "Koneksi pairing terputus. Coba hubungkan lagi.");
-        setSessionStatus((prev) => (prev === "connected" ? prev : "disconnected"));
-        stopPairing();
-      }
-    };
+      setIsPairing(false);
+    }
   }, [stopPairing]);
 
   const handleLogout = useCallback(async () => {
     setIsLoggingOut(true);
     setLastError(null);
     try {
-      const response = await fetch("/api/whatsapp/logout", { method: "POST" });
+      const response = await fetch("/api/whatsapp/logout", {
+        method: "POST",
+        credentials: "include",
+      });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         setLastError(data.error ?? "Logout gagal.");

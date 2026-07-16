@@ -1,13 +1,14 @@
 import { getWhatsAppState } from "@/lib/whatsapp";
 import { requireMektekStaffApiSession } from "@/lib/api-gates";
+import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   // Staff-only: it reveals whether the business WhatsApp is linked and which number
   // is behind it.
-  const access = await requireMektekStaffApiSession();
+  const access = await requireMektekStaffApiSession(request);
   if (access.response) return access.response;
   const { session } = access;
 

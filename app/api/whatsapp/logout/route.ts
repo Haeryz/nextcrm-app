@@ -1,5 +1,6 @@
-import { getSessionUser } from "@/lib/auth-guards";
+import { getRequestSessionUser } from "@/lib/request-session";
 import { logoutWhatsApp } from "@/lib/whatsapp";
+import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,8 +11,8 @@ export const maxDuration = 60;
 
 // POST, not GET: this destroys the session, so it must not be triggerable by a
 // prefetch, a crawler, or an <img> tag pointed at the URL.
-export async function POST() {
-  const user = await getSessionUser();
+export async function POST(request: NextRequest) {
+  const user = await getRequestSessionUser(request);
   if (!user?.id) {
     return Response.json({ error: "Unauthenticated" }, { status: 401 });
   }

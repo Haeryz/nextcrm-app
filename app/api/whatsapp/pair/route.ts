@@ -1,8 +1,9 @@
 import qrcode from "qrcode";
-import { getSessionUser } from "@/lib/auth-guards";
+import { getRequestSessionUser } from "@/lib/request-session";
 import { getWhatsAppDriverName } from "@/lib/whatsapp";
 import { acquireWhatsAppLease } from "@/lib/whatsapp/lease";
 import type { PairingEvent } from "@/lib/whatsapp/drivers/baileys";
+import type { NextRequest } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,9 +23,9 @@ export const maxDuration = 300;
 // "expired, try again" instead of a truncated connection.
 const PAIRING_BUDGET_MS = 280_000;
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   // Pairing links a device to the business WhatsApp — admin only, never plain staff.
-  const user = await getSessionUser();
+  const user = await getRequestSessionUser(request);
   if (!user?.id) {
     return Response.json({ error: "Unauthenticated" }, { status: 401 });
   }
