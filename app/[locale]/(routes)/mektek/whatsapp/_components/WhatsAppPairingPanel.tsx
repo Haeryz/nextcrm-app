@@ -71,6 +71,10 @@ function formatWhatsAppPhone(phone?: string | null) {
   return phone.startsWith("+") ? phone : `+${phone}`;
 }
 
+function pairingEndpoint(name: "status" | "pair" | "logout") {
+  return `${window.location.pathname.replace(/\/$/, "")}/${name}`;
+}
+
 type SessionStatus = "disconnected" | "connecting" | "connected" | "qr" | "auth_failure";
 
 export type WhatsAppPairingPanelProps = {
@@ -105,7 +109,7 @@ export default function WhatsAppPairingPanel({
 
   const refreshStatus = useCallback(async () => {
     try {
-      const response = await fetch("/api/whatsapp/status", {
+      const response = await fetch(pairingEndpoint("status"), {
         cache: "no-store",
         credentials: "include",
       });
@@ -144,7 +148,7 @@ export default function WhatsAppPairingPanel({
       // A normal fetch gives us the HTTP status and configuration detail that
       // EventSource hides. It also verifies the browser is sending the admin cookie
       // before we allocate a live WhatsApp socket on the server.
-      const preflight = await fetch("/api/whatsapp/status", {
+      const preflight = await fetch(pairingEndpoint("status"), {
         cache: "no-store",
         credentials: "include",
       });
@@ -169,6 +173,7 @@ export default function WhatsAppPairingPanel({
       }
 
       const source = openWhatsAppPairingStream({
+        url: pairingEndpoint("pair"),
         onQr: (dataUrl) => {
           setQrDataUrl(dataUrl);
           setSessionStatus("qr");
@@ -200,7 +205,7 @@ export default function WhatsAppPairingPanel({
     setIsLoggingOut(true);
     setLastError(null);
     try {
-      const response = await fetch("/api/whatsapp/logout", {
+      const response = await fetch(pairingEndpoint("logout"), {
         method: "POST",
         credentials: "include",
       });

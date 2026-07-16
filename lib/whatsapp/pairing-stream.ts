@@ -8,6 +8,7 @@ export type PairingEventSource = {
 };
 
 type PairingStreamOptions = {
+  url: string;
   createSource?: (
     url: string,
     options: { withCredentials: boolean }
@@ -41,13 +42,14 @@ function messageFromErrorEvent(event: Event): string {
  * Closing on the first error makes one button click equal exactly one request.
  */
 export function openWhatsAppPairingStream({
+  url,
   createSource = (url, options) =>
     new EventSource(url, options) as unknown as PairingEventSource,
   onQr,
   onLinked,
   onError,
 }: PairingStreamOptions): PairingEventSource {
-  const source = createSource("/api/whatsapp/pair", { withCredentials: true });
+  const source = createSource(url, { withCredentials: true });
   const nativeClose = source.close.bind(source);
   let closed = false;
 

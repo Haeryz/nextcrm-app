@@ -30,6 +30,7 @@ describe("openWhatsAppPairingStream", () => {
     const onError = jest.fn();
 
     openWhatsAppPairingStream({
+      url: "/en/mektek/whatsapp/pair",
       createSource,
       onQr: jest.fn(),
       onLinked: jest.fn(),
@@ -44,6 +45,9 @@ describe("openWhatsAppPairingStream", () => {
     expect(onError).toHaveBeenCalledWith(
       "Koneksi pairing terputus. Coba hubungkan lagi."
     );
+    expect(createSource).toHaveBeenCalledWith("/en/mektek/whatsapp/pair", {
+      withCredentials: true,
+    });
   });
 
   it("forwards QR and linked payloads", () => {
@@ -52,6 +56,7 @@ describe("openWhatsAppPairingStream", () => {
     const onLinked = jest.fn();
 
     openWhatsAppPairingStream({
+      url: "/en/mektek/whatsapp/pair",
       createSource: () => source,
       onQr,
       onLinked,
