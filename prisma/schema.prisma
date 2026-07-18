@@ -9,6 +9,7 @@ datasource db {
 enum taskStatus {
   ACTIVE
   PENDING
+  AWAITING_PAYMENT
   COMPLETE
 }
 

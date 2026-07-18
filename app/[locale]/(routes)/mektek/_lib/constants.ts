@@ -1,7 +1,8 @@
 export const statusMap: Record<string, { label: string }> = {
   ACTIVE: { label: "In Progress" },
   PENDING: { label: "Pending" },
-  COMPLETE: { label: "Done" },
+  AWAITING_PAYMENT: { label: "Service Done · Awaiting Payment" },
+  COMPLETE: { label: "Done · Closed" },
 };
 
 export {
@@ -14,8 +15,13 @@ export function getStatusMeta(taskStatus: string | null | undefined): {
   badgeVariant: "default" | "secondary";
 } {
   switch (taskStatus) {
-    case "COMPLETE": return { label: "Done",        badgeVariant: "default" };
-    case "PENDING":  return { label: "Pending",     badgeVariant: "secondary" };
-    default:         return { label: "In Progress", badgeVariant: "secondary" };
+    case "COMPLETE":
+      return { label: "Done · Closed", badgeVariant: "default" };
+    case "AWAITING_PAYMENT":
+      return { label: "Service Done · Awaiting Payment", badgeVariant: "secondary" };
+    case "PENDING":
+      return { label: "Pending", badgeVariant: "secondary" };
+    default:
+      return { label: "In Progress", badgeVariant: "secondary" };
   }
 }

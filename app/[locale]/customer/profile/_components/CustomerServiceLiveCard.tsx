@@ -131,7 +131,7 @@ export function CustomerServiceLiveCard({
           </div>
         </div>
 
-        {payToken && snapshot.invoice.balanceDue > 0 && (
+        {payToken && snapshot.paymentAvailable && (
           <PayNowButton
             serviceOrderId={snapshot.id}
             token={payToken}
@@ -165,7 +165,7 @@ export function CustomerServiceLiveCard({
               </a>
             </Button>
           )}
-          {receiptHref && (
+          {receiptHref && snapshot.invoice.paymentStatus === "paid" && (
             <Button
               asChild
               variant="outline"

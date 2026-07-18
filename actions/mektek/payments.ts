@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { prismadb } from "@/lib/prisma";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
+import { isMektekPaymentAvailable } from "@/lib/mektek/order-lifecycle";
 import {
   createSnapTransaction,
   getSnapScriptUrl,
@@ -98,6 +99,18 @@ export const createMektekPaymentIntent = async (input: CreateIntentInput) => {
 
     if (grossAmount <= 0) {
       return { error: "This order has no outstanding balance" };
+    }
+
+    if (
+      !isMektekPaymentAvailable({
+        taskStatus: order.taskStatus,
+        tags,
+        balanceDue: grossAmount,
+      })
+    ) {
+      return {
+        error: "Payment becomes available after the service is marked done",
+      };
     }
 
     const midtransOrderId = buildMidtransOrderId(order.id);

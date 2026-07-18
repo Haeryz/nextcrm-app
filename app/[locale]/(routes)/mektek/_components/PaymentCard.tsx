@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,6 +49,7 @@ export default function PaymentCard({
   initialMethod,
   providerPayments,
 }: PaymentCardProps) {
+  const router = useRouter();
   const [method, setMethod] = useState<PaymentMethod>(initialMethod);
   const [discount, setDiscount] = useState(toInputValue(initialDiscount));
   const [tax, setTax] = useState(toInputValue(initialTax));
@@ -119,6 +121,7 @@ export default function PaymentCard({
       }
 
       toast.success("Pembayaran disimpan");
+      router.refresh();
     });
   };
 

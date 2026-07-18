@@ -10,8 +10,10 @@ import type { Prisma } from "@prisma/client";
 import {
   notifyMektekOrderCompleted,
   notifyMektekOrderCreated,
+  notifyMektekOrderReadyForPayment,
 } from "@/actions/mektek/whatsapp-notifications";
 import {
+  appendMektekLineItems,
   buildMektekStoredItems,
   normalizeMektekLineItems,
   type MektekLineItemInput,
@@ -51,6 +53,13 @@ import {
 } from "@/lib/mektek/vouchers";
 import { getCatalogImageSource } from "@/lib/catalog-images";
 import { parseEstimatedDoneInput } from "@/lib/mektek/schedule";
+import {
+  canEditMektekOrderItems,
+  canFinalizeMektekOrder,
+  canTransitionMektekOrderStatus,
+  isMektekPaymentAvailable,
+} from "@/lib/mektek/order-lifecycle";
+import { getWhatsAppState, sendWhatsAppMessage } from "@/lib/whatsapp";
 
 const DEFAULT_TIMELINE_MESSAGE =
   "Layanan Anda telah terbuat. Tim kami sedang menyiapkan pemeriksaan awal kendaraan.";
@@ -961,9 +970,111 @@ export const updateMektekServiceOrderEstimatedDone = async (input: {
   }
 };
 
+export const appendMektekServiceOrderItems = async (input: {
+  serviceOrderId: string;
+  serviceItems?: MektekLineItemInput[];
+  sparepartItems?: MektekLineItemInput[];
+}) => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!canCreateMektekOrders(session.user)) {
+    return { error: "Forbidden: only MekTek admin or CS can add order items" };
+  }
+
+  const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
+  if (!serviceOrderId) return { error: "Service order ID is required" };
+
+  const addedServiceItems = buildMektekStoredItems(input?.serviceItems, "service");
+  const addedSparepartItems = buildMektekStoredItems(input?.sparepartItems, "sparepart");
+  if (addedServiceItems.length === 0 && addedSparepartItems.length === 0) {
+    return { error: "Add at least one service or sparepart item" };
+  }
+
+  try {
+    const order = await prismadb.crm_Accounts_Tasks.findFirst({
+      where: { id: serviceOrderId, ...mektekOrderWhere() },
+      select: {
+        id: true,
+        content: true,
+        tags: true,
+        taskStatus: true,
+      },
+    });
+    if (!order) return { error: "Service order not found" };
+    if (!canEditMektekOrderItems(order.taskStatus)) {
+      return {
+        error:
+          order.taskStatus === "COMPLETE"
+            ? "Order items are permanently locked after the order is closed"
+            : "Order items are locked during payment review. Move it back to In Progress first.",
+      };
+    }
+
+    const tags = parseTagsObject(order.tags);
+    const nextItems = appendMektekLineItems(tags, order.content, {
+      serviceItems: input?.serviceItems,
+      sparepartItems: input?.sparepartItems,
+    });
+    if (nextItems.items.length > 100) {
+      return { error: "A service order can contain at most 100 items" };
+    }
+
+    const timeline = parseTimeline(order.tags);
+    const addedLabels = [
+      addedServiceItems.length
+        ? `${addedServiceItems.length} service item${addedServiceItems.length === 1 ? "" : "s"}`
+        : "",
+      addedSparepartItems.length
+        ? `${addedSparepartItems.length} sparepart item${addedSparepartItems.length === 1 ? "" : "s"}`
+        : "",
+    ].filter(Boolean);
+    const nextTimeline = [
+      ...timeline,
+      {
+        id: crypto.randomUUID(),
+        description: `Added ${addedLabels.join(" and ")}. Invoice total updated.`,
+        createdAt: new Date().toISOString(),
+        completed: true,
+      },
+    ];
+
+    await prismadb.crm_Accounts_Tasks.update({
+      where: { id: order.id },
+      data: {
+        tags: {
+          ...tags,
+          serviceItems: nextItems.serviceItems,
+          sparepartItems: nextItems.sparepartItems,
+          timeline: nextTimeline,
+        },
+        updatedBy: session.user.id,
+      },
+    });
+
+    revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
+    revalidatePath("/[locale]/(routes)/mektek/customers/[id]", "page");
+    revalidatePath("/[locale]/customer/profile", "page");
+    revalidatePath("/[locale]/service-status/[id]", "page");
+    revalidatePath("/[locale]/s/[code]", "page");
+
+    return {
+      data: {
+        addedServiceCount: addedServiceItems.length,
+        addedSparepartCount: addedSparepartItems.length,
+        serviceSubtotal: nextItems.serviceSubtotal,
+        sparepartSubtotal: nextItems.sparepartSubtotal,
+        subtotal: nextItems.subtotal,
+      },
+    };
+  } catch (error) {
+    console.log("[APPEND_MEKTEK_SERVICE_ORDER_ITEMS]", error);
+    return { error: "Failed to add service order items" };
+  }
+};
+
 export const updateMektekServiceOrderStatus = async (input: {
   serviceOrderId: string;
-  newStatus: "ACTIVE" | "PENDING" | "COMPLETE";
+  newStatus: "ACTIVE" | "PENDING" | "AWAITING_PAYMENT" | "COMPLETE";
   markAllTimelineComplete?: boolean;
 }) => {
   const session = await getServerSession(authOptions);
@@ -975,7 +1086,12 @@ export const updateMektekServiceOrderStatus = async (input: {
   const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
   const newStatus = input?.newStatus;
   if (!serviceOrderId) return { error: "Service order ID is required" };
-  if (!["ACTIVE", "PENDING", "COMPLETE"].includes(newStatus)) return { error: "Invalid status" };
+  if (!["ACTIVE", "PENDING", "AWAITING_PAYMENT", "COMPLETE"].includes(newStatus)) {
+    return { error: "Invalid status" };
+  }
+  if (newStatus === "COMPLETE" && !canManageMektekPayments(session.user)) {
+    return { error: "Forbidden: only an admin can close a fully paid order" };
+  }
 
   try {
     const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
@@ -985,70 +1101,113 @@ export const updateMektekServiceOrderStatus = async (input: {
         tags: true,
         content: true,
         createdAt: true,
+        taskStatus: true,
+        mektekPayments: {
+          orderBy: { createdAt: "desc" },
+          select: mektekPaymentSelect,
+        },
       },
     });
     if (!serviceOrder) return { error: "Service order not found" };
 
+    if (!canTransitionMektekOrderStatus(serviceOrder.taskStatus, newStatus)) {
+      return { error: "Done · Closed is final and cannot be reopened" };
+    }
+
     const tags = parseTagsObject(serviceOrder.tags);
     const whatsappMeta = parseWhatsappMeta(tags);
     const lastStatus = typeof whatsappMeta.lastStatus === "string" ? whatsappMeta.lastStatus : "";
+    const summary = buildMektekFinancialSummary(
+      tags,
+      serviceOrder.content,
+      serviceOrder.mektekPayments,
+    );
+    if (
+      newStatus === "COMPLETE" &&
+      !canFinalizeMektekOrder({
+        taskStatus: serviceOrder.taskStatus,
+        tags,
+        balanceDue: summary.balanceDue,
+      })
+    ) {
+      if (summary.balanceDue > 0) {
+        return {
+          error: `Order cannot be closed until the remaining balance of Rp ${summary.balanceDue.toLocaleString("id-ID")} is paid`,
+        };
+      }
+      return {
+        error: "Mark the service as done and awaiting payment before closing the order",
+      };
+    }
+
+    const shouldNotifyReady =
+      newStatus === "AWAITING_PAYMENT" && lastStatus !== "AWAITING_PAYMENT";
     const shouldNotifyComplete = newStatus === "COMPLETE" && lastStatus !== "COMPLETE";
     let timeline = parseTimeline(serviceOrder.tags);
 
-    if (newStatus === "COMPLETE" && input?.markAllTimelineComplete && timeline.length > 0) {
+    if (
+      newStatus === "AWAITING_PAYMENT" &&
+      input?.markAllTimelineComplete &&
+      timeline.length > 0
+    ) {
       timeline = timeline.map((e) => ({ ...e, completed: true }));
     }
 
+    let customerToken = typeof tags.customerToken === "string" ? tags.customerToken : "";
+    let customerCode = typeof tags.customerCode === "string" ? tags.customerCode : "";
+    if ((shouldNotifyReady || shouldNotifyComplete) && !customerCode) {
+      customerToken = customerToken || crypto.randomBytes(20).toString("hex");
+      customerCode = createCustomerCode();
+    }
+    const nextTags = {
+      ...tags,
+      timeline,
+      ...(customerToken ? { customerToken } : {}),
+      ...(customerCode ? { customerCode } : {}),
+    };
+
     await prismadb.crm_Accounts_Tasks.update({
       where: { id: serviceOrder.id },
-      data: { taskStatus: newStatus, tags: { ...tags, timeline }, updatedBy: session.user.id },
+      data: {
+        taskStatus: newStatus,
+        tags: nextTags,
+        updatedBy: session.user.id,
+      },
     });
 
-    if (shouldNotifyComplete) {
-      let customerToken = typeof tags.customerToken === "string" ? tags.customerToken : "";
-      let customerCode = typeof tags.customerCode === "string" ? tags.customerCode : "";
-      if (!customerCode) {
-        customerToken = customerToken || crypto.randomBytes(20).toString("hex");
-        customerCode = createCustomerCode();
-        await prismadb.crm_Accounts_Tasks.update({
-          where: { id: serviceOrder.id },
-          data: {
-            tags: {
-              ...tags,
-              timeline,
-              customerToken,
-              customerCode,
-            },
-          },
-        });
-      }
+    if (shouldNotifyReady || shouldNotifyComplete) {
       const trackingLink = customerCode
         ? await buildCustomerTrackingLink(customerCode, session.user.userLanguage || "en")
         : "";
 
       let notifyResult: { ok: boolean; error?: string } = { ok: false, error: "Skipped" };
       try {
-        notifyResult = await notifyMektekOrderCompleted({
-          order: { ...serviceOrder, tags },
-          trackingLink,
-        });
+        notifyResult = shouldNotifyReady
+          ? await notifyMektekOrderReadyForPayment({
+              order: { ...serviceOrder, taskStatus: newStatus, tags: nextTags },
+              trackingLink,
+            })
+          : await notifyMektekOrderCompleted({
+              order: { ...serviceOrder, taskStatus: newStatus, tags: nextTags },
+              trackingLink,
+            });
       } catch (error) {
-        console.log("[MEKTEK_WHATSAPP_ORDER_COMPLETED]", error);
+        console.log("[MEKTEK_WHATSAPP_ORDER_STATUS]", error);
       }
 
       if (notifyResult.ok) {
+        const notifiedAt = new Date().toISOString();
         await prismadb.crm_Accounts_Tasks.update({
           where: { id: serviceOrder.id },
           data: {
             tags: {
-              ...tags,
-              timeline,
-              customerToken,
-              customerCode,
+              ...nextTags,
               whatsapp: {
                 ...whatsappMeta,
-                lastStatus: "COMPLETE",
-                completedNotifiedAt: new Date().toISOString(),
+                lastStatus: newStatus,
+                ...(newStatus === "AWAITING_PAYMENT"
+                  ? { readyForPaymentNotifiedAt: notifiedAt }
+                  : { completedNotifiedAt: notifiedAt }),
               },
             },
           },
@@ -1058,9 +1217,11 @@ export const updateMektekServiceOrderStatus = async (input: {
 
     revalidatePath("/[locale]/(routes)/mektek", "page");
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
+    revalidatePath("/[locale]/(routes)/mektek/customers/[id]", "page");
+    revalidatePath("/[locale]/customer/profile", "page");
     revalidatePath("/[locale]/service-status/[id]", "page");
     revalidatePath("/[locale]/s/[code]", "page");
-    return { data: { status: newStatus } };
+    return { data: { status: newStatus, balanceDue: summary.balanceDue } };
   } catch (error) {
     console.log("[UPDATE_MEKTEK_SERVICE_ORDER_STATUS]", error);
     return { error: "Failed to update service order status" };
@@ -1093,6 +1254,7 @@ export const updateMektekPayment = async (input: {
         id: true,
         tags: true,
         content: true,
+        taskStatus: true,
         mektekPayments: {
           orderBy: {
             createdAt: "desc",
@@ -1105,6 +1267,22 @@ export const updateMektekPayment = async (input: {
     if (!serviceOrder) return { error: "Service order not found" };
 
     const tags = parseTagsObject(serviceOrder.tags);
+    const currentSummary = buildMektekFinancialSummary(
+      tags,
+      serviceOrder.content,
+      serviceOrder.mektekPayments,
+    );
+    if (
+      !isMektekPaymentAvailable({
+        taskStatus: serviceOrder.taskStatus,
+        tags,
+        balanceDue: currentSummary.balanceDue,
+      })
+    ) {
+      return {
+        error: "Payment can only be recorded after the service is marked done",
+      };
+    }
     const discount = parseMoney(input.discount);
     const tax = parseMoney(input.tax);
     const nextTags = {
@@ -1218,5 +1396,54 @@ export const getMektekCustomerTrackingLink = async (serviceOrderId: string) => {
   } catch (error) {
     console.log("[GET_MEKTEK_CUSTOMER_TRACKING_LINK]", error);
     return { error: "Failed to build customer tracking link" };
+  }
+};
+
+export const sendMektekServiceOrderWhatsAppNotification = async (input: {
+  serviceOrderId: string;
+  message: string;
+}) => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!canUseMektekCustomerTools(session.user)) {
+    return { error: "Forbidden: customer communication access is required" };
+  }
+
+  const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
+  const message = String(input?.message ?? "")
+    .replace(/\r\n?/g, "\n")
+    .trim()
+    .slice(0, 4_000);
+  if (!serviceOrderId) return { error: "Service order ID is required" };
+  if (!message) return { error: "WhatsApp message is required" };
+
+  try {
+    const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
+      where: { id: serviceOrderId, ...mektekOrderWhere() },
+      select: { tags: true },
+    });
+    if (!serviceOrder) return { error: "Service order not found" };
+
+    const tags = parseTagsObject(serviceOrder.tags);
+    const rawPhone = typeof tags.phone === "string" ? tags.phone : "";
+    const phone = normalizePhoneNumber(rawPhone);
+    if (!phone || !isValidPhoneNumber(phone)) {
+      return { error: "Customer WhatsApp number is missing or invalid" };
+    }
+
+    const state = await getWhatsAppState();
+    if (state.status !== "ready") {
+      return { error: "WhatsApp is not connected" };
+    }
+
+    const result = await sendWhatsAppMessage({ to: phone, message });
+    if (!result.ok) {
+      return { error: result.error || "Failed to send WhatsApp message" };
+    }
+
+    return { data: { sent: true } };
+  } catch (error) {
+    console.log("[SEND_MEKTEK_WHATSAPP_NOTIFICATION]", error);
+    return { error: "Failed to send WhatsApp message" };
   }
 };

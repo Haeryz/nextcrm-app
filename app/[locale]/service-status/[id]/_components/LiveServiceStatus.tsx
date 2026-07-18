@@ -8,10 +8,7 @@ import { Download, ExternalLink, FileText, Receipt } from "lucide-react";
 import type { MektekPublicSnapshot } from "@/lib/mektek/public-status";
 import { getStatusMeta } from "@/app/[locale]/(routes)/mektek/_lib/constants";
 import { PayNowButton } from "@/components/mektek/PayNowButton";
-import {
-  formatCustomerDate,
-  formatCustomerDateTime,
-} from "@/lib/mektek/customer-display";
+import { formatCustomerDateTime } from "@/lib/mektek/customer-display";
 
 type LiveServiceStatusProps = {
   initialSnapshot: MektekPublicSnapshot;
@@ -22,6 +19,54 @@ type LiveServiceStatusProps = {
   receiptDownloadHref: string;
   payToken?: string;
 };
+
+type PublicLineItem = MektekPublicSnapshot["items"]["serviceItems"][number];
+
+function ItemBreakdown({
+  title,
+  items,
+}: {
+  title: string;
+  items: PublicLineItem[];
+}) {
+  return (
+    <section className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <Badge variant="outline">{items.length} item</Badge>
+      </div>
+      {items.length > 0 ? (
+        <div className="divide-y rounded-xl border">
+          {items.map((item, index) => (
+            <div
+              key={`${item.name}-${index}`}
+              className="flex flex-col gap-2 p-3 sm:flex-row sm:items-start sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="break-words text-sm font-medium">{item.name}</p>
+                {(item.partNumber || item.machine) && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {[item.partNumber, item.machine].filter(Boolean).join(" · ")}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {item.quantity} {item.unit} × {formatCurrency(item.unitPrice)}
+                </p>
+              </div>
+              <p className="shrink-0 text-sm font-semibold">
+                {formatCurrency(item.total)}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-xl border border-dashed p-3 text-xs text-muted-foreground">
+          Belum ada item.
+        </p>
+      )}
+    </section>
+  );
+}
 
 const formatCurrency = (amount: number) =>
   amount.toLocaleString("id-ID", {
@@ -111,7 +156,7 @@ export default function LiveServiceStatus({
             </CardHeader>
             <CardContent>
               <p className="text-sm font-semibold">
-                {formatCustomerDate(snapshot.dueDateAt)}
+                {formatCustomerDateTime(snapshot.dueDateAt)}
               </p>
             </CardContent>
           </Card>
@@ -132,6 +177,18 @@ export default function LiveServiceStatus({
             </CardContent>
           </Card>
         </div>
+
+        <Card className="border shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
+              Rincian Pengerjaan
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-5 lg:grid-cols-2">
+            <ItemBreakdown title="Layanan servis" items={snapshot.items.serviceItems} />
+            <ItemBreakdown title="Sparepart" items={snapshot.items.sparepartItems} />
+          </CardContent>
+        </Card>
 
         <Card className="border shadow-sm">
           <CardHeader className="pb-3">
@@ -182,7 +239,7 @@ export default function LiveServiceStatus({
               </div>
             </div>
 
-            {payToken && snapshot.invoice.balanceDue > 0 && (
+            {payToken && snapshot.paymentAvailable && (
               <PayNowButton
                 serviceOrderId={snapshot.id}
                 token={payToken}
@@ -191,7 +248,17 @@ export default function LiveServiceStatus({
               />
             )}
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {snapshot.invoice.balanceDue > 0 && !snapshot.paymentAvailable && (
+              <p className="rounded-xl border border-dashed p-3 text-sm text-muted-foreground">
+                Pembayaran akan tersedia setelah layanan servis dinyatakan selesai.
+              </p>
+            )}
+
+            <div
+              className={`grid grid-cols-1 gap-3 ${
+                snapshot.invoice.paymentStatus === "paid" ? "md:grid-cols-2" : ""
+              }`}
+            >
               <div className="rounded-xl border bg-card p-4">
                 <div className="mb-4 flex items-start gap-3">
                   <div className="rounded-lg bg-primary/10 p-2 text-primary">
@@ -220,7 +287,8 @@ export default function LiveServiceStatus({
                 </div>
               </div>
 
-              <div className="rounded-xl border bg-card p-4">
+              {snapshot.invoice.paymentStatus === "paid" && (
+                <div className="rounded-xl border bg-card p-4">
                 <div className="mb-4 flex items-start gap-3">
                   <div className="rounded-lg bg-primary/10 p-2 text-primary">
                     <Receipt className="h-5 w-5" />
@@ -246,7 +314,8 @@ export default function LiveServiceStatus({
                     </a>
                   </Button>
                 </div>
-              </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

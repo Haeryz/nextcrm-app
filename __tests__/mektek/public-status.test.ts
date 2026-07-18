@@ -62,5 +62,35 @@ describe("buildMektekPublicSnapshot", () => {
     ]);
     expect(snapshot.latestTimeline?.description).toBe("In progress");
     expect(snapshot.invoice.subtotal).toBe(150000);
+    expect(snapshot.items.serviceItems[0]).toMatchObject({
+      name: "Tune up",
+      quantity: 1,
+      unitPrice: 100000,
+      total: 100000,
+    });
+    expect(snapshot.items.sparepartItems[0]).toMatchObject({
+      name: "Oil filter",
+      quantity: 1,
+      unitPrice: 50000,
+      total: 50000,
+    });
+    expect(snapshot.paymentAvailable).toBe(false);
+  });
+
+  it("opens customer payment only in the awaiting-payment state", () => {
+    const snapshot = buildMektekPublicSnapshot({
+      id: "12345678-aaaa-bbbb-cccc-123456789012",
+      taskStatus: "AWAITING_PAYMENT",
+      tags: {
+        serviceType: "Vehicle Service",
+        serviceItems: [
+          { name: "Tune up", quantity: 1, unitPrice: 100000, total: 100000 },
+        ],
+        sparepartItems: [],
+        payment: { amountPaid: 0, status: "unpaid" },
+      },
+    });
+
+    expect(snapshot.paymentAvailable).toBe(true);
   });
 });

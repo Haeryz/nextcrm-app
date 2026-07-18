@@ -167,4 +167,25 @@ export const normalizeMektekLineItems = (
   };
 };
 
+export const appendMektekLineItems = (
+  tags: unknown,
+  content: string | null | undefined,
+  additions: {
+    serviceItems?: MektekLineItemInput[];
+    sparepartItems?: MektekLineItemInput[];
+  },
+) => {
+  const current = normalizeMektekLineItems(tags, content);
+  const serviceItems = [
+    ...current.serviceItems,
+    ...buildMektekStoredItems(additions.serviceItems, "service"),
+  ];
+  const sparepartItems = [
+    ...current.sparepartItems,
+    ...buildMektekStoredItems(additions.sparepartItems, "sparepart"),
+  ];
+
+  return normalizeMektekLineItems({ serviceItems, sparepartItems });
+};
+
 export { parseMoney };

@@ -1,4 +1,7 @@
-import { normalizeMektekLineItems } from "@/lib/mektek/items";
+import {
+  appendMektekLineItems,
+  normalizeMektekLineItems,
+} from "@/lib/mektek/items";
 
 describe("normalizeMektekLineItems", () => {
   it("keeps new split arrays separate", () => {
@@ -51,5 +54,41 @@ describe("normalizeMektekLineItems", () => {
     expect(result.serviceItems.map((item) => item.name)).toEqual(["Inspection"]);
     expect(result.sparepartItems.map((item) => item.name)).toEqual(["Cabin filter"]);
     expect(result.subtotal).toBe(165000);
+  });
+});
+
+describe("appendMektekLineItems", () => {
+  it("appends new service and sparepart rows and recalculates both subtotals", () => {
+    const result = appendMektekLineItems(
+      {
+        serviceItems: [
+          { name: "Inspection", quantity: 1, unitPrice: 75_000, total: 75_000 },
+        ],
+        sparepartItems: [
+          { name: "Filter", quantity: 1, unitPrice: 50_000, total: 50_000 },
+        ],
+      },
+      null,
+      {
+        serviceItems: [
+          { description: "AC service", quantity: 1, estimatedCost: 125_000 },
+        ],
+        sparepartItems: [
+          { description: "Belt", quantity: 2, estimatedCost: 80_000 },
+        ],
+      },
+    );
+
+    expect(result.serviceItems.map((item) => item.name)).toEqual([
+      "Inspection",
+      "AC service",
+    ]);
+    expect(result.sparepartItems.map((item) => item.name)).toEqual([
+      "Filter",
+      "Belt",
+    ]);
+    expect(result.serviceSubtotal).toBe(200_000);
+    expect(result.sparepartSubtotal).toBe(210_000);
+    expect(result.subtotal).toBe(410_000);
   });
 });

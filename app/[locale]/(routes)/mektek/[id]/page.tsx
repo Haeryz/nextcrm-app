@@ -14,6 +14,7 @@ import AddTimelineEntryForm from "./_components/AddTimelineEntryForm";
 import CustomerTrackingLinkCard from "./_components/CustomerTrackingLinkCard";
 import ServiceOrderStatusControl from "./_components/ServiceOrderStatusControl";
 import EstimatedDoneControl from "./_components/EstimatedDoneControl";
+import ServiceOrderItemsEditor from "./_components/ServiceOrderItemsEditor";
 import { getStatusMeta } from "../_lib/constants";
 import PaymentCard from "../_components/PaymentCard";
 import WhatsAppComposer from "../_components/WhatsAppComposer";
@@ -23,11 +24,17 @@ import { normalizeMektekLineItems } from "@/lib/mektek/items";
 import VisitDiscountCard from "../_components/VisitDiscountCard";
 import {
   canAccessMektekStaffArea,
+  canCreateMektekOrders,
   canManageMektekPayments,
   canManageMektekSchedule,
   canUpdateMektekProgress,
   canUseMektekCustomerTools,
 } from "@/lib/mektek/permissions";
+import {
+  canEditMektekOrderItems,
+  isMektekPaymentAvailable,
+  isMektekStorefrontPurchase,
+} from "@/lib/mektek/order-lifecycle";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -52,6 +59,7 @@ export default async function MektekDetailPage({ params }: Props) {
   const canUseCustomerTools = canUseMektekCustomerTools(session?.user);
   const canManagePayment = canManageMektekPayments(session?.user);
   const canManageSchedule = canManageMektekSchedule(session?.user);
+  const canManageOrderItems = canCreateMektekOrders(session?.user);
   if (!canAccess) {
     return (
       <Container title="Service Order" description="Restricted MekTek workspace">
@@ -132,8 +140,21 @@ export default async function MektekDetailPage({ params }: Props) {
   const paymentMethod = ["cash", "transfer", "qris"].includes(invoiceData.payment.method)
     ? (invoiceData.payment.method as "cash" | "transfer" | "qris")
     : "cash";
+  const isStorefrontPurchase = isMektekStorefrontPurchase(tags);
+  const paymentStageOpen =
+    order.taskStatus === "AWAITING_PAYMENT" || isStorefrontPurchase;
+  const canRecordPayment =
+    canManagePayment &&
+    paymentStageOpen &&
+    isMektekPaymentAvailable({
+      taskStatus: order.taskStatus,
+      tags,
+      balanceDue: invoiceData.financials.balanceDue,
+    });
   const completedVisitCount =
     typeof tags.completedVisitCount === "number" ? tags.completedVisitCount : 0;
+  const canAddOrderItems =
+    canManageOrderItems && canEditMektekOrderItems(order.taskStatus);
 
   return (
     <Container
@@ -293,6 +314,16 @@ export default async function MektekDetailPage({ params }: Props) {
                     </p>
                   </div>
                 </div>
+                {canAddOrderItems && (
+                  <ServiceOrderItemsEditor serviceOrderId={order.id} />
+                )}
+                {canManageOrderItems && !canAddOrderItems && (
+                  <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                    {order.taskStatus === "COMPLETE"
+                      ? "Service and sparepart items are permanently locked because this order is closed."
+                      : "Service and sparepart items are locked during payment review. Move the order back to In Progress before adding more work."}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -391,19 +422,21 @@ export default async function MektekDetailPage({ params }: Props) {
                   <ServiceOrderStatusControl
                     serviceOrderId={order.id}
                     currentStatus={order.taskStatus ?? "ACTIVE"}
+                    balanceDue={invoiceData.financials.balanceDue}
+                    showCloseAction={canManagePayment}
                   />
                 </CardContent>
               </Card>
             )}
 
             {(canManagePayment || canUseCustomerTools) && (
-              <Tabs defaultValue={canManagePayment ? "payment" : "docs"} className="min-w-0 space-y-4">
-                <TabsList className={`grid h-auto w-full ${canManagePayment ? "grid-cols-3" : "grid-cols-2"}`}>
-                  {canManagePayment && <TabsTrigger value="payment">Payment</TabsTrigger>}
+              <Tabs defaultValue={canRecordPayment ? "payment" : "docs"} className="min-w-0 space-y-4">
+                <TabsList className={`grid h-auto w-full ${canRecordPayment ? "grid-cols-3" : "grid-cols-2"}`}>
+                  {canRecordPayment && <TabsTrigger value="payment">Payment</TabsTrigger>}
                   <TabsTrigger value="docs" className="text-xs sm:text-sm">Docs</TabsTrigger>
                   <TabsTrigger value="whatsapp" className="text-xs sm:text-sm">WhatsApp</TabsTrigger>
                 </TabsList>
-                {canManagePayment && (
+                {canRecordPayment && (
                   <TabsContent value="payment" className="mt-0">
                     <PaymentCard
                       serviceOrderId={order.id}
@@ -424,6 +457,7 @@ export default async function MektekDetailPage({ params }: Props) {
                 </TabsContent>
                 <TabsContent value="whatsapp" className="mt-0">
                   <WhatsAppComposer
+                    serviceOrderId={order.id}
                     phone={phone ?? ""}
                     customerName={customerName}
                     trackingLink={customerTrackingLink ?? ""}

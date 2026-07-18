@@ -14,6 +14,7 @@ type ServiceOrderSummary = {
   id: string;
   content?: string | null;
   createdAt?: Date | null;
+  taskStatus?: string | null;
   tags?: unknown;
 };
 
@@ -52,15 +53,26 @@ const DEFAULT_NEW_ORDER_TEMPLATE = [
   "Terima kasih telah mempercayai Mektek.",
 ].join("\n");
 
+const DEFAULT_READY_FOR_PAYMENT_TEMPLATE = [
+  "Halo {customerName},",
+  "",
+  "Pengerjaan servis kendaraan {vehicle} Anda sudah selesai dan siap dicek.",
+  "",
+  "Silakan periksa rincian jasa, sparepart, estimasi, dan invoice melalui link berikut. Pembayaran sudah dapat dilakukan dari halaman tersebut:",
+  "{trackingLink}",
+  "",
+  "Invoice kami lampirkan. Silakan hubungi kami jika ada yang ingin dikonfirmasi sebelum pembayaran.",
+  "",
+  "Terima kasih telah mempercayai Mektek.",
+].join("\n");
+
 const DEFAULT_COMPLETED_TEMPLATE = [
   "Halo {customerName},",
   "",
-  "Servis kendaraan {vehicle} Anda sudah selesai.",
+  "Order servis kendaraan {vehicle} Anda sudah selesai, lunas, dan ditutup.",
   "",
-  "Invoice dan struk kami lampirkan pada pesan ini. Ringkasan status servis tetap bisa dicek melalui link berikut:",
+  "Invoice dan struk pembayaran kami lampirkan. Riwayat servis tetap dapat dilihat melalui:",
   "{trackingLink}",
-  "",
-  "Silakan hubungi kami jika ada pertanyaan sebelum pengambilan kendaraan.",
   "",
   "Terima kasih telah mempercayai Mektek.",
 ].join("\n");
@@ -133,6 +145,43 @@ export async function notifyMektekOrderCompleted(params: {
         filename: `struk-${params.order.id.slice(0, 8)}.pdf`,
         data: receiptPdf,
         caption: "Struk",
+      },
+    ],
+  });
+}
+
+export async function notifyMektekOrderReadyForPayment(params: {
+  order: ServiceOrderSummary;
+  trackingLink: string;
+}) {
+  const context = buildContext(params.order);
+  if (!context.phone) return { ok: false, error: "No phone" };
+  if (areExternalApisDisabled()) return { ok: false, error: "External APIs are disabled" };
+  if ((await getWhatsAppState()).status !== "ready") {
+    return { ok: false, error: "WhatsApp session is not ready" };
+  }
+
+  const messageTemplate =
+    (context.tags.whatsappReadyForPaymentTemplate as string | undefined) ||
+    DEFAULT_READY_FOR_PAYMENT_TEMPLATE;
+  const message = applyTemplate(messageTemplate, {
+    customerName: context.customerName,
+    vehicle: context.vehicle,
+    trackingLink: params.trackingLink,
+  });
+  const invoicePdf = Buffer.from(
+    await renderMektekInvoicePdf(buildMektekInvoiceData(params.order)),
+  );
+
+  return sendWhatsAppMessage({
+    to: context.phone,
+    message,
+    media: [
+      {
+        mimeType: "application/pdf",
+        filename: `invoice-${params.order.id.slice(0, 8)}.pdf`,
+        data: invoicePdf,
+        caption: "Invoice",
       },
     ],
   });

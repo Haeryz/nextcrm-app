@@ -1,4 +1,4 @@
-import { getWhatsAppState } from "@/lib/whatsapp";
+import { getWhatsAppDriverName, getWhatsAppState } from "@/lib/whatsapp";
 import { requireMektekStaffApiSession } from "@/lib/api-gates";
 import type { NextRequest } from "next/server";
 
@@ -17,13 +17,19 @@ export async function GET(request: NextRequest) {
   // instance, all fighting over the same credentials. Starting a session is now an
   // explicit, admin-only action: GET /api/whatsapp/pair.
   const state = await getWhatsAppState();
+  let driver: ReturnType<typeof getWhatsAppDriverName> | "unavailable";
+  try {
+    driver = getWhatsAppDriverName();
+  } catch {
+    driver = "unavailable";
+  }
 
   // lastError can carry configuration detail (env var names, database errors), so
   // only admins — who are the ones who can act on it — see the full state.
   const isAdmin = !!session.user.isAdmin;
   const payload = isAdmin
-    ? state
-    : { status: state.status, sessionPhone: state.sessionPhone };
+    ? { ...state, driver }
+    : { status: state.status, sessionPhone: state.sessionPhone, driver };
 
   return Response.json(payload, {
     headers: {
