@@ -1,0 +1,3 @@
+ALTER TABLE "CatalogItem"
+  ADD COLUMN IF NOT EXISTS "imageData" BYTEA,
+  ADD COLUMN IF NOT EXISTS "imageMimeType" TEXT;

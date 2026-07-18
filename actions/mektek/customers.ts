@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { ActiveStatus, CatalogCustomerType, Language, Prisma } from "@prisma/client";
+import type { CatalogCustomerType, Prisma } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth";
 import { canManageMektekCustomers } from "@/lib/mektek/permissions";
@@ -16,8 +16,6 @@ import { getServerSession } from "@/lib/session";
 import { hashPassword } from "@/lib/password";
 
 const DEFAULT_PAGE_SIZE = 12;
-const activeStatuses = new Set(["ACTIVE", "PENDING", "INACTIVE"]);
-const languages = new Set(["cz", "en", "de", "uk"]);
 const customerTypes = new Set(["STANDARD", "B2B"]);
 
 export type CustomerUserInput = {
@@ -26,8 +24,6 @@ export type CustomerUserInput = {
   customerType?: string;
   email?: string;
   password?: string;
-  userStatus?: string;
-  userLanguage?: string;
 };
 
 export type CustomerUserRow = {
@@ -43,8 +39,6 @@ export type CustomerUserRow = {
     id: string;
     name: string | null;
     email: string;
-    userStatus: ActiveStatus;
-    userLanguage: Language;
     isAdmin: boolean;
     mektekRole: "CS" | "TECHNICIAN" | null;
     lastLoginAt: Date | null;
@@ -77,13 +71,6 @@ function normalizeCustomerUserInput(input: CustomerUserInput) {
   const customerType = customerTypes.has(String(input.customerType))
     ? (String(input.customerType) as CatalogCustomerType)
     : ("STANDARD" as CatalogCustomerType);
-  const userStatus = activeStatuses.has(String(input.userStatus))
-    ? (String(input.userStatus) as ActiveStatus)
-    : ("ACTIVE" as ActiveStatus);
-  const userLanguage = languages.has(String(input.userLanguage))
-    ? (String(input.userLanguage) as Language)
-    : ("en" as Language);
-
   if (!name) return { error: "Customer name is required" };
   if (!isValidPhoneNumber(phone)) return { error: "Phone number is invalid" };
   if (!email.includes("@")) return { error: "Email is invalid" };
@@ -99,8 +86,6 @@ function normalizeCustomerUserInput(input: CustomerUserInput) {
       email,
       password,
       customerType,
-      userStatus,
-      userLanguage,
     },
   };
 }
@@ -160,8 +145,6 @@ export async function listMektekCustomerUsers(input?: {
           id: true,
           name: true,
           email: true,
-          userStatus: true,
-          userLanguage: true,
           is_admin: true,
           mektekRole: true,
           lastLoginAt: true,
@@ -189,8 +172,6 @@ export async function listMektekCustomerUsers(input?: {
           id: customer.user.id,
           name: customer.user.name,
           email: customer.user.email,
-          userStatus: customer.user.userStatus,
-          userLanguage: customer.user.userLanguage,
           isAdmin: customer.user.is_admin,
           mektekRole: customer.user.mektekRole,
           lastLoginAt: customer.user.lastLoginAt,
@@ -233,8 +214,8 @@ export async function createMektekCustomerUser(input: CustomerUserInput) {
           email: data.email,
           phone: data.phone,
           phoneNormalized: data.phoneNormalized,
-          userLanguage: data.userLanguage,
-          userStatus: data.userStatus,
+          userLanguage: "en",
+          userStatus: "ACTIVE",
           mektekRole: null,
           ...(password ? { password } : {}),
         },
@@ -305,8 +286,6 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
         email: data.email,
         phone: data.phone,
         phoneNormalized: data.phoneNormalized,
-        userLanguage: data.userLanguage,
-        userStatus: data.userStatus,
         mektekRole: null,
         ...(password ? { password } : {}),
       };
@@ -332,6 +311,8 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
             ...userPayload,
             avatar: "",
             is_account_admin: false,
+            userLanguage: "en",
+            userStatus: "ACTIVE",
           },
         });
         userId = user.id;

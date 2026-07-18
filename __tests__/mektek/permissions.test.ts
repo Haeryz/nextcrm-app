@@ -3,6 +3,7 @@ import {
   canCreateMektekOrders,
   canManageMektekVouchers,
   canManageMektekPayments,
+  canManageMektekSchedule,
   canUpdateMektekProgress,
   canUseMektekCustomerTools,
   canViewMektekDashboard,
@@ -17,6 +18,7 @@ describe("MekTek permissions", () => {
     expect(canUpdateMektekProgress(admin)).toBe(true);
     expect(canManageMektekPayments(admin)).toBe(true);
     expect(canManageMektekVouchers(admin)).toBe(true);
+    expect(canManageMektekSchedule(admin)).toBe(true);
     expect(canViewMektekDashboard(admin)).toBe(true);
   });
 
@@ -33,6 +35,7 @@ describe("MekTek permissions", () => {
     expect(canUpdateMektekProgress(cs)).toBe(false);
     expect(canManageMektekPayments(cs)).toBe(false);
     expect(canManageMektekVouchers(cs)).toBe(false);
+    expect(canManageMektekSchedule(cs)).toBe(false);
     expect(canViewMektekDashboard(cs)).toBe(false);
 
     expect(canCreateMektekOrders(technician)).toBe(false);
@@ -40,6 +43,7 @@ describe("MekTek permissions", () => {
     expect(canUpdateMektekProgress(technician)).toBe(true);
     expect(canManageMektekPayments(technician)).toBe(false);
     expect(canManageMektekVouchers(technician)).toBe(false);
+    expect(canManageMektekSchedule(technician)).toBe(false);
     expect(canViewMektekDashboard(technician)).toBe(false);
   });
 
@@ -54,6 +58,7 @@ describe("MekTek permissions", () => {
       expect(canUpdateMektekProgress(customer)).toBe(false);
       expect(canManageMektekPayments(customer)).toBe(false);
       expect(canManageMektekVouchers(customer)).toBe(false);
+      expect(canManageMektekSchedule(customer)).toBe(false);
       expect(canViewMektekDashboard(customer)).toBe(false);
     }
   });
@@ -72,6 +77,7 @@ describe("MekTek permissions", () => {
       expect(canUpdateMektekProgress(user)).toBe(false);
       expect(canManageMektekPayments(user)).toBe(false);
       expect(canManageMektekVouchers(user)).toBe(false);
+      expect(canManageMektekSchedule(user)).toBe(false);
       expect(canViewMektekDashboard(user)).toBe(false);
     }
   });

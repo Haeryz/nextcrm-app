@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Edit, Loader2, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Edit, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -44,8 +45,6 @@ type CustomerUserRow = {
     id: string;
     name: string | null;
     email: string;
-    userStatus: "ACTIVE" | "PENDING" | "INACTIVE";
-    userLanguage: "cz" | "en" | "de" | "uk";
     isAdmin: boolean;
     mektekRole: "CS" | "TECHNICIAN" | null;
     lastLoginAt: string | null;
@@ -54,6 +53,7 @@ type CustomerUserRow = {
 
 type CustomerUserManagerProps = {
   customers: CustomerUserRow[];
+  locale: string;
 };
 
 const blankCustomer: CustomerUserInput = {
@@ -62,8 +62,6 @@ const blankCustomer: CustomerUserInput = {
   customerType: "STANDARD",
   email: "",
   password: "",
-  userStatus: "ACTIVE",
-  userLanguage: "en",
 };
 
 function customerToInput(customer: CustomerUserRow): CustomerUserInput {
@@ -73,8 +71,6 @@ function customerToInput(customer: CustomerUserRow): CustomerUserInput {
     customerType: customer.customerType,
     email: customer.user?.email ?? "",
     password: "",
-    userStatus: customer.user?.userStatus ?? "ACTIVE",
-    userLanguage: customer.user?.userLanguage ?? "en",
   };
 }
 
@@ -190,39 +186,6 @@ function CustomerUserForm({
             placeholder={isEdit ? "Leave blank to keep current" : "Optional"}
           />
         </Field>
-        <Field label="Status">
-          <Select
-            value={value.userStatus ?? "ACTIVE"}
-            onValueChange={(nextValue) => update("userStatus", nextValue)}
-            disabled={pending}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ACTIVE">Active</SelectItem>
-              <SelectItem value="PENDING">Pending</SelectItem>
-              <SelectItem value="INACTIVE">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field label="Language">
-          <Select
-            value={value.userLanguage ?? "en"}
-            onValueChange={(nextValue) => update("userLanguage", nextValue)}
-            disabled={pending}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="en">English</SelectItem>
-              <SelectItem value="de">German</SelectItem>
-              <SelectItem value="cz">Czech</SelectItem>
-              <SelectItem value="uk">Ukrainian</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
       </div>
 
       <div className="flex justify-end">
@@ -235,7 +198,10 @@ function CustomerUserForm({
   );
 }
 
-export default function CustomerUserManager({ customers }: CustomerUserManagerProps) {
+export default function CustomerUserManager({
+  customers,
+  locale,
+}: CustomerUserManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [createOpen, setCreateOpen] = useState(false);
@@ -243,10 +209,7 @@ export default function CustomerUserManager({ customers }: CustomerUserManagerPr
   const [createValue, setCreateValue] = useState<CustomerUserInput>(blankCustomer);
   const [editValue, setEditValue] = useState<CustomerUserInput>(blankCustomer);
 
-  const countLabel = useMemo(
-    () => `${customers.length} customer${customers.length === 1 ? "" : "s"} on this page`,
-    [customers.length]
-  );
+  const countLabel = `${customers.length} customer${customers.length === 1 ? "" : "s"} on this page`;
 
   const submitCreate = () => {
     startTransition(async () => {
@@ -336,37 +299,42 @@ export default function CustomerUserManager({ customers }: CustomerUserManagerPr
               key={customer.id}
               className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(160px,0.9fr)_minmax(128px,0.6fr)_minmax(120px,0.7fr)_128px] lg:items-center lg:gap-4"
             >
-              <div className="min-w-0">
-                <p className="truncate font-medium">
-                  {customer.user?.name || customer.username}
-                </p>
-                <p className="text-sm text-muted-foreground">{customer.phone}</p>
-                <p className="text-xs text-muted-foreground">
-                  Normalized: {customer.phoneNormalized}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm">{customer.user?.email ?? "No login account"}</p>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  <Badge variant={customer.user?.userStatus === "ACTIVE" ? "default" : "secondary"}>
-                    {customer.user?.userStatus ?? "UNLINKED"}
-                  </Badge>
-                  {customer.user && (
-                    <Badge variant="outline">{customer.user.userLanguage.toUpperCase()}</Badge>
-                  )}
+              <Link
+                href={`/${locale}/mektek/customers/${customer.id}`}
+                className="group -m-2 grid min-w-0 gap-3 rounded-md p-2 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:col-span-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(160px,0.9fr)_minmax(128px,0.6fr)_minmax(120px,0.7fr)] lg:items-center lg:gap-4"
+                aria-label={`View ${customer.user?.name || customer.username} details`}
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium group-hover:underline">
+                    {customer.user?.name || customer.username}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{customer.phone}</p>
                 </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline">{typeLabel(customer.customerType)}</Badge>
-                <Badge variant={customer.user?.isAdmin ? "default" : "secondary"}>
-                  {roleLabel(customer)}
-                </Badge>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                <p>{customer.serviceCount} service orders</p>
-                <p className="text-xs">Last login: {formatDate(customer.user?.lastLoginAt ?? null)}</p>
-              </div>
-          <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+                <div className="min-w-0">
+                  <p className="truncate text-sm">
+                    {customer.user?.email ?? "No login account"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {customer.user ? "Customer login" : "No linked login"}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline">{typeLabel(customer.customerType)}</Badge>
+                  <Badge variant={customer.user?.isAdmin ? "default" : "secondary"}>
+                    {roleLabel(customer)}
+                  </Badge>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                  <div>
+                    <p>{customer.serviceCount} service orders</p>
+                    <p className="text-xs">
+                      Last login: {formatDate(customer.user?.lastLoginAt ?? null)}
+                    </p>
+                  </div>
+                  <ChevronRight className="size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                </div>
+              </Link>
+              <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
                 <Button
                   type="button"
                   variant="outline"

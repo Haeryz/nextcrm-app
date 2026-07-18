@@ -70,8 +70,8 @@ export function CartSheet() {
                     <p className="truncate text-sm font-semibold">{item.description}</p>
                     <p className="truncate text-xs text-[#4b5577]">
                       {item.machine}
-                      {item.catalogPartNumber || item.partNumber
-                        ? ` · ${item.catalogPartNumber || item.partNumber}`
+                      {item.partNumber
+                        ? ` · ${item.partNumber}`
                         : ""}
                     </p>
                     <p className="mt-1 text-sm font-medium">{formatIDR(item.price)}</p>

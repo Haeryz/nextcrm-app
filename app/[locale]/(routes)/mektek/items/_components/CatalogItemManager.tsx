@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Edit, Loader2, Plus, Trash2 } from "lucide-react";
+import { Edit, ImagePlus, Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -17,19 +17,16 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { CatalogImage } from "@/components/mektek/CatalogImage";
 
 type CatalogItemRow = {
   id: string;
   machine: string;
-  rowNumber: number;
-  illustration: string | null;
   imagePath: string | null;
   partNumber: string | null;
-  catalogPartNumber: string | null;
   description: string;
   quantity: string | null;
   price: number | null;
-  remark: string | null;
 };
 
 type CatalogItemManagerProps = {
@@ -38,30 +35,55 @@ type CatalogItemManagerProps = {
 
 const blankItem: CatalogItemInput = {
   machine: "",
-  rowNumber: "",
-  illustration: "",
-  imagePath: "",
   partNumber: "",
-  catalogPartNumber: "",
   description: "",
   quantity: "",
   price: "",
-  remark: "",
+};
+
+type ImageDraft = {
+  file: File | null;
+  preview: string | null;
+  removeExisting: boolean;
+  error: string | null;
+};
+
+const blankImageDraft: ImageDraft = {
+  file: null,
+  preview: null,
+  removeExisting: false,
+  error: null,
 };
 
 function itemToInput(item: CatalogItemRow): CatalogItemInput {
   return {
     machine: item.machine,
-    rowNumber: item.rowNumber,
-    illustration: item.illustration ?? "",
-    imagePath: item.imagePath ?? "",
     partNumber: item.partNumber ?? "",
-    catalogPartNumber: item.catalogPartNumber ?? "",
     description: item.description,
     quantity: item.quantity ?? "",
     price: item.price ?? "",
-    remark: item.remark ?? "",
   };
+}
+
+async function updateCatalogImage(itemId: string, draft: ImageDraft) {
+  const path = `/api/mektek/catalog-items/${encodeURIComponent(itemId)}/image`;
+  if (!draft.file && !draft.removeExisting) return;
+
+  const response = await fetch(path, {
+    method: draft.file ? "PUT" : "DELETE",
+    ...(draft.file
+      ? {
+          body: draft.file,
+          headers: { "Content-Type": draft.file.type },
+        }
+      : {}),
+  });
+  const payload = (await response.json().catch(() => null)) as
+    | { error?: string }
+    | null;
+  if (!response.ok) {
+    throw new Error(payload?.error || "Failed to update catalogue image");
+  }
 }
 
 function formatPrice(price: number | null) {
@@ -94,16 +116,54 @@ function CatalogItemForm({
   onSubmit,
   submitLabel,
   pending,
+  imageSrc,
+  imageDraft,
+  onImageDraftChange,
 }: {
   value: CatalogItemInput;
   onChange: (value: CatalogItemInput) => void;
   onSubmit: () => void;
   submitLabel: string;
   pending: boolean;
+  imageSrc: string | null;
+  imageDraft: ImageDraft;
+  onImageDraftChange: (draft: ImageDraft) => void;
 }) {
   const update = (key: keyof CatalogItemInput, nextValue: string) => {
     onChange({ ...value, [key]: nextValue });
   };
+
+  const selectImage = (file: File | null) => {
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
+      onImageDraftChange({
+        ...blankImageDraft,
+        error: "Choose a JPEG, PNG, WebP, or GIF image",
+      });
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      onImageDraftChange({
+        ...blankImageDraft,
+        error: "Catalogue images must be 4 MB or smaller",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      onImageDraftChange({
+        file,
+        preview: typeof reader.result === "string" ? reader.result : null,
+        removeExisting: false,
+        error: null,
+      });
+    });
+    reader.readAsDataURL(file);
+  };
+
+  const displayedImage = imageDraft.preview ||
+    (imageDraft.removeExisting ? null : imageSrc);
 
   return (
     <form
@@ -122,25 +182,10 @@ function CatalogItemForm({
             required
           />
         </Field>
-        <Field label="Excel row">
-          <Input
-            inputMode="numeric"
-            value={String(value.rowNumber ?? "")}
-            onChange={(event) => update("rowNumber", event.target.value)}
-            disabled={pending}
-          />
-        </Field>
         <Field label="Part number">
           <Input
             value={value.partNumber ?? ""}
             onChange={(event) => update("partNumber", event.target.value)}
-            disabled={pending}
-          />
-        </Field>
-        <Field label="Catalogue part number">
-          <Input
-            value={value.catalogPartNumber ?? ""}
-            onChange={(event) => update("catalogPartNumber", event.target.value)}
             disabled={pending}
           />
         </Field>
@@ -170,30 +215,55 @@ function CatalogItemForm({
         />
       </Field>
 
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Illustration">
-          <Input
-            value={value.illustration ?? ""}
-            onChange={(event) => update("illustration", event.target.value)}
-            disabled={pending}
-          />
-        </Field>
-        <Field label="Image path">
-          <Input
-            placeholder="/catalog/images/example.jpeg"
-            value={value.imagePath ?? ""}
-            onChange={(event) => update("imagePath", event.target.value)}
-            disabled={pending}
-          />
-        </Field>
-      </div>
-
-      <Field label="Remark">
-        <Textarea
-          value={value.remark ?? ""}
-          onChange={(event) => update("remark", event.target.value)}
-          disabled={pending}
-        />
+      <Field label="Catalogue image">
+        <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-center">
+          <div className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
+            {displayedImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={displayedImage}
+                alt="Catalogue preview"
+                className="size-full object-cover"
+              />
+            ) : (
+              <ImagePlus className="size-7 text-muted-foreground" aria-hidden="true" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1 space-y-2">
+            <Input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={(event) => selectImage(event.target.files?.[0] ?? null)}
+              disabled={pending}
+              aria-label="Choose catalogue image from device"
+            />
+            <p className="text-xs text-muted-foreground">
+              Choose a JPEG, PNG, WebP, or GIF from your device (maximum 4 MB).
+            </p>
+            {imageDraft.error && (
+              <p className="text-xs text-destructive" role="alert">
+                {imageDraft.error}
+              </p>
+            )}
+            {displayedImage && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={pending}
+                onClick={() =>
+                  onImageDraftChange({
+                    ...blankImageDraft,
+                    removeExisting: Boolean(imageSrc),
+                  })
+                }
+              >
+                <X data-icon="inline-start" />
+                Remove image
+              </Button>
+            )}
+          </div>
+        </div>
       </Field>
 
       <div className="flex justify-end">
@@ -213,21 +283,35 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
   const [editingItem, setEditingItem] = useState<CatalogItemRow | null>(null);
   const [createValue, setCreateValue] = useState<CatalogItemInput>(blankItem);
   const [editValue, setEditValue] = useState<CatalogItemInput>(blankItem);
+  const [createImage, setCreateImage] = useState<ImageDraft>(blankImageDraft);
+  const [editImage, setEditImage] = useState<ImageDraft>(blankImageDraft);
 
-  const itemCountLabel = useMemo(
-    () => `${items.length} item${items.length === 1 ? "" : "s"} on this page`,
-    [items.length]
-  );
+  const itemCountLabel = `${items.length} item${items.length === 1 ? "" : "s"} on this page`;
 
   const submitCreate = () => {
     startTransition(async () => {
       const result = await createMektekCatalogItem(createValue);
-      if (result?.error) {
-        toast.error(result.error);
+      if (!result || "error" in result) {
+        toast.error(result?.error || "Failed to create catalogue item");
+        return;
+      }
+      try {
+        await updateCatalogImage(result.data.id, createImage);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? `Item created, but the image was not saved: ${error.message}`
+            : "Item created, but the image was not saved",
+        );
+        setCreateValue(blankItem);
+        setCreateImage(blankImageDraft);
+        setCreateOpen(false);
+        router.refresh();
         return;
       }
       toast.success("Catalog item created");
       setCreateValue(blankItem);
+      setCreateImage(blankImageDraft);
       setCreateOpen(false);
       router.refresh();
     });
@@ -236,6 +320,7 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
   const openEdit = (item: CatalogItemRow) => {
     setEditingItem(item);
     setEditValue(itemToInput(item));
+    setEditImage(blankImageDraft);
   };
 
   const submitEdit = () => {
@@ -246,8 +331,20 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
         toast.error(result.error);
         return;
       }
+      try {
+        await updateCatalogImage(editingItem.id, editImage);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? `Item changes were saved, but the image was not updated: ${error.message}`
+            : "Item changes were saved, but the image was not updated",
+        );
+        router.refresh();
+        return;
+      }
       toast.success("Catalog item updated");
       setEditingItem(null);
+      setEditImage(blankImageDraft);
       router.refresh();
     });
   };
@@ -288,6 +385,9 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
               onSubmit={submitCreate}
               submitLabel="Create item"
               pending={isPending}
+              imageSrc={null}
+              imageDraft={createImage}
+              onImageDraftChange={setCreateImage}
             />
           </DialogContent>
         </Dialog>
@@ -308,36 +408,19 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
               className="grid gap-3 px-4 py-4 lg:grid-cols-[72px_minmax(0,1.4fr)_minmax(120px,0.7fr)_minmax(120px,0.6fr)_128px] lg:items-center lg:gap-4"
             >
               <div className="size-16 overflow-hidden rounded-md border bg-muted">
-                {item.imagePath ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={item.imagePath}
-                    alt={item.description}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <div className="flex size-full items-center justify-center text-xs text-muted-foreground">
-                    No image
-                  </div>
-                )}
+                <CatalogImage src={item.imagePath} alt={item.description} />
               </div>
               <div className="min-w-0">
                 <p className="truncate font-medium">{item.description}</p>
                 <p className="text-sm text-muted-foreground">{formatPrice(item.price)}</p>
-                {item.remark && (
-                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-                    {item.remark}
-                  </p>
-                )}
               </div>
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="max-w-full whitespace-normal">
                   {item.machine}
                 </Badge>
-                <span className="text-xs text-muted-foreground">Row {item.rowNumber}</span>
               </div>
               <p className="truncate text-sm text-muted-foreground">
-                {item.catalogPartNumber || item.partNumber || "No part number"}
+                {item.partNumber || "No part number"}
               </p>
               <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
                 <Button
@@ -387,6 +470,9 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
             onSubmit={submitEdit}
             submitLabel="Save changes"
             pending={isPending}
+            imageSrc={editingItem?.imagePath ?? null}
+            imageDraft={editImage}
+            onImageDraftChange={setEditImage}
           />
         </DialogContent>
       </Dialog>

@@ -30,10 +30,8 @@ interface DamageItemsInputProps {
 type CatalogSearchItem = {
   id: string;
   machine: string;
-  rowNumber: number;
   description: string;
   partNumber: string | null;
-  catalogPartNumber: string | null;
   price: number | null;
 };
 
@@ -101,7 +99,7 @@ export default function DamageItemsInput({
               catalogItemId: catalogItem.id,
               machine: catalogItem.machine,
               partNumber: catalogItem.partNumber ?? "",
-              catalogPartNumber: catalogItem.catalogPartNumber ?? "",
+              catalogPartNumber: "",
               description: catalogItem.description,
               quantity: Math.max(1, Number(item.quantity) || 1),
               estimatedCost:
@@ -149,7 +147,7 @@ export default function DamageItemsInput({
                   Catalog
                 </span>
                 <span>{item.machine}</span>
-                <span>{item.catalogPartNumber || item.partNumber || "No part number"}</span>
+                <span>{item.partNumber || "No part number"}</span>
               </div>
             )}
             <div className="flex flex-col gap-2 md:flex-row md:items-start">
@@ -187,10 +185,7 @@ export default function DamageItemsInput({
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {catalogItem.machine} -{" "}
-                            {catalogItem.catalogPartNumber ||
-                              catalogItem.partNumber ||
-                              "No part number"}{" "}
-                            - Row {catalogItem.rowNumber}
+                            {catalogItem.partNumber || "No part number"}
                           </span>
                         </button>
                       ))}

@@ -21,6 +21,7 @@ import {
   canAccessMektekStaffArea,
   canCreateMektekOrders,
   canManageMektekPayments,
+  canManageMektekSchedule,
   canUpdateMektekProgress,
   canUseMektekCustomerTools,
 } from "@/lib/mektek/permissions";
@@ -48,6 +49,8 @@ import {
   isMektekVoucherAvailable,
   toMektekVoucher,
 } from "@/lib/mektek/vouchers";
+import { getCatalogImageSource } from "@/lib/catalog-images";
+import { parseEstimatedDoneInput } from "@/lib/mektek/schedule";
 
 const DEFAULT_TIMELINE_MESSAGE =
   "Layanan Anda telah terbuat. Tim kami sedang menyiapkan pemeriksaan awal kendaraan.";
@@ -627,32 +630,37 @@ export const searchMektekCatalogItems = async (query: string) => {
   }
 
   try {
-    const normalized = search.toLowerCase();
     const items = await prismadb.catalogItem.findMany({
       where: {
         OR: [
-          { searchText: { contains: normalized } },
           { description: { contains: search, mode: "insensitive" } },
           { machine: { contains: search, mode: "insensitive" } },
           { partNumber: { contains: search, mode: "insensitive" } },
-          { catalogPartNumber: { contains: search, mode: "insensitive" } },
         ],
       },
-      orderBy: [{ machine: "asc" }, { rowNumber: "asc" }],
+      orderBy: [{ machine: "asc" }, { description: "asc" }],
       take: 12,
       select: {
         id: true,
         machine: true,
-        rowNumber: true,
         imagePath: true,
+        imageMimeType: true,
         description: true,
         partNumber: true,
-        catalogPartNumber: true,
         price: true,
       },
     });
 
-    return { data: items };
+    return {
+      data: items.map(({ imageMimeType, ...item }) => ({
+        ...item,
+        imagePath: getCatalogImageSource({
+          id: item.id,
+          imageMimeType,
+          imagePath: item.imagePath,
+        }),
+      })),
+    };
   } catch (error) {
     console.log("[SEARCH_MEKTEK_CATALOG_ITEMS]", error);
     return { error: "Failed to search catalog items" };
@@ -910,6 +918,46 @@ export const addMektekTimelineEntry = async (data: {
   } catch (error) {
     console.log("[ADD_MEKTEK_TIMELINE_ENTRY]", error);
     return { error: "Failed to add timeline entry" };
+  }
+};
+
+export const updateMektekServiceOrderEstimatedDone = async (input: {
+  serviceOrderId: string;
+  estimatedDone: string | null;
+}) => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!canManageMektekSchedule(session.user)) {
+    return { error: "Forbidden: only MekTek admins can change the schedule" };
+  }
+
+  const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
+  if (!serviceOrderId) return { error: "Service order ID is required" };
+
+  const parsed = parseEstimatedDoneInput(input?.estimatedDone);
+  if ("error" in parsed) return { error: parsed.error };
+
+  try {
+    const updated = await prismadb.crm_Accounts_Tasks.updateMany({
+      where: { id: serviceOrderId, ...mektekOrderWhere() },
+      data: {
+        dueDateAt: parsed.date,
+        updatedBy: session.user.id,
+      },
+    });
+    if (updated.count === 0) return { error: "Service order not found" };
+
+    revalidatePath("/[locale]/(routes)/mektek", "page");
+    revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
+    revalidatePath("/[locale]/(routes)/mektek/customers/[id]", "page");
+    revalidatePath("/[locale]/customer/profile", "page");
+    revalidatePath("/[locale]/service-status/[id]", "page");
+    revalidatePath("/[locale]/s/[code]", "page");
+
+    return { data: { estimatedDone: parsed.date?.toISOString() ?? null } };
+  } catch (error) {
+    console.log("[UPDATE_MEKTEK_SERVICE_ORDER_ESTIMATED_DONE]", error);
+    return { error: "Failed to update estimated done time" };
   }
 };
 

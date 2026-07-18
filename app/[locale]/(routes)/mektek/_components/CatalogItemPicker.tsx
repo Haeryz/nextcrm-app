@@ -12,11 +12,9 @@ import type { DamageItem } from "./DamageItemsInput";
 type CatalogSearchItem = {
   id: string;
   machine: string;
-  rowNumber: number;
   imagePath: string | null;
   description: string;
   partNumber: string | null;
-  catalogPartNumber: string | null;
   price: number | null;
 };
 
@@ -70,7 +68,7 @@ export default function CatalogItemPicker({
       catalogItemId: item.id,
       machine: item.machine,
       partNumber: item.partNumber ?? "",
-      catalogPartNumber: item.catalogPartNumber ?? "",
+      catalogPartNumber: "",
       description: item.description,
       quantity: 1,
       estimatedCost: typeof item.price === "number" ? String(item.price) : "",
@@ -135,7 +133,7 @@ export default function CatalogItemPicker({
                     {item.description}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {item.machine} - {item.catalogPartNumber || item.partNumber || "No part number"} - Row {item.rowNumber}
+                    {item.machine} - {item.partNumber || "No part number"}
                   </p>
                   <p className="text-xs font-medium text-foreground">
                     {formatPrice(item.price)}

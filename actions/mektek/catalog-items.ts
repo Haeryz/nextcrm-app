@@ -8,21 +8,17 @@ import { authOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
 import { canCreateMektekOrders } from "@/lib/mektek/permissions";
 import { getServerSession } from "@/lib/session";
+import { getCatalogImageSource } from "@/lib/catalog-images";
 
 const DEFAULT_PAGE_SIZE = 24;
 
 export type CatalogItemInput = {
   id?: string;
   machine: string;
-  rowNumber?: number | string;
-  illustration?: string;
-  imagePath?: string;
   partNumber?: string;
-  catalogPartNumber?: string;
   description: string;
   quantity?: string;
   price?: number | string;
-  remark?: string;
 };
 
 function compactText(value: unknown) {
@@ -50,20 +46,10 @@ function slugify(value: string) {
 
 function buildSearchText(input: {
   machine: string;
-  illustration?: string | null;
   partNumber?: string | null;
-  catalogPartNumber?: string | null;
   description: string;
-  remark?: string | null;
 }) {
-  return [
-    input.machine,
-    input.illustration,
-    input.partNumber,
-    input.catalogPartNumber,
-    input.description,
-    input.remark,
-  ]
+  return [input.machine, input.partNumber, input.description]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -90,12 +76,9 @@ function catalogWhere(input?: {
     ...(query
       ? {
           OR: [
-            { searchText: { contains: query.toLowerCase() } },
             { description: { contains: query, mode: "insensitive" } },
             { machine: { contains: query, mode: "insensitive" } },
             { partNumber: { contains: query, mode: "insensitive" } },
-            { catalogPartNumber: { contains: query, mode: "insensitive" } },
-            { remark: { contains: query, mode: "insensitive" } },
           ],
         }
       : {}),
@@ -105,14 +88,9 @@ function catalogWhere(input?: {
 function normalizeCatalogInput(input: CatalogItemInput) {
   const machine = compactText(input.machine);
   const description = compactText(input.description);
-  const rowNumber = parsePositiveInt(input.rowNumber) ?? 0;
-  const illustration = nullableText(input.illustration);
-  const imagePath = nullableText(input.imagePath);
   const partNumber = nullableText(input.partNumber);
-  const catalogPartNumber = nullableText(input.catalogPartNumber);
   const quantity = nullableText(input.quantity);
   const price = parsePositiveInt(input.price);
-  const remark = nullableText(input.remark);
 
   if (!machine) return { error: "Machine is required" };
   if (!description) return { error: "Description is required" };
@@ -120,22 +98,14 @@ function normalizeCatalogInput(input: CatalogItemInput) {
   return {
     data: {
       machine,
-      rowNumber,
-      illustration,
-      imagePath,
       partNumber,
-      catalogPartNumber,
       description,
       quantity,
       price,
-      remark,
       searchText: buildSearchText({
         machine,
-        illustration,
         partNumber,
-        catalogPartNumber,
         description,
-        remark,
       }),
     },
   };
@@ -164,26 +134,30 @@ export async function listMektekCatalogItems(input?: {
 
   const items = await prismadb.catalogItem.findMany({
     where,
-    orderBy: [{ machine: "asc" }, { rowNumber: "asc" }, { description: "asc" }],
+    orderBy: [{ machine: "asc" }, { description: "asc" }],
     skip: (page - 1) * pageSize,
     take: pageSize,
     select: {
       id: true,
       machine: true,
-      rowNumber: true,
-      illustration: true,
       imagePath: true,
+      imageMimeType: true,
       partNumber: true,
-      catalogPartNumber: true,
       description: true,
       quantity: true,
       price: true,
-      remark: true,
     },
   });
 
   return {
-    items,
+    items: items.map(({ imageMimeType, ...item }) => ({
+      ...item,
+      imagePath: getCatalogImageSource({
+        id: item.id,
+        imageMimeType,
+        imagePath: item.imagePath,
+      }),
+    })),
     machines: machines.map((row) => row.machine),
     page,
     pageSize,
@@ -209,8 +183,10 @@ export async function createMektekCatalogItem(input: CatalogItemInput) {
     const item = await prismadb.catalogItem.create({
       data: {
         id,
+        rowNumber: 0,
         ...normalized.data,
       },
+      select: { id: true },
     });
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
     revalidatePath("/[locale]/customer", "page");
@@ -235,6 +211,7 @@ export async function updateMektekCatalogItem(id: string, input: CatalogItemInpu
     const item = await prismadb.catalogItem.update({
       where: { id: itemId },
       data: normalized.data,
+      select: { id: true },
     });
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
     revalidatePath("/[locale]/customer", "page");

@@ -97,9 +97,7 @@ export default function NewServiceOrderForm({
           [
             item.description.trim(),
             item.quantity && item.quantity > 1 ? `x${item.quantity}` : "",
-            item.catalogPartNumber || item.partNumber
-              ? `(${item.catalogPartNumber || item.partNumber})`
-              : "",
+            item.partNumber ? `(${item.partNumber})` : "",
             item.estimatedCost ? `(Est. Rp ${item.estimatedCost})` : "",
           ]
             .filter(Boolean)

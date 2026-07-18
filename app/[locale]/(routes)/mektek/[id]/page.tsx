@@ -13,6 +13,7 @@ import { authOptions } from "@/lib/auth";
 import AddTimelineEntryForm from "./_components/AddTimelineEntryForm";
 import CustomerTrackingLinkCard from "./_components/CustomerTrackingLinkCard";
 import ServiceOrderStatusControl from "./_components/ServiceOrderStatusControl";
+import EstimatedDoneControl from "./_components/EstimatedDoneControl";
 import { getStatusMeta } from "../_lib/constants";
 import PaymentCard from "../_components/PaymentCard";
 import WhatsAppComposer from "../_components/WhatsAppComposer";
@@ -23,6 +24,7 @@ import VisitDiscountCard from "../_components/VisitDiscountCard";
 import {
   canAccessMektekStaffArea,
   canManageMektekPayments,
+  canManageMektekSchedule,
   canUpdateMektekProgress,
   canUseMektekCustomerTools,
 } from "@/lib/mektek/permissions";
@@ -49,6 +51,7 @@ export default async function MektekDetailPage({ params }: Props) {
   const canUpdateProgress = canUpdateMektekProgress(session?.user);
   const canUseCustomerTools = canUseMektekCustomerTools(session?.user);
   const canManagePayment = canManageMektekPayments(session?.user);
+  const canManageSchedule = canManageMektekSchedule(session?.user);
   if (!canAccess) {
     return (
       <Container title="Service Order" description="Restricted MekTek workspace">
@@ -195,7 +198,11 @@ export default async function MektekDetailPage({ params }: Props) {
                   <div>
                     <p className="text-xs text-muted-foreground">Estimated Done</p>
                     <p className="text-sm font-medium text-foreground">
-                      {order.dueDateAt?.toLocaleDateString() ?? "Not set"}
+                      {order.dueDateAt?.toLocaleString("en-ID", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                        timeZone: "Asia/Makassar",
+                      }) ?? "Not set"}
                     </p>
                   </div>
                   <div>
@@ -275,9 +282,7 @@ export default async function MektekDetailPage({ params }: Props) {
                             <p className="font-medium">{item.name}</p>
                             <p className="text-xs text-muted-foreground">
                               {item.quantity} x {item.unitPrice.toLocaleString("id-ID")} IDR
-                              {item.catalogPartNumber || item.partNumber
-                                ? ` · ${item.catalogPartNumber || item.partNumber}`
-                                : ""}
+                              {item.partNumber ? ` · ${item.partNumber}` : ""}
                             </p>
                           </div>
                         ))
@@ -358,6 +363,20 @@ export default async function MektekDetailPage({ params }: Props) {
 
           <aside className="min-w-0 space-y-6">
             <VisitDiscountCard visitCount={completedVisitCount} />
+
+            {canManageSchedule && (
+              <Card className="border shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Schedule</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <EstimatedDoneControl
+                    serviceOrderId={order.id}
+                    estimatedDone={order.dueDateAt?.toISOString() ?? null}
+                  />
+                </CardContent>
+              </Card>
+            )}
 
             {canUseCustomerTools && customerTrackingLink && (
               <CustomerTrackingLinkCard link={customerTrackingLink} />

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { getExistingCatalogImagePath } from "@/lib/catalog-images";
+import { getPaginationItems } from "@/lib/pagination";
 import CatalogItemManager from "./_components/CatalogItemManager";
 
 interface MektekCatalogItemsPageProps {
@@ -56,6 +57,7 @@ export default async function MektekCatalogItemsPage({
 
   const previousPage = Math.max(1, catalog.page - 1);
   const nextPage = Math.min(catalog.totalPages, catalog.page + 1);
+  const paginationItems = getPaginationItems(catalog.page, catalog.totalPages);
   const queryString = new URLSearchParams();
   if (query) queryString.set("q", query);
   if (machine) queryString.set("machine", machine);
@@ -103,19 +105,53 @@ export default async function MektekCatalogItemsPage({
           <p className="text-sm text-muted-foreground">
             Page {catalog.page} of {catalog.totalPages} - {catalog.totalCount} items
           </p>
-          <div className="grid grid-cols-2 gap-2 sm:flex">
-            <Button asChild variant="outline" size="sm" disabled={catalog.page <= 1}>
-              <Link href={pageHref(previousPage)}>Previous</Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              disabled={catalog.page >= catalog.totalPages}
-            >
-              <Link href={pageHref(nextPage)}>Next</Link>
-            </Button>
-          </div>
+          <nav
+            aria-label="Catalogue item pages"
+            className="flex flex-wrap items-center gap-2"
+          >
+            {catalog.page > 1 ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={pageHref(previousPage)}>Previous</Link>
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled>
+                Previous
+              </Button>
+            )}
+
+            {paginationItems.map((item, index) =>
+              item === "ellipsis" ? (
+                <span
+                  key={`ellipsis-${index}`}
+                  className="px-1 text-sm text-muted-foreground"
+                  aria-hidden="true"
+                >
+                  …
+                </span>
+              ) : (
+                <Button
+                  key={item}
+                  asChild
+                  variant={item === catalog.page ? "default" : "outline"}
+                  size="icon"
+                  aria-current={item === catalog.page ? "page" : undefined}
+                  aria-label={`Page ${item}`}
+                >
+                  <Link href={pageHref(item)}>{item}</Link>
+                </Button>
+              ),
+            )}
+
+            {catalog.page < catalog.totalPages ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={pageHref(nextPage)}>Next</Link>
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled>
+                Next
+              </Button>
+            )}
+          </nav>
         </div>
       </div>
     </Container>

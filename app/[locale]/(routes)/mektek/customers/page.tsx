@@ -105,6 +105,7 @@ export default async function MektekCustomersPage({
         </Card>
 
         <CustomerUserManager
+          locale={locale}
           customers={items.map((item) => ({
             ...item,
             createdAt: item.createdAt.toISOString(),

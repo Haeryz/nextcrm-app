@@ -14,7 +14,24 @@ export function getExistingCatalogImagePath(imagePath: string | null): string | 
   const normalized = imagePath.replace(/\\/g, "/");
   // Only allow the known static catalog image directory; block traversal.
   if (normalized.includes("..")) return null;
-  if (!normalized.startsWith("/catalog/images/")) return null;
+  if (
+    !normalized.startsWith("/catalog/images/") &&
+    !/^\/api\/mektek\/catalog-items\/[^/]+\/image$/.test(normalized)
+  ) {
+    return null;
+  }
 
   return normalized;
+}
+
+export function getCatalogImageSource(input: {
+  id: string;
+  imageMimeType?: string | null;
+  imagePath?: string | null;
+}) {
+  if (input.imageMimeType) {
+    return `/api/mektek/catalog-items/${encodeURIComponent(input.id)}/image`;
+  }
+
+  return getExistingCatalogImagePath(input.imagePath ?? null);
 }

@@ -577,24 +577,18 @@ export default async function CustomerCatalogPage({
                   <CatalogImage src={imagePath} alt={item.description} />
                 </div>
                 <CardContent className="flex min-h-56 flex-col gap-3 p-4">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
                     <Badge className="max-w-[70%] truncate bg-[#fff200] text-[#10164f] hover:bg-[#fff200]">
                       {item.machine}
                     </Badge>
-                    <span className="text-xs text-[#4b5577]">Row {item.rowNumber}</span>
                   </div>
                   <div className="flex flex-1 flex-col gap-1">
                     <h2 className="line-clamp-2 text-base font-semibold">
                       {item.description}
                     </h2>
                     <p className="text-sm text-[#4b5577]">
-                      {item.catalogPartNumber || item.partNumber || "No part number"}
+                      {item.partNumber || "No part number"}
                     </p>
-                    {item.remark && (
-                      <p className="line-clamp-2 text-xs text-[#4b5577]">
-                        {item.remark}
-                      </p>
-                    )}
                   </div>
                   {typeof item.price === "number" && item.price > 0 ? (
                     <div className="flex flex-col gap-3">
@@ -608,7 +602,7 @@ export default async function CustomerCatalogPage({
                           price: item.price,
                           machine: item.machine ?? null,
                           partNumber: item.partNumber ?? null,
-                          catalogPartNumber: item.catalogPartNumber ?? null,
+                          catalogPartNumber: null,
                           imagePath: item.imagePath ?? null,
                         }}
                       />

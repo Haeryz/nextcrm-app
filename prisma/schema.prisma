@@ -209,6 +209,8 @@ model CatalogItem {
   rowNumber         Int
   illustration      String?
   imagePath         String?
+  imageData         Bytes?
+  imageMimeType     String?
   partNumber        String?
   catalogPartNumber String?
   description       String
