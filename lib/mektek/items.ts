@@ -25,13 +25,27 @@ export type MektekLineItem = {
   total: number;
 };
 
+export const haveRequiredMektekItemPrices = (
+  items: ReadonlyArray<Pick<MektekLineItem, "unitPrice">>,
+) =>
+  items.every(
+    (item) => Number.isFinite(item.unitPrice) && item.unitPrice > 0,
+  );
+
 type JsonRecord = Record<string, unknown>;
 
 const parseMoney = (value: unknown) => {
-  const cleaned = String(value ?? "").replace(/\D/g, "");
+  const rawValue = String(value ?? "");
+  if (/-\s*\d/.test(rawValue)) return 0;
+
+  const cleaned = rawValue.replace(/\D/g, "");
   const amount = Number(cleaned);
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
 };
+
+export const haveRequiredMektekItemInputPrices = (
+  items: ReadonlyArray<Pick<MektekLineItemInput, "estimatedCost">>,
+) => items.every((item) => parseMoney(item.estimatedCost) > 0);
 
 const parseQuantity = (value: unknown) =>
   Math.max(1, Math.floor(Number(value) || 1));

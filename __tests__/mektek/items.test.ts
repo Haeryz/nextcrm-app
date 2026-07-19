@@ -1,5 +1,7 @@
 import {
   appendMektekLineItems,
+  haveRequiredMektekItemInputPrices,
+  haveRequiredMektekItemPrices,
   normalizeMektekLineItems,
 } from "@/lib/mektek/items";
 
@@ -54,6 +56,38 @@ describe("normalizeMektekLineItems", () => {
     expect(result.serviceItems.map((item) => item.name)).toEqual(["Inspection"]);
     expect(result.sparepartItems.map((item) => item.name)).toEqual(["Cabin filter"]);
     expect(result.subtotal).toBe(165000);
+  });
+});
+
+describe("haveRequiredMektekItemPrices", () => {
+  it("accepts empty optional groups and items with positive prices", () => {
+    expect(haveRequiredMektekItemPrices([])).toBe(true);
+    expect(haveRequiredMektekItemPrices([{ unitPrice: 1 }])).toBe(true);
+    expect(haveRequiredMektekItemPrices([{ unitPrice: 1_000_000 }])).toBe(true);
+  });
+
+  it("rejects missing, zero, negative, and non-finite prices", () => {
+    expect(haveRequiredMektekItemPrices([{ unitPrice: 0 }])).toBe(false);
+    expect(haveRequiredMektekItemPrices([{ unitPrice: -1 }])).toBe(false);
+    expect(haveRequiredMektekItemPrices([{ unitPrice: Number.NaN }])).toBe(false);
+  });
+
+  it("validates raw formatted estimated-cost input values", () => {
+    expect(
+      haveRequiredMektekItemInputPrices([
+        { estimatedCost: "1.000.000" },
+        { estimatedCost: 50_000 },
+      ]),
+    ).toBe(true);
+    expect(
+      haveRequiredMektekItemInputPrices([{ estimatedCost: "" }]),
+    ).toBe(false);
+    expect(
+      haveRequiredMektekItemInputPrices([{ estimatedCost: "0" }]),
+    ).toBe(false);
+    expect(
+      haveRequiredMektekItemInputPrices([{ estimatedCost: "Rp -100.000" }]),
+    ).toBe(false);
   });
 });
 

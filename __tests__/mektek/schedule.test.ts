@@ -1,4 +1,7 @@
-import { parseEstimatedDoneInput } from "@/lib/mektek/schedule";
+import {
+  getMektekTodayDateInput,
+  parseEstimatedDoneInput,
+} from "@/lib/mektek/schedule";
 
 describe("parseEstimatedDoneInput", () => {
   it("parses a timezone-aware estimate", () => {
@@ -18,5 +21,19 @@ describe("parseEstimatedDoneInput", () => {
     expect(parseEstimatedDoneInput("not-a-date")).toEqual({
       error: "Estimated done date is invalid",
     });
+  });
+});
+
+describe("getMektekTodayDateInput", () => {
+  it("returns the current calendar date in the MekTek timezone", () => {
+    expect(getMektekTodayDateInput(new Date("2026-07-18T04:00:00.000Z"))).toBe(
+      "2026-07-18",
+    );
+  });
+
+  it("uses the next Makassar day when UTC is still on the previous date", () => {
+    expect(getMektekTodayDateInput(new Date("2026-07-18T17:00:00.000Z"))).toBe(
+      "2026-07-19",
+    );
   });
 });

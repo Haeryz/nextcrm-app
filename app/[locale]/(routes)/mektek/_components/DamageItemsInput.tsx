@@ -214,16 +214,17 @@ export default function DamageItemsInput({
                 disabled={disabled}
                 className="w-full md:w-24"
               />
-              <RupiahInput
-                aria-label="Estimated cost in Rupiah"
-                placeholder="Estimasi biaya (Rp)"
-                value={item.estimatedCost}
-                onValueChange={(value) =>
-                  updateItem(index, "estimatedCost", value)
-                }
-                disabled={disabled}
-                className="w-full md:w-44"
-              />
+                    <RupiahInput
+                      aria-label="Estimated cost in Rupiah"
+                      placeholder="Estimasi biaya (Rp)"
+                      value={item.estimatedCost}
+                      onValueChange={(value) =>
+                        updateItem(index, "estimatedCost", value)
+                      }
+                      disabled={disabled}
+                      required
+                      className="w-full md:w-44"
+                    />
               <Button
                 type="button"
                 variant="ghost"

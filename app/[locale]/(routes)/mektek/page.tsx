@@ -6,6 +6,7 @@ import {
 } from "@/actions/mektek/service-orders";
 import { authOptions } from "@/lib/auth";
 import { canAccessMektekStaffArea, canCreateMektekOrders } from "@/lib/mektek/permissions";
+import { getMektekTodayDateInput } from "@/lib/mektek/schedule";
 import { getServerSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -70,7 +71,10 @@ export default async function MektekPage({ params, searchParams }: MektekPagePro
     >
       <div className="space-y-6">
         {canCreate ? (
-          <NewServiceOrderForm technicians={technicians} />
+          <NewServiceOrderForm
+            initialEstimatedDone={getMektekTodayDateInput()}
+            technicians={technicians}
+          />
         ) : (
           <Card className="border">
             <CardContent className="p-4 text-sm text-muted-foreground">

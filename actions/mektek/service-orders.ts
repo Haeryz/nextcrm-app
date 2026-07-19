@@ -15,6 +15,7 @@ import {
 import {
   appendMektekLineItems,
   buildMektekStoredItems,
+  haveRequiredMektekItemPrices,
   normalizeMektekLineItems,
   type MektekLineItemInput,
 } from "@/lib/mektek/items";
@@ -235,6 +236,23 @@ export const createMektekServiceOrder = async (
   const customerCode = createCustomerCode();
   const serviceItems = buildMektekStoredItems(input?.serviceItems, "service");
   const sparepartItems = buildMektekStoredItems(input?.sparepartItems, "sparepart");
+
+  if (serviceItems.length === 0) {
+    return {
+      error: "Add at least one service description with an estimated cost",
+    };
+  }
+
+  if (!haveRequiredMektekItemPrices(serviceItems)) {
+    return {
+      error: "Estimated cost is required for every service description",
+    };
+  }
+
+  if (!haveRequiredMektekItemPrices(sparepartItems)) {
+    return { error: "Estimated cost is required for every sparepart item" };
+  }
+
   const locale = session.user.userLanguage || "en";
 
   try {
@@ -988,6 +1006,16 @@ export const appendMektekServiceOrderItems = async (input: {
   const addedSparepartItems = buildMektekStoredItems(input?.sparepartItems, "sparepart");
   if (addedServiceItems.length === 0 && addedSparepartItems.length === 0) {
     return { error: "Add at least one service or sparepart item" };
+  }
+
+  if (!haveRequiredMektekItemPrices(addedServiceItems)) {
+    return {
+      error: "Estimated cost is required for every service description",
+    };
+  }
+
+  if (!haveRequiredMektekItemPrices(addedSparepartItems)) {
+    return { error: "Estimated cost is required for every sparepart item" };
   }
 
   try {

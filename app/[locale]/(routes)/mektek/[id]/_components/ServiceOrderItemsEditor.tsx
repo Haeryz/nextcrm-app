@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { appendMektekServiceOrderItems } from "@/actions/mektek/service-orders";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { haveRequiredMektekItemInputPrices } from "@/lib/mektek/items";
 import DamageItemsInput, {
   type DamageItem,
 } from "../../_components/DamageItemsInput";
@@ -35,6 +36,18 @@ export default function ServiceOrderItemsEditor({
     const validSparepartItems = sparepartItems.filter((item) => item.description.trim());
     if (validServiceItems.length === 0 && validSparepartItems.length === 0) {
       toast.error("Add at least one service or sparepart item");
+      return;
+    }
+
+    if (!haveRequiredMektekItemInputPrices(validServiceItems)) {
+      toast.error(
+        "Estimated cost is required for every service description",
+      );
+      return;
+    }
+
+    if (!haveRequiredMektekItemInputPrices(validSparepartItems)) {
+      toast.error("Estimated cost is required for every sparepart item");
       return;
     }
 

@@ -12,6 +12,8 @@ import {
 } from "@/actions/mektek/service-orders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { haveRequiredMektekItemInputPrices } from "@/lib/mektek/items";
+import { getMektekTodayDateInput } from "@/lib/mektek/schedule";
 import {
   Select,
   SelectContent,
@@ -26,10 +28,12 @@ import DamageItemsInput, { DamageItem } from "./DamageItemsInput";
 const UNASSIGNED_TECHNICIAN = "UNASSIGNED";
 
 type NewServiceOrderFormProps = {
+  initialEstimatedDone: string;
   technicians: MektekTechnicianOption[];
 };
 
 export default function NewServiceOrderForm({
+  initialEstimatedDone,
   technicians,
 }: NewServiceOrderFormProps) {
   const router = useRouter();
@@ -46,7 +50,7 @@ export default function NewServiceOrderForm({
   const [phone, setPhone] = useState("");
   const [customerType, setCustomerType] = useState<"STANDARD" | "B2B">("STANDARD");
   const [address, setAddress] = useState("");
-  const [estimatedDone, setEstimatedDone] = useState("");
+  const [estimatedDone, setEstimatedDone] = useState(initialEstimatedDone);
   const [voucherCode, setVoucherCode] = useState("");
   const [formResetKey, setFormResetKey] = useState(0);
   const [customerSuggestions, setCustomerSuggestions] = useState<
@@ -90,9 +94,32 @@ export default function NewServiceOrderForm({
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    const describedServiceItems = serviceItems.filter((item) =>
+      item.description.trim(),
+    );
+    const describedSparepartItems = sparepartItems.filter((item) =>
+      item.description.trim(),
+    );
+
+    if (describedServiceItems.length === 0) {
+      toast.error("Add at least one service description");
+      return;
+    }
+
+    if (!haveRequiredMektekItemInputPrices(describedServiceItems)) {
+      toast.error(
+        "Estimated cost is required for every service description",
+      );
+      return;
+    }
+
+    if (!haveRequiredMektekItemInputPrices(describedSparepartItems)) {
+      toast.error("Estimated cost is required for every sparepart item");
+      return;
+    }
+
     startTransition(async () => {
-      const complaint = serviceItems
-        .filter((item) => item.description.trim())
+      const complaint = describedServiceItems
         .map((item) =>
           [
             item.description.trim(),
@@ -116,8 +143,8 @@ export default function NewServiceOrderForm({
         address,
         estimatedDone,
         voucherCode,
-        serviceItems,
-        sparepartItems,
+        serviceItems: describedServiceItems,
+        sparepartItems: describedSparepartItems,
       });
 
       if (result?.error) {
@@ -157,7 +184,7 @@ export default function NewServiceOrderForm({
       setPhone("");
       setCustomerType("STANDARD");
       setAddress("");
-      setEstimatedDone("");
+      setEstimatedDone(getMektekTodayDateInput());
       setVoucherCode("");
       setCustomerSuggestions([]);
       setCustomerSuggestionsOpen(false);
@@ -310,6 +337,7 @@ export default function NewServiceOrderForm({
             </SelectContent>
           </Select>
           <Input
+            aria-label="Estimated done date"
             placeholder="Estimated done"
             type="date"
             value={estimatedDone}

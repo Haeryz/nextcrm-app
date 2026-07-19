@@ -110,7 +110,7 @@ test("dashboard loads and loyalty discount applies automatically", async ({ page
   await page.getByPlaceholder(/Vehicle/).fill(vehicle);
   await page.getByPlaceholder("Phone").fill(customerPhone);
   await page.getByPlaceholder(/Kerusakan #1/).fill("Brake inspection");
-  await page.getByPlaceholder("Estimasi biaya (Rp)").first().fill("200000");
+  await page.getByPlaceholder(" (Rp)").first().fill("200000");
   await page.getByRole("button", { name: "Add Service" }).click();
 
   await expect(page.getByText("Service order created")).toBeVisible();
