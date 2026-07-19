@@ -3,7 +3,16 @@
 import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Edit, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronRight,
+  Edit,
+  Eye,
+  EyeOff,
+  Loader2,
+  Plus,
+  Shuffle,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -24,6 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { generateRandomCustomerPassword } from "@/lib/mektek/customer-password-generator";
 import {
   Select,
   SelectContent,
@@ -124,8 +134,15 @@ function CustomerUserForm({
   pending: boolean;
   isEdit?: boolean;
 }) {
+  const [showPassword, setShowPassword] = useState(false);
   const update = (key: keyof CustomerUserInput, nextValue: string | boolean) => {
     onChange({ ...value, [key]: nextValue });
+  };
+
+  const randomizePassword = () => {
+    update("password", generateRandomCustomerPassword());
+    setShowPassword(true);
+    toast.success("Password acak dibuat");
   };
 
   return (
@@ -178,13 +195,46 @@ function CustomerUserForm({
           />
         </Field>
         <Field label={isEdit ? "New password" : "Password"}>
-          <Input
-            type="password"
-            value={value.password ?? ""}
-            onChange={(event) => update("password", event.target.value)}
-            disabled={pending}
-            placeholder={isEdit ? "Kosongkan untuk mempertahankan Password saat ini" : "Opsional"}
-          />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative flex-1">
+              <Input
+                type={showPassword ? "text" : "password"}
+                value={value.password ?? ""}
+                onChange={(event) => update("password", event.target.value)}
+                disabled={pending}
+                autoComplete="new-password"
+                className="pr-10 font-mono"
+                placeholder={
+                  isEdit
+                    ? "Kosongkan untuk mempertahankan Password saat ini"
+                    : "Opsional"
+                }
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-0 top-0"
+                onClick={() => setShowPassword((current) => !current)}
+                disabled={pending || !value.password}
+                aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+              >
+                {showPassword ? <EyeOff /> : <Eye />}
+              </Button>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={randomizePassword}
+              disabled={pending}
+            >
+              <Shuffle data-icon="inline-start" />
+              Randomize
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Password acak berisi huruf besar, huruf kecil, angka, dan simbol.
+          </p>
         </Field>
       </div>
 
