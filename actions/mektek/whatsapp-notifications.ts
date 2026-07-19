@@ -7,6 +7,8 @@
 import "server-only";
 import { buildMektekInvoiceData, renderMektekInvoicePdf, renderMektekReceiptPdf } from "@/actions/mektek/invoice-pdf";
 import { areExternalApisDisabled } from "@/lib/external-apis";
+import { getActiveWhatsAppMessageTemplateBody } from "@/lib/mektek/whatsapp-message-template-store";
+import { applyWhatsAppMessageTemplate } from "@/lib/mektek/whatsapp-message-templates";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getWhatsAppState } from "@/lib/whatsapp";
 
@@ -32,10 +34,6 @@ function buildContext(order: ServiceOrderSummary) {
   const phone = (tags.phone as string | undefined) || "";
 
   return { customerName, vehicle, phone, tags };
-}
-
-function applyTemplate(template: string, context: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (_, key) => context[key] ?? "");
 }
 
 const DEFAULT_NEW_ORDER_TEMPLATE = [
@@ -90,9 +88,10 @@ export async function notifyMektekOrderCreated(params: {
 
   const messageTemplate =
     (context.tags.whatsappNewOrderTemplate as string | undefined) ||
+    (await getActiveWhatsAppMessageTemplateBody("ORDER_CREATED")) ||
     DEFAULT_NEW_ORDER_TEMPLATE;
 
-  const message = applyTemplate(messageTemplate, {
+  const message = applyWhatsAppMessageTemplate(messageTemplate, {
     customerName: context.customerName,
     vehicle: context.vehicle,
     trackingLink: params.trackingLink,
@@ -114,9 +113,10 @@ export async function notifyMektekOrderCompleted(params: {
 
   const messageTemplate =
     (context.tags.whatsappCompletedTemplate as string | undefined) ||
+    (await getActiveWhatsAppMessageTemplateBody("ORDER_COMPLETED")) ||
     DEFAULT_COMPLETED_TEMPLATE;
 
-  const message = applyTemplate(messageTemplate, {
+  const message = applyWhatsAppMessageTemplate(messageTemplate, {
     customerName: context.customerName,
     vehicle: context.vehicle,
     trackingLink: params.trackingLink,
@@ -163,8 +163,9 @@ export async function notifyMektekOrderReadyForPayment(params: {
 
   const messageTemplate =
     (context.tags.whatsappReadyForPaymentTemplate as string | undefined) ||
+    (await getActiveWhatsAppMessageTemplateBody("READY_FOR_PAYMENT")) ||
     DEFAULT_READY_FOR_PAYMENT_TEMPLATE;
-  const message = applyTemplate(messageTemplate, {
+  const message = applyWhatsAppMessageTemplate(messageTemplate, {
     customerName: context.customerName,
     vehicle: context.vehicle,
     trackingLink: params.trackingLink,

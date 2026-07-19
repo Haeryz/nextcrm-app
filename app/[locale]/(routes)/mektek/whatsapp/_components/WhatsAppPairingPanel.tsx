@@ -3,68 +3,15 @@
 import { useCallback, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { QrCode, Smartphone, MessageSquare, CheckCircle2, AlertCircle } from "lucide-react";
+import { QrCode, Smartphone, CheckCircle2, AlertCircle } from "lucide-react";
+import type { MektekWhatsAppMessageTemplateRow } from "@/actions/mektek/whatsapp-message-templates";
 import {
   openWhatsAppPairingStream,
   type PairingEventSource,
 } from "@/lib/whatsapp/pairing-stream";
-
-const DEFAULT_TEMPLATES = [
-  {
-    id: "new_order",
-    name: "Order Baru",
-    body: [
-      "Halo {customerName},",
-      "",
-      "Terima kasih, pesanan servis kendaraan {vehicle} sudah kami terima di Mektek.",
-      "",
-      "Tim kami akan melakukan pengecekan awal dan memperbarui Progress servis secara berkala.",
-      "",
-      "Cek status servis Anda di:",
-      "{trackingLink}",
-      "",
-      "Simpan link ini untuk melihat status, estimasi, dan catatan pengerjaan terbaru.",
-      "",
-      "Terima kasih telah mempercayai Mektek.",
-    ].join("\n"),
-  },
-  {
-    id: "status_update",
-    name: "Update Status",
-    body: [
-      "Halo {customerName},",
-      "",
-      "Ada update terbaru untuk servis kendaraan Anda:",
-      "{updateMessage}",
-      "",
-      "Cek detail status servis di:",
-      "{trackingLink}",
-      "",
-      "Silakan balas pesan ini jika ada pertanyaan.",
-      "",
-      "Terima kasih.",
-    ].join("\n"),
-  },
-  {
-    id: "completed",
-    name: "Servis Selesai",
-    body: [
-      "Halo {customerName},",
-      "",
-      "Servis kendaraan {vehicle} Anda sudah selesai.",
-      "",
-      "Invoice dan struk kami lampirkan pada pesan ini. Ringkasan status servis tetap bisa dicek melalui link berikut:",
-      "{trackingLink}",
-      "",
-      "Silakan hubungi kami jika ada pertanyaan sebelum pengambilan kendaraan.",
-      "",
-      "Terima kasih telah mempercayai Mektek.",
-    ].join("\n"),
-  },
-];
+import WhatsAppTemplateManager from "./WhatsAppTemplateManager";
 
 function formatWhatsAppPhone(phone?: string | null) {
   if (!phone) return null;
@@ -81,6 +28,7 @@ export type WhatsAppPairingPanelProps = {
   initialStatus: SessionStatus;
   initialPhone: string | null;
   initialError: string | null;
+  initialTemplates: MektekWhatsAppMessageTemplateRow[];
 };
 
 const LEGACY_WHATSAPP_ERRORS: Record<string, string> = {
@@ -108,11 +56,11 @@ export default function WhatsAppPairingPanel({
   initialStatus,
   initialPhone,
   initialError,
+  initialTemplates,
 }: WhatsAppPairingPanelProps) {
   const [connectedPhone, setConnectedPhone] = useState<string | null>(
     formatWhatsAppPhone(initialPhone)
   );
-  const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>(initialStatus);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string | null>(() =>
@@ -125,10 +73,6 @@ export default function WhatsAppPairingPanel({
   // WhatsApp socket open for as long as this connection lasts, so an abandoned
   // stream would keep the send lease held.
   const pairingStreamRef = useRef<PairingEventSource | null>(null);
-
-  const updateTemplate = (id: string, body: string) => {
-    setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, body } : t)));
-  };
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -356,44 +300,7 @@ export default function WhatsAppPairingPanel({
         </CardContent>
       </Card>
 
-      {/* Message templates */}
-      <Card className="border shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground flex items-center gap-2">
-            <MessageSquare className="w-4 h-4" />
-            Template Pesan
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <p className="text-xs text-muted-foreground">
-            Variabel yang tersedia:{" "}
-            <code className="bg-muted px-1 py-0.5 rounded text-[11px]">{"{customerName}"}</code>{" "}
-            <code className="bg-muted px-1 py-0.5 rounded text-[11px]">{"{vehicle}"}</code>{" "}
-            <code className="bg-muted px-1 py-0.5 rounded text-[11px]">{"{trackingLink}"}</code>{" "}
-            <code className="bg-muted px-1 py-0.5 rounded text-[11px]">{"{updateMessage}"}</code>
-          </p>
-
-          {templates.map((template) => (
-            <div key={template.id} className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-semibold text-foreground">{template.name}</p>
-                <Badge variant="outline" className="text-[10px]">
-                  {template.id}
-                </Badge>
-              </div>
-              <Textarea
-                value={template.body}
-                onChange={(e) => updateTemplate(template.id, e.target.value)}
-                className="min-h-20 text-sm"
-              />
-            </div>
-          ))}
-
-          <Button variant="outline" disabled className="w-full">
-            Simpan Template (Backend Pending)
-          </Button>
-        </CardContent>
-      </Card>
+      <WhatsAppTemplateManager initialTemplates={initialTemplates} />
     </div>
   );
 }

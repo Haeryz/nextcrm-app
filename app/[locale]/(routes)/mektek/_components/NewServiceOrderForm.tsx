@@ -24,7 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import CatalogItemPicker from "./CatalogItemPicker";
 import DamageItemsInput, { DamageItem } from "./DamageItemsInput";
 
 const UNASSIGNED_TECHNICIAN = "UNASSIGNED";
@@ -64,6 +63,7 @@ export default function NewServiceOrderForm({
   const [customerSuggestionsOpen, setCustomerSuggestionsOpen] = useState(false);
   const [hasCustomerSearchResult, setHasCustomerSearchResult] = useState(false);
   const [isSearchingCustomers, startCustomerSearch] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
   const selectedCustomerNameRef = useRef("");
 
   useEffect(() => {
@@ -95,6 +95,19 @@ export default function NewServiceOrderForm({
       window.clearTimeout(timeoutId);
     };
   }, [customerName]);
+
+  useEffect(() => {
+    if (formResetKey === 0) return;
+
+    const animationFrameId = window.requestAnimationFrame(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      formRef.current
+        ?.querySelector<HTMLInputElement>("input")
+        ?.focus();
+    });
+
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [formResetKey]);
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -226,7 +239,12 @@ export default function NewServiceOrderForm({
 
   return (
     <div className="flex flex-col gap-4">
-      <form onSubmit={onSubmit} className="flex flex-col gap-4 rounded-xl border bg-card p-5 md:p-6">
+      <form
+        key={formResetKey}
+        ref={formRef}
+        onSubmit={onSubmit}
+        className="flex flex-col gap-4 rounded-xl border bg-card p-5 md:p-6"
+      >
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wider text-muted-foreground">

@@ -1,4 +1,5 @@
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
+import { listMektekWhatsAppMessageTemplates } from "@/actions/mektek/whatsapp-message-templates";
 import { getWhatsAppState } from "@/lib/whatsapp";
 import WhatsAppPairingPanel from "./_components/WhatsAppPairingPanel";
 
@@ -11,7 +12,10 @@ export const dynamic = "force-dynamic";
 // Admin gating lives in ./layout.tsx — this page only renders what that already
 // allowed through.
 export default async function MektekWhatsAppPage() {
-  const state = await getWhatsAppState();
+  const [state, templatesResult] = await Promise.all([
+    getWhatsAppState(),
+    listMektekWhatsAppMessageTemplates(),
+  ]);
 
   return (
     <Container
@@ -22,6 +26,7 @@ export default async function MektekWhatsAppPage() {
         initialStatus={state.status === "ready" ? "connected" : "disconnected"}
         initialPhone={state.sessionPhone ?? null}
         initialError={state.lastError ?? null}
+        initialTemplates={templatesResult.data ?? []}
       />
     </Container>
   );

@@ -384,11 +384,14 @@ Halaman ini hanya bisa diakses **admin**.
 6. Setelah terhubung, nomor pengirim muncul otomatis pada **Akun WhatsApp Pengirim**.
 7. Tombol **Putuskan Sesi (Logout)** memutus tautan perangkat dari WhatsApp dan menghapus sesi
    tersimpan. Setelah logout, notifikasi WhatsApp berhenti sampai QR discan ulang.
-8. Periksa bagian **Template Pesan**:
-   - Order Baru
-   - Update Status
-   - Servis Selesai
-9. Ubah isi template jika perlu untuk testing tampilan.
+8. Di bagian **Template Pesan**, buat template sendiri dengan nama, isi pesan, dan event:
+   - Order baru
+   - Siap dibayar
+   - Servis selesai
+9. Aktifkan **Gunakan otomatis untuk event ini**, lalu klik **Buat Template**.
+10. Template dapat diedit, dinonaktifkan, atau dihapus. Hanya satu template aktif yang
+    digunakan untuk setiap event; mengaktifkan template baru otomatis menonaktifkan template
+    lama untuk event yang sama.
 
 Catatan penting:
 
@@ -400,8 +403,8 @@ Catatan penting:
   pengiriman pesan yang sedang berjalan — tunggu sebentar lalu coba lagi. Sebaliknya, selama
   pairing berlangsung, pengiriman notifikasi akan gagal sementara.
 - Pengiriman notifikasi butuh sekitar 3–8 detik per pesan karena koneksi dibuat saat itu juga.
-- Tombol **Simpan Template (Backend Pending)** masih disabled — fitur simpan template belum aktif.
-  Template yang benar-benar dipakai ada di `actions/mektek/whatsapp-notifications.ts`.
+- Template aktif disimpan di database dan dipakai langsung oleh notifikasi otomatis. Jika belum
+  ada template aktif untuk suatu event, sistem memakai pesan bawaan sebagai fallback.
 - Di produksi, `EMAIL_ENCRYPTION_KEY` wajib diisi dan **Fluid compute** wajib aktif di Vercel.
   Tanpa itu pairing tidak akan jalan. Detail teknis: `docs/whatsapp-on-vercel.md`.
 
