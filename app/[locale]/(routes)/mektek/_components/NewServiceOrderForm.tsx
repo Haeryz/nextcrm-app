@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -10,6 +11,7 @@ import {
   type MektekCustomerSearchResult,
   type MektekTechnicianOption,
 } from "@/actions/mektek/service-orders";
+import { ServiceCreatedBurst } from "@/components/mektek/ServiceCreatedBurst";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { haveRequiredMektekItemInputPrices } from "@/lib/mektek/items";
@@ -40,6 +42,7 @@ export default function NewServiceOrderForm({
   const [isPending, startTransition] = useTransition();
   const [trackingLink, setTrackingLink] = useState("");
   const [loyaltySummary, setLoyaltySummary] = useState("");
+  const [successBurstKey, setSuccessBurstKey] = useState(0);
   const [customerName, setCustomerName] = useState("");
   const [vehicle, setVehicle] = useState("");
   const [technicianId, setTechnicianId] = useState(UNASSIGNED_TECHNICIAN);
@@ -152,6 +155,7 @@ export default function NewServiceOrderForm({
         return;
       }
 
+      setSuccessBurstKey((currentKey) => currentKey + 1);
       toast.success("Service order created");
       setTrackingLink(result?.data?.customerTrackingLink || "");
       const tags =
@@ -378,8 +382,14 @@ export default function NewServiceOrderForm({
           />
         </div>
 
-        <div className="flex justify-end">
+        <div className="relative flex justify-end">
+          {successBurstKey > 0 && (
+            <ServiceCreatedBurst key={successBurstKey} />
+          )}
           <Button type="submit" disabled={isPending}>
+            {isPending && (
+              <Loader2 data-icon="inline-start" className="animate-spin" />
+            )}
             {isPending ? "Saving..." : "Add Service"}
           </Button>
         </div>

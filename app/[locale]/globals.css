@@ -38,6 +38,70 @@
   }
 }
 
+@keyframes mektek-confetti-burst {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.45) rotate(0deg);
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  58% {
+    opacity: 1;
+    transform: translate3d(
+        var(--confetti-x-mid),
+        var(--confetti-y-mid),
+        0
+      )
+      scale(1) rotate(var(--confetti-rotation-mid));
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(
+        var(--confetti-x-end),
+        var(--confetti-y-end),
+        0
+      )
+      scale(0.75) rotate(var(--confetti-rotation-end));
+  }
+}
+
+@keyframes mektek-success-ring {
+  0% {
+    opacity: 0.7;
+    transform: scale(0.35);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(3.2);
+  }
+}
+
+.mektek-success-confetti {
+  animation: mektek-confetti-burst 920ms cubic-bezier(0.16, 1, 0.3, 1)
+    var(--confetti-delay) both;
+  background-color: var(--confetti-color);
+  opacity: 0;
+  will-change: opacity, transform;
+}
+
+.mektek-success-ring {
+  animation: mektek-success-ring 620ms ease-out both;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mektek-success-confetti,
+  .mektek-success-ring {
+    display: none;
+    animation: none;
+  }
+}
+
 @keyframes mektek-marquee {
   from {
     transform: translate3d(0, 0, 0);
