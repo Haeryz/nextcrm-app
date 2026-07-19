@@ -4,6 +4,7 @@ import {
   listMektekVoucherCustomerOptions,
   listMektekVouchers,
 } from "@/actions/mektek/vouchers";
+import { listMektekVoucherCodeDictionaries } from "@/actions/mektek/voucher-code-dictionaries";
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,21 +49,26 @@ export default async function MektekVouchersPage({
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const query = readSearchParam(resolvedSearchParams, "q");
   const page = Math.max(Number(readSearchParam(resolvedSearchParams, "page")) || 1, 1);
-  const [vouchers, customers] = await Promise.all([
+  const [vouchers, customers, dictionaries] = await Promise.all([
     listMektekVouchers({
       query,
       page,
       pageSize: 12,
     }),
     listMektekVoucherCustomerOptions(),
+    listMektekVoucherCodeDictionaries(),
   ]);
 
-  if ("error" in vouchers || "error" in customers) {
+  if ("error" in vouchers || "error" in customers || "error" in dictionaries) {
     return (
       <Container title="Voucher" description="Kelola Voucher MekTek">
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            {"error" in vouchers ? vouchers.error : customers.error}
+            {"error" in vouchers
+              ? vouchers.error
+              : "error" in customers
+                ? customers.error
+                : dictionaries.error}
           </CardContent>
         </Card>
       </Container>
@@ -119,6 +125,11 @@ export default async function MektekVouchersPage({
             updatedAt: item.updatedAt.toISOString(),
           }))}
           customers={customers.data}
+          dictionaries={dictionaries.data.map((dictionary) => ({
+            ...dictionary,
+            createdAt: dictionary.createdAt.toISOString(),
+            updatedAt: dictionary.updatedAt.toISOString(),
+          }))}
         />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -2,7 +2,7 @@
 
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Edit, Loader2, Plus, TicketPercent, Trash2 } from "lucide-react";
+import { BookOpen, Edit, Loader2, Plus, Shuffle, TicketPercent, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -12,6 +12,11 @@ import {
   type MektekVoucherCustomerOption,
   type MektekVoucherInput,
 } from "@/actions/mektek/vouchers";
+import {
+  createMektekVoucherCodeDictionary,
+  deleteMektekVoucherCodeDictionary,
+  randomizeMektekVoucherCode,
+} from "@/actions/mektek/voucher-code-dictionaries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,6 +67,15 @@ type VoucherRow = {
 type VoucherManagerProps = {
   vouchers: VoucherRow[];
   customers: MektekVoucherCustomerOption[];
+  dictionaries: VoucherCodeDictionary[];
+};
+
+type VoucherCodeDictionary = {
+  id: string;
+  name: string;
+  entries: string[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 const blankVoucher: MektekVoucherInput = {
@@ -169,6 +183,7 @@ function usageLabel(voucher: VoucherRow) {
 function VoucherForm({
   value,
   customers,
+  dictionaries,
   onChange,
   onSubmit,
   submitLabel,
@@ -176,11 +191,18 @@ function VoucherForm({
 }: {
   value: MektekVoucherInput;
   customers: MektekVoucherCustomerOption[];
+  dictionaries: VoucherCodeDictionary[];
   onChange: (value: MektekVoucherInput) => void;
   onSubmit: () => void;
   submitLabel: string;
   pending: boolean;
 }) {
+  const [randomizeOpen, setRandomizeOpen] = useState(false);
+  const [randomizeMode, setRandomizeMode] = useState<"PURE_RANDOM" | "DICTIONARY">(
+    "PURE_RANDOM"
+  );
+  const [dictionaryId, setDictionaryId] = useState("");
+  const [isRandomizing, startRandomizing] = useTransition();
   const update = (key: keyof MektekVoucherInput, nextValue: string | boolean) => {
     const next = { ...value, [key]: nextValue };
     if (key === "scope" && nextValue === "ALL") {
@@ -207,6 +229,23 @@ function VoucherForm({
   const isCustomerTypeScope = value.scope === "CUSTOMER_TYPE";
   const isCustomerScope = value.scope === "CUSTOMER";
 
+  const randomizeCode = () => {
+    startRandomizing(async () => {
+      const result = await randomizeMektekVoucherCode(
+        randomizeMode === "DICTIONARY"
+          ? { mode: "DICTIONARY", dictionaryId }
+          : { mode: "PURE_RANDOM" }
+      );
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+      update("code", result.data.code);
+      setRandomizeOpen(false);
+      toast.success("Voucher code randomized");
+    });
+  };
+
   return (
     <form
       className="flex flex-col gap-4"
@@ -217,13 +256,24 @@ function VoucherForm({
     >
       <div className="grid gap-3 md:grid-cols-2">
         <Field label="Code">
-          <Input
-            value={value.code}
-            onChange={(event) => update("code", event.target.value.toUpperCase())}
-            disabled={pending}
-            placeholder="MEKTEK-NEW"
-            required
-          />
+          <div className="flex gap-2">
+            <Input
+              value={value.code}
+              onChange={(event) => update("code", event.target.value.toUpperCase())}
+              disabled={pending || isRandomizing}
+              placeholder="MEKTEK-NEW"
+              required
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRandomizeOpen(true)}
+              disabled={pending || isRandomizing}
+            >
+              <Shuffle data-icon="inline-start" />
+              Randomize
+            </Button>
+          </div>
         </Field>
         <Field label="Status">
           <Select
@@ -413,13 +463,190 @@ function VoucherForm({
           {submitLabel}
         </Button>
       </div>
+
+      <Dialog open={randomizeOpen} onOpenChange={setRandomizeOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Randomize voucher code</DialogTitle>
+            <DialogDescription>
+              Generate a unique random code or choose an unused code from a dictionary.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <Field label="Source">
+              <Select
+                value={randomizeMode}
+                onValueChange={(next) =>
+                  setRandomizeMode(next as "PURE_RANDOM" | "DICTIONARY")
+                }
+                disabled={isRandomizing}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PURE_RANDOM">Pure random</SelectItem>
+                  <SelectItem value="DICTIONARY">Code dictionary</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            {randomizeMode === "DICTIONARY" && (
+              <Field label="Dictionary">
+                <Select
+                  value={dictionaryId}
+                  onValueChange={setDictionaryId}
+                  disabled={isRandomizing || dictionaries.length === 0}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a dictionary" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dictionaries.map((dictionary) => (
+                      <SelectItem key={dictionary.id} value={dictionary.id}>
+                        {dictionary.name} ({dictionary.entries.length})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {dictionaries.length === 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Create a code dictionary from the voucher page first.
+                  </p>
+                )}
+              </Field>
+            )}
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                onClick={randomizeCode}
+                disabled={
+                  isRandomizing || (randomizeMode === "DICTIONARY" && !dictionaryId)
+                }
+              >
+                {isRandomizing ? (
+                  <Loader2 data-icon="inline-start" className="animate-spin" />
+                ) : (
+                  <Shuffle data-icon="inline-start" />
+                )}
+                Randomize
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </form>
+  );
+}
+
+function DictionaryManager({ dictionaries }: { dictionaries: VoucherCodeDictionary[] }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [entries, setEntries] = useState("");
+  const [pending, startTransition] = useTransition();
+
+  const createDictionary = () => {
+    startTransition(async () => {
+      const result = await createMektekVoucherCodeDictionary({ name, entries });
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+      setName("");
+      setEntries("");
+      toast.success("Code dictionary created");
+      router.refresh();
+    });
+  };
+
+  const deleteDictionary = (id: string) => {
+    startTransition(async () => {
+      const result = await deleteMektekVoucherCodeDictionary(id);
+      if ("error" in result) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Code dictionary deleted");
+      router.refresh();
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button type="button" variant="outline" className="w-full sm:w-auto">
+          <BookOpen data-icon="inline-start" />
+          Code dictionaries
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Code dictionaries</DialogTitle>
+          <DialogDescription>
+            Create reusable pools of voucher codes. Add one code per line or separate them with commas.
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          className="flex flex-col gap-3 rounded-lg border p-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            createDictionary();
+          }}
+        >
+          <Field label="Dictionary name">
+            <Input value={name} onChange={(event) => setName(event.target.value)} disabled={pending} required />
+          </Field>
+          <Field label="Voucher codes">
+            <Textarea
+              value={entries}
+              onChange={(event) => setEntries(event.target.value)}
+              disabled={pending}
+              placeholder={"SUMMER-25\nWELCOME-50\nVIP-SERVICE"}
+              rows={5}
+              required
+            />
+          </Field>
+          <div className="flex justify-end">
+            <Button type="submit" disabled={pending}>
+              {pending && <Loader2 data-icon="inline-start" className="animate-spin" />}
+              Create dictionary
+            </Button>
+          </div>
+        </form>
+        <div className="divide-y rounded-lg border">
+          {dictionaries.map((dictionary) => (
+            <div key={dictionary.id} className="flex items-center justify-between gap-3 p-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{dictionary.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {dictionary.entries.length} code{dictionary.entries.length === 1 ? "" : "s"}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => deleteDictionary(dictionary.id)}
+                disabled={pending}
+                aria-label={`Delete ${dictionary.name}`}
+              >
+                <Trash2 />
+              </Button>
+            </div>
+          ))}
+          {dictionaries.length === 0 && (
+            <p className="p-4 text-center text-sm text-muted-foreground">
+              No code dictionaries yet.
+            </p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 export default function VoucherManager({
   vouchers,
   customers,
+  dictionaries,
 }: VoucherManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -479,6 +706,8 @@ export default function VoucherManager({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">{countLabel}</p>
+        <div className="grid gap-2 sm:flex">
+        <DictionaryManager dictionaries={dictionaries} />
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto">
@@ -496,6 +725,7 @@ export default function VoucherManager({
             <VoucherForm
               value={createValue}
               customers={customers}
+              dictionaries={dictionaries}
               onChange={setCreateValue}
               onSubmit={submitCreate}
               submitLabel="Buat Voucher"
@@ -503,6 +733,7 @@ export default function VoucherManager({
             />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border">
@@ -591,6 +822,7 @@ export default function VoucherManager({
           <VoucherForm
             value={editValue}
             customers={customers}
+            dictionaries={dictionaries}
             onChange={setEditValue}
             onSubmit={submitEdit}
             submitLabel="Simpan perubahan"

@@ -298,6 +298,16 @@ model MektekVoucher {
   @@index([expiresAt])
 }
 
+model MektekVoucherCodeDictionary {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  entries   String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
 model PasswordResetToken {
   id        String    @id @default(uuid()) @db.Uuid
   userId    String    @db.Uuid
