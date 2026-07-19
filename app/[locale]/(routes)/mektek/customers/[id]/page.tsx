@@ -136,7 +136,7 @@ export default async function CustomerDetailPage({
             <div>
               <p className="text-xs text-muted-foreground">Customer type</p>
               <p className="mt-1 font-medium">
-                {customer.customerType === "B2B" ? "B2B" : "Standard"}
+                {customer.customerType === "B2B" ? "Perusahaan" : "Standard"}
               </p>
             </div>
             <div>

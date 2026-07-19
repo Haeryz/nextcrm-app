@@ -5,6 +5,7 @@ import {
 } from "@/actions/mektek/service-orders";
 import { buildMektekInvoiceData, renderMektekReceiptPdf } from "@/actions/mektek/invoice-pdf";
 import { requireMektekStaffApiSession } from "@/lib/api-gates";
+import { isMektekReceiptAvailable } from "@/lib/mektek/order-lifecycle";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import type { NextRequest } from "next/server";
 
@@ -53,6 +54,19 @@ export async function GET(
   }
 
   const invoiceData = buildMektekInvoiceData(order);
+  if (
+    !isMektekReceiptAvailable({
+      taskStatus: order.taskStatus,
+      tags: order.tags,
+      paymentStatus: invoiceData.payment.status,
+    })
+  ) {
+    return new Response("Struk is available after full payment", {
+      status: 409,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
   const pdf = (await renderMektekReceiptPdf(invoiceData)).buffer as ArrayBuffer;
   const filename = `struk-${id.slice(0, 8)}.pdf`;
 

@@ -2,7 +2,11 @@ import {
   buildMektekFinancialSummary,
   type MektekPaymentRecord,
 } from "@/lib/mektek/financials";
-import { isMektekPaymentAvailable } from "@/lib/mektek/order-lifecycle";
+import {
+  isMektekInvoiceAvailable,
+  isMektekPaymentAvailable,
+  isMektekReceiptAvailable,
+} from "@/lib/mektek/order-lifecycle";
 
 type PublicTimelineEntry = {
   id: string;
@@ -98,6 +102,16 @@ export function buildMektekPublicSnapshot(order: PublicOrder) {
       paymentStatus: financialSummary.payment.status,
       providerAmountPaid: financialSummary.payment.providerAmountPaid,
     },
+    invoiceAvailable: isMektekInvoiceAvailable({
+      taskStatus: order.taskStatus,
+      tags,
+      paymentStatus: financialSummary.payment.status,
+    }),
+    receiptAvailable: isMektekReceiptAvailable({
+      taskStatus: order.taskStatus,
+      tags,
+      paymentStatus: financialSummary.payment.status,
+    }),
     paymentAvailable: isMektekPaymentAvailable({
       taskStatus: order.taskStatus,
       tags,

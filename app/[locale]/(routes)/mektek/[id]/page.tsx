@@ -32,7 +32,9 @@ import {
 } from "@/lib/mektek/permissions";
 import {
   canEditMektekOrderItems,
+  isMektekInvoiceAvailable,
   isMektekPaymentAvailable,
+  isMektekReceiptAvailable,
   isMektekStorefrontPurchase,
 } from "@/lib/mektek/order-lifecycle";
 
@@ -141,6 +143,16 @@ export default async function MektekDetailPage({ params }: Props) {
     ? (invoiceData.payment.method as "cash" | "transfer" | "qris")
     : "cash";
   const isStorefrontPurchase = isMektekStorefrontPurchase(tags);
+  const invoiceAvailable = isMektekInvoiceAvailable({
+    taskStatus: order.taskStatus,
+    tags,
+    paymentStatus: invoiceData.payment.status,
+  });
+  const receiptAvailable = isMektekReceiptAvailable({
+    taskStatus: order.taskStatus,
+    tags,
+    paymentStatus: invoiceData.payment.status,
+  });
   const paymentStageOpen =
     order.taskStatus === "AWAITING_PAYMENT" || isStorefrontPurchase;
   const canRecordPayment =
@@ -453,7 +465,11 @@ export default async function MektekDetailPage({ params }: Props) {
                   </TabsContent>
                 )}
                 <TabsContent value="docs" className="mt-0">
-                  <InvoiceActions serviceOrderId={order.id} />
+                  <InvoiceActions
+                    serviceOrderId={order.id}
+                    invoiceAvailable={invoiceAvailable}
+                    receiptAvailable={receiptAvailable}
+                  />
                 </TabsContent>
                 <TabsContent value="whatsapp" className="mt-0">
                   <WhatsAppComposer

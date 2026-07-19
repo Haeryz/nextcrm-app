@@ -256,38 +256,44 @@ export default function LiveServiceStatus({
 
             <div
               className={`grid grid-cols-1 gap-3 ${
-                snapshot.invoice.paymentStatus === "paid" ? "md:grid-cols-2" : ""
+                snapshot.receiptAvailable ? "md:grid-cols-2" : ""
               }`}
             >
-              <div className="rounded-xl border bg-card p-4">
-                <div className="mb-4 flex items-start gap-3">
-                  <div className="rounded-lg bg-primary/10 p-2 text-primary">
-                    <FileText className="h-5 w-5" />
+              {snapshot.invoiceAvailable ? (
+                <div className="rounded-xl border bg-card p-4">
+                  <div className="mb-4 flex items-start gap-3">
+                    <div className="rounded-lg bg-primary/10 p-2 text-primary">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">Invoice</p>
+                      <p className="text-xs text-muted-foreground">
+                        Rincian tagihan servis kendaraan Anda.
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">Invoice</p>
-                    <p className="text-xs text-muted-foreground">
-                      Rincian tagihan servis kendaraan Anda.
-                    </p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button asChild className="flex-1">
+                      <a href={invoiceHref} target="_blank" rel="noreferrer">
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Lihat Invoice
+                      </a>
+                    </Button>
+                    <Button asChild variant="outline" className="flex-1">
+                      <a href={invoiceDownloadHref} target="_blank" rel="noreferrer">
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                      </a>
+                    </Button>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button asChild className="flex-1">
-                    <a href={invoiceHref} target="_blank" rel="noreferrer">
-                      <ExternalLink className="mr-2 h-4 w-4" />
-                      Lihat Invoice
-                    </a>
-                  </Button>
-                  <Button asChild variant="outline" className="flex-1">
-                    <a href={invoiceDownloadHref} target="_blank" rel="noreferrer">
-                      <Download className="mr-2 h-4 w-4" />
-                      Download
-                    </a>
-                  </Button>
+              ) : (
+                <div className="rounded-xl border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
+                  Invoice tersedia setelah layanan servis dinyatakan selesai.
                 </div>
-              </div>
+              )}
 
-              {snapshot.invoice.paymentStatus === "paid" && (
+              {snapshot.receiptAvailable && (
                 <div className="rounded-xl border bg-card p-4">
                 <div className="mb-4 flex items-start gap-3">
                   <div className="rounded-lg bg-primary/10 p-2 text-primary">

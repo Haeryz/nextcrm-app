@@ -39,6 +39,7 @@ import {
   mektekOrderWhere,
   mektekPaymentSelect,
 } from "@/lib/mektek/orders";
+import { buildMektekServiceCustomerUpsert } from "@/lib/mektek/service-customer";
 import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/phone";
 import {
   boundedText,
@@ -256,7 +257,7 @@ export const createMektekServiceOrder = async (
   const locale = session.user.userLanguage || "en";
 
   try {
-    const task = await prismadb.$transaction(async (tx) => {
+    const creation = await prismadb.$transaction(async (tx) => {
       const technician = technicianId
         ? await tx.users.findFirst({
             where: {
@@ -277,20 +278,17 @@ export const createMektekServiceOrder = async (
         throw new Error("INVALID_TECHNICIAN");
       }
 
+      const existingCatalogCustomer = await tx.catalogCustomer.findUnique({
+        where: { phoneNormalized },
+        select: { id: true },
+      });
       const catalogCustomer = await tx.catalogCustomer.upsert({
-        where: {
-          phoneNormalized,
-        },
-        update: {
-          phone,
-          customerType,
-        },
-        create: {
-          username: customerName,
+        ...buildMektekServiceCustomerUpsert({
+          customerName,
           phone,
           phoneNormalized,
           customerType,
-        },
+        }),
         select: {
           id: true,
           customerType: true,
@@ -434,8 +432,13 @@ export const createMektekServiceOrder = async (
         }
       }
 
-      return serviceOrder;
+      return {
+        serviceOrder,
+        customerCreated: !existingCatalogCustomer,
+      };
     });
+
+    const task = creation.serviceOrder;
 
     if (!task?.id) {
       return { error: "Service order was not created" };
@@ -474,11 +477,13 @@ export const createMektekServiceOrder = async (
 
     revalidatePath("/[locale]/(routes)/mektek", "page");
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
+    revalidatePath("/[locale]/(routes)/mektek/customers", "page");
     revalidatePath("/[locale]/service-status/[id]", "page");
     return {
       data: {
         ...task,
         customerTrackingLink,
+        customerCreated: creation.customerCreated,
       },
     };
   } catch (error) {

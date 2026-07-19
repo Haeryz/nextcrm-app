@@ -2,7 +2,9 @@ import {
   canEditMektekOrderItems,
   canFinalizeMektekOrder,
   canTransitionMektekOrderStatus,
+  isMektekInvoiceAvailable,
   isMektekPaymentAvailable,
+  isMektekReceiptAvailable,
 } from "@/lib/mektek/order-lifecycle";
 
 describe("MekTek order lifecycle", () => {
@@ -35,6 +37,74 @@ describe("MekTek order lifecycle", () => {
         taskStatus: "ACTIVE",
         tags: storefrontTags,
         balanceDue: 250_000,
+      }),
+    ).toBe(true);
+  });
+
+  it("unlocks a service invoice only after service completion", () => {
+    expect(
+      isMektekInvoiceAvailable({
+        taskStatus: "ACTIVE",
+        tags: serviceTags,
+        paymentStatus: "unpaid",
+      }),
+    ).toBe(false);
+    expect(
+      isMektekInvoiceAvailable({
+        taskStatus: "AWAITING_PAYMENT",
+        tags: serviceTags,
+        paymentStatus: "unpaid",
+      }),
+    ).toBe(true);
+    expect(
+      isMektekInvoiceAvailable({
+        taskStatus: "COMPLETE",
+        tags: serviceTags,
+        paymentStatus: "paid",
+      }),
+    ).toBe(true);
+    expect(
+      isMektekInvoiceAvailable({
+        taskStatus: "ACTIVE",
+        tags: serviceTags,
+        paymentStatus: "paid",
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps storefront invoices available before payment", () => {
+    expect(
+      isMektekInvoiceAvailable({
+        taskStatus: "ACTIVE",
+        tags: storefrontTags,
+        paymentStatus: "unpaid",
+      }),
+    ).toBe(true);
+  });
+
+  it("unlocks struk only after payment for every customer type", () => {
+    expect(
+      isMektekReceiptAvailable({
+        tags: { customerType: "STANDARD" },
+        paymentStatus: "partial",
+      }),
+    ).toBe(false);
+    expect(
+      isMektekReceiptAvailable({
+        tags: { customerType: "B2B" },
+        paymentStatus: "unpaid",
+      }),
+    ).toBe(false);
+    expect(
+      isMektekReceiptAvailable({
+        tags: { customerType: "STANDARD" },
+        paymentStatus: "paid",
+      }),
+    ).toBe(true);
+    expect(
+      isMektekReceiptAvailable({
+        tags: { customerType: "B2B" },
+        paymentStatus: "paid",
       }),
     ).toBe(true);
   });

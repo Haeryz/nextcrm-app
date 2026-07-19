@@ -125,7 +125,7 @@ function formatRequirement(voucher: MektekVoucherRecord) {
   if (voucher.scope === "CUSTOMER") return "Assigned to your customer account";
   if (voucher.scope === "CUSTOMER_TYPE") {
     return voucher.customerType === "B2B"
-      ? "Available for B2B customers"
+      ? "Available for Perusahaan customers"
       : "Available for standard customers";
   }
   return "Available for every customer account";

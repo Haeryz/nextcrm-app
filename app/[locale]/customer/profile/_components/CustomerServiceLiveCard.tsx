@@ -153,7 +153,7 @@ export function CustomerServiceLiveCard({
               </Link>
             </Button>
           )}
-          {invoiceHref && (
+          {invoiceHref && snapshot.invoiceAvailable && (
             <Button
               asChild
               variant="outline"
@@ -165,7 +165,7 @@ export function CustomerServiceLiveCard({
               </a>
             </Button>
           )}
-          {receiptHref && snapshot.invoice.paymentStatus === "paid" && (
+          {receiptHref && snapshot.receiptAvailable && (
             <Button
               asChild
               variant="outline"
@@ -173,7 +173,7 @@ export function CustomerServiceLiveCard({
             >
               <a href={receiptHref} target="_blank" rel="noreferrer">
                 <Receipt data-icon="inline-start" />
-                Receipt
+                Struk
               </a>
             </Button>
           )}

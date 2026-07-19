@@ -62,7 +62,7 @@ export default async function CustomerProfilePage({
                   variant="outline"
                   className="ml-2 border-[#151a63]/25 text-[#10164f]"
                 >
-                  B2B
+                  Perusahaan
                 </Badge>
               )}
               <h1 className="mt-3 text-3xl font-semibold tracking-tight md:text-4xl">

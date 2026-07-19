@@ -153,7 +153,9 @@ function targetLabel(voucher: VoucherRow) {
       : "Specific customer";
   }
   if (voucher.scope === "CUSTOMER_TYPE") {
-    return voucher.customerType === "B2B" ? "B2B customers" : "Standard customers";
+    return voucher.customerType === "B2B"
+      ? "Perusahaan customers"
+      : "Standard customers";
   }
   return "All customers";
 }
@@ -274,7 +276,7 @@ function VoucherForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="STANDARD">Standard customer</SelectItem>
-                <SelectItem value="B2B">B2B customer</SelectItem>
+                <SelectItem value="B2B">Perusahaan</SelectItem>
               </SelectContent>
             </Select>
           </Field>

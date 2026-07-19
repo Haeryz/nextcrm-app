@@ -156,7 +156,11 @@ export default function NewServiceOrderForm({
       }
 
       setSuccessBurstKey((currentKey) => currentKey + 1);
-      toast.success("Service order created");
+      toast.success(
+        result?.data?.customerCreated
+          ? "Service order created. New customer saved automatically."
+          : "Service order created",
+      );
       setTrackingLink(result?.data?.customerTrackingLink || "");
       const tags =
         result?.data?.tags && typeof result.data.tags === "object"
@@ -279,7 +283,9 @@ export default function NewServiceOrderForm({
                         <span className="text-sm font-medium">{customer.name}</span>
                         <span className="text-xs text-muted-foreground">
                           {customer.phone}
-                          {customer.customerType === "B2B" ? " - B2B" : ""}
+                          {customer.customerType === "B2B"
+                            ? " - Perusahaan"
+                            : ""}
                           {customer.address ? ` - ${customer.address}` : ""}
                         </span>
                       </button>
@@ -337,7 +343,7 @@ export default function NewServiceOrderForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="STANDARD">Standard customer</SelectItem>
-              <SelectItem value="B2B">B2B customer</SelectItem>
+              <SelectItem value="B2B">Perusahaan</SelectItem>
             </SelectContent>
           </Select>
           <Input

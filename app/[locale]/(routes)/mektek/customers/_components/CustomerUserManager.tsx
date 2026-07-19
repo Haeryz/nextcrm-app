@@ -106,7 +106,7 @@ function roleLabel(customer: CustomerUserRow) {
 }
 
 function typeLabel(customerType: CustomerUserRow["customerType"]) {
-  return customerType === "B2B" ? "B2B" : "Standard";
+  return customerType === "B2B" ? "Perusahaan" : "Standard";
 }
 
 function CustomerUserForm({
@@ -164,7 +164,7 @@ function CustomerUserForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="STANDARD">Standard customer</SelectItem>
-              <SelectItem value="B2B">B2B customer</SelectItem>
+              <SelectItem value="B2B">Perusahaan</SelectItem>
             </SelectContent>
           </Select>
         </Field>

@@ -75,6 +75,8 @@ describe("buildMektekPublicSnapshot", () => {
       total: 50000,
     });
     expect(snapshot.paymentAvailable).toBe(false);
+    expect(snapshot.invoiceAvailable).toBe(false);
+    expect(snapshot.receiptAvailable).toBe(false);
   });
 
   it("opens customer payment only in the awaiting-payment state", () => {
@@ -92,5 +94,26 @@ describe("buildMektekPublicSnapshot", () => {
     });
 
     expect(snapshot.paymentAvailable).toBe(true);
+    expect(snapshot.invoiceAvailable).toBe(true);
+    expect(snapshot.receiptAvailable).toBe(false);
+  });
+
+  it("keeps both invoice and struk available after full payment", () => {
+    const snapshot = buildMektekPublicSnapshot({
+      id: "12345678-aaaa-bbbb-cccc-123456789012",
+      taskStatus: "COMPLETE",
+      tags: {
+        serviceType: "Vehicle Service",
+        serviceItems: [
+          { name: "Tune up", quantity: 1, unitPrice: 100000, total: 100000 },
+        ],
+        sparepartItems: [],
+        payment: { amountPaid: 0, status: "paid" },
+      },
+    });
+
+    expect(snapshot.invoice.paymentStatus).toBe("paid");
+    expect(snapshot.invoiceAvailable).toBe(true);
+    expect(snapshot.receiptAvailable).toBe(true);
   });
 });
