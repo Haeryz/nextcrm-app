@@ -39,7 +39,7 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials, request) {
         // console.log(credentials, "credentials");
         if (!credentials?.email || !credentials?.password) {
-          throw new Error("Email or password is missing");
+          throw new Error("Email atau Password belum diisi");
         }
 
         const identifier = credentials.email.trim();
@@ -61,7 +61,7 @@ export const authOptions: NextAuthOptions = {
           ),
         ]);
         if (!accountLimit.ok || !ipLimit.ok) {
-          throw new Error("Too many login attempts. Please try again shortly.");
+          throw new Error("Terlalu banyak percobaan Login. Silakan coba lagi sebentar.");
         }
         const phoneNormalized = normalizePhoneNumber(identifier);
         const isEmail = identifier.includes("@");
@@ -85,14 +85,14 @@ export const authOptions: NextAuthOptions = {
         );
 
         if (!user?.password || !verification.valid) {
-          throw new Error("Invalid email/phone or password");
+          throw new Error("Email/nomor telepon atau Password tidak valid");
         }
 
         if (
           credentials.staffOnly === "true" &&
           !canAuthenticateOnStaffPortal(user)
         ) {
-          throw new Error("This account is not authorized for staff access");
+          throw new Error("Account ini tidak memiliki Staff Access");
         }
 
         if (verification.needsRehash) {

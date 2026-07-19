@@ -32,22 +32,22 @@ import { bootstrapFirstAdmin } from "@/actions/auth/bootstrap-admin";
 
 const formSchema = z
   .object({
-    name: z.string().min(2, "Please enter your name").max(120),
-    email: z.string().email("Enter a valid email address"),
-    password: z.string().min(8, "Use at least 8 characters").max(100),
+    name: z.string().min(2, "Masukkan nama Anda").max(120),
+    email: z.string().email("Masukkan alamat email yang valid"),
+    password: z.string().min(8, "Gunakan minimal 8 karakter").max(100),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
+    message: "Password tidak sama",
     path: ["confirmPassword"],
   });
 
 type SetupFormValues = z.infer<typeof formSchema>;
 
 const checklist = [
-  "Manage service orders, customers, and payments",
-  "Invite your staff and set what each person can do",
-  "Connect WhatsApp and the sparepart catalogue",
+  "Kelola pesanan servis, pelanggan, dan pembayaran",
+  "Undang staf dan atur kewenangan setiap orang",
+  "Hubungkan WhatsApp dan katalog sparepart",
 ];
 
 export function SetupComponent({ locale }: { locale: string }) {
@@ -70,11 +70,11 @@ export function SetupComponent({ locale }: { locale: string }) {
         return;
       }
       setDone(true);
-      toast.success("Owner account created.");
+      toast.success("Akun pemilik berhasil dibuat.");
       // Give the success screen a beat, then move to sign-in.
       setTimeout(() => router.push(`/${locale}/sign-in`), 1600);
     } catch (error: any) {
-      toast.error(error?.message || "Something went wrong. Please try again.");
+      toast.error(error?.message || "Terjadi kesalahan. Silakan coba lagi.");
     } finally {
       setIsLoading(false);
     }
@@ -94,15 +94,15 @@ export function SetupComponent({ locale }: { locale: string }) {
         <div className="max-w-md space-y-5">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1 text-xs font-medium text-zinc-200">
             <Sparkles className="size-3.5" />
-            One-time setup
+            Penyiapan satu kali
           </span>
           <h1 className="text-3xl font-semibold leading-tight sm:text-4xl">
-            Welcome — let&apos;s create your owner account
+            Selamat datang — mari buat akun pemilik Anda
           </h1>
           <p className="text-sm leading-6 text-zinc-300">
-            This is the very first account for your Mektek system. It becomes the{" "}
-            <strong className="text-white">owner (admin)</strong> and can do
-            everything. You only do this once.
+            Ini adalah akun pertama untuk sistem Mektek Anda. Akun ini akan menjadi{" "}
+            <strong className="text-white">pemilik (Admin)</strong> dengan akses
+            penuh. Penyiapan ini hanya dilakukan sekali.
           </p>
 
           <ul className="space-y-3 pt-2">
@@ -118,8 +118,8 @@ export function SetupComponent({ locale }: { locale: string }) {
         <div className="flex items-start gap-3 rounded-md border border-white/10 bg-white/[0.04] p-4 text-xs leading-5 text-zinc-300">
           <ShieldCheck className="mt-0.5 size-4 shrink-0 text-emerald-400" />
           <span>
-            For your security, this page turns itself off automatically after the
-            owner account is created. Keep these login details private.
+            Demi keamanan, halaman ini otomatis dinonaktifkan setelah akun pemilik
+            dibuat. Jaga kerahasiaan informasi Login ini.
           </span>
         </div>
       </section>
@@ -133,14 +133,14 @@ export function SetupComponent({ locale }: { locale: string }) {
                 <CheckCircle2 className="size-9" />
               </span>
               <div className="space-y-2">
-                <h2 className="text-2xl font-semibold">You&apos;re all set!</h2>
+                <h2 className="text-2xl font-semibold">Semua sudah siap!</h2>
                 <p className="text-sm leading-6 text-muted-foreground">
-                  Your owner account is ready. Taking you to the sign-in page…
+                  Akun pemilik Anda sudah siap. Anda akan diarahkan ke halaman Login…
                 </p>
               </div>
               <Button asChild className="w-full">
                 <Link href={`/${locale}/sign-in`}>
-                  Go to sign in
+                  Ke halaman Login
                   <ArrowRight className="size-4" />
                 </Link>
               </Button>
@@ -149,10 +149,10 @@ export function SetupComponent({ locale }: { locale: string }) {
             <>
               <div className="mb-8 space-y-1.5">
                 <h2 className="text-2xl font-semibold tracking-tight">
-                  Create owner account
+                  Buat akun pemilik
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Fill in your details below. It only takes a minute.
+                  Lengkapi detail di bawah ini. Prosesnya hanya sebentar.
                 </p>
               </div>
 
@@ -163,10 +163,10 @@ export function SetupComponent({ locale }: { locale: string }) {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Your name</FormLabel>
+                        <FormLabel>Nama Anda</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="e.g. Budi Santoso"
+                            placeholder="mis. Budi Santoso"
                             autoComplete="name"
                             disabled={isLoading}
                             {...field}
@@ -181,11 +181,11 @@ export function SetupComponent({ locale }: { locale: string }) {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email address</FormLabel>
+                        <FormLabel>Alamat email</FormLabel>
                         <FormControl>
                           <Input
                             type="email"
-                            placeholder="you@business.com"
+                            placeholder="anda@bisnis.com"
                             autoComplete="email"
                             disabled={isLoading}
                             {...field}
@@ -205,7 +205,7 @@ export function SetupComponent({ locale }: { locale: string }) {
                           <FormControl>
                             <Input
                               type={show ? "text" : "password"}
-                              placeholder="At least 8 characters"
+                              placeholder="Minimal 8 karakter"
                               autoComplete="new-password"
                               disabled={isLoading}
                               {...field}
@@ -217,7 +217,7 @@ export function SetupComponent({ locale }: { locale: string }) {
                             size="icon"
                             className="shrink-0"
                             onClick={() => setShow(!show)}
-                            aria-label={show ? "Hide password" : "Show password"}
+                            aria-label={show ? "Sembunyikan Password" : "Tampilkan Password"}
                           >
                             {show ? <EyeOff /> : <Eye />}
                           </Button>
@@ -231,11 +231,11 @@ export function SetupComponent({ locale }: { locale: string }) {
                     name="confirmPassword"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Confirm password</FormLabel>
+                        <FormLabel>Konfirmasi Password</FormLabel>
                         <FormControl>
                           <Input
                             type={show ? "text" : "password"}
-                            placeholder="Type your password again"
+                            placeholder="Ketik ulang Password"
                             autoComplete="new-password"
                             disabled={isLoading}
                             {...field}
@@ -251,7 +251,7 @@ export function SetupComponent({ locale }: { locale: string }) {
                       <Loader2 className="size-4 animate-spin" />
                     ) : (
                       <>
-                        Create owner account
+                        Buat akun pemilik
                         <ArrowRight className="size-4" />
                       </>
                     )}
@@ -260,12 +260,12 @@ export function SetupComponent({ locale }: { locale: string }) {
               </Form>
 
               <p className="mt-6 text-center text-sm text-muted-foreground">
-                Already set up?{" "}
+                Sudah selesai menyiapkan akun?{" "}
                 <Link
                   href={`/${locale}/sign-in`}
                   className="font-medium text-primary underline-offset-4 hover:underline"
                 >
-                  Sign in
+                  Login
                 </Link>
               </p>
             </>

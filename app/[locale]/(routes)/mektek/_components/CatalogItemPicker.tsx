@@ -24,7 +24,7 @@ type CatalogItemPickerProps = {
 };
 
 function formatPrice(price: number | null) {
-  if (typeof price !== "number") return "No price";
+  if (typeof price !== "number") return "Belum ada harga";
   return price.toLocaleString("id-ID", {
     style: "currency",
     currency: "IDR",
@@ -43,7 +43,7 @@ export default function CatalogItemPicker({
   const searchCatalog = () => {
     const trimmed = query.trim();
     if (trimmed.length < 2) {
-      toast.error("Type at least 2 characters to search catalog.");
+      toast.error("Ketik minimal 2 karakter untuk mencari katalog.");
       return;
     }
 
@@ -73,17 +73,17 @@ export default function CatalogItemPicker({
       quantity: 1,
       estimatedCost: typeof item.price === "number" ? String(item.price) : "",
     });
-    toast.success("Catalog item added as sparepart.");
+    toast.success("Item katalog ditambahkan sebagai sparepart.");
   };
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-4">
       <div>
         <p className="text-xs uppercase tracking-wide text-muted-foreground">
-          Catalog Items
+          Item Katalog
         </p>
         <p className="text-sm text-muted-foreground">
-          Search parts by machine, part number, or description, then add them to this order.
+          Cari sparepart berdasarkan mesin, nomor komponen, atau deskripsi, lalu tambahkan ke pesanan ini.
         </p>
       </div>
 
@@ -92,7 +92,7 @@ export default function CatalogItemPicker({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={handleSearchKeyDown}
-          placeholder="Search catalog item..."
+          placeholder="Cari item katalog..."
           disabled={disabled || isPending}
         />
         <Button
@@ -102,7 +102,7 @@ export default function CatalogItemPicker({
           disabled={disabled || isPending}
         >
           <Search data-icon="inline-start" />
-          {isPending ? "Searching..." : "Search"}
+          {isPending ? "Mencari..." : "Cari"}
         </Button>
       </div>
 
@@ -124,7 +124,7 @@ export default function CatalogItemPicker({
                     />
                   ) : (
                     <div className="flex size-full items-center justify-center text-[10px] text-muted-foreground">
-                      No image
+                      Tidak ada gambar
                     </div>
                   )}
                 </div>
@@ -133,7 +133,7 @@ export default function CatalogItemPicker({
                     {item.description}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {item.machine} - {item.partNumber || "No part number"}
+                    {item.machine} - {item.partNumber || "Tanpa nomor komponen"}
                   </p>
                   <p className="text-xs font-medium text-foreground">
                     {formatPrice(item.price)}
@@ -148,7 +148,7 @@ export default function CatalogItemPicker({
                 className="shrink-0"
               >
                 <Plus data-icon="inline-start" />
-                Add
+                Tambah
               </Button>
             </div>
           ))}

@@ -29,15 +29,15 @@ export default async function MektekCatalogItemsPage({
   params,
   searchParams,
 }: MektekCatalogItemsPageProps) {
-  const { locale = "en" } = params ? await params : { locale: "en" };
+  const { locale = "id" } = params ? await params : { locale: "id" };
   const session = await getServerSession(authOptions);
 
   if (!canCreateMektekOrders(session?.user)) {
     return (
-      <Container title="Catalogue Items" description="MekTek item management">
+      <Container title="Catalogue Items" description="Kelola item MekTek">
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            Only MekTek admin or CS can manage catalogue items.
+            Hanya Admin atau CS MekTek yang dapat mengelola Catalogue Items.
           </CardContent>
         </Card>
       </Container>
@@ -71,7 +71,7 @@ export default async function MektekCatalogItemsPage({
   return (
     <Container
       title="Catalogue Items"
-      description="Create, update, delete, and review items extracted from the parts catalogue"
+      description="Buat, perbarui, hapus, dan tinjau item dari parts catalogue"
     >
       <div className="flex flex-col gap-6">
         <Card>
@@ -80,14 +80,14 @@ export default async function MektekCatalogItemsPage({
               action={`/${locale}/mektek/items`}
               className="grid gap-3 lg:grid-cols-[1fr_220px_auto_auto]"
             >
-              <Input name="q" placeholder="Search description, machine, or part number" defaultValue={query} />
+              <Input name="q" placeholder="Cari Description, Machine, atau Part Number" defaultValue={query} />
               <Input name="machine" placeholder="Machine" defaultValue={machine} />
               <Button type="submit" variant="outline" className="w-full lg:w-auto">
                 Filter
               </Button>
               {(query || machine) && (
                 <Button asChild type="button" variant="ghost" className="w-full lg:w-auto">
-                  <Link href={`/${locale}/mektek/items`}>Clear</Link>
+                  <Link href={`/${locale}/mektek/items`}>Reset Filter</Link>
                 </Button>
               )}
             </form>
@@ -106,12 +106,12 @@ export default async function MektekCatalogItemsPage({
             Page {catalog.page} of {catalog.totalPages} - {catalog.totalCount} items
           </p>
           <nav
-            aria-label="Catalogue item pages"
+            aria-label="Halaman Catalogue Items"
             className="flex flex-wrap items-center gap-2"
           >
             {catalog.page > 1 ? (
               <Button asChild variant="outline" size="sm">
-                <Link href={pageHref(previousPage)}>Previous</Link>
+                <Link href={pageHref(previousPage)}>Sebelumnya</Link>
               </Button>
             ) : (
               <Button variant="outline" size="sm" disabled>
@@ -135,7 +135,7 @@ export default async function MektekCatalogItemsPage({
                   variant={item === catalog.page ? "default" : "outline"}
                   size="icon"
                   aria-current={item === catalog.page ? "page" : undefined}
-                  aria-label={`Page ${item}`}
+                  aria-label={`Halaman ${item}`}
                 >
                   <Link href={pageHref(item)}>{item}</Link>
                 </Button>
@@ -144,7 +144,7 @@ export default async function MektekCatalogItemsPage({
 
             {catalog.page < catalog.totalPages ? (
               <Button asChild variant="outline" size="sm">
-                <Link href={pageHref(nextPage)}>Next</Link>
+                <Link href={pageHref(nextPage)}>Berikutnya</Link>
               </Button>
             ) : (
               <Button variant="outline" size="sm" disabled>

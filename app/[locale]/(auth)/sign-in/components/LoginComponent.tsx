@@ -50,7 +50,7 @@ export function LoginComponent() {
 
   const params = useParams<{ locale?: string }>();
   const searchParams = useSearchParams();
-  const locale = params.locale || "en";
+  const locale = params.locale || "id";
   const initialIdentifier =
     searchParams.get("phone") || searchParams.get("email") || "";
   const adminDashboardPath = `/${locale}/mektek/dashboard`;
@@ -86,7 +86,7 @@ export function LoginComponent() {
         return;
       }
       if (status?.ok) {
-        toast.success("Login successful.");
+        toast.success("Login berhasil.");
         const session = await getSession();
         const destination = session?.user
           ? getPostLoginDestination(locale, session.user)
@@ -95,7 +95,7 @@ export function LoginComponent() {
       }
     } catch (error: any) {
       console.log(error);
-      toast.error(error?.message || error?.toString() || "An error occurred during login");
+      toast.error(error?.message || error?.toString() || "Terjadi kesalahan saat Login");
     } finally {
       setIsLoading(false);
     }
@@ -112,10 +112,10 @@ export function LoginComponent() {
       // Generic message regardless of whether the account exists (no enumeration).
       toast.success(
         result.message ||
-          "If an account exists for that email, a reset link has been sent."
+          "Jika Account dengan Email tersebut tersedia, Link Reset Password telah dikirim."
       );
     } catch (error: any) {
-      toast.error(error?.message || "Something went wrong while resetting the password.");
+      toast.error(error?.message || "Terjadi kesalahan saat Reset Password.");
     } finally {
       setIsLoading(false);
       setOpen(false);
@@ -125,8 +125,8 @@ export function LoginComponent() {
   return (
     <Card className="my-5 w-full max-w-[520px] shadow-lg">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl">Admin login</CardTitle>
-        <CardDescription>Sign in with email and password.</CardDescription>
+        <CardTitle className="text-2xl">Admin Login</CardTitle>
+        <CardDescription>Login menggunakan Email dan Password.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
         <Form {...form}>
@@ -137,11 +137,11 @@ export function LoginComponent() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>E-mail or phone number</FormLabel>
+                    <FormLabel>Email atau nomor telepon</FormLabel>
                     <FormControl>
                       <Input
                         disabled={isLoading}
-                        placeholder="name@domain.com or +628123456789"
+                        placeholder="nama@domain.com atau +628123456789"
                         {...field}
                       />
                     </FormControl>
@@ -175,7 +175,7 @@ export function LoginComponent() {
                   size="icon"
                   className="mt-7 shrink-0"
                   onClick={() => setShow(!show)}
-                  aria-label={show ? "Hide password" : "Show password"}
+                  aria-label={show ? "Sembunyikan Password" : "Tampilkan Password"}
                 >
                   {show ? <EyeOff /> : <Eye />}
                 </Button>
@@ -196,7 +196,7 @@ export function LoginComponent() {
                 >
                   N
                 </span>
-                <span className={isLoading ? " " : "hidden"}>Loading ...</span>
+                <span className={isLoading ? " " : "hidden"}>Memuat...</span>
                 <span className={isLoading ? "hidden" : ""}>Login</span>
               </Button>
             </div>
@@ -205,18 +205,18 @@ export function LoginComponent() {
       </CardContent>
       <CardFooter className="flex flex-col space-y-5">
         <div className="text-sm text-gray-500">
-          Need password reset? Click
+          Perlu Reset Password? Klik
           {/* Dialog start */}
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger className="text-blue-500">
-              <span className="px-2">here</span>
+              <span className="px-2">di sini</span>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle className="p-5">Password Reset</DialogTitle>
+                <DialogTitle className="p-5">Reset Password</DialogTitle>
                 <DialogDescription className="p-5">
-                  Enter your email address and we will send a password reset link
-                  to your e-mail.
+                  Masukkan alamat Email Anda. Kami akan mengirimkan Link untuk
+                  Reset Password.
                 </DialogDescription>
               </DialogHeader>
               {isLoading ? (
@@ -239,12 +239,12 @@ export function LoginComponent() {
                     }}
                     className="sm:w-auto"
                   >
-                    Reset
+                    Reset Password
                   </Button>
                 </div>
               )}
               <DialogTrigger className="w-full text-right pt-5 ">
-                <Button variant={"destructive"}>Cancel</Button>
+                <Button variant={"destructive"}>Batal</Button>
               </DialogTrigger>
             </DialogContent>
           </Dialog>

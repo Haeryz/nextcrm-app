@@ -32,16 +32,16 @@ const GUEST_USER_EMAIL =
   process.env.NEXTCRM_GUEST_USER_EMAIL || "guest@nextcrm.local";
 const GUEST_USER_NAME =
   process.env.NEXTCRM_GUEST_USER_NAME || "NextCRM Guest";
-const RAW_GUEST_LANGUAGE = process.env.NEXTCRM_GUEST_USER_LANGUAGE || "en";
+const RAW_GUEST_LANGUAGE = process.env.NEXTCRM_GUEST_USER_LANGUAGE || "id";
 const FALLBACK_EXPIRY = new Date(
   Date.now() + 1000 * 60 * 60 * 24 * 365
 ).toISOString();
-const VALID_LANGUAGES = new Set(["en", "cz", "de", "uk"]);
+const VALID_LANGUAGES = new Set(["id", "en", "cz", "de", "uk"]);
 const GUEST_USER_LANGUAGE = VALID_LANGUAGES.has(
   RAW_GUEST_LANGUAGE.toLowerCase()
 )
   ? RAW_GUEST_LANGUAGE.toLowerCase()
-  : "en";
+  : "id";
 
 type SessionUserLike = {
   id: string;
@@ -72,7 +72,7 @@ function toSession(user: SessionUserLike): Session {
       // there is no real signed-in session.
       isAdmin: true,
       mektekRole: user.mektekRole,
-      userLanguage: user.userLanguage || "en",
+      userLanguage: user.userLanguage || "id",
       userStatus: "ACTIVE",
     },
   } as Session;

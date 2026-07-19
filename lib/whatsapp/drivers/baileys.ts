@@ -123,7 +123,7 @@ async function openSocket(options: {
     const timer = setTimeout(() => {
       finish(() => {
         sock.end(undefined);
-        reject(new Error("Timed out waiting for WhatsApp connection"));
+        reject(new Error("Waktu tunggu Connection WhatsApp habis"));
       });
     }, CONNECT_TIMEOUT_MS);
 
@@ -144,7 +144,7 @@ async function openSocket(options: {
           // not linked. Say so plainly instead of hanging until the timeout.
           finish(() => {
             sock.end(undefined);
-            reject(new Error("WhatsApp is not linked. Pair a device first."));
+            reject(new Error("WhatsApp belum terhubung. Lakukan Pairing perangkat terlebih dahulu."));
           });
           return;
         }
@@ -197,8 +197,8 @@ async function connectPaired(signal?: AbortSignal): Promise<WASocket> {
 
     if (result.loggedOut) {
       result.sock.end(undefined);
-      await clearWhatsAppAuthState("WhatsApp reported this device was logged out.");
-      throw new Error("WhatsApp device was logged out. Re-pair to continue.");
+      await clearWhatsAppAuthState("WhatsApp melaporkan perangkat ini telah Logout.");
+      throw new Error("Perangkat WhatsApp telah Logout. Lakukan Pairing ulang untuk melanjutkan.");
     }
 
     if (result.error === "restart-required") {
@@ -209,7 +209,7 @@ async function connectPaired(signal?: AbortSignal): Promise<WASocket> {
     return result.sock;
   }
 
-  throw new Error("WhatsApp asked for a restart twice; giving up.");
+  throw new Error("WhatsApp meminta Restart dua kali; proses dihentikan.");
 }
 
 /**
@@ -280,7 +280,7 @@ export async function getState(): Promise<WhatsAppState> {
 
 export async function send(params: WhatsAppSendParams): Promise<WhatsAppSendResult> {
   const jid = toWhatsAppJid(params.to);
-  if (!jid) return { ok: false, error: "Invalid WhatsApp destination" };
+  if (!jid) return { ok: false, error: "Destination WhatsApp tidak valid" };
 
   const outcome = await withWhatsAppLease(
     { ttlMs: SEND_LEASE_TTL_MS, waitMs: SEND_LEASE_WAIT_MS },
@@ -317,7 +317,7 @@ export async function send(params: WhatsAppSendParams): Promise<WhatsAppSendResu
   );
 
   if (outcome.leaseBusy) {
-    return { ok: false, error: "WhatsApp is busy with another message. Try again." };
+    return { ok: false, error: "WhatsApp sedang memproses pesan lain. Silakan coba lagi." };
   }
   return outcome.value;
 }
@@ -338,10 +338,10 @@ export async function logout(): Promise<void> {
   });
 
   if (outcome.leaseBusy) {
-    throw new Error("WhatsApp is busy. Try again in a moment.");
+    throw new Error("WhatsApp sedang sibuk. Silakan coba lagi sebentar.");
   }
 
-  await clearWhatsAppAuthState("Logged out by an administrator.");
+  await clearWhatsAppAuthState("Logout dilakukan oleh Admin.");
 }
 
 export type PairingEvent =
@@ -392,7 +392,7 @@ export async function runPairing(options: {
 
       if (result.loggedOut) {
         result.sock.end(undefined);
-        await clearWhatsAppAuthState("WhatsApp rejected the pairing.");
+        await clearWhatsAppAuthState("WhatsApp menolak proses Pairing.");
         emit({ type: "error", message: "WhatsApp rejected the pairing. Try again." });
         return;
       }

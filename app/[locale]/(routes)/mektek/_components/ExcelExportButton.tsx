@@ -70,7 +70,7 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
           Teknisi: technicianName,
           Status: order.taskStatus ?? "",
           Keluhan: typeof order.title === "string" ? stripServicePrefix(order.title) : "",
-          "Estimasi Selesai": order.dueDateAt
+          "ETA": order.dueDateAt
             ? new Date(order.dueDateAt).toLocaleDateString("id-ID")
             : "",
           "Tanggal Masuk": order.createdAt
@@ -89,7 +89,7 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
 
       const worksheet = XLSX.utils.json_to_sheet(rows);
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, "Service Orders");
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Pesanan Servis");
 
       const colWidths = [
         { wch: 36 }, { wch: 24 }, { wch: 22 }, { wch: 18 },
@@ -115,7 +115,7 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
       disabled={loading || orders.length === 0}
     >
       <Download className="w-4 h-4 mr-2" />
-      {loading ? "Exporting..." : "Export Excel"}
+      {loading ? "Sedang Export..." : "Export Excel"}
     </Button>
   );
 }

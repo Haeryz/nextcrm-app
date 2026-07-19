@@ -29,7 +29,7 @@ export const registerUser = async (data: {
   confirmPassword: string;
 }) => {
   if (!(await hasTrustedMutationOrigin())) {
-    return { error: "Request could not be verified" };
+    return { error: "Request tidak dapat diverifikasi" };
   }
 
   const { name, username, email, language, password, confirmPassword } = data;
@@ -41,18 +41,18 @@ export const registerUser = async (data: {
     if (!language) missingFields.push("language");
     if (!password) missingFields.push("password");
     if (!confirmPassword) missingFields.push("confirmPassword");
-    return { error: `Missing required fields: ${missingFields.join(", ")}` };
+    return { error: `Field wajib belum diisi: ${missingFields.join(", ")}` };
   }
 
   if (password.length < 8) {
-    return { error: "Password must be at least 8 characters" };
+    return { error: "Password minimal 8 karakter" };
   }
   if (password.length > 100) {
-    return { error: "Password is too long" };
+    return { error: "Password terlalu panjang" };
   }
 
   if (password !== confirmPassword) {
-    return { error: "Passwords do not match" };
+    return { error: "Password tidak sama" };
   }
 
   const ip = getClientIp(await headers());
@@ -65,7 +65,7 @@ export const registerUser = async (data: {
       )
     ).ok
   ) {
-    return { error: "Too many requests. Please try again later." };
+    return { error: "Terlalu banyak Request. Silakan coba lagi nanti." };
   }
 
   const checkexisting = await prismadb.users.findFirst({
@@ -73,7 +73,7 @@ export const registerUser = async (data: {
   });
 
   if (checkexisting) {
-    return { error: "User already exists" };
+    return { error: "User sudah tersedia" };
   }
 
   try {
@@ -104,8 +104,8 @@ export const registerUser = async (data: {
     return { data: { id: user.id, email: user.email, name: user.name } };
   } catch (error) {
     console.error("[REGISTER_USER]", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return { error: `Registration failed: ${errorMessage}` };
+    const errorMessage = error instanceof Error ? error.message : "Error tidak diketahui";
+    return { error: `Registrasi gagal: ${errorMessage}` };
   }
 };
 
@@ -117,7 +117,7 @@ export const registerCustomerUser = async (data: {
   otpCode: string;
 }) => {
   if (!(await hasTrustedMutationOrigin())) {
-    return { error: "Request could not be verified" };
+    return { error: "Request tidak dapat diverifikasi" };
   }
 
   const name = boundedText(data?.name, MAX_NAME_LEN);
@@ -134,22 +134,22 @@ export const registerCustomerUser = async (data: {
     if (!password) missingFields.push("password");
     if (!confirmPassword) missingFields.push("confirmPassword");
     if (!otpCode) missingFields.push("otpCode");
-    return { error: `Missing required fields: ${missingFields.join(", ")}` };
+    return { error: `Field wajib belum diisi: ${missingFields.join(", ")}` };
   }
 
   if (!isValidPhoneNumber(phone)) {
-    return { error: "Phone number is invalid" };
+    return { error: "Nomor telepon tidak valid" };
   }
 
   if (password.length < 8) {
-    return { error: "Password must be at least 8 characters" };
+    return { error: "Password minimal 8 karakter" };
   }
   if (password.length > 100) {
-    return { error: "Password is too long" };
+    return { error: "Password terlalu panjang" };
   }
 
   if (password !== confirmPassword) {
-    return { error: "Passwords do not match" };
+    return { error: "Password tidak sama" };
   }
 
   const ip = getClientIp(await headers());
@@ -164,7 +164,7 @@ export const registerCustomerUser = async (data: {
     REGISTER_WINDOW_MS
   );
   if (!ipLimit.ok || !phoneLimit.ok) {
-    return { error: "Too many requests. Please try again later." };
+    return { error: "Terlalu banyak Request. Silakan coba lagi nanti." };
   }
 
   const email = buildPhoneAccountEmail(phoneNormalized);
@@ -180,7 +180,7 @@ export const registerCustomerUser = async (data: {
     });
 
     if (existingUser) {
-      return { error: "Phone number already has an account" };
+      return { error: "Nomor telepon ini sudah memiliki Account" };
     }
 
     // Prove ownership of the phone before binding it to an account. Without this,
@@ -203,7 +203,7 @@ export const registerCustomerUser = async (data: {
           email,
           phone,
           phoneNormalized,
-          userLanguage: "en",
+          userLanguage: "id",
           userStatus: "ACTIVE",
           password: await hashPassword(password),
         },
@@ -236,7 +236,7 @@ export const registerCustomerUser = async (data: {
     return { data: { id: user.id, email: user.email, name: user.name } };
   } catch (error) {
     console.error("[REGISTER_CUSTOMER_USER]", error);
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    return { error: `Customer registration failed: ${errorMessage}` };
+    const errorMessage = error instanceof Error ? error.message : "Error tidak diketahui";
+    return { error: `Registrasi Customer gagal: ${errorMessage}` };
   }
 };

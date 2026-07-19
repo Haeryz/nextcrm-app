@@ -91,8 +91,8 @@ function formatCurrency(amount: number) {
 }
 
 function formatDate(value: string | null) {
-  if (!value) return "No date";
-  return new Intl.DateTimeFormat("en", {
+  if (!value) return "Tidak ada tanggal";
+  return new Intl.DateTimeFormat("id-ID", {
     dateStyle: "medium",
   }).format(new Date(value));
 }
@@ -142,7 +142,7 @@ function discountLabel(voucher: VoucherRow) {
   }
 
   return voucher.maxDiscount
-    ? `${voucher.discountPercent ?? 0}% up to ${formatCurrency(voucher.maxDiscount)}`
+    ? `${voucher.discountPercent ?? 0}% hingga ${formatCurrency(voucher.maxDiscount)}`
     : `${voucher.discountPercent ?? 0}%`;
 }
 
@@ -150,20 +150,20 @@ function targetLabel(voucher: VoucherRow) {
   if (voucher.scope === "CUSTOMER") {
     return voucher.customer
       ? `${voucher.customer.label} - ${voucher.customer.phone}`
-      : "Specific customer";
+      : "Customer tertentu";
   }
   if (voucher.scope === "CUSTOMER_TYPE") {
     return voucher.customerType === "B2B"
-      ? "Perusahaan customers"
-      : "Standard customers";
+      ? "Customer perusahaan"
+      : "Customer standard";
   }
-  return "All customers";
+  return "Semua Customer";
 }
 
 function usageLabel(voucher: VoucherRow) {
   return voucher.usageLimit
-    ? `${voucher.usedCount}/${voucher.usageLimit} used`
-    : `${voucher.usedCount} used`;
+    ? `${voucher.usedCount}/${voucher.usageLimit} digunakan`
+    : `${voucher.usedCount} digunakan`;
 }
 
 function VoucherForm({
@@ -258,9 +258,9 @@ function VoucherForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="ALL">All customers</SelectItem>
+              <SelectItem value="ALL">Semua Customer</SelectItem>
               <SelectItem value="CUSTOMER_TYPE">Customer type</SelectItem>
-              <SelectItem value="CUSTOMER">Specific customer</SelectItem>
+              <SelectItem value="CUSTOMER">Customer tertentu</SelectItem>
             </SelectContent>
           </Select>
         </Field>
@@ -275,7 +275,7 @@ function VoucherForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="STANDARD">Standard customer</SelectItem>
+                <SelectItem value="STANDARD">Customer standard</SelectItem>
                 <SelectItem value="B2B">Perusahaan</SelectItem>
               </SelectContent>
             </Select>
@@ -291,15 +291,15 @@ function VoucherForm({
               disabled={pending || customers.length === 0}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select customer" />
+                <SelectValue placeholder="Pilih Customer" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NO_CUSTOMER} disabled>
-                  Select customer
+                  Pilih Customer
                 </SelectItem>
                 {customers.length === 0 && (
                   <SelectItem value="NO_CUSTOMERS_AVAILABLE" disabled>
-                    No customers available
+                    Customer belum tersedia
                   </SelectItem>
                 )}
                 {customers.map((customer) => (
@@ -345,7 +345,7 @@ function VoucherForm({
                 value={value.maxDiscount ?? ""}
                 onValueChange={(nextValue) => update("maxDiscount", nextValue)}
                 disabled={pending}
-                placeholder="Optional"
+                placeholder="Opsional"
               />
             </Field>
           </>
@@ -376,7 +376,7 @@ function VoucherForm({
             value={value.usageLimit ?? ""}
             onChange={(event) => update("usageLimit", event.target.value)}
             disabled={pending}
-            placeholder="Unlimited"
+            placeholder="Tanpa batas"
           />
         </Field>
         <Field label="Start date">
@@ -428,7 +428,7 @@ export default function VoucherManager({
   const [createValue, setCreateValue] = useState<MektekVoucherInput>(blankVoucher);
   const [editValue, setEditValue] = useState<MektekVoucherInput>(blankVoucher);
 
-  const countLabel = `${vouchers.length} voucher${vouchers.length === 1 ? "" : "s"} on this page`;
+  const countLabel = `${vouchers.length} Voucher di halaman ini`;
 
   const submitCreate = () => {
     startTransition(async () => {
@@ -437,7 +437,7 @@ export default function VoucherManager({
         toast.error(result.error);
         return;
       }
-      toast.success("Voucher created");
+      toast.success("Voucher berhasil dibuat");
       setCreateValue(blankVoucher);
       setCreateOpen(false);
       router.refresh();
@@ -457,7 +457,7 @@ export default function VoucherManager({
         toast.error(result.error);
         return;
       }
-      toast.success("Voucher updated");
+      toast.success("Voucher berhasil diperbarui");
       setEditingVoucher(null);
       router.refresh();
     });
@@ -470,7 +470,7 @@ export default function VoucherManager({
         toast.error(result.error);
         return;
       }
-      toast.success("Voucher deleted");
+      toast.success("Voucher berhasil dihapus");
       router.refresh();
     });
   };
@@ -483,14 +483,14 @@ export default function VoucherManager({
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto">
               <Plus data-icon="inline-start" />
-              Add voucher
+              Tambah Voucher
             </Button>
           </DialogTrigger>
           <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
             <DialogHeader>
-              <DialogTitle>Add voucher</DialogTitle>
+              <DialogTitle>Tambah Voucher</DialogTitle>
               <DialogDescription>
-                Create a voucher code and choose who can redeem it.
+                Buat Voucher Code dan pilih siapa yang dapat menggunakannya.
               </DialogDescription>
             </DialogHeader>
             <VoucherForm
@@ -498,7 +498,7 @@ export default function VoucherManager({
               customers={customers}
               onChange={setCreateValue}
               onSubmit={submitCreate}
-              submitLabel="Create voucher"
+              submitLabel="Buat Voucher"
               pending={isPending}
             />
           </DialogContent>
@@ -539,12 +539,12 @@ export default function VoucherManager({
               <div className="text-sm">
                 <p className="font-medium">{discountLabel(voucher)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Min {voucher.minSubtotal > 0 ? formatCurrency(voucher.minSubtotal) : "none"}
+                  Min {voucher.minSubtotal > 0 ? formatCurrency(voucher.minSubtotal) : "tidak ada"}
                 </p>
               </div>
               <div className="text-sm text-muted-foreground">
-                <p>Starts: {formatDate(voucher.startsAt)}</p>
-                <p>Ends: {formatDate(voucher.expiresAt)}</p>
+                <p>Start Date: {formatDate(voucher.startsAt)}</p>
+                <p>Expiry Date: {formatDate(voucher.expiresAt)}</p>
               </div>
               <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
                 <Button
@@ -564,7 +564,7 @@ export default function VoucherManager({
                   size="icon"
                   onClick={() => deleteVoucher(voucher)}
                   disabled={isPending || voucher.usedCount > 0}
-                  aria-label={`Delete ${voucher.title}`}
+                  aria-label={`Hapus ${voucher.title}`}
                   className="shrink-0"
                 >
                   <Trash2 />
@@ -574,7 +574,7 @@ export default function VoucherManager({
           ))}
           {vouchers.length === 0 && (
             <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-              No vouchers match this filter.
+              Tidak ada Voucher yang cocok dengan Filter ini.
             </div>
           )}
         </div>
@@ -583,9 +583,9 @@ export default function VoucherManager({
       <Dialog open={!!editingVoucher} onOpenChange={(open) => !open && setEditingVoucher(null)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Edit voucher</DialogTitle>
+            <DialogTitle>Edit Voucher</DialogTitle>
             <DialogDescription>
-              Update the voucher code, discount, target, or availability.
+              Perbarui Voucher Code, Discount, Target, atau ketersediaannya.
             </DialogDescription>
           </DialogHeader>
           <VoucherForm
@@ -593,7 +593,7 @@ export default function VoucherManager({
             customers={customers}
             onChange={setEditValue}
             onSubmit={submitEdit}
-            submitLabel="Save changes"
+            submitLabel="Simpan perubahan"
             pending={isPending}
           />
         </DialogContent>

@@ -29,11 +29,11 @@ import { resetPassword } from "@/actions/auth/password-reset";
 
 const formSchema = z
   .object({
-    password: z.string().min(8, "Password must be at least 8 characters").max(100),
+    password: z.string().min(8, "Password minimal 8 karakter").max(100),
     confirm: z.string(),
   })
   .refine((data) => data.password === data.confirm, {
-    message: "Passwords do not match",
+    message: "Password tidak sama",
     path: ["confirm"],
   });
 
@@ -45,7 +45,7 @@ export function ResetPasswordComponent() {
   const router = useRouter();
   const params = useParams<{ locale?: string }>();
   const searchParams = useSearchParams();
-  const locale = params.locale || "en";
+  const locale = params.locale || "id";
   const token = searchParams.get("token") || "";
 
   const form = useForm<ResetFormValues>({
@@ -55,7 +55,7 @@ export function ResetPasswordComponent() {
 
   async function onSubmit(data: ResetFormValues) {
     if (!token) {
-      toast.error("Invalid or expired reset link.");
+      toast.error("Link Reset Password tidak valid atau kedaluwarsa.");
       return;
     }
     setIsLoading(true);
@@ -65,10 +65,10 @@ export function ResetPasswordComponent() {
         toast.error(result.error);
         return;
       }
-      toast.success(result.message || "Password updated.");
+      toast.success(result.message || "Password berhasil diperbarui.");
       router.push(`/${locale}/sign-in`);
     } catch (error: any) {
-      toast.error(error?.message || "Something went wrong.");
+      toast.error(error?.message || "Terjadi kesalahan.");
     } finally {
       setIsLoading(false);
     }
@@ -77,11 +77,11 @@ export function ResetPasswordComponent() {
   return (
     <Card className="w-full max-w-[520px] shadow-lg">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl">Reset password</CardTitle>
+        <CardTitle className="text-2xl">Reset Password</CardTitle>
         <CardDescription>
           {token
-            ? "Choose a new password for your account."
-            : "This reset link is missing or invalid. Request a new one from the sign-in page."}
+            ? "Pilih Password baru untuk akun Anda."
+            : "Link Reset Password tidak tersedia atau tidak valid. Minta Link baru dari halaman Login."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -92,13 +92,13 @@ export function ResetPasswordComponent() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>New password</FormLabel>
+                  <FormLabel>Password baru</FormLabel>
                   <div className="flex items-start gap-2">
                     <FormControl>
                       <Input
                         disabled={isLoading || !token}
                         type={show ? "text" : "password"}
-                        placeholder="New password"
+                        placeholder="Password baru"
                         {...field}
                       />
                     </FormControl>
@@ -108,7 +108,7 @@ export function ResetPasswordComponent() {
                       size="icon"
                       className="shrink-0"
                       onClick={() => setShow(!show)}
-                      aria-label={show ? "Hide password" : "Show password"}
+                      aria-label={show ? "Sembunyikan Password" : "Tampilkan Password"}
                     >
                       {show ? <EyeOff /> : <Eye />}
                     </Button>
@@ -122,12 +122,12 @@ export function ResetPasswordComponent() {
               name="confirm"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Confirm password</FormLabel>
+                  <FormLabel>Konfirmasi Password</FormLabel>
                   <FormControl>
                     <Input
                       disabled={isLoading || !token}
                       type={show ? "text" : "password"}
-                      placeholder="Confirm password"
+                      placeholder="Konfirmasi Password"
                       {...field}
                     />
                   </FormControl>
@@ -136,7 +136,7 @@ export function ResetPasswordComponent() {
               )}
             />
             <Button type="submit" disabled={isLoading || !token} className="h-12">
-              {isLoading ? "Saving..." : "Reset password"}
+              {isLoading ? "Menyimpan..." : "Reset Password"}
             </Button>
           </form>
         </Form>

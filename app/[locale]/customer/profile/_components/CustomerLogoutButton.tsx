@@ -24,7 +24,7 @@ export function CustomerLogoutButton({ locale }: { locale: string }) {
       await signOut({ redirect: false });
       window.location.assign(`/${locale}/customer`);
     } catch {
-      toast.error("Logout failed. Please try again.");
+      toast.error("Logout gagal. Silakan coba lagi.");
     } finally {
       setPending(false);
     }
@@ -39,7 +39,7 @@ export function CustomerLogoutButton({ locale }: { locale: string }) {
       className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff]"
     >
       <LogOut className="size-4" />
-      {pending ? "Logging out..." : "Logout"}
+      {pending ? "Sedang Logout..." : "Logout"}
     </Button>
   );
 }

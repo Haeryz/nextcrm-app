@@ -54,17 +54,17 @@ export async function createSnapTransaction(
   params: CreateSnapTransactionParams
 ): Promise<SnapTransactionResult> {
   if (areExternalApisDisabled()) {
-    return { ok: false, error: "External APIs are disabled" };
+    return { ok: false, error: "External API dinonaktifkan" };
   }
 
   const orderId = String(params.orderId ?? "").trim();
   if (!orderId || orderId.length > 50) {
-    return { ok: false, error: "Invalid order id" };
+    return { ok: false, error: "Order ID tidak valid" };
   }
 
   const grossAmount = Math.round(Number(params.grossAmount));
   if (!Number.isFinite(grossAmount) || grossAmount <= 0) {
-    return { ok: false, error: "Invalid gross amount" };
+    return { ok: false, error: "Gross Amount tidak valid" };
   }
 
   // Midtrans requires sum(item_details) === gross_amount when item_details are present.
@@ -146,11 +146,11 @@ export async function getTransactionStatus(
   orderId: string
 ): Promise<TransactionStatusResult> {
   if (areExternalApisDisabled()) {
-    return { ok: false, error: "External APIs are disabled" };
+    return { ok: false, error: "External API dinonaktifkan" };
   }
 
   const id = String(orderId ?? "").trim();
-  if (!id) return { ok: false, error: "Invalid order id" };
+  if (!id) return { ok: false, error: "Order ID tidak valid" };
 
   try {
     const response = await fetch(
@@ -170,7 +170,7 @@ export async function getTransactionStatus(
     > | null;
 
     if (!json) {
-      return { ok: false, error: `Midtrans status returned ${response.status}` };
+      return { ok: false, error: `Midtrans Status mengembalikan ${response.status}` };
     }
 
     return { ok: true, data: json };

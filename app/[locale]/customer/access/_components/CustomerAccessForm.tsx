@@ -57,10 +57,10 @@ export function CustomerAccessForm({
         return;
       }
 
-      toast.success("Login successful.");
+      toast.success("Login berhasil.");
       window.location.assign(result.redirectTo);
     } catch (error: unknown) {
-      toast.error(errorMessage(error, "Login failed"));
+      toast.error(errorMessage(error, "Login gagal"));
     } finally {
       setIsLoading(false);
     }
@@ -68,7 +68,7 @@ export function CustomerAccessForm({
 
   async function onSendOtp() {
     if (!signupPhone.trim()) {
-      toast.error("Enter your phone number first.");
+      toast.error("Masukkan nomor telepon terlebih dahulu.");
       return;
     }
     setOtpSending(true);
@@ -81,7 +81,7 @@ export function CustomerAccessForm({
       setOtpSent(true);
       toast.success("Kode verifikasi dikirim via WhatsApp.");
     } catch (error: unknown) {
-      toast.error(errorMessage(error, "Failed to send code"));
+      toast.error(errorMessage(error, "Gagal mengirim kode"));
     } finally {
       setOtpSending(false);
     }
@@ -113,15 +113,15 @@ export function CustomerAccessForm({
       });
 
       if ("error" in loginResult) {
-        toast.success("Account created. Login with your phone and password.");
+        toast.success("Akun berhasil dibuat. Silakan Login dengan nomor telepon dan Password Anda.");
         setLoginPhone(signupPhone);
         return;
       }
 
-      toast.success("Customer account created.");
+      toast.success("Akun pelanggan berhasil dibuat.");
       window.location.assign(loginResult.redirectTo);
     } catch (error: unknown) {
-      toast.error(errorMessage(error, "Signup failed"));
+      toast.error(errorMessage(error, "Pendaftaran gagal"));
     } finally {
       setIsLoading(false);
     }
@@ -141,7 +141,7 @@ export function CustomerAccessForm({
             value="signup"
             className="data-[state=active]:bg-[#151a63] data-[state=active]:text-[#fff200]"
           >
-            Sign up
+            Daftar
           </TabsTrigger>
         </TabsList>
 
@@ -149,7 +149,7 @@ export function CustomerAccessForm({
           <form onSubmit={onLoginSubmit} className="grid gap-5">
             <div className="grid gap-2">
               <Label htmlFor="login-phone" className="text-[#10164f]">
-                Phone number
+                Nomor telepon
               </Label>
               <div className="relative">
                 <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
@@ -194,7 +194,7 @@ export function CustomerAccessForm({
                   onClick={() => setShowLoginPassword((value) => !value)}
                   disabled={isLoading}
                   aria-label={
-                    showLoginPassword ? "Hide password" : "Show password"
+                    showLoginPassword ? "Sembunyikan Password" : "Tampilkan Password"
                   }
                 >
                   {showLoginPassword ? (
@@ -215,7 +215,7 @@ export function CustomerAccessForm({
                 disabled={isLoading}
               />
               <span>
-                Remember this device for up to 14 days. Avoid this on shared devices.
+                Ingat perangkat ini hingga 14 hari. Jangan gunakan pilihan ini pada perangkat bersama.
               </span>
             </label>
 
@@ -224,7 +224,7 @@ export function CustomerAccessForm({
               className="h-12 bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
               disabled={isLoading}
             >
-              {isLoading ? "Logging in..." : "Login"}
+              {isLoading ? "Sedang Login..." : "Login"}
               <ArrowRight className="size-4" />
             </Button>
           </form>
@@ -234,7 +234,7 @@ export function CustomerAccessForm({
           <form onSubmit={onSignupSubmit} className="grid gap-5">
             <div className="grid gap-2">
               <Label htmlFor="signup-name" className="text-[#10164f]">
-                Name
+                Nama
               </Label>
               <div className="relative">
                 <UserRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
@@ -242,7 +242,7 @@ export function CustomerAccessForm({
                   id="signup-name"
                   value={signupName}
                   onChange={(event) => setSignupName(event.target.value)}
-                  placeholder="Customer name"
+                  placeholder="Nama pelanggan"
                   autoComplete="name"
                   required
                   maxLength={120}
@@ -254,7 +254,7 @@ export function CustomerAccessForm({
 
             <div className="grid gap-2">
               <Label htmlFor="signup-phone" className="text-[#10164f]">
-                Phone number
+                Nomor telepon
               </Label>
               <div className="relative">
                 <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
@@ -275,7 +275,7 @@ export function CustomerAccessForm({
 
             <div className="grid gap-2">
               <Label htmlFor="signup-otp" className="text-[#10164f]">
-                WhatsApp verification code
+                Kode verifikasi WhatsApp
               </Label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -288,7 +288,7 @@ export function CustomerAccessForm({
                     }
                     inputMode="numeric"
                     autoComplete="one-time-code"
-                    placeholder="6-digit code"
+                    placeholder="Kode 6 digit"
                     required
                     minLength={6}
                     className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
@@ -306,7 +306,7 @@ export function CustomerAccessForm({
                 </Button>
               </div>
               <p className="text-xs text-[#4b5577]/80">
-                We send a code to your WhatsApp to confirm the number is yours.
+                Kami mengirim kode ke WhatsApp untuk memastikan nomor ini milik Anda.
               </p>
             </div>
 
@@ -337,7 +337,7 @@ export function CustomerAccessForm({
                   onClick={() => setShowSignupPassword((value) => !value)}
                   disabled={isLoading}
                   aria-label={
-                    showSignupPassword ? "Hide password" : "Show password"
+                    showSignupPassword ? "Sembunyikan Password" : "Tampilkan Password"
                   }
                 >
                   {showSignupPassword ? (
@@ -351,7 +351,7 @@ export function CustomerAccessForm({
 
             <div className="grid gap-2">
               <Label htmlFor="signup-confirm-password" className="text-[#10164f]">
-                Confirm password
+                Konfirmasi Password
               </Label>
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
@@ -366,7 +366,7 @@ export function CustomerAccessForm({
                   required
                   minLength={8}
                   maxLength={100}
-                  placeholder="Confirm password"
+                  placeholder="Konfirmasi Password"
                   className="h-12 border-[#151a63]/20 bg-white pl-9 pr-12 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
                   disabled={isLoading}
                 />
@@ -381,8 +381,8 @@ export function CustomerAccessForm({
                   disabled={isLoading}
                   aria-label={
                     showSignupConfirmPassword
-                      ? "Hide password"
-                      : "Show password"
+                      ? "Sembunyikan Password"
+                      : "Tampilkan Password"
                   }
                 >
                   {showSignupConfirmPassword ? (
@@ -399,7 +399,7 @@ export function CustomerAccessForm({
               className="h-12 bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
               disabled={isLoading}
             >
-              {isLoading ? "Creating account..." : "Create account"}
+              {isLoading ? "Membuat akun..." : "Buat akun"}
               <ArrowRight className="size-4" />
             </Button>
           </form>

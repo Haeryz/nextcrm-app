@@ -18,8 +18,8 @@ interface CustomerDetailPageProps {
 }
 
 function formatDateTime(value: Date | null | undefined) {
-  if (!value) return "Not available";
-  return new Intl.DateTimeFormat("en-ID", {
+  if (!value) return "Belum tersedia";
+  return new Intl.DateTimeFormat("id-ID", {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: "Asia/Makassar",
@@ -39,10 +39,10 @@ export default async function CustomerDetailPage({
 
   if (!canManageMektekCustomers(session?.user)) {
     return (
-      <Container title="Customer details" description="Restricted MekTek workspace">
+      <Container title="Customer Details" description="Workspace MekTek terbatas">
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            Only admins can view customer account details and service history.
+            Hanya Admin yang dapat melihat detail Customer Account dan riwayat servis.
           </CardContent>
         </Card>
       </Container>
@@ -102,35 +102,35 @@ export default async function CustomerDetailPage({
   return (
     <Container
       title={displayName}
-      description="Customer profile, service totals, and complete service-order history"
+      description="Customer Profile, total servis, dan riwayat service order lengkap"
     >
       <div className="flex flex-col gap-6">
         <div>
           <Button asChild variant="ghost" size="sm">
             <Link href={`/${locale}/mektek/customers`}>
               <ArrowLeft data-icon="inline-start" />
-              Back to customers
+              Kembali ke Customers
             </Link>
           </Button>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Customer details</CardTitle>
+            <CardTitle className="text-base">Customer Details</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <div>
-              <p className="text-xs text-muted-foreground">Name</p>
+              <p className="text-xs text-muted-foreground">Nama</p>
               <p className="mt-1 font-medium">{displayName}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Phone</p>
+              <p className="text-xs text-muted-foreground">Nomor telepon</p>
               <p className="mt-1 font-medium">{customer.phone}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Email</p>
               <p className="mt-1 break-all font-medium">
-                {customer.user?.email ?? "No login account"}
+                {customer.user?.email ?? "Belum ada Login Account"}
               </p>
             </div>
             <div>
@@ -140,11 +140,11 @@ export default async function CustomerDetailPage({
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Customer since</p>
+              <p className="text-xs text-muted-foreground">Customer sejak</p>
               <p className="mt-1 font-medium">{formatDateTime(customer.createdAt)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Last login</p>
+              <p className="text-xs text-muted-foreground">Login terakhir</p>
               <p className="mt-1 font-medium">
                 {formatDateTime(customer.user?.lastLoginAt)}
               </p>
@@ -164,7 +164,7 @@ export default async function CustomerDetailPage({
               <Wrench className="size-5 text-muted-foreground" />
               <div>
                 <p className="text-2xl font-semibold">{summary.total}</p>
-                <p className="text-xs text-muted-foreground">Total services</p>
+                <p className="text-xs text-muted-foreground">Total servis</p>
               </div>
             </CardContent>
           </Card>
@@ -173,7 +173,7 @@ export default async function CustomerDetailPage({
               <CheckCircle2 className="size-5 text-emerald-600" />
               <div>
                 <p className="text-2xl font-semibold">{summary.completed}</p>
-                <p className="text-xs text-muted-foreground">Completed services</p>
+                <p className="text-xs text-muted-foreground">Servis selesai</p>
               </div>
             </CardContent>
           </Card>
@@ -182,7 +182,7 @@ export default async function CustomerDetailPage({
               <Clock3 className="size-5 text-amber-600" />
               <div>
                 <p className="text-2xl font-semibold">{summary.open}</p>
-                <p className="text-xs text-muted-foreground">Open services</p>
+                <p className="text-xs text-muted-foreground">Servis aktif</p>
               </div>
             </CardContent>
           </Card>
@@ -190,7 +190,7 @@ export default async function CustomerDetailPage({
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Service history</CardTitle>
+            <CardTitle className="text-base">Riwayat servis</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {customer.serviceLinks.length > 0 ? (
@@ -205,7 +205,7 @@ export default async function CustomerDetailPage({
                   const technician =
                     order.assigned_user?.name ||
                     order.assigned_user?.email ||
-                    "Unassigned";
+                    "Belum ditugaskan";
 
                   return (
                     <Link
@@ -218,20 +218,20 @@ export default async function CustomerDetailPage({
                           {vehicle}
                         </p>
                         <p className="line-clamp-1 text-sm text-muted-foreground">
-                          {order.content || "No service notes"}
+                          {order.content || "Belum ada catatan servis"}
                         </p>
                         <p className="mt-1 font-mono text-xs text-muted-foreground">
                           {order.id}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Created</p>
+                        <p className="text-xs text-muted-foreground">Dibuat</p>
                         <p className="text-sm">
                           {formatDateTime(order.createdAt ?? createdAt)}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs text-muted-foreground">Estimate / technician</p>
+                        <p className="text-xs text-muted-foreground">Estimasi / teknisi</p>
                         <p className="text-sm">{formatDateTime(order.dueDateAt)}</p>
                         <p className="truncate text-xs text-muted-foreground">{technician}</p>
                       </div>

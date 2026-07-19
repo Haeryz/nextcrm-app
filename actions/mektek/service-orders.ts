@@ -100,6 +100,7 @@ const parseWhatsappMeta = (tags: Record<string, unknown>): Record<string, unknow
 };
 
 type CreateMektekServiceOrderInput = {
+  locale?: string;
   customerName: string;
   vehicle: string;
   complaint: string;
@@ -188,9 +189,16 @@ const buildAppUrl = async () => {
 
 const createCustomerCode = () => crypto.randomBytes(12).toString("base64url");
 
+const TRACKING_LOCALES = new Set(["id", "en", "cz", "de", "uk"]);
+
+const normalizeTrackingLocale = (locale?: string) => {
+  const normalized = String(locale ?? "").trim().toLowerCase();
+  return TRACKING_LOCALES.has(normalized) ? normalized : "id";
+};
+
 const buildCustomerTrackingLink = async (code: string, locale?: string) => {
   const appUrl = await buildAppUrl();
-  const safeLocale = locale || "en";
+  const safeLocale = normalizeTrackingLocale(locale);
   return `${appUrl}/${safeLocale}/s/${code}`;
 };
 
@@ -199,10 +207,10 @@ export const createMektekServiceOrder = async (
 ) => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return { error: "Unauthorized" };
+    return { error: "Unauthorized: silakan Login" };
   }
   if (!canCreateMektekOrders(session.user)) {
-    return { error: "Forbidden: only MekTek admin or CS can create service orders" };
+    return { error: "Forbidden: hanya Admin atau CS MekTek yang dapat membuat Service Order" };
   }
 
   const customerName = boundedText(input?.customerName, MAX_NAME_LEN);
@@ -217,10 +225,10 @@ export const createMektekServiceOrder = async (
   const voucherCode = String(input?.voucherCode ?? "").trim();
 
   if (!customerName || !vehicle || !complaint) {
-    return { error: "Customer name, vehicle, and complaint are required" };
+    return { error: "Nama Customer, kendaraan, dan keluhan wajib diisi" };
   }
   if (!isValidPhoneNumber(phone)) {
-    return { error: "Phone number is required to add the customer to Customer/Users" };
+    return { error: "Nomor telepon wajib diisi untuk menambahkan Customer ke Customer/Users" };
   }
 
   let dueDateAt: Date | undefined;
@@ -228,7 +236,7 @@ export const createMektekServiceOrder = async (
   if (estimatedDone) {
     const parsedDate = new Date(estimatedDone);
     if (Number.isNaN(parsedDate.getTime())) {
-      return { error: "Estimated done date is invalid" };
+      return { error: "Estimated Done Date tidak valid" };
     }
     dueDateAt = parsedDate;
   }
@@ -240,21 +248,21 @@ export const createMektekServiceOrder = async (
 
   if (serviceItems.length === 0) {
     return {
-      error: "Add at least one service description with an estimated cost",
+      error: "Tambahkan minimal satu Service Description beserta Estimated Cost",
     };
   }
 
   if (!haveRequiredMektekItemPrices(serviceItems)) {
     return {
-      error: "Estimated cost is required for every service description",
+      error: "Estimated Cost wajib diisi untuk setiap Service Description",
     };
   }
 
   if (!haveRequiredMektekItemPrices(sparepartItems)) {
-    return { error: "Estimated cost is required for every sparepart item" };
+    return { error: "Estimated Cost wajib diisi untuk setiap sparepart item" };
   }
 
-  const locale = session.user.userLanguage || "en";
+  const locale = normalizeTrackingLocale(input?.locale || session.user.userLanguage);
 
   try {
     const creation = await prismadb.$transaction(async (tx) => {
@@ -441,7 +449,7 @@ export const createMektekServiceOrder = async (
     const task = creation.serviceOrder;
 
     if (!task?.id) {
-      return { error: "Service order was not created" };
+      return { error: "Service Order tidak berhasil dibuat" };
     }
 
     const customerTrackingLink = await buildCustomerTrackingLink(customerCode, locale);
@@ -489,12 +497,12 @@ export const createMektekServiceOrder = async (
   } catch (error) {
     console.log("[CREATE_MEKTEK_SERVICE_ORDER]", error);
     if (error instanceof Error) {
-      if (error.message === "INVALID_VOUCHER") return { error: "Voucher code is invalid" };
-      if (error.message === "LOCKED_VOUCHER") return { error: "Voucher is not available for this customer" };
-      if (error.message === "VOUCHER_MINIMUM_NOT_MET") return { error: "Voucher minimum purchase is not met" };
-      if (error.message === "INVALID_TECHNICIAN") return { error: "Selected technician is not available" };
+      if (error.message === "INVALID_VOUCHER") return { error: "Voucher Code tidak valid" };
+      if (error.message === "LOCKED_VOUCHER") return { error: "Voucher tidak tersedia untuk Customer ini" };
+      if (error.message === "VOUCHER_MINIMUM_NOT_MET") return { error: "Minimum pembelian Voucher belum terpenuhi" };
+      if (error.message === "INVALID_TECHNICIAN") return { error: "Technician yang dipilih tidak tersedia" };
     }
-    return { error: "Failed to create service order" };
+    return { error: "Gagal membuat Service Order" };
   }
 };
 
@@ -504,10 +512,10 @@ export const getMektekTechnicians = async (): Promise<{
 }> => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return { error: "Unauthorized" };
+    return { error: "Unauthorized: silakan Login" };
   }
   if (!canCreateMektekOrders(session.user)) {
-    return { error: "Forbidden: only MekTek admin or CS can view technicians" };
+    return { error: "Forbidden: hanya Admin atau CS MekTek yang dapat melihat Technician" };
   }
 
   try {
@@ -528,7 +536,7 @@ export const getMektekTechnicians = async (): Promise<{
     return { data: technicians };
   } catch (error) {
     console.log("[GET_MEKTEK_TECHNICIANS]", error);
-    return { error: "Failed to load technicians" };
+    return { error: "Gagal memuat Technician" };
   }
 };
 
@@ -537,10 +545,10 @@ export const searchMektekCustomers = async (
 ): Promise<{ data?: MektekCustomerSearchResult[]; error?: string }> => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return { error: "Unauthorized" };
+    return { error: "Unauthorized: silakan Login" };
   }
   if (!canCreateMektekOrders(session.user)) {
-    return { error: "Forbidden: only MekTek admin or CS can search customers" };
+    return { error: "Forbidden: hanya Admin atau CS MekTek yang dapat mencari Customer" };
   }
 
   const search = String(query ?? "").trim();
@@ -643,17 +651,17 @@ export const searchMektekCustomers = async (
     return { data: results.slice(0, 8) };
   } catch (error) {
     console.log("[SEARCH_MEKTEK_CUSTOMERS]", error);
-    return { error: "Failed to search customers" };
+    return { error: "Gagal mencari Customer" };
   }
 };
 
 export const searchMektekCatalogItems = async (query: string) => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return { error: "Unauthorized" };
+    return { error: "Unauthorized: silakan Login" };
   }
   if (!canCreateMektekOrders(session.user)) {
-    return { error: "Forbidden: only MekTek admin or CS can search catalog items" };
+    return { error: "Forbidden: hanya Admin atau CS MekTek yang dapat mencari Catalogue Items" };
   }
 
   const search = String(query ?? "").trim();
@@ -695,7 +703,7 @@ export const searchMektekCatalogItems = async (query: string) => {
     };
   } catch (error) {
     console.log("[SEARCH_MEKTEK_CATALOG_ITEMS]", error);
-    return { error: "Failed to search catalog items" };
+    return { error: "Gagal mencari Catalogue Items" };
   }
 };
 
@@ -894,17 +902,17 @@ export const addMektekTimelineEntry = async (data: {
   completed: boolean;
 }) => {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
   if (!canUpdateMektekProgress(session.user)) {
-    return { error: "Forbidden: only MekTek admin or technician can update timeline" };
+    return { error: "Forbidden: hanya Admin atau Technician MekTek yang dapat memperbarui Timeline" };
   }
 
   const serviceOrderId = String(data?.serviceOrderId ?? "").trim();
   const description = String(data?.description ?? "").trim();
   const completed = !!data?.completed;
 
-  if (!serviceOrderId) return { error: "Service order ID is required" };
-  if (!description) return { error: "Timeline description is required" };
+  if (!serviceOrderId) return { error: "Service Order ID wajib diisi" };
+  if (!description) return { error: "Timeline Description wajib diisi" };
 
   try {
     const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
@@ -918,7 +926,7 @@ export const addMektekTimelineEntry = async (data: {
       },
     });
 
-    if (!serviceOrder) return { error: "Service order not found" };
+    if (!serviceOrder) return { error: "Service Order tidak ditemukan" };
 
     const tags = parseTagsObject(serviceOrder.tags);
     const timeline = parseTimeline(serviceOrder.tags);
@@ -949,7 +957,7 @@ export const addMektekTimelineEntry = async (data: {
     return { data: nextTimeline };
   } catch (error) {
     console.log("[ADD_MEKTEK_TIMELINE_ENTRY]", error);
-    return { error: "Failed to add timeline entry" };
+    return { error: "Gagal menambahkan Timeline Entry" };
   }
 };
 
@@ -958,13 +966,13 @@ export const updateMektekServiceOrderEstimatedDone = async (input: {
   estimatedDone: string | null;
 }) => {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
   if (!canManageMektekSchedule(session.user)) {
-    return { error: "Forbidden: only MekTek admins can change the schedule" };
+    return { error: "Forbidden: hanya Admin MekTek yang dapat mengubah Schedule" };
   }
 
   const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
-  if (!serviceOrderId) return { error: "Service order ID is required" };
+  if (!serviceOrderId) return { error: "Service Order ID wajib diisi" };
 
   const parsed = parseEstimatedDoneInput(input?.estimatedDone);
   if ("error" in parsed) return { error: parsed.error };
@@ -977,7 +985,7 @@ export const updateMektekServiceOrderEstimatedDone = async (input: {
         updatedBy: session.user.id,
       },
     });
-    if (updated.count === 0) return { error: "Service order not found" };
+    if (updated.count === 0) return { error: "Service Order tidak ditemukan" };
 
     revalidatePath("/[locale]/(routes)/mektek", "page");
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
@@ -989,7 +997,7 @@ export const updateMektekServiceOrderEstimatedDone = async (input: {
     return { data: { estimatedDone: parsed.date?.toISOString() ?? null } };
   } catch (error) {
     console.log("[UPDATE_MEKTEK_SERVICE_ORDER_ESTIMATED_DONE]", error);
-    return { error: "Failed to update estimated done time" };
+    return { error: "Gagal memperbarui Estimated Done Time" };
   }
 };
 
@@ -999,28 +1007,28 @@ export const appendMektekServiceOrderItems = async (input: {
   sparepartItems?: MektekLineItemInput[];
 }) => {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
   if (!canCreateMektekOrders(session.user)) {
-    return { error: "Forbidden: only MekTek admin or CS can add order items" };
+    return { error: "Forbidden: hanya Admin atau CS MekTek yang dapat menambahkan Order Items" };
   }
 
   const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
-  if (!serviceOrderId) return { error: "Service order ID is required" };
+  if (!serviceOrderId) return { error: "Service Order ID wajib diisi" };
 
   const addedServiceItems = buildMektekStoredItems(input?.serviceItems, "service");
   const addedSparepartItems = buildMektekStoredItems(input?.sparepartItems, "sparepart");
   if (addedServiceItems.length === 0 && addedSparepartItems.length === 0) {
-    return { error: "Add at least one service or sparepart item" };
+    return { error: "Tambahkan minimal satu item servis atau sparepart" };
   }
 
   if (!haveRequiredMektekItemPrices(addedServiceItems)) {
     return {
-      error: "Estimated cost is required for every service description",
+      error: "Estimated Cost wajib diisi untuk setiap Service Description",
     };
   }
 
   if (!haveRequiredMektekItemPrices(addedSparepartItems)) {
-    return { error: "Estimated cost is required for every sparepart item" };
+    return { error: "Estimated Cost wajib diisi untuk setiap sparepart item" };
   }
 
   try {
@@ -1033,13 +1041,13 @@ export const appendMektekServiceOrderItems = async (input: {
         taskStatus: true,
       },
     });
-    if (!order) return { error: "Service order not found" };
+    if (!order) return { error: "Service Order tidak ditemukan" };
     if (!canEditMektekOrderItems(order.taskStatus)) {
       return {
         error:
           order.taskStatus === "COMPLETE"
-            ? "Order items are permanently locked after the order is closed"
-            : "Order items are locked during payment review. Move it back to In Progress first.",
+            ? "Order Items dikunci permanen setelah Order ditutup"
+            : "Order Items dikunci selama Payment Review. Ubah kembali ke In Progress terlebih dahulu.",
       };
     }
 
@@ -1049,7 +1057,7 @@ export const appendMektekServiceOrderItems = async (input: {
       sparepartItems: input?.sparepartItems,
     });
     if (nextItems.items.length > 100) {
-      return { error: "A service order can contain at most 100 items" };
+      return { error: "Service Order maksimal berisi 100 item" };
     }
 
     const timeline = parseTimeline(order.tags);
@@ -1101,7 +1109,7 @@ export const appendMektekServiceOrderItems = async (input: {
     };
   } catch (error) {
     console.log("[APPEND_MEKTEK_SERVICE_ORDER_ITEMS]", error);
-    return { error: "Failed to add service order items" };
+    return { error: "Gagal menambahkan Service Order Items" };
   }
 };
 
@@ -1109,21 +1117,22 @@ export const updateMektekServiceOrderStatus = async (input: {
   serviceOrderId: string;
   newStatus: "ACTIVE" | "PENDING" | "AWAITING_PAYMENT" | "COMPLETE";
   markAllTimelineComplete?: boolean;
+  locale?: string;
 }) => {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
   if (!canUpdateMektekProgress(session.user)) {
-    return { error: "Forbidden: only MekTek admin or technician can change order status" };
+    return { error: "Forbidden: hanya Admin atau Technician MekTek yang dapat mengubah Order Status" };
   }
 
   const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
   const newStatus = input?.newStatus;
-  if (!serviceOrderId) return { error: "Service order ID is required" };
+  if (!serviceOrderId) return { error: "Service Order ID wajib diisi" };
   if (!["ACTIVE", "PENDING", "AWAITING_PAYMENT", "COMPLETE"].includes(newStatus)) {
-    return { error: "Invalid status" };
+    return { error: "Status tidak valid" };
   }
   if (newStatus === "COMPLETE" && !canManageMektekPayments(session.user)) {
-    return { error: "Forbidden: only an admin can close a fully paid order" };
+    return { error: "Forbidden: hanya Admin yang dapat menutup Order yang sudah lunas" };
   }
 
   try {
@@ -1141,10 +1150,10 @@ export const updateMektekServiceOrderStatus = async (input: {
         },
       },
     });
-    if (!serviceOrder) return { error: "Service order not found" };
+    if (!serviceOrder) return { error: "Service Order tidak ditemukan" };
 
     if (!canTransitionMektekOrderStatus(serviceOrder.taskStatus, newStatus)) {
-      return { error: "Done · Closed is final and cannot be reopened" };
+      return { error: "Status Done · Closed bersifat final dan tidak dapat dibuka kembali" };
     }
 
     const tags = parseTagsObject(serviceOrder.tags);
@@ -1165,11 +1174,11 @@ export const updateMektekServiceOrderStatus = async (input: {
     ) {
       if (summary.balanceDue > 0) {
         return {
-          error: `Order cannot be closed until the remaining balance of Rp ${summary.balanceDue.toLocaleString("id-ID")} is paid`,
+          error: `Order belum dapat ditutup hingga sisa tagihan Rp ${summary.balanceDue.toLocaleString("id-ID")} dibayar`,
         };
       }
       return {
-        error: "Mark the service as done and awaiting payment before closing the order",
+        error: "Ubah Status servis menjadi Service Done · Awaiting Payment sebelum menutup Order",
       };
     }
 
@@ -1210,7 +1219,10 @@ export const updateMektekServiceOrderStatus = async (input: {
 
     if (shouldNotifyReady || shouldNotifyComplete) {
       const trackingLink = customerCode
-        ? await buildCustomerTrackingLink(customerCode, session.user.userLanguage || "en")
+        ? await buildCustomerTrackingLink(
+            customerCode,
+            input?.locale || session.user.userLanguage,
+          )
         : "";
 
       let notifyResult: { ok: boolean; error?: string } = { ok: false, error: "Skipped" };
@@ -1257,7 +1269,7 @@ export const updateMektekServiceOrderStatus = async (input: {
     return { data: { status: newStatus, balanceDue: summary.balanceDue } };
   } catch (error) {
     console.log("[UPDATE_MEKTEK_SERVICE_ORDER_STATUS]", error);
-    return { error: "Failed to update service order status" };
+    return { error: "Gagal memperbarui Service Order Status" };
   }
 };
 
@@ -1269,15 +1281,15 @@ export const updateMektekPayment = async (input: {
   amountPaid?: string | number;
 }) => {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
   if (!canManageMektekPayments(session.user)) {
-    return { error: "Forbidden: only admin can update payment" };
+    return { error: "Forbidden: hanya Admin yang dapat memperbarui Payment" };
   }
 
   const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
-  if (!serviceOrderId) return { error: "Service order ID is required" };
+  if (!serviceOrderId) return { error: "Service Order ID wajib diisi" };
   if (!["cash", "transfer", "qris"].includes(input.method)) {
-    return { error: "Invalid payment method" };
+    return { error: "Payment Method tidak valid" };
   }
 
   try {
@@ -1297,7 +1309,7 @@ export const updateMektekPayment = async (input: {
       },
     });
 
-    if (!serviceOrder) return { error: "Service order not found" };
+    if (!serviceOrder) return { error: "Service Order tidak ditemukan" };
 
     const tags = parseTagsObject(serviceOrder.tags);
     const currentSummary = buildMektekFinancialSummary(
@@ -1313,7 +1325,7 @@ export const updateMektekPayment = async (input: {
       })
     ) {
       return {
-        error: "Payment can only be recorded after the service is marked done",
+        error: "Payment hanya dapat dicatat setelah Status servis ditandai Done",
       };
     }
     const discount = parseMoney(input.discount);
@@ -1366,19 +1378,22 @@ export const updateMektekPayment = async (input: {
     return { data: { discount, tax, amountPaid, grandTotal: summary.grandTotal, status } };
   } catch (error) {
     console.log("[UPDATE_MEKTEK_PAYMENT]", error);
-    return { error: "Failed to update payment" };
+    return { error: "Gagal memperbarui Payment" };
   }
 };
 
-export const getMektekCustomerTrackingLink = async (serviceOrderId: string) => {
+export const getMektekCustomerTrackingLink = async (
+  serviceOrderId: string,
+  locale?: string,
+) => {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
   if (!canUseMektekCustomerTools(session.user) && !canUpdateMektekProgress(session.user)) {
     return { error: "Forbidden" };
   }
 
   const id = String(serviceOrderId ?? "").trim();
-  if (!id) return { error: "Service order ID is required" };
+  if (!id) return { error: "Service Order ID wajib diisi" };
 
   try {
     const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
@@ -1392,7 +1407,7 @@ export const getMektekCustomerTrackingLink = async (serviceOrderId: string) => {
       },
     });
 
-    if (!serviceOrder) return { error: "Service order not found" };
+    if (!serviceOrder) return { error: "Service Order tidak ditemukan" };
 
     const tags = parseTagsObject(serviceOrder.tags);
     let customerToken = typeof tags.customerToken === "string" ? tags.customerToken : "";
@@ -1423,12 +1438,15 @@ export const getMektekCustomerTrackingLink = async (serviceOrderId: string) => {
 
     return {
       data: {
-        link: await buildCustomerTrackingLink(customerCode, session.user.userLanguage || "en"),
+        link: await buildCustomerTrackingLink(
+          customerCode,
+          locale || session.user.userLanguage,
+        ),
       },
     };
   } catch (error) {
     console.log("[GET_MEKTEK_CUSTOMER_TRACKING_LINK]", error);
-    return { error: "Failed to build customer tracking link" };
+    return { error: "Gagal membuat Customer Tracking Link" };
   }
 };
 
@@ -1437,9 +1455,9 @@ export const sendMektekServiceOrderWhatsAppNotification = async (input: {
   message: string;
 }) => {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
   if (!canUseMektekCustomerTools(session.user)) {
-    return { error: "Forbidden: customer communication access is required" };
+    return { error: "Forbidden: akses komunikasi Customer diperlukan" };
   }
 
   const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
@@ -1447,36 +1465,36 @@ export const sendMektekServiceOrderWhatsAppNotification = async (input: {
     .replace(/\r\n?/g, "\n")
     .trim()
     .slice(0, 4_000);
-  if (!serviceOrderId) return { error: "Service order ID is required" };
-  if (!message) return { error: "WhatsApp message is required" };
+  if (!serviceOrderId) return { error: "Service Order ID wajib diisi" };
+  if (!message) return { error: "Pesan WhatsApp wajib diisi" };
 
   try {
     const serviceOrder = await prismadb.crm_Accounts_Tasks.findFirst({
       where: { id: serviceOrderId, ...mektekOrderWhere() },
       select: { tags: true },
     });
-    if (!serviceOrder) return { error: "Service order not found" };
+    if (!serviceOrder) return { error: "Service Order tidak ditemukan" };
 
     const tags = parseTagsObject(serviceOrder.tags);
     const rawPhone = typeof tags.phone === "string" ? tags.phone : "";
     const phone = normalizePhoneNumber(rawPhone);
     if (!phone || !isValidPhoneNumber(phone)) {
-      return { error: "Customer WhatsApp number is missing or invalid" };
+      return { error: "Nomor WhatsApp Customer tidak tersedia atau tidak valid" };
     }
 
     const state = await getWhatsAppState();
     if (state.status !== "ready") {
-      return { error: "WhatsApp is not connected" };
+      return { error: "WhatsApp belum terhubung" };
     }
 
     const result = await sendWhatsAppMessage({ to: phone, message });
     if (!result.ok) {
-      return { error: result.error || "Failed to send WhatsApp message" };
+      return { error: result.error || "Gagal mengirim pesan WhatsApp" };
     }
 
     return { data: { sent: true } };
   } catch (error) {
     console.log("[SEND_MEKTEK_WHATSAPP_NOTIFICATION]", error);
-    return { error: "Failed to send WhatsApp message" };
+    return { error: "Gagal mengirim pesan WhatsApp" };
   }
 };

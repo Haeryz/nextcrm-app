@@ -55,13 +55,13 @@ export const createMektekCatalogPurchaseIntent = async (
   // Checkout requires an authenticated customer account. This is the authoritative
   // gate; the storefront UI also blocks unauthenticated checkout for better UX.
   if (!(await hasTrustedMutationOrigin())) {
-    return { error: "Request could not be verified" };
+    return { error: "Request tidak dapat diverifikasi" };
   }
 
   const sessionUser = await getCustomerSessionUser();
   if (!sessionUser?.id) {
     return {
-      error: "Silakan masuk untuk melanjutkan checkout.",
+      error: "Silakan Login untuk melanjutkan Checkout.",
       code: "AUTH_REQUIRED" as const,
     };
   }
@@ -71,7 +71,7 @@ export const createMektekCatalogPurchaseIntent = async (
   // check out as themselves; fall back to the form value if the account has none.
   const phone = (sessionUser.phone || String(input?.phone ?? "")).trim();
   const address = boundedText(input?.address, MAX_ADDRESS_LEN);
-  const locale = String(input?.locale ?? "en").trim() || "en";
+  const locale = String(input?.locale ?? "id").trim() || "id";
   const phoneNormalized =
     sessionUser.phoneNormalized || normalizePhoneNumber(phone);
 
@@ -143,7 +143,7 @@ export const createMektekCatalogPurchaseIntent = async (
     }
 
     if (sparepartItems.length === 0) {
-      return { error: "Item yang dipilih belum memiliki harga. Hubungi admin." };
+      return { error: "Item yang dipilih belum memiliki harga. Hubungi Admin." };
     }
 
     const customerToken = crypto.randomBytes(20).toString("hex");

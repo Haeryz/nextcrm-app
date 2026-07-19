@@ -75,7 +75,7 @@ export function buildMektekPublicSnapshot(order: PublicOrder) {
     vehicle:
       typeof tags.vehicle === "string" && tags.vehicle.trim()
         ? tags.vehicle
-        : "Unknown vehicle",
+        : "Kendaraan tidak diketahui",
     dueDateAt: order.dueDateAt?.toISOString() ?? null,
     taskStatus: order.taskStatus ?? "ACTIVE",
     updatedAt: order.updatedAt?.toISOString() ?? null,

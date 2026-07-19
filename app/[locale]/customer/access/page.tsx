@@ -43,7 +43,7 @@ export default async function CustomerAccessPage({
             >
               <Link href={`/${locale}/customer`}>
                 <ArrowLeft className="size-4" />
-                Customer home
+                Beranda pelanggan
               </Link>
             </Button>
           </div>
@@ -53,20 +53,20 @@ export default async function CustomerAccessPage({
       <section className="mx-auto grid w-full max-w-7xl gap-10 px-4 py-10 md:px-6 lg:grid-cols-[0.85fr_1.15fr] lg:py-16">
         <div className="max-w-xl">
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#151a63]">
-            Customer access
+            Akses pelanggan
           </p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight md:text-5xl">
-            Login or create your customer account.
+            Login atau buat akun pelanggan Anda.
           </h1>
           <p className="mt-4 text-base leading-7 text-[#4b5577]">
-            Existing customers can login with phone and password. New customers
-            can create an account and continue to their service profile.
+            Pelanggan lama dapat Login dengan nomor telepon dan Password.
+            Pelanggan baru dapat membuat akun lalu membuka profil servisnya.
           </p>
           <div className="mt-6 rounded-md border border-[#151a63]/10 bg-white p-4 shadow-sm">
-            <p className="text-sm font-semibold">Denso Authorized Workshop</p>
+            <p className="text-sm font-semibold">Bengkel Resmi Denso</p>
             <p className="mt-1 text-sm leading-6 text-[#4b5577]">
-              This account connects your phone number to Mektek service tracking
-              and customer updates.
+              Account ini menghubungkan nomor telepon Anda dengan Service Tracking
+              Mektek dan informasi terbaru untuk pelanggan.
             </p>
           </div>
         </div>

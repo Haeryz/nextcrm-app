@@ -46,6 +46,7 @@ enum MektekVoucherScope {
 }
 
 enum Language {
+  id
   cz
   en
   de
@@ -70,7 +71,7 @@ model Users {
   phoneNormalized  String?          @unique
   username         String?
   userStatus       ActiveStatus     @default(PENDING)
-  userLanguage     Language         @default(en)
+  userLanguage     Language         @default(id)
 
   tasksComment       tasksComments[]
   crm_accounts_tasks crm_Accounts_Tasks[]

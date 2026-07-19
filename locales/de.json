@@ -43,7 +43,7 @@
     "cardTitle": "Neuen Account erstellen",
     "cardDescription": "Erstellen Sie ein Konto, indem Sie sich anmelden mit",
     "label": "Sprache",
-    "locale": "{locale, select, de {Deutsch} en {Englisch} cz {Tschechisch} uk {Ukrainian} other {Unbekannt}}"
+    "locale": "{locale, select, id {Indonesisch} de {Deutsch} en {Englisch} cz {Tschechisch} uk {Ukrainisch} other {Unbekannt}}"
   },
   "CrmModuleMenuComponent": {
     "menuTitle": "Handel"
@@ -72,6 +72,7 @@
     "czech": "Tschechisch",
     "german": "Deutsch",
     "ukrainian": "Ukrainisch",
+    "indonesian": "Indonesisch",
     "selectPlaceholder": "Sprache auswählen...",
     "searchPlaceholder": "Sprache suchen...",
     "noResult": "Keine Sprache gefunden.",

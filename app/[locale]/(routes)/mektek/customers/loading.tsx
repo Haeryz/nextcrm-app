@@ -5,7 +5,7 @@ export default function Loading() {
   return (
     <Container
       title="Customers"
-      description="Create, update, and remove customer profiles with linked user accounts"
+      description="Buat, perbarui, dan hapus Customer Profile beserta User Account yang terhubung"
     >
       <ListPageSkeleton rows={6} />
     </Container>

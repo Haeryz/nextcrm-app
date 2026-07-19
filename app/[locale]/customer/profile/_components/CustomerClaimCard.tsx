@@ -33,7 +33,7 @@ export function CustomerClaimCard({ phone }: { phone: string }) {
       }
       toast.success("Kode verifikasi dikirim via WhatsApp.");
     } catch (error: any) {
-      toast.error(error?.message || "Failed to send code");
+      toast.error(error?.message || "Gagal mengirim kode");
     } finally {
       setSending(false);
     }
@@ -54,7 +54,7 @@ export function CustomerClaimCard({ phone }: { phone: string }) {
       toast.success("Riwayat servis berhasil ditautkan.");
       router.refresh();
     } catch (error: any) {
-      toast.error(error?.message || "Failed to claim history");
+      toast.error(error?.message || "Gagal menautkan riwayat");
     } finally {
       setClaiming(false);
     }
@@ -66,10 +66,10 @@ export function CustomerClaimCard({ phone }: { phone: string }) {
         <div className="flex items-start gap-3">
           <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#151a63] dark:text-[#fff200]" />
           <div>
-            <h2 className="text-base font-semibold">Verify your phone to see your service history</h2>
+            <h2 className="text-base font-semibold">Verifikasi nomor telepon untuk melihat riwayat servis</h2>
             <p className="mt-1 text-sm leading-6 text-[#4b5577] dark:text-blue-50/70">
-              We found existing service records for your phone number. Confirm the
-              number is yours with a WhatsApp code to link them to this account.
+              Kami menemukan catatan servis untuk nomor telepon Anda. Konfirmasikan
+              kepemilikan nomor dengan kode WhatsApp untuk menautkannya ke akun ini.
             </p>
           </div>
         </div>
@@ -81,7 +81,7 @@ export function CustomerClaimCard({ phone }: { phone: string }) {
             }
             inputMode="numeric"
             autoComplete="one-time-code"
-            placeholder="6-digit code"
+            placeholder="Kode 6 digit"
             className="h-11 flex-1 border-[#151a63]/20 bg-white text-[#10164f] dark:border-white/15 dark:bg-[#070a18] dark:text-white"
             disabled={claiming}
           />

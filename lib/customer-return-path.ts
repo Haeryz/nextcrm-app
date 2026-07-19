@@ -4,7 +4,7 @@ export function getSafeCustomerReturnPath(
   candidate: unknown,
   locale: string,
 ): string {
-  const safeLocale = localePattern.test(locale) ? locale : "en";
+  const safeLocale = localePattern.test(locale) ? locale : "id";
   const fallback = `/${safeLocale}/customer/profile`;
   const raw = String(candidate ?? "").trim();
 

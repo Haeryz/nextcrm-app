@@ -41,29 +41,29 @@ export const bootstrapFirstAdmin = async (data: {
     REQUEST_WINDOW_MS
   );
   if (!limit.ok) {
-    return { error: "Too many attempts. Please try again later." };
+    return { error: "Terlalu banyak percobaan. Silakan coba lagi nanti." };
   }
 
   if (!name || !email || !password || !confirmPassword) {
-    return { error: "All fields are required." };
+    return { error: "Semua field wajib diisi." };
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return { error: "Enter a valid email address." };
+    return { error: "Masukkan alamat Email yang valid." };
   }
   if (password.length < 8) {
-    return { error: "Password must be at least 8 characters." };
+    return { error: "Password minimal 8 karakter." };
   }
   if (password.length > 100) {
-    return { error: "Password is too long." };
+    return { error: "Password terlalu panjang." };
   }
   if (password !== confirmPassword) {
-    return { error: "Passwords do not match." };
+    return { error: "Password tidak sama." };
   }
 
   try {
     // Hard gate: refuse if an admin already exists (defends against replay/race).
     if (await adminAccountExists()) {
-      return { error: "Setup already completed. Please sign in instead." };
+      return { error: "Setup sudah selesai. Silakan Login." };
     }
 
     const existing = await prismadb.users.findFirst({
@@ -71,7 +71,7 @@ export const bootstrapFirstAdmin = async (data: {
       select: { id: true },
     });
     if (existing) {
-      return { error: "An account with that email already exists." };
+      return { error: "Account dengan Email tersebut sudah ada." };
     }
 
     await prismadb.users.create({
@@ -83,15 +83,15 @@ export const bootstrapFirstAdmin = async (data: {
         is_account_admin: true,
         is_admin: true,
         email,
-        userLanguage: "en",
+        userLanguage: "id",
         userStatus: "ACTIVE",
         password: await hashPassword(password),
       },
     });
 
-    return { success: true, message: "Owner account created. You can now sign in." };
+    return { success: true, message: "Owner Account berhasil dibuat. Anda sekarang dapat Login." };
   } catch (error) {
     console.error("[BOOTSTRAP_ADMIN]", error);
-    return { error: "Could not complete setup. Please try again." };
+    return { error: "Setup tidak dapat diselesaikan. Silakan coba lagi." };
   }
 };

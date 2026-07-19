@@ -18,7 +18,7 @@ export function CatalogImage({
   if (!src || failed) {
     return (
       <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
-        No image
+        Tidak ada gambar
       </div>
     );
   }

@@ -39,7 +39,7 @@ import {
 } from "@/lib/mektek/order-lifecycle";
 
 interface Props {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; locale: string }>;
 }
 
 type TimelineEntry = {
@@ -54,7 +54,7 @@ function valueOrDash(value?: string | null) {
 }
 
 export default async function MektekDetailPage({ params }: Props) {
-  const { id } = await params;
+  const { id, locale } = await params;
   const session = await getServerSession(authOptions);
   const canAccess = canAccessMektekStaffArea(session?.user);
   const canUpdateProgress = canUpdateMektekProgress(session?.user);
@@ -64,10 +64,10 @@ export default async function MektekDetailPage({ params }: Props) {
   const canManageOrderItems = canCreateMektekOrders(session?.user);
   if (!canAccess) {
     return (
-      <Container title="Service Order" description="Restricted MekTek workspace">
+      <Container title="Pesanan Servis" description="Ruang kerja MekTek terbatas">
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            You do not have access to this MekTek service order.
+            Anda tidak memiliki akses ke pesanan servis MekTek ini.
           </CardContent>
         </Card>
       </Container>
@@ -82,15 +82,15 @@ export default async function MektekDetailPage({ params }: Props) {
       ? (order.tags as Record<string, unknown>)
       : {};
 
-  const vehicle = typeof tags.vehicle === "string" ? tags.vehicle : "Unknown vehicle";
+  const vehicle = typeof tags.vehicle === "string" ? tags.vehicle : "Kendaraan tidak diketahui";
   const customerName =
     typeof tags.customerName === "string" && tags.customerName.length > 0
       ? tags.customerName
-      : "Unknown customer";
+      : "Pelanggan tidak diketahui";
   const customerId =
     typeof tags.catalogCustomerId === "string" && tags.catalogCustomerId.length > 0
       ? tags.catalogCustomerId
-      : "Unknown";
+      : "Tidak diketahui";
   const phone = typeof tags.phone === "string" ? tags.phone : undefined;
   const address = typeof tags.address === "string" ? tags.address : undefined;
   const technicianTag =
@@ -101,7 +101,7 @@ export default async function MektekDetailPage({ params }: Props) {
     order.assigned_user?.name ||
     (typeof technicianTag.name === "string" ? technicianTag.name : "") ||
     (typeof technicianTag.email === "string" ? technicianTag.email : "") ||
-    "Unassigned";
+    "Belum ditugaskan";
 
   const timelineFromTags: TimelineEntry[] = Array.isArray(tags.timeline)
     ? tags.timeline
@@ -122,7 +122,7 @@ export default async function MektekDetailPage({ params }: Props) {
         .filter((entry): entry is TimelineEntry => !!entry)
     : [];
 
-  const trackingResult = await getMektekCustomerTrackingLink(order.id);
+  const trackingResult = await getMektekCustomerTrackingLink(order.id, locale);
   const customerTrackingLink = trackingResult?.data?.link;
   const timeline = timelineFromTags.length
     ? timelineFromTags
@@ -170,7 +170,7 @@ export default async function MektekDetailPage({ params }: Props) {
 
   return (
     <Container
-      title="Service Order"
+      title="Pesanan Servis"
       description={`${customerName} · ${vehicle} · ID ${order.id.slice(0, 8)}`}
     >
       <div className="space-y-6">
@@ -196,7 +196,7 @@ export default async function MektekDetailPage({ params }: Props) {
 
               <div className="w-full max-w-sm rounded-lg border bg-muted/20 p-4 lg:shrink-0">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Current state
+                  Status saat ini
                 </p>
                 <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
                   <Badge
@@ -206,7 +206,7 @@ export default async function MektekDetailPage({ params }: Props) {
                     {statusMeta.label}
                   </Badge>
                   <p className="text-xs text-muted-foreground">
-                    {completedSteps} of {timeline.length} steps done
+                    {completedSteps} dari {timeline.length} Step Done
                   </p>
                 </div>
               </div>
@@ -218,40 +218,40 @@ export default async function MektekDetailPage({ params }: Props) {
           <div className="space-y-6">
             <Card className="border shadow-sm">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Customer & Service</CardTitle>
+                <CardTitle className="text-base">Pelanggan & Servis</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
-                    <p className="text-xs text-muted-foreground">Customer ID</p>
+                    <p className="text-xs text-muted-foreground">ID Pelanggan</p>
                     <p className="font-mono text-sm font-medium text-foreground">
                       {customerId}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Estimated Done</p>
+                    <p className="text-xs text-muted-foreground">ETA</p>
                     <p className="text-sm font-medium text-foreground">
-                      {order.dueDateAt?.toLocaleString("en-ID", {
+                      {order.dueDateAt?.toLocaleString("id-ID", {
                         dateStyle: "medium",
                         timeStyle: "short",
                         timeZone: "Asia/Makassar",
-                      }) ?? "Not set"}
+                      }) ?? "Belum diatur"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Technician</p>
+                    <p className="text-xs text-muted-foreground">Teknisi</p>
                     <p className="text-sm font-medium text-foreground">
                       {technicianName}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Phone</p>
+                    <p className="text-xs text-muted-foreground">Telepon</p>
                     <p className="text-sm font-medium text-foreground">
                       {valueOrDash(phone)}
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Address</p>
+                    <p className="text-xs text-muted-foreground">Alamat</p>
                     <p className="text-sm font-medium text-foreground">
                       {valueOrDash(address)}
                     </p>
@@ -259,9 +259,9 @@ export default async function MektekDetailPage({ params }: Props) {
                 </div>
                 <Separator />
                 <div>
-                  <p className="text-xs text-muted-foreground">Service Notes</p>
+                  <p className="text-xs text-muted-foreground">Catatan Servis</p>
                   <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
-                    {order.content || "No service notes yet."}
+                    {order.content || "Belum ada catatan servis."}
                   </p>
                 </div>
               </CardContent>
@@ -269,20 +269,20 @@ export default async function MektekDetailPage({ params }: Props) {
 
             <Card className="border shadow-sm">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Service & Sparepart</CardTitle>
+                <CardTitle className="text-base">Servis & Sparepart</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="rounded-lg border p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold">Service Description</p>
+                      <p className="text-sm font-semibold">Deskripsi Servis</p>
                       <Badge variant="secondary">
                         {normalizedItems.serviceItems.length}
                       </Badge>
                     </div>
                     <div className="space-y-2">
                       {normalizedItems.serviceItems.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No service items.</p>
+                        <p className="text-sm text-muted-foreground">Belum ada item servis.</p>
                       ) : (
                         normalizedItems.serviceItems.map((item, index) => (
                           <div key={`${item.name}-${index}`} className="text-sm">
@@ -301,14 +301,14 @@ export default async function MektekDetailPage({ params }: Props) {
 
                   <div className="rounded-lg border p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold">Sparepart Items</p>
+                      <p className="text-sm font-semibold">Daftar Sparepart</p>
                       <Badge variant="secondary">
                         {normalizedItems.sparepartItems.length}
                       </Badge>
                     </div>
                     <div className="space-y-2">
                       {normalizedItems.sparepartItems.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No sparepart items.</p>
+                        <p className="text-sm text-muted-foreground">Belum ada sparepart.</p>
                       ) : (
                         normalizedItems.sparepartItems.map((item, index) => (
                           <div key={`${item.name}-${index}`} className="text-sm">
@@ -332,8 +332,8 @@ export default async function MektekDetailPage({ params }: Props) {
                 {canManageOrderItems && !canAddOrderItems && (
                   <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
                     {order.taskStatus === "COMPLETE"
-                      ? "Service and sparepart items are permanently locked because this order is closed."
-                      : "Service and sparepart items are locked during payment review. Move the order back to In Progress before adding more work."}
+                      ? "Service Items dan sparepart dikunci permanen karena Order ini telah ditutup."
+                      : "Service Items dan sparepart dikunci selama Payment Review. Ubah Order kembali ke In Progress sebelum menambah pekerjaan."}
                   </div>
                 )}
               </CardContent>
@@ -382,7 +382,7 @@ export default async function MektekDetailPage({ params }: Props) {
 
             <Card className="border shadow-sm">
               <CardHeader className="pb-3">
-                <CardTitle className="text-base">Internal Notes</CardTitle>
+                <CardTitle className="text-base">Catatan Internal</CardTitle>
               </CardHeader>
               <CardContent>
                 {order.comments.length > 0 ? (
@@ -391,14 +391,14 @@ export default async function MektekDetailPage({ params }: Props) {
                       <div key={comment.id} className="rounded-lg border p-3">
                         <p className="text-sm text-foreground">{comment.comment}</p>
                         <p className="mt-2 text-xs text-muted-foreground">
-                          {comment.assigned_user?.name ?? "Unknown"} ·{" "}
+                          {comment.assigned_user?.name ?? "Tidak diketahui"} ·{" "}
                           {comment.createdAt.toLocaleDateString()}
                         </p>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No internal notes yet.</p>
+                  <p className="text-sm text-muted-foreground">Belum ada catatan internal.</p>
                 )}
               </CardContent>
             </Card>
@@ -410,7 +410,7 @@ export default async function MektekDetailPage({ params }: Props) {
             {canManageSchedule && (
               <Card className="border shadow-sm">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Schedule</CardTitle>
+                  <CardTitle className="text-base">Jadwal</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <EstimatedDoneControl
@@ -432,6 +432,7 @@ export default async function MektekDetailPage({ params }: Props) {
                 </CardHeader>
                 <CardContent>
                   <ServiceOrderStatusControl
+                    locale={locale}
                     serviceOrderId={order.id}
                     currentStatus={order.taskStatus ?? "ACTIVE"}
                     balanceDue={invoiceData.financials.balanceDue}
@@ -444,8 +445,8 @@ export default async function MektekDetailPage({ params }: Props) {
             {(canManagePayment || canUseCustomerTools) && (
               <Tabs defaultValue={canRecordPayment ? "payment" : "docs"} className="min-w-0 space-y-4">
                 <TabsList className={`grid h-auto w-full ${canRecordPayment ? "grid-cols-3" : "grid-cols-2"}`}>
-                  {canRecordPayment && <TabsTrigger value="payment">Payment</TabsTrigger>}
-                  <TabsTrigger value="docs" className="text-xs sm:text-sm">Docs</TabsTrigger>
+                  {canRecordPayment && <TabsTrigger value="payment">Pembayaran</TabsTrigger>}
+                  <TabsTrigger value="docs" className="text-xs sm:text-sm">Dokumen</TabsTrigger>
                   <TabsTrigger value="whatsapp" className="text-xs sm:text-sm">WhatsApp</TabsTrigger>
                 </TabsList>
                 {canRecordPayment && (

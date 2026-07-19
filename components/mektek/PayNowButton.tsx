@@ -58,7 +58,7 @@ function loadSnapScript(src: string, clientKey: string): Promise<void> {
     );
     if (existing) {
       existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("snap.js failed")), {
+      existing.addEventListener("error", () => reject(new Error("Gagal memuat snap.js")), {
         once: true,
       });
       return;
@@ -69,7 +69,7 @@ function loadSnapScript(src: string, clientKey: string): Promise<void> {
     script.dataset.midtransSnap = "true";
     script.setAttribute("data-client-key", clientKey);
     script.addEventListener("load", () => resolve(), { once: true });
-    script.addEventListener("error", () => reject(new Error("snap.js failed")), {
+    script.addEventListener("error", () => reject(new Error("Gagal memuat snap.js")), {
       once: true,
     });
     document.body.appendChild(script);

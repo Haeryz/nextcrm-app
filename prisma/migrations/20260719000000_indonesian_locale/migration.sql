@@ -1,0 +1,4 @@
+ALTER TYPE "Language" ADD VALUE IF NOT EXISTS 'id';
+
+ALTER TABLE "Users"
+ALTER COLUMN "userLanguage" SET DEFAULT 'id';

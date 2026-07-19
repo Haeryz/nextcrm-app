@@ -143,12 +143,12 @@ export async function send(params: WhatsAppSendParams): Promise<WhatsAppSendResu
   const client = await getClient();
   const state = await getState();
   if (state.status !== "ready") {
-    return { ok: false, error: "WhatsApp session is not ready" };
+    return { ok: false, error: "WhatsApp Session belum siap" };
   }
 
   const chatId = toWhatsAppChatId(params.to);
   if (!chatId) {
-    return { ok: false, error: "Invalid WhatsApp destination" };
+    return { ok: false, error: "Destination WhatsApp tidak valid" };
   }
 
   try {

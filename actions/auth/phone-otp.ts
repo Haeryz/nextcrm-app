@@ -25,7 +25,7 @@ export async function requestCustomerPhoneOtp(
   rawPhone: string
 ): Promise<OtpActionResult> {
   if (!(await hasTrustedMutationOrigin())) {
-    return { error: "Request could not be verified" };
+    return { error: "Request tidak dapat diverifikasi" };
   }
 
   const phone = String(rawPhone ?? "").trim();

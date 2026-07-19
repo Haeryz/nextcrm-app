@@ -22,7 +22,7 @@ export default async function MektekWhatsAppLayout({
     return (
       <Container
         title="WhatsApp"
-        description="Business WhatsApp connection"
+        description="Koneksi WhatsApp Business"
       >
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">

@@ -122,13 +122,13 @@ function buildDiscount(voucher: MektekVoucherRecord): MektekVoucherDiscount {
 }
 
 function formatRequirement(voucher: MektekVoucherRecord) {
-  if (voucher.scope === "CUSTOMER") return "Assigned to your customer account";
+  if (voucher.scope === "CUSTOMER") return "Ditugaskan ke Customer Account Anda";
   if (voucher.scope === "CUSTOMER_TYPE") {
     return voucher.customerType === "B2B"
-      ? "Available for Perusahaan customers"
-      : "Available for standard customers";
+      ? "Tersedia untuk Customer perusahaan"
+      : "Tersedia untuk Customer standard";
   }
-  return "Available for every customer account";
+  return "Tersedia untuk setiap Customer Account";
 }
 
 export function toMektekVoucher(

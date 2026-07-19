@@ -28,7 +28,7 @@ export async function GET(
   const ip = getClientIp(request.headers);
   const rl = checkRateLimit(`pdf:${ip}:${id}`, 15, 10 * 60 * 1000);
   if (!rl.ok) {
-    return new Response("Too many requests", {
+    return new Response("Terlalu banyak Request", {
       status: 429,
       headers: {
         "Retry-After": String(Math.ceil(rl.retryAfterMs / 1000)),
@@ -50,7 +50,7 @@ export async function GET(
   }
 
   if (!order) {
-    return new Response("Not found", { status: 404 });
+    return new Response("Tidak ditemukan", { status: 404 });
   }
 
   const invoiceData = buildMektekInvoiceData(order);
@@ -61,7 +61,7 @@ export async function GET(
       paymentStatus: invoiceData.payment.status,
     })
   ) {
-    return new Response("Invoice is available after service completion", {
+    return new Response("Invoice tersedia setelah servis selesai", {
       status: 409,
       headers: { "Cache-Control": "no-store" },
     });

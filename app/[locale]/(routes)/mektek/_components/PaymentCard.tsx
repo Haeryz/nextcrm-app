@@ -57,7 +57,7 @@ export default function PaymentCard({
   const [isPending, startTransition] = useTransition();
 
   const methods: { key: PaymentMethod; label: string }[] = [
-    { key: "cash", label: "Cash" },
+    { key: "cash", label: "Tunai" },
     { key: "transfer", label: "Transfer" },
     { key: "qris", label: "QRIS" },
   ];
@@ -231,7 +231,7 @@ export default function PaymentCard({
                 </p>
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-muted-foreground">Order ID</p>
+                <p className="text-xs text-muted-foreground">ID Pesanan</p>
                 <p className="truncate font-mono text-xs font-semibold">
                   {latestProviderPayment.midtransOrderId}
                 </p>

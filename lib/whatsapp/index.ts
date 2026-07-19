@@ -49,7 +49,7 @@ async function getDriver() {
  */
 export async function getWhatsAppState(): Promise<WhatsAppState> {
   if (areExternalApisDisabled()) {
-    return { status: "disconnected", lastError: "External APIs are disabled" };
+    return { status: "disconnected", lastError: "External API dinonaktifkan" };
   }
 
   try {
@@ -67,7 +67,7 @@ export async function sendWhatsAppMessage(
   params: WhatsAppSendParams
 ): Promise<WhatsAppSendResult> {
   if (areExternalApisDisabled()) {
-    return { ok: false, error: "External APIs are disabled" };
+    return { ok: false, error: "External API dinonaktifkan" };
   }
 
   try {

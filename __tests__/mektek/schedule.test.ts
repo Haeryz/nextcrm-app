@@ -19,7 +19,7 @@ describe("parseEstimatedDoneInput", () => {
 
   it("rejects invalid dates", () => {
     expect(parseEstimatedDoneInput("not-a-date")).toEqual({
-      error: "Estimated done date is invalid",
+      error: "Estimated Done Date tidak valid",
     });
   });
 });

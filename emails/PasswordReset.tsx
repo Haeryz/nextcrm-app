@@ -31,12 +31,43 @@ export const PasswordResetEmail = ({
   resetLink,
   userLanguage,
 }: VercelInviteUserEmailProps) => {
-  const previewText = `Password reset from ${process.env.NEXT_PUBLIC_APP_NAME}`;
+  const copy = userLanguage === "id"
+    ? {
+        preview: `Reset Password dari ${process.env.NEXT_PUBLIC_APP_NAME}`,
+        heading: "Reset Password untuk:",
+        hello: "Halo",
+        request: "Kami menerima Request Reset Password untuk Account Anda:",
+        instructions:
+          "Klik Link di bawah untuk memilih Password baru. Link ini kedaluwarsa dalam 1 jam dan hanya dapat digunakan satu kali. Jika Anda tidak meminta Reset Password, abaikan Email ini—Password Anda tidak akan berubah.",
+        action: "Reset Password",
+        thanks: "Terima kasih,",
+      }
+    : userLanguage === "en"
+      ? {
+          preview: `Password reset from ${process.env.NEXT_PUBLIC_APP_NAME}`,
+          heading: "Password reset for:",
+          hello: "Hello",
+          request: "We received a request to reset the password for your account:",
+          instructions:
+            "Click the link below to choose a new password. This link expires in 1 hour and can be used only once. If you did not request this, you can safely ignore this email—your password will not change.",
+          action: "Reset your password",
+          thanks: "Thank you,",
+        }
+      : {
+          preview: `Obnovení hesla od ${process.env.NEXT_PUBLIC_APP_NAME}`,
+          heading: "Obnovení hesla pro:",
+          hello: "Dobrý den",
+          request: "Obdrželi jsme žádost o obnovení hesla k vašemu účtu:",
+          instructions:
+            "Kliknutím na odkaz níže si zvolte nové heslo. Odkaz vyprší za 1 hodinu a lze jej použít pouze jednou. Pokud jste o to nežádali, tento e-mail ignorujte—vaše heslo se nezmění.",
+          action: "Obnovit heslo",
+          thanks: "Děkujeme,",
+        };
 
   return (
     <Html>
       <Head />
-      <Preview>{previewText}</Preview>
+      <Preview>{copy.preview}</Preview>
       <Tailwind>
         <Body className="bg-white my-auto mx-auto font-sans">
           <Container className="border border-solid border-[#eaeaea] rounded my-[40px] mx-auto p-[20px] w-[465px]">
@@ -50,31 +81,25 @@ export const PasswordResetEmail = ({
               />
             </Section>
             <Heading className="text-black text-2xl font-normal text-center p-0 my-[30px] mx-0">
-              Password reset for: <strong>{username}</strong>
+              {copy.heading} <strong>{username}</strong>
             </Heading>
             <Text className="text-black text-sm leading-[24px]">
-              Hello {username},
+              {copy.hello} {username},
             </Text>
             <Text className="text-black text-sm leading-[24px]">
-              {userLanguage === "en"
-                ? "We received a request to reset the password for your account:"
-                : "Obdrželi jsme žádost o obnovení hesla k vašemu účtu:"}{" "}
+              {copy.request}{" "}
               <strong>{email}</strong>
             </Text>
             <Text className="text-black text-sm leading-[24px]">
-              {userLanguage === "en"
-                ? "Click the link below to choose a new password. This link expires in 1 hour and can be used only once. If you did not request this, you can safely ignore this email — your password will not change."
-                : "Kliknutím na odkaz níže si zvolte nové heslo. Odkaz vyprší za 1 hodinu a lze jej použít pouze jednou. Pokud jste o to nežádali, tento e-mail ignorujte — vaše heslo se nezmění."}
+              {copy.instructions}
             </Text>
             <Text className="text-black text-sm leading-[24px]">
               <Link href={resetLink} className="text-blue-500 underline">
-                {userLanguage === "en"
-                  ? "Reset your password"
-                  : "Obnovit heslo"}
+                {copy.action}
               </Link>
             </Text>
             <Text className="text-black text-sm leading-[24px]">
-              {userLanguage === "en" ? "Thank you, " : "Děkujeme, "}
+              {copy.thanks}{" "}
               {process.env.NEXT_PUBLIC_APP_NAME}
             </Text>
             <Hr className="border border-solid border-[#eaeaea] my-[26px] mx-0 w-full" />

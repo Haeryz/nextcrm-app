@@ -43,7 +43,7 @@ const DEFAULT_NEW_ORDER_TEMPLATE = [
   "",
   "Terima kasih, pesanan servis kendaraan {vehicle} sudah kami terima di Mektek.",
   "",
-  "Tim kami akan melakukan pengecekan awal dan memperbarui progres servis secara berkala.",
+  "Tim kami akan melakukan pengecekan awal dan memperbarui Progress servis secara berkala.",
   "",
   "Cek status servis Anda di:",
   "{trackingLink}",
@@ -82,10 +82,10 @@ export async function notifyMektekOrderCreated(params: {
   trackingLink: string;
 }) {
   const context = buildContext(params.order);
-  if (!context.phone) return { ok: false, error: "No phone" };
-  if (areExternalApisDisabled()) return { ok: false, error: "External APIs are disabled" };
+  if (!context.phone) return { ok: false, error: "Nomor telepon tidak tersedia" };
+  if (areExternalApisDisabled()) return { ok: false, error: "External API dinonaktifkan" };
   if ((await getWhatsAppState()).status !== "ready") {
-    return { ok: false, error: "WhatsApp session is not ready" };
+    return { ok: false, error: "WhatsApp Session belum siap" };
   }
 
   const messageTemplate =
@@ -106,10 +106,10 @@ export async function notifyMektekOrderCompleted(params: {
   trackingLink: string;
 }) {
   const context = buildContext(params.order);
-  if (!context.phone) return { ok: false, error: "No phone" };
-  if (areExternalApisDisabled()) return { ok: false, error: "External APIs are disabled" };
+  if (!context.phone) return { ok: false, error: "Nomor telepon tidak tersedia" };
+  if (areExternalApisDisabled()) return { ok: false, error: "External API dinonaktifkan" };
   if ((await getWhatsAppState()).status !== "ready") {
-    return { ok: false, error: "WhatsApp session is not ready" };
+    return { ok: false, error: "WhatsApp Session belum siap" };
   }
 
   const messageTemplate =
@@ -155,10 +155,10 @@ export async function notifyMektekOrderReadyForPayment(params: {
   trackingLink: string;
 }) {
   const context = buildContext(params.order);
-  if (!context.phone) return { ok: false, error: "No phone" };
-  if (areExternalApisDisabled()) return { ok: false, error: "External APIs are disabled" };
+  if (!context.phone) return { ok: false, error: "Nomor telepon tidak tersedia" };
+  if (areExternalApisDisabled()) return { ok: false, error: "External API dinonaktifkan" };
   if ((await getWhatsAppState()).status !== "ready") {
-    return { ok: false, error: "WhatsApp session is not ready" };
+    return { ok: false, error: "WhatsApp Session belum siap" };
   }
 
   const messageTemplate =

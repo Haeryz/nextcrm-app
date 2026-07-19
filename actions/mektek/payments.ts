@@ -63,8 +63,8 @@ export const createMektekPaymentIntent = async (input: CreateIntentInput) => {
   const token = String(input?.token ?? "").trim();
   const code = String(input?.code ?? "").trim();
 
-  if (!serviceOrderId) return { error: "Service order ID is required" };
-  if (!token && !code) return { error: "Missing access token" };
+  if (!serviceOrderId) return { error: "Service Order ID wajib diisi" };
+  if (!token && !code) return { error: "Access Token tidak tersedia" };
 
   // Throttle scripted abuse: keyed by client IP and by service order independently.
   const ip = getClientIp(await headers());
@@ -87,7 +87,7 @@ export const createMektekPaymentIntent = async (input: CreateIntentInput) => {
     if (order && code && order.id !== serviceOrderId) {
       order = null;
     }
-    if (!order) return { error: "Service order not found or access denied" };
+    if (!order) return { error: "Service Order tidak ditemukan atau akses ditolak" };
 
     const tags = parseTags(order.tags);
     const summary = buildMektekFinancialSummary(
@@ -98,7 +98,7 @@ export const createMektekPaymentIntent = async (input: CreateIntentInput) => {
     const grossAmount = summary.balanceDue;
 
     if (grossAmount <= 0) {
-      return { error: "This order has no outstanding balance" };
+      return { error: "Order ini tidak memiliki sisa tagihan" };
     }
 
     if (
@@ -109,7 +109,7 @@ export const createMektekPaymentIntent = async (input: CreateIntentInput) => {
       })
     ) {
       return {
-        error: "Payment becomes available after the service is marked done",
+        error: "Payment tersedia setelah Status servis ditandai Done",
       };
     }
 
@@ -147,7 +147,7 @@ export const createMektekPaymentIntent = async (input: CreateIntentInput) => {
         where: { id: payment.id },
         data: { transactionStatus: "failure", rawPayload: { error: snap.error } },
       });
-      return { error: `Payment gateway error: ${snap.error}` };
+      return { error: `Payment Gateway error: ${snap.error}` };
     }
 
     await prismadb.mektekPayment.update({
@@ -167,7 +167,7 @@ export const createMektekPaymentIntent = async (input: CreateIntentInput) => {
     };
   } catch (error) {
     console.log("[CREATE_MEKTEK_PAYMENT_INTENT]", error);
-    return { error: "Failed to start payment" };
+    return { error: "Gagal memulai Payment" };
   }
 };
 
@@ -177,9 +177,9 @@ export const syncMektekPaymentStatus = async (input: SyncPaymentInput) => {
   const code = String(input?.code ?? "").trim();
   const orderId = String(input?.orderId ?? "").trim();
 
-  if (!serviceOrderId) return { error: "Service order ID is required" };
-  if (!orderId) return { error: "Payment order ID is required" };
-  if (!token && !code) return { error: "Missing access token" };
+  if (!serviceOrderId) return { error: "Service Order ID wajib diisi" };
+  if (!orderId) return { error: "Payment Order ID wajib diisi" };
+  if (!token && !code) return { error: "Access Token tidak tersedia" };
 
   try {
     let order = token
@@ -189,14 +189,14 @@ export const syncMektekPaymentStatus = async (input: SyncPaymentInput) => {
     if (order && code && order.id !== serviceOrderId) {
       order = null;
     }
-    if (!order) return { error: "Service order not found or access denied" };
+    if (!order) return { error: "Service Order tidak ditemukan atau akses ditolak" };
 
     const payment = await prismadb.mektekPayment.findUnique({
       where: { midtransOrderId: orderId },
     });
 
     if (!payment || payment.serviceOrderId !== order.id) {
-      return { error: "Payment record not found" };
+      return { error: "Payment Record tidak ditemukan" };
     }
 
     if (payment.paidAt) {
@@ -213,7 +213,7 @@ export const syncMektekPaymentStatus = async (input: SyncPaymentInput) => {
 
     const statusResult = await getTransactionStatus(orderId);
     if (!statusResult.ok) {
-      return { error: `Unable to confirm payment: ${statusResult.error}` };
+      return { error: `Tidak dapat mengonfirmasi Payment: ${statusResult.error}` };
     }
 
     const verdict = interpretTransactionStatus(statusResult.data);
@@ -233,6 +233,6 @@ export const syncMektekPaymentStatus = async (input: SyncPaymentInput) => {
     };
   } catch (error) {
     console.log("[SYNC_MEKTEK_PAYMENT_STATUS]", error);
-    return { error: "Failed to confirm payment" };
+    return { error: "Gagal mengonfirmasi Payment" };
   }
 };

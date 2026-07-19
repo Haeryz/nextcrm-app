@@ -57,9 +57,9 @@ function buildSearchText(input: {
 
 async function ensureCatalogManager() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
   if (!canCreateMektekOrders(session.user)) {
-    return { error: "Forbidden: only MekTek admin or CS can manage catalog items" };
+    return { error: "Forbidden: hanya Admin atau CS MekTek yang dapat mengelola Catalogue Items" };
   }
   return { session };
 }
@@ -92,8 +92,8 @@ function normalizeCatalogInput(input: CatalogItemInput) {
   const quantity = nullableText(input.quantity);
   const price = parsePositiveInt(input.price);
 
-  if (!machine) return { error: "Machine is required" };
-  if (!description) return { error: "Description is required" };
+  if (!machine) return { error: "Machine wajib diisi" };
+  if (!description) return { error: "Description wajib diisi" };
 
   return {
     data: {
@@ -193,7 +193,7 @@ export async function createMektekCatalogItem(input: CatalogItemInput) {
     return { data: item };
   } catch (error) {
     console.log("[CREATE_MEKTEK_CATALOG_ITEM]", error);
-    return { error: "Failed to create catalog item" };
+    return { error: "Gagal membuat Catalogue Item" };
   }
 }
 
@@ -202,7 +202,7 @@ export async function updateMektekCatalogItem(id: string, input: CatalogItemInpu
   if ("error" in access) return { error: access.error };
 
   const itemId = compactText(id);
-  if (!itemId) return { error: "Catalog item ID is required" };
+  if (!itemId) return { error: "Catalogue Item ID wajib diisi" };
 
   const normalized = normalizeCatalogInput(input);
   if ("error" in normalized) return { error: normalized.error };
@@ -218,7 +218,7 @@ export async function updateMektekCatalogItem(id: string, input: CatalogItemInpu
     return { data: item };
   } catch (error) {
     console.log("[UPDATE_MEKTEK_CATALOG_ITEM]", error);
-    return { error: "Failed to update catalog item" };
+    return { error: "Gagal memperbarui Catalogue Item" };
   }
 }
 
@@ -227,7 +227,7 @@ export async function deleteMektekCatalogItem(id: string) {
   if ("error" in access) return { error: access.error };
 
   const itemId = compactText(id);
-  if (!itemId) return { error: "Catalog item ID is required" };
+  if (!itemId) return { error: "Catalogue Item ID wajib diisi" };
 
   try {
     await prismadb.catalogItem.delete({ where: { id: itemId } });
@@ -236,6 +236,6 @@ export async function deleteMektekCatalogItem(id: string) {
     return { data: { id: itemId } };
   } catch (error) {
     console.log("[DELETE_MEKTEK_CATALOG_ITEM]", error);
-    return { error: "Failed to delete catalog item" };
+    return { error: "Gagal menghapus Catalogue Item" };
   }
 }

@@ -35,7 +35,7 @@ export default async function MektekDashboardPage({
   params,
   searchParams,
 }: MektekDashboardPageProps) {
-  const { locale = "en" } = params ? await params : { locale: "en" };
+  const { locale = "id" } = params ? await params : { locale: "id" };
   const session = await getServerSession(authOptions);
   if (!canViewMektekDashboard(session?.user)) {
     redirect(`/${locale}/mektek`);
@@ -51,17 +51,17 @@ export default async function MektekDashboardPage({
     recentOrdersPageSize: DASHBOARD_ORDER_PAGE_SIZE,
   });
   const stats = [
-    { label: "Open orders", value: summary.openOrders, icon: Activity },
-    { label: "Due today", value: summary.dueToday, icon: CalendarClock },
-    { label: "Overdue", value: summary.overdue, icon: Clock3 },
-    { label: "Completed today", value: summary.completedToday, icon: CheckCircle2 },
-    { label: "Unpaid balance", value: formatCurrency(summary.unpaidBalance), icon: Banknote },
+    { label: "Pesanan terbuka", value: summary.openOrders, icon: Activity },
+    { label: "Jatuh tempo hari ini", value: summary.dueToday, icon: CalendarClock },
+    { label: "Terlambat", value: summary.overdue, icon: Clock3 },
+    { label: "Selesai hari ini", value: summary.completedToday, icon: CheckCircle2 },
+    { label: "Sisa belum dibayar", value: formatCurrency(summary.unpaidBalance), icon: Banknote },
   ];
 
   return (
     <Container
       title="MEKTEK Dashboard"
-      description="Operational view of current service work"
+      description="Ringkasan operasional pekerjaan servis saat ini"
     >
       <div className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -80,15 +80,15 @@ export default async function MektekDashboardPage({
 
         <Card>
           <CardHeader className="flex flex-col gap-2 space-y-0 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="text-base">Recent orders</CardTitle>
+            <CardTitle className="text-base">Pesanan terbaru</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Page {summary.recentOrdersPage} of {summary.recentOrdersTotalPages}
+              Halaman {summary.recentOrdersPage} dari {summary.recentOrdersTotalPages}
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
             <MektekOrderList
               orders={summary.recentOrders}
-              emptyMessage="No service orders yet."
+              emptyMessage="Belum ada pesanan servis."
               density="compact"
               locale={locale}
             />
@@ -98,7 +98,7 @@ export default async function MektekDashboardPage({
               totalPages={summary.recentOrdersTotalPages}
               totalCount={summary.recentOrdersTotalCount}
               pageSize={summary.recentOrdersPageSize}
-              itemLabel="orders"
+              itemLabel="pesanan"
               pageParam="ordersPage"
             />
           </CardContent>

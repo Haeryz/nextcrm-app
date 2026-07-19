@@ -116,7 +116,7 @@ export default function LiveServiceStatus({
                 Customer Tracking
               </p>
               <h1 className="text-3xl font-black tracking-tight text-foreground md:text-4xl">
-                MEKTEK Service Status
+                Status Servis MEKTEK
               </h1>
               <p className="break-words text-sm text-muted-foreground">
                 Hai {snapshot.customerName}, berikut update terkini untuk servis kendaraan Anda.
@@ -129,7 +129,7 @@ export default function LiveServiceStatus({
           <Card className="border shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs uppercase tracking-widest text-muted-foreground">
-                Service ID
+                ID Servis
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -140,7 +140,7 @@ export default function LiveServiceStatus({
           <Card className="border shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs uppercase tracking-widest text-muted-foreground">
-                Vehicle
+                Kendaraan
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -334,7 +334,7 @@ export default function LiveServiceStatus({
           </CardHeader>
           <CardContent>
             {timelineNewestFirst.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Belum ada update timeline.</p>
+              <p className="text-sm text-muted-foreground">Belum ada update Timeline.</p>
             ) : (
               <div className="space-y-3">
                 {timelineNewestFirst.map((item, index) => (
@@ -366,7 +366,7 @@ export default function LiveServiceStatus({
           <Card className="border shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-                Latest Update
+                Pembaruan Terbaru
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -382,7 +382,7 @@ export default function LiveServiceStatus({
           <Card className="border shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-                Service Notes
+                Catatan Servis
               </CardTitle>
             </CardHeader>
             <CardContent className="break-words text-sm text-muted-foreground">
@@ -393,7 +393,7 @@ export default function LiveServiceStatus({
 
         <Card className="border shadow-sm">
           <CardContent className="p-4 text-xs text-muted-foreground">
-            Halaman ini bersifat privat. Tautan ini hanya menampilkan detail untuk satu layanan servis Anda.
+            Halaman ini bersifat privat. Link ini hanya menampilkan detail untuk satu layanan servis Anda.
           </CardContent>
         </Card>
       </div>

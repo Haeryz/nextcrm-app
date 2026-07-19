@@ -33,7 +33,7 @@ export function CartSheet() {
   const handleCheckout = () => {
     setCartOpen(false);
     if (!isAuthenticated) {
-      toast.error("Silakan masuk untuk melanjutkan checkout.");
+      toast.error("Silakan Login untuk melanjutkan Checkout.");
       router.push(loginHref);
       return;
     }
@@ -118,7 +118,7 @@ export function CartSheet() {
                 <span className="font-semibold">{formatIDR(subtotal)}</span>
               </div>
               <p className="text-xs text-[#4b5577]">
-                PPN 11% & PPh 2% dihitung saat checkout.
+                PPN 11% & PPh 2% dihitung saat Checkout.
               </p>
               <Button
                 type="button"

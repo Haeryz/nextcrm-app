@@ -87,7 +87,7 @@ describe("requestPasswordReset", () => {
     expect(result).toEqual({
       success: true,
       message:
-        "If an account exists for that email, a password reset link has been sent.",
+        "Jika Account dengan Email tersebut tersedia, Link Reset Password telah dikirim.",
     });
     expect(mockedPrisma.users.update).not.toHaveBeenCalled();
     expect(mockedPrisma.passwordResetToken.create).not.toHaveBeenCalled();
@@ -126,13 +126,13 @@ describe("resetPassword", () => {
 
     const result = await resetPassword("bad-token", "newStrongPass");
 
-    expect(result).toEqual({ error: "Invalid or expired reset link." });
+    expect(result).toEqual({ error: "Link Reset Password tidak valid atau kedaluwarsa." });
     expect(mockedPrisma.users.update).not.toHaveBeenCalled();
   });
 
   it("rejects a too-short new password", async () => {
     const result = await resetPassword("some-token", "short");
-    expect(result).toEqual({ error: "Password must be at least 8 characters." });
+    expect(result).toEqual({ error: "Password minimal 8 karakter." });
   });
 
   it("updates the password and burns the token for a valid, unexpired token", async () => {

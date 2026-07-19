@@ -31,12 +31,12 @@ export async function GET(
 
   const initialOrder = await getPublicMektekServiceOrder(id, token);
   if (!initialOrder) {
-    return new Response("Not found", { status: 404 });
+    return new Response("Tidak ditemukan", { status: 404 });
   }
 
   if (activeStreams >= MAX_CONCURRENT) {
     // Shed load: the client falls back to its initial snapshot and may retry later.
-    return new Response("Too many connections", {
+    return new Response("Terlalu banyak koneksi", {
       status: 503,
       headers: { "Retry-After": "30", "Referrer-Policy": "no-referrer" },
     });

@@ -22,7 +22,7 @@ export function parseEstimatedDoneInput(
 
   const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) {
-    return { error: "Estimated done date is invalid" };
+    return { error: "Estimated Done Date tidak valid" };
   }
 
   return { date };

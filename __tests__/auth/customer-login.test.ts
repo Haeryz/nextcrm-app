@@ -58,7 +58,7 @@ describe("customer session actions", () => {
 
     await expect(
       loginCustomer({ phone: "+628123456789", password: "not-the-password" }),
-    ).resolves.toEqual({ error: "Invalid phone number or password." });
+    ).resolves.toEqual({ error: "Nomor telepon atau Password tidak valid." });
     expect(mockedVerifyPassword).toHaveBeenCalledTimes(1);
     expect(mockedCreateSession).not.toHaveBeenCalled();
   });
@@ -104,7 +104,7 @@ describe("customer session actions", () => {
 
     await expect(
       loginCustomer({ phone: "+628123456789", password: "password" }),
-    ).resolves.toEqual({ error: "Invalid phone number or password." });
+    ).resolves.toEqual({ error: "Nomor telepon atau Password tidak valid." });
     expect(mockedCreateSession).not.toHaveBeenCalled();
   });
 

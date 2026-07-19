@@ -73,7 +73,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
   const declaredLength = Number(request.headers.get("content-length"));
   if (Number.isFinite(declaredLength) && declaredLength > MAX_CATALOG_IMAGE_BYTES) {
     return NextResponse.json(
-      { error: "Catalogue images must be 4 MB or smaller" },
+      { error: "Ukuran Catalogue Image maksimal 4 MB" },
       { status: 413 },
     );
   }
@@ -97,7 +97,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
     },
   });
   if (updated.count === 0) {
-    return NextResponse.json({ error: "Catalogue item not found" }, { status: 404 });
+    return NextResponse.json({ error: "Catalogue Item tidak ditemukan" }, { status: 404 });
   }
 
   revalidateCatalog();
@@ -116,7 +116,7 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
     data: { imageData: null, imageMimeType: null, imagePath: null },
   });
   if (updated.count === 0) {
-    return NextResponse.json({ error: "Catalogue item not found" }, { status: 404 });
+    return NextResponse.json({ error: "Catalogue Item tidak ditemukan" }, { status: 404 });
   }
 
   revalidateCatalog();

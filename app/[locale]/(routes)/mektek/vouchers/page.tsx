@@ -30,15 +30,15 @@ export default async function MektekVouchersPage({
   params,
   searchParams,
 }: MektekVouchersPageProps) {
-  const { locale = "en" } = params ? await params : { locale: "en" };
+  const { locale = "id" } = params ? await params : { locale: "id" };
   const session = await getServerSession(authOptions);
 
   if (!canManageMektekVouchers(session?.user)) {
     return (
-      <Container title="Voucher" description="MekTek voucher management">
+      <Container title="Voucher" description="Kelola Voucher MekTek">
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            Only admins can manage vouchers.
+            Hanya Admin yang dapat mengelola Voucher.
           </CardContent>
         </Card>
       </Container>
@@ -59,7 +59,7 @@ export default async function MektekVouchersPage({
 
   if ("error" in vouchers || "error" in customers) {
     return (
-      <Container title="Voucher" description="MekTek voucher management">
+      <Container title="Voucher" description="Kelola Voucher MekTek">
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
             {"error" in vouchers ? vouchers.error : customers.error}
@@ -84,7 +84,7 @@ export default async function MektekVouchersPage({
   return (
     <Container
       title="Voucher"
-      description="Create targeted discounts for all customers, customer types, or a specific customer"
+      description="Buat discount untuk semua Customer, Customer type, atau Customer tertentu"
     >
       <div className="flex flex-col gap-6">
         <Card>
@@ -95,7 +95,7 @@ export default async function MektekVouchersPage({
             >
               <Input
                 name="q"
-                placeholder="Search code, title, or customer"
+                placeholder="Cari Code, Title, atau Customer"
                 defaultValue={query}
               />
               <Button type="submit" variant="outline" className="w-full sm:w-auto">
@@ -103,7 +103,7 @@ export default async function MektekVouchersPage({
               </Button>
               {query && (
                 <Button asChild type="button" variant="ghost" className="w-full sm:w-auto">
-                  <Link href={`/${locale}/mektek/vouchers`}>Clear</Link>
+                  <Link href={`/${locale}/mektek/vouchers`}>Reset Filter</Link>
                 </Button>
               )}
             </form>
@@ -127,7 +127,7 @@ export default async function MektekVouchersPage({
           </p>
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <Button asChild variant="outline" size="sm" disabled={vouchers.data.page <= 1}>
-              <Link href={pageHref(previousPage)}>Previous</Link>
+              <Link href={pageHref(previousPage)}>Sebelumnya</Link>
             </Button>
             <Button
               asChild
@@ -135,7 +135,7 @@ export default async function MektekVouchersPage({
               size="sm"
               disabled={vouchers.data.page >= totalPages}
             >
-              <Link href={pageHref(nextPage)}>Next</Link>
+              <Link href={pageHref(nextPage)}>Berikutnya</Link>
             </Button>
           </div>
         </div>

@@ -21,7 +21,7 @@ const DEFAULT_TEMPLATES = [
       "",
       "Terima kasih, pesanan servis kendaraan {vehicle} sudah kami terima di Mektek.",
       "",
-      "Tim kami akan melakukan pengecekan awal dan memperbarui progres servis secara berkala.",
+      "Tim kami akan melakukan pengecekan awal dan memperbarui Progress servis secara berkala.",
       "",
       "Cek status servis Anda di:",
       "{trackingLink}",
@@ -83,6 +83,27 @@ export type WhatsAppPairingPanelProps = {
   initialError: string | null;
 };
 
+const LEGACY_WHATSAPP_ERRORS: Record<string, string> = {
+  "External APIs are disabled": "External API dinonaktifkan",
+  "WhatsApp session is not ready": "WhatsApp Session belum siap",
+  "Logged out by an administrator.": "Logout dilakukan oleh Admin.",
+  "WhatsApp reported this device was logged out.":
+    "WhatsApp melaporkan perangkat ini telah Logout.",
+  "WhatsApp rejected the pairing.": "WhatsApp menolak proses Pairing.",
+  "WhatsApp device was logged out. Re-pair to continue.":
+    "Perangkat WhatsApp telah Logout. Lakukan Pairing ulang untuk melanjutkan.",
+  "Timed out waiting for WhatsApp connection":
+    "Waktu tunggu Connection WhatsApp habis",
+  "WhatsApp is not linked. Pair a device first.":
+    "WhatsApp belum terhubung. Lakukan Pairing perangkat terlebih dahulu.",
+};
+
+function localizeWhatsAppError(value: unknown): string | null {
+  const message = typeof value === "string" ? value.trim() : "";
+  if (!message) return null;
+  return LEGACY_WHATSAPP_ERRORS[message] ?? message;
+}
+
 export default function WhatsAppPairingPanel({
   initialStatus,
   initialPhone,
@@ -94,7 +115,9 @@ export default function WhatsAppPairingPanel({
   const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>(initialStatus);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [lastError, setLastError] = useState<string | null>(initialError);
+  const [lastError, setLastError] = useState<string | null>(() =>
+    localizeWhatsAppError(initialError)
+  );
   const [isPairing, setIsPairing] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -118,7 +141,7 @@ export default function WhatsAppPairingPanel({
 
       setSessionStatus(data.status === "ready" ? "connected" : "disconnected");
       setConnectedPhone(formatWhatsAppPhone(data.sessionPhone));
-      setLastError(typeof data.lastError === "string" ? data.lastError : null);
+      setLastError(localizeWhatsAppError(data.lastError));
     } catch {
       setSessionStatus("disconnected");
       setConnectedPhone(null);
@@ -157,8 +180,8 @@ export default function WhatsAppPairingPanel({
       if (!preflight.ok) {
         setLastError(
           preflight.status === 401
-            ? "Sesi admin berakhir. Silakan login kembali."
-            : state.error ?? "Tidak dapat memulai pairing WhatsApp."
+            ? "Sesi Admin berakhir. Silakan Login kembali."
+            : localizeWhatsAppError(state.error) ?? "Tidak dapat memulai Pairing WhatsApp."
         );
         setSessionStatus("auth_failure");
         setIsPairing(false);
@@ -166,7 +189,7 @@ export default function WhatsAppPairingPanel({
       }
 
       if (state.status === "auth_failure" && state.lastError) {
-        setLastError(state.lastError);
+        setLastError(localizeWhatsAppError(state.lastError));
         setSessionStatus("auth_failure");
         setIsPairing(false);
         return;
@@ -187,7 +210,7 @@ export default function WhatsAppPairingPanel({
         },
         onError: (message) => {
           pairingStreamRef.current = null;
-          setLastError(message);
+          setLastError(localizeWhatsAppError(message));
           setSessionStatus("auth_failure");
           setIsPairing(false);
           setQrDataUrl(null);
@@ -195,7 +218,10 @@ export default function WhatsAppPairingPanel({
       });
       pairingStreamRef.current = source;
     } catch (error) {
-      setLastError(error instanceof Error ? error.message : "Pairing gagal.");
+      setLastError(
+        localizeWhatsAppError(error instanceof Error ? error.message : null) ??
+          "Pairing gagal."
+      );
       setSessionStatus("auth_failure");
       setIsPairing(false);
     }
@@ -211,14 +237,17 @@ export default function WhatsAppPairingPanel({
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setLastError(data.error ?? "Logout gagal.");
+        setLastError(localizeWhatsAppError(data.error) ?? "Logout gagal.");
         return;
       }
       setSessionStatus("disconnected");
       setConnectedPhone(null);
       setQrDataUrl(null);
     } catch (error) {
-      setLastError(error instanceof Error ? error.message : "Logout gagal.");
+      setLastError(
+        localizeWhatsAppError(error instanceof Error ? error.message : null) ??
+          "Logout gagal."
+      );
     } finally {
       setIsLoggingOut(false);
     }

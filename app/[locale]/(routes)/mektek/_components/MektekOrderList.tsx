@@ -33,7 +33,7 @@ type MektekOrderListProps = {
 };
 
 const formatDate = (date: Date | null | undefined) =>
-  date ? date.toLocaleDateString("id-ID") : "Not set";
+  date ? date.toLocaleDateString("id-ID") : "Belum diatur";
 
 const parseTags = (tags: unknown): Record<string, unknown> => {
   if (!tags || typeof tags !== "object" || Array.isArray(tags)) return {};
@@ -70,7 +70,7 @@ export default function MektekOrderList({
   orders,
   emptyMessage,
   density = "comfortable",
-  locale = "en",
+  locale = "id",
 }: MektekOrderListProps) {
   if (orders.length === 0) {
     return (
@@ -88,22 +88,22 @@ export default function MektekOrderList({
       data-testid="mektek-order-list"
     >
       <div className="hidden grid-cols-[minmax(0,1.35fr)_minmax(140px,0.7fr)_minmax(140px,0.7fr)_minmax(150px,0.8fr)_120px_36px] gap-4 border-b bg-muted/35 px-4 py-3 text-xs font-medium uppercase text-muted-foreground lg:grid">
-        <span>Customer / vehicle</span>
+        <span>Pelanggan / kendaraan</span>
         <span>Status</span>
-        <span>Technician</span>
-        <span>Schedule</span>
-        <span>Current state</span>
-        <span className="sr-only">Open</span>
+        <span>Teknisi</span>
+        <span>Jadwal</span>
+        <span>Status saat ini</span>
+        <span className="sr-only">Buka</span>
       </div>
       <div className="divide-y">
         {orders.map((order) => {
           const tags = parseTags(order.tags);
-          const customerName = getText(tags, "customerName", "Unknown customer");
-          const vehicle = getText(tags, "vehicle", order.title ?? "Unknown vehicle");
+          const customerName = getText(tags, "customerName", "Pelanggan tidak diketahui");
+          const vehicle = getText(tags, "vehicle", order.title ?? "Kendaraan tidak diketahui");
           const timeline = getTimeline(tags);
           const status = getStatusMeta(order.taskStatus);
           const timelineCount = timeline.length || 1;
-          const technicianName = order.assigned_user?.name || order.assigned_user?.email || "Unassigned";
+          const technicianName = order.assigned_user?.name || order.assigned_user?.email || "Belum ditugaskan";
 
           return (
             <Link
@@ -138,7 +138,7 @@ export default function MektekOrderList({
                   {status.label}
                 </Badge>
                 <p className="text-xs text-muted-foreground">
-                  {timelineCount} step{timelineCount === 1 ? "" : "s"}
+                  {timelineCount} Timeline Entry
                 </p>
               </div>
 
@@ -150,16 +150,16 @@ export default function MektekOrderList({
               <div className="grid min-w-0 gap-1 text-sm text-muted-foreground">
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <CalendarClock className="h-4 w-4 shrink-0" />
-                  Due {formatDate(order.dueDateAt)}
+                  Jatuh tempo {formatDate(order.dueDateAt)}
                 </span>
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <Clock3 className="h-4 w-4 shrink-0" />
-                  Updated {formatDate(order.updatedAt)}
+                  Diperbarui {formatDate(order.updatedAt)}
                 </span>
               </div>
 
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Current state</p>
+                <p className="text-xs text-muted-foreground">Status saat ini</p>
                 <Badge
                   variant={status.badgeVariant}
                   className="max-w-full whitespace-normal px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide"

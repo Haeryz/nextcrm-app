@@ -12,7 +12,7 @@ import { hasTrustedMutationOrigin } from "@/lib/trusted-origin";
 
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 const GENERIC_SUCCESS =
-  "If an account exists for that email, a password reset link has been sent.";
+  "Jika Account dengan Email tersebut tersedia, Link Reset Password telah dikirim.";
 
 // Rate limits: keep both request and confirm cheap to defend but hard to abuse.
 const REQUEST_LIMIT = 5;
@@ -33,12 +33,12 @@ const baseUrl = () =>
  */
 export const requestPasswordReset = async (email: string) => {
   if (!(await hasTrustedMutationOrigin())) {
-    return { error: "Request could not be verified." };
+    return { error: "Request tidak dapat diverifikasi." };
   }
 
   const normalizedEmail = String(email ?? "").trim().toLowerCase();
   if (!normalizedEmail) {
-    return { error: "Email is required!" };
+    return { error: "Email wajib diisi!" };
   }
 
   const ip = getClientIp(await headers());
@@ -48,7 +48,7 @@ export const requestPasswordReset = async (email: string) => {
     REQUEST_WINDOW_MS
   );
   if (!limit.ok) {
-    return { error: "Too many requests. Please try again later." };
+    return { error: "Terlalu banyak Request. Silakan coba lagi nanti." };
   }
 
   try {
@@ -73,14 +73,18 @@ export const requestPasswordReset = async (email: string) => {
         data: { userId: user.id, tokenHash, expiresAt },
       });
 
-      const lang = String(user.userLanguage || "en");
+      const lang = String(user.userLanguage || "id");
       const resetLink = `${baseUrl()}/${lang}/reset-password?token=${token}`;
 
       await resend.emails.send({
         from: process.env.EMAIL_FROM!,
         to: user.email,
-        subject: "NextCRM - Password reset",
-        text: `Reset your password: ${resetLink}`,
+        subject: "NextCRM - Reset Password",
+        text: lang === "id"
+          ? `Reset Password Anda: ${resetLink}`
+          : lang === "en"
+            ? `Reset your password: ${resetLink}`
+            : `Obnovte si heslo: ${resetLink}`,
         react: PasswordResetEmail({
           username: user?.name!,
           avatar: user.avatar,
@@ -105,20 +109,20 @@ export const requestPasswordReset = async (email: string) => {
  */
 export const resetPassword = async (token: string, newPassword: string) => {
   if (!(await hasTrustedMutationOrigin())) {
-    return { error: "Request could not be verified." };
+    return { error: "Request tidak dapat diverifikasi." };
   }
 
   const rawToken = String(token ?? "").trim();
   const password = String(newPassword ?? "");
 
   if (!rawToken) {
-    return { error: "Invalid or expired reset link." };
+    return { error: "Link Reset Password tidak valid atau kedaluwarsa." };
   }
   if (password.length < 8) {
-    return { error: "Password must be at least 8 characters." };
+    return { error: "Password minimal 8 karakter." };
   }
   if (password.length > 100) {
-    return { error: "Password is too long." };
+    return { error: "Password terlalu panjang." };
   }
 
   const ip = getClientIp(await headers());
@@ -128,7 +132,7 @@ export const resetPassword = async (token: string, newPassword: string) => {
     CONFIRM_WINDOW_MS
   );
   if (!limit.ok) {
-    return { error: "Too many requests. Please try again later." };
+    return { error: "Terlalu banyak Request. Silakan coba lagi nanti." };
   }
 
   try {
@@ -138,7 +142,7 @@ export const resetPassword = async (token: string, newPassword: string) => {
     });
 
     if (!record || record.usedAt || record.expiresAt.getTime() < Date.now()) {
-      return { error: "Invalid or expired reset link." };
+      return { error: "Link Reset Password tidak valid atau kedaluwarsa." };
     }
 
     const revokedAt = new Date();
@@ -161,9 +165,9 @@ export const resetPassword = async (token: string, newPassword: string) => {
       }),
     ]);
 
-    return { success: true, message: "Password updated. You can now sign in." };
+    return { success: true, message: "Password berhasil diperbarui. Anda sekarang dapat Login." };
   } catch (error) {
     console.log("[PASSWORD_RESET_CONFIRM]", error);
-    return { error: "Failed to reset password" };
+    return { error: "Gagal melakukan Reset Password" };
   }
 };

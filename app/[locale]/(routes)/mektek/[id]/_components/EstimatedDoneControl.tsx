@@ -25,8 +25,8 @@ function toLocalInputValue(value: string | null) {
 }
 
 function formatEstimate(value: string | null) {
-  if (!value) return "Not set";
-  return new Intl.DateTimeFormat("en-ID", {
+  if (!value) return "Belum diatur";
+  return new Intl.DateTimeFormat("id-ID", {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: "Asia/Makassar",
@@ -47,7 +47,7 @@ export default function EstimatedDoneControl({
     if (nextInput) {
       const parsed = new Date(nextInput);
       if (Number.isNaN(parsed.getTime())) {
-        toast.error("Choose a valid estimated date and time");
+        toast.error("Pilih ETA yang valid");
         return;
       }
       nextEstimate = parsed.toISOString();
@@ -59,14 +59,14 @@ export default function EstimatedDoneControl({
         estimatedDone: nextEstimate,
       });
       if (!result || "error" in result) {
-        toast.error(result?.error || "Failed to update estimated done time");
+        toast.error(result?.error || "Gagal memperbarui ETA");
         return;
       }
 
       const savedEstimate = result.data.estimatedDone;
       setCurrentEstimate(savedEstimate);
       setInputValue(toLocalInputValue(savedEstimate));
-      toast.success(savedEstimate ? "Estimated completion updated" : "Estimate cleared");
+      toast.success(savedEstimate ? "ETA berhasil diperbarui" : "ETA berhasil dihapus");
       router.refresh();
     });
   };
@@ -76,13 +76,13 @@ export default function EstimatedDoneControl({
       <div className="flex items-start gap-3 rounded-md border bg-muted/20 p-3">
         <CalendarClock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
         <div>
-          <p className="text-xs text-muted-foreground">Current estimate</p>
+          <p className="text-xs text-muted-foreground">Perkiraan saat ini</p>
           <p className="text-sm font-medium">{formatEstimate(currentEstimate)}</p>
         </div>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={`estimated-done-${serviceOrderId}`}>Estimated done time</Label>
+        <Label htmlFor={`estimated-done-${serviceOrderId}`}>ETA</Label>
         <Input
           id={`estimated-done-${serviceOrderId}`}
           type="datetime-local"
@@ -91,7 +91,7 @@ export default function EstimatedDoneControl({
           disabled={isPending}
         />
         <p className="text-xs text-muted-foreground">
-          The customer schedule updates as soon as you save.
+          Jadwal pelanggan langsung diperbarui setelah Anda menyimpan.
         </p>
       </div>
 
@@ -107,7 +107,7 @@ export default function EstimatedDoneControl({
           ) : (
             <Save data-icon="inline-start" />
           )}
-          Save estimate
+          Simpan perkiraan
         </Button>
         <Button
           type="button"
@@ -117,7 +117,7 @@ export default function EstimatedDoneControl({
           disabled={isPending || (!currentEstimate && !inputValue)}
         >
           <X data-icon="inline-start" />
-          Clear
+          Hapus
         </Button>
       </div>
     </div>

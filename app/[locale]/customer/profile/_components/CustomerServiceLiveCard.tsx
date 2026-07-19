@@ -71,11 +71,11 @@ export function CustomerServiceLiveCard({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase text-[#4b5577]">
-              Service #{snapshot.id.slice(0, 8)}
+              Servis #{snapshot.id.slice(0, 8)}
             </p>
             <CardTitle className="mt-1 truncate text-xl">{snapshot.vehicle}</CardTitle>
             <p className="mt-1 text-sm text-[#4b5577]">
-              Last update: {formatDateTime(snapshot.updatedAt)}
+              Pembaruan terakhir: {formatDateTime(snapshot.updatedAt)}
             </p>
           </div>
           <Badge
@@ -91,7 +91,7 @@ export function CustomerServiceLiveCard({
         <div className="grid gap-3 sm:grid-cols-[1fr_160px] sm:items-center">
           <div>
             <p className="text-sm font-semibold">
-              {snapshot.latestTimeline?.description || "No service update yet."}
+              {snapshot.latestTimeline?.description || "Belum ada pembaruan servis."}
             </p>
             <p className="mt-1 text-xs text-[#4b5577]">
               {formatDateTime(snapshot.latestTimeline?.createdAt ?? null)}
@@ -99,7 +99,7 @@ export function CustomerServiceLiveCard({
           </div>
           <div className="rounded-md border border-[#151a63]/10 bg-[#fafbff] p-3">
             <p className="text-xs font-medium uppercase tracking-wide text-[#4b5577]">
-              Current state
+              Status saat ini
             </p>
             <Badge
               variant={statusMeta.badgeVariant}
@@ -149,7 +149,7 @@ export function CustomerServiceLiveCard({
             >
               <Link href={publicHref}>
                 <ExternalLink data-icon="inline-start" />
-                Detail live
+                Detail langsung
               </Link>
             </Button>
           )}

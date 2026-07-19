@@ -40,16 +40,16 @@ export function validateCatalogImageUpload(
   const normalizedType = String(contentType ?? "").toLowerCase().split(";")[0].trim();
 
   if (!SUPPORTED_CONTENT_TYPES.has(normalizedType)) {
-    return { error: "Choose a JPEG, PNG, WebP, or GIF image" };
+    return { error: "Pilih image JPEG, PNG, WebP, atau GIF" };
   }
   if (bytes.byteLength === 0) {
-    return { error: "Choose a non-empty image file" };
+    return { error: "Pilih image file yang tidak kosong" };
   }
   if (bytes.byteLength > MAX_CATALOG_IMAGE_BYTES) {
-    return { error: "Catalogue images must be 4 MB or smaller" };
+    return { error: "Ukuran Catalogue Image maksimal 4 MB" };
   }
   if (!hasExpectedSignature(normalizedType, bytes)) {
-    return { error: "The selected file is not a valid image" };
+    return { error: "File yang dipilih bukan image yang valid" };
   }
 
   return { contentType: normalizedType };

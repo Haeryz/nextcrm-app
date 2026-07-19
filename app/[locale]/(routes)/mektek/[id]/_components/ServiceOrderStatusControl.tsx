@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 type OrderStatus = "ACTIVE" | "PENDING" | "AWAITING_PAYMENT" | "COMPLETE";
 
 interface ServiceOrderStatusControlProps {
+  locale: string;
   serviceOrderId: string;
   currentStatus: string;
   balanceDue: number;
@@ -28,6 +29,7 @@ const statusLabel = (status: OrderStatus) =>
   STATUSES.find((item) => item.key === status)?.label ?? status;
 
 export default function ServiceOrderStatusControl({
+  locale,
   serviceOrderId,
   currentStatus,
   balanceDue,
@@ -51,18 +53,19 @@ export default function ServiceOrderStatusControl({
 
     startTransition(async () => {
       const result = await updateMektekServiceOrderStatus({
+        locale,
         serviceOrderId,
         newStatus,
         markAllTimelineComplete:
           newStatus === "AWAITING_PAYMENT" ? markAllComplete : false,
       });
       if (!result || "error" in result) {
-        toast.error(result?.error || "Failed to update order status");
+        toast.error(result?.error || "Gagal memperbarui status pesanan");
         setConfirmation(null);
         return;
       }
 
-      toast.success(`Status updated to ${statusLabel(newStatus)}`);
+      toast.success(`Status diperbarui menjadi ${statusLabel(newStatus)}`);
       setConfirmation(null);
       router.refresh();
     });
@@ -80,7 +83,7 @@ export default function ServiceOrderStatusControl({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">Set status</p>
+      <p className="text-xs text-muted-foreground">Atur status</p>
       <div className="grid gap-2 sm:grid-cols-2">
         {visibleStatuses.map(({ key, label }) => {
           const closeBlocked = key === "COMPLETE" && balanceDue > 0;
@@ -109,15 +112,15 @@ export default function ServiceOrderStatusControl({
 
       {isClosed && (
         <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-          This order is fully paid and permanently closed.
+          Pesanan ini telah lunas dan ditutup secara permanen.
         </p>
       )}
 
       {showCloseAction && currentStatus === "AWAITING_PAYMENT" && (
         <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
           {balanceDue > 0
-            ? `Done · Closed unlocks after the remaining ${formattedBalance} is paid.`
-            : "Payment is settled. This order can now be closed permanently."}
+            ? `Status Done · Closed tersedia setelah sisa ${formattedBalance} dibayar.`
+            : "Pembayaran telah lunas. Pesanan ini sekarang dapat ditutup permanen."}
         </div>
       )}
 
@@ -126,13 +129,13 @@ export default function ServiceOrderStatusControl({
           <div>
             <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
               {confirmation === "AWAITING_PAYMENT"
-                ? "Finish service and open payment?"
-                : "Close this fully paid order?"}
+                ? "Selesaikan servis dan buka pembayaran?"
+                : "Tutup pesanan yang sudah lunas ini?"}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {confirmation === "AWAITING_PAYMENT"
-                ? "Items will be locked, the customer can review the final invoice, and payment becomes available."
-                : "Done · Closed is the final state after service, customer review, and payment are complete."}
+                ? "Item akan dikunci, pelanggan dapat meninjau invoice akhir, dan pembayaran akan tersedia."
+                : "Done · Closed adalah status akhir setelah servis, peninjauan pelanggan, dan pembayaran selesai."}
             </p>
           </div>
 
@@ -145,7 +148,7 @@ export default function ServiceOrderStatusControl({
                 className="rounded"
               />
               <span className="text-xs text-muted-foreground">
-                Also mark all timeline steps as done
+                Tandai semua Timeline Step sebagai Done
               </span>
             </label>
           )}
@@ -156,7 +159,7 @@ export default function ServiceOrderStatusControl({
               size="sm"
               onClick={() => handleStatusChange(confirmation)}
             >
-              Confirm {confirmation === "AWAITING_PAYMENT" ? "Service Done" : "Close Order"}
+              Konfirmasi {confirmation === "AWAITING_PAYMENT" ? "Service Done" : "Close Order"}
             </Button>
             <Button
               type="button"
@@ -164,7 +167,7 @@ export default function ServiceOrderStatusControl({
               variant="ghost"
               onClick={() => setConfirmation(null)}
             >
-              Cancel
+              Batal
             </Button>
           </div>
         </div>

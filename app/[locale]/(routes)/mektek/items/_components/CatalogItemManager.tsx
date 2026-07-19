@@ -83,12 +83,12 @@ async function updateCatalogImage(itemId: string, draft: ImageDraft) {
     | { error?: string }
     | null;
   if (!response.ok) {
-    throw new Error(payload?.error || "Failed to update catalogue image");
+    throw new Error(payload?.error || "Gagal memperbarui Catalogue Image");
   }
 }
 
 function formatPrice(price: number | null) {
-  if (typeof price !== "number") return "No price";
+  if (typeof price !== "number") return "Harga belum tersedia";
   return price.toLocaleString("id-ID", {
     style: "currency",
     currency: "IDR",
@@ -139,14 +139,14 @@ function CatalogItemForm({
     if (!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type)) {
       onImageDraftChange({
         ...blankImageDraft,
-        error: "Choose a JPEG, PNG, WebP, or GIF image",
+        error: "Pilih image JPEG, PNG, WebP, atau GIF",
       });
       return;
     }
     if (file.size > 4 * 1024 * 1024) {
       onImageDraftChange({
         ...blankImageDraft,
-        error: "Catalogue images must be 4 MB or smaller",
+        error: "Ukuran Catalogue Image maksimal 4 MB",
       });
       return;
     }
@@ -183,7 +183,7 @@ function CatalogItemForm({
             required
           />
         </Field>
-        <Field label="Part number">
+        <Field label="Part Number">
           <Input
             value={value.partNumber ?? ""}
             onChange={(event) => update("partNumber", event.target.value)}
@@ -216,7 +216,7 @@ function CatalogItemForm({
         />
       </Field>
 
-      <Field label="Catalogue image">
+      <Field label="Catalogue Image">
         <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-center">
           <div className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
             {displayedImage ? (
@@ -236,10 +236,10 @@ function CatalogItemForm({
               accept="image/jpeg,image/png,image/webp,image/gif"
               onChange={(event) => selectImage(event.target.files?.[0] ?? null)}
               disabled={pending}
-              aria-label="Choose catalogue image from device"
+              aria-label="Pilih Catalogue Image dari perangkat"
             />
             <p className="text-xs text-muted-foreground">
-              Choose a JPEG, PNG, WebP, or GIF from your device (maximum 4 MB).
+              Pilih JPEG, PNG, WebP, atau GIF dari perangkat Anda (maksimal 4 MB).
             </p>
             {imageDraft.error && (
               <p className="text-xs text-destructive" role="alert">
@@ -260,7 +260,7 @@ function CatalogItemForm({
                 }
               >
                 <X data-icon="inline-start" />
-                Remove image
+                Hapus image
               </Button>
             )}
           </div>
@@ -287,13 +287,13 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
   const [createImage, setCreateImage] = useState<ImageDraft>(blankImageDraft);
   const [editImage, setEditImage] = useState<ImageDraft>(blankImageDraft);
 
-  const itemCountLabel = `${items.length} item${items.length === 1 ? "" : "s"} on this page`;
+  const itemCountLabel = `${items.length} item di halaman ini`;
 
   const submitCreate = () => {
     startTransition(async () => {
       const result = await createMektekCatalogItem(createValue);
       if (!result || "error" in result) {
-        toast.error(result?.error || "Failed to create catalogue item");
+        toast.error(result?.error || "Gagal membuat Catalogue Item");
         return;
       }
       try {
@@ -301,8 +301,8 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
       } catch (error) {
         toast.error(
           error instanceof Error
-            ? `Item created, but the image was not saved: ${error.message}`
-            : "Item created, but the image was not saved",
+            ? `Item berhasil dibuat, tetapi image tidak tersimpan: ${error.message}`
+            : "Item berhasil dibuat, tetapi image tidak tersimpan",
         );
         setCreateValue(blankItem);
         setCreateImage(blankImageDraft);
@@ -310,7 +310,7 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
         router.refresh();
         return;
       }
-      toast.success("Catalog item created");
+      toast.success("Catalogue Item berhasil dibuat");
       setCreateValue(blankItem);
       setCreateImage(blankImageDraft);
       setCreateOpen(false);
@@ -337,13 +337,13 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
       } catch (error) {
         toast.error(
           error instanceof Error
-            ? `Item changes were saved, but the image was not updated: ${error.message}`
-            : "Item changes were saved, but the image was not updated",
+            ? `Perubahan item tersimpan, tetapi image tidak diperbarui: ${error.message}`
+            : "Perubahan item tersimpan, tetapi image tidak diperbarui",
         );
         router.refresh();
         return;
       }
-      toast.success("Catalog item updated");
+      toast.success("Catalogue Item berhasil diperbarui");
       setEditingItem(null);
       setEditImage(blankImageDraft);
       router.refresh();
@@ -357,7 +357,7 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
         toast.error(result.error);
         return;
       }
-      toast.success("Catalog item deleted");
+      toast.success("Catalogue Item berhasil dihapus");
       router.refresh();
     });
   };
@@ -370,21 +370,21 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto">
               <Plus data-icon="inline-start" />
-              Add item
+              Tambah item
             </Button>
           </DialogTrigger>
           <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
             <DialogHeader>
-              <DialogTitle>Add catalogue item</DialogTitle>
+              <DialogTitle>Tambah Catalogue Item</DialogTitle>
               <DialogDescription>
-                Create a searchable item that can be shown to customers and added to service orders.
+                Buat item yang dapat dicari, ditampilkan kepada Customer, dan ditambahkan ke service order.
               </DialogDescription>
             </DialogHeader>
             <CatalogItemForm
               value={createValue}
               onChange={setCreateValue}
               onSubmit={submitCreate}
-              submitLabel="Create item"
+              submitLabel="Buat item"
               pending={isPending}
               imageSrc={null}
               imageDraft={createImage}
@@ -421,7 +421,7 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
                 </Badge>
               </div>
               <p className="truncate text-sm text-muted-foreground">
-                {item.partNumber || "No part number"}
+                {item.partNumber || "Part Number belum tersedia"}
               </p>
               <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
                 <Button
@@ -441,7 +441,7 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
                   size="icon"
                   onClick={() => deleteItem(item)}
                   disabled={isPending}
-                  aria-label={`Delete ${item.description}`}
+                  aria-label={`Hapus ${item.description}`}
                   className="shrink-0"
                 >
                   <Trash2 />
@@ -451,7 +451,7 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
           ))}
           {items.length === 0 && (
             <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-              No catalogue items match this filter.
+              Tidak ada Catalogue Item yang cocok dengan Filter ini.
             </div>
           )}
         </div>
@@ -460,16 +460,16 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
       <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Edit catalogue item</DialogTitle>
+            <DialogTitle>Edit Catalogue Item</DialogTitle>
             <DialogDescription>
-              Updates are available immediately in customer catalogue search and order intake.
+              Perubahan langsung tersedia pada pencarian customer catalogue dan penerimaan order.
             </DialogDescription>
           </DialogHeader>
           <CatalogItemForm
             value={editValue}
             onChange={setEditValue}
             onSubmit={submitEdit}
-            submitLabel="Save changes"
+            submitLabel="Simpan perubahan"
             pending={isPending}
             imageSrc={editingItem?.imagePath ?? null}
             imageDraft={editImage}

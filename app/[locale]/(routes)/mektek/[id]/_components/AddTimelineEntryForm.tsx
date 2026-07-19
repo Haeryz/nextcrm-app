@@ -43,7 +43,7 @@ export default function AddTimelineEntryForm({
         return;
       }
 
-      toast.success("Timeline entry added");
+      toast.success("Entri Timeline ditambahkan");
       setDescription("");
       setStatus("done");
       router.refresh();
@@ -52,7 +52,7 @@ export default function AddTimelineEntryForm({
 
   return (
     <form onSubmit={onSubmit} className="rounded-lg border p-4 bg-card space-y-3">
-      <p className="text-sm font-semibold">Tambah timeline pesanan</p>
+      <p className="text-sm font-semibold">Tambah Timeline pesanan</p>
       <Input
         placeholder="Contoh: Sparepart sudah dipasang"
         value={description}
@@ -72,7 +72,7 @@ export default function AddTimelineEntryForm({
         </Select>
         <div className="flex justify-end">
           <Button type="submit" disabled={isPending}>
-            {isPending ? "Saving..." : "Add timeline"}
+            {isPending ? "Menyimpan..." : "Tambah Timeline"}
           </Button>
         </div>
       </div>

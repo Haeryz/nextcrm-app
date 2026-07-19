@@ -31,13 +31,13 @@ const SignInPage = async ({
         <Button asChild variant="outline" size="sm">
           <Link href={`/${locale}/customer`}>
             <ArrowLeft className="size-4" />
-            Customer site
+            Situs pelanggan
           </Link>
         </Button>
       </div>
       <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-muted-foreground">
         <ShieldCheck className="size-4" />
-        Secure staff access
+        Akses aman untuk staf
       </div>
       <LoginComponent />
     </div>

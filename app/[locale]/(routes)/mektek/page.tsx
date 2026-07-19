@@ -30,17 +30,17 @@ function readSearchParam(
 }
 
 export default async function MektekPage({ params, searchParams }: MektekPageProps) {
-  const { locale = "en" } = params ? await params : { locale: "en" };
+  const { locale = "id" } = params ? await params : { locale: "id" };
   const session = await getServerSession(authOptions);
   const canAccess = canAccessMektekStaffArea(session?.user);
   const canCreate = canCreateMektekOrders(session?.user);
 
   if (!canAccess) {
     return (
-      <Container title="MEKTEK" description="Service order tracking">
+      <Container title="MEKTEK" description="Tracking pesanan servis">
         <Card className="border">
           <CardContent className="p-6 text-sm text-muted-foreground">
-            You do not have access to the MekTek staff workspace.
+            Anda tidak memiliki akses ke ruang kerja staf MekTek.
           </CardContent>
         </Card>
       </Container>
@@ -67,18 +67,19 @@ export default async function MektekPage({ params, searchParams }: MektekPagePro
   return (
     <Container
       title="MEKTEK"
-      description="Service order tracking - manage and monitor all repair jobs"
+      description="Kelola dan pantau seluruh pekerjaan servis"
     >
       <div className="space-y-6">
         {canCreate ? (
           <NewServiceOrderForm
+            locale={locale}
             initialEstimatedDone={getMektekTodayDateInput()}
             technicians={technicians}
           />
         ) : (
           <Card className="border">
             <CardContent className="p-4 text-sm text-muted-foreground">
-              Only MekTek admin or CS can add new service records.
+              Hanya Admin atau CS MekTek yang dapat menambah catatan servis baru.
             </CardContent>
           </Card>
         )}
@@ -98,13 +99,13 @@ export default async function MektekPage({ params, searchParams }: MektekPagePro
               >
                 <label className="space-y-1 text-sm">
                   <span className="text-xs font-medium text-muted-foreground">
-                    From date
+                    Tanggal mulai
                   </span>
                   <Input name="dateFrom" type="date" defaultValue={dateFrom} />
                 </label>
                 <label className="space-y-1 text-sm">
                   <span className="text-xs font-medium text-muted-foreground">
-                    To date
+                    Tanggal akhir
                   </span>
                   <Input name="dateTo" type="date" defaultValue={dateTo} />
                 </label>
@@ -113,12 +114,12 @@ export default async function MektekPage({ params, searchParams }: MektekPagePro
                 </Button>
                 {(dateFrom || dateTo) && (
                   <Button asChild type="button" variant="ghost" className="w-full sm:w-auto">
-                    <Link href={`/${locale}/mektek`}>Clear</Link>
+                    <Link href={`/${locale}/mektek`}>Reset Filter</Link>
                   </Button>
                 )}
               </form>
               <p className="text-sm text-muted-foreground">
-                Page {page} of {totalPages} - {totalCount} orders
+                Halaman {page} dari {totalPages} - {totalCount} pesanan
               </p>
             </div>
           </CardContent>
@@ -126,7 +127,7 @@ export default async function MektekPage({ params, searchParams }: MektekPagePro
 
         <MektekOrderList
           orders={orders}
-          emptyMessage="No service records found for this date range."
+          emptyMessage="Tidak ada catatan servis dalam rentang tanggal ini."
           locale={locale}
         />
 

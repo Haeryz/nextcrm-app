@@ -27,15 +27,15 @@ export default async function MektekCustomersPage({
   params,
   searchParams,
 }: MektekCustomersPageProps) {
-  const { locale = "en" } = params ? await params : { locale: "en" };
+  const { locale = "id" } = params ? await params : { locale: "id" };
   const session = await getServerSession(authOptions);
 
   if (!canManageMektekCustomers(session?.user)) {
     return (
-      <Container title="Customers" description="Customer and user account management">
+      <Container title="Customers" description="Kelola Customer dan User Account">
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
-            Only admins can manage customer user accounts.
+            Hanya Admin yang dapat mengelola Customer User Account.
           </CardContent>
         </Card>
       </Container>
@@ -53,7 +53,7 @@ export default async function MektekCustomersPage({
 
   if ("error" in customers) {
     return (
-      <Container title="Customers" description="Customer and user account management">
+      <Container title="Customers" description="Kelola Customer dan User Account">
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
             {customers.error}
@@ -78,7 +78,7 @@ export default async function MektekCustomersPage({
   return (
     <Container
       title="Customers"
-      description="Create, update, and remove customer profiles with linked user accounts"
+      description="Buat, perbarui, dan hapus Customer Profile beserta User Account yang terhubung"
     >
       <div className="flex flex-col gap-6">
         <Card>
@@ -89,7 +89,7 @@ export default async function MektekCustomersPage({
             >
               <Input
                 name="q"
-                placeholder="Search name, phone, or email"
+                placeholder="Cari nama, nomor telepon, atau Email"
                 defaultValue={query}
               />
               <Button type="submit" variant="outline" className="w-full sm:w-auto">
@@ -97,7 +97,7 @@ export default async function MektekCustomersPage({
               </Button>
               {query && (
                 <Button asChild type="button" variant="ghost" className="w-full sm:w-auto">
-                  <Link href={`/${locale}/mektek/customers`}>Clear</Link>
+                  <Link href={`/${locale}/mektek/customers`}>Reset Filter</Link>
                 </Button>
               )}
             </form>
@@ -125,7 +125,7 @@ export default async function MektekCustomersPage({
           </p>
           <div className="grid grid-cols-2 gap-2 sm:flex">
             <Button asChild variant="outline" size="sm" disabled={customers.data.page <= 1}>
-              <Link href={pageHref(previousPage)}>Previous</Link>
+              <Link href={pageHref(previousPage)}>Sebelumnya</Link>
             </Button>
             <Button
               asChild
@@ -133,7 +133,7 @@ export default async function MektekCustomersPage({
               size="sm"
               disabled={customers.data.page >= totalPages}
             >
-              <Link href={pageHref(nextPage)}>Next</Link>
+              <Link href={pageHref(nextPage)}>Berikutnya</Link>
             </Button>
           </div>
         </div>

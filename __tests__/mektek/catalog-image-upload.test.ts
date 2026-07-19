@@ -24,24 +24,24 @@ describe("validateCatalogImageUpload", () => {
         "image/svg+xml",
         new TextEncoder().encode("<svg></svg>"),
       ),
-    ).toEqual({ error: "Choose a JPEG, PNG, WebP, or GIF image" });
+    ).toEqual({ error: "Pilih image JPEG, PNG, WebP, atau GIF" });
   });
 
   it("rejects a file whose signature does not match its declared type", () => {
     expect(
       validateCatalogImageUpload("image/png", new Uint8Array([0xff, 0xd8, 0xff])),
-    ).toEqual({ error: "The selected file is not a valid image" });
+    ).toEqual({ error: "File yang dipilih bukan image yang valid" });
   });
 
   it("rejects empty and oversized files", () => {
     expect(validateCatalogImageUpload("image/jpeg", new Uint8Array())).toEqual({
-      error: "Choose a non-empty image file",
+      error: "Pilih image file yang tidak kosong",
     });
     expect(
       validateCatalogImageUpload(
         "image/jpeg",
         new Uint8Array(MAX_CATALOG_IMAGE_BYTES + 1),
       ),
-    ).toEqual({ error: "Catalogue images must be 4 MB or smaller" });
+    ).toEqual({ error: "Ukuran Catalogue Image maksimal 4 MB" });
   });
 });

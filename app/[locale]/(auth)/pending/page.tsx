@@ -28,17 +28,16 @@ const PendingPage = async () => {
       </pre> */}
       <div className="flex flex-col">
         <h1 className="text-3xl">
-          {process.env.NEXT_PUBLIC_APP_NAME} - your account must be allowed by
-          Admin
+          {process.env.NEXT_PUBLIC_APP_NAME} - akun Anda harus disetujui Admin
         </h1>
         <p>
-          Hi, welcome to {process.env.NEXT_PUBLIC_APP_NAME}. Ask someone in your
-          organization to approve your account. If you are fist user call to
-          tech support to enable account.
+          Selamat datang di {process.env.NEXT_PUBLIC_APP_NAME}. Mintalah Admin di
+          organisasi Anda untuk menyetujui akun ini. Jika Anda adalah pengguna
+          pertama, hubungi dukungan teknis untuk mengaktifkan akun.
         </p>
       </div>
       <div className="flex flex-col justify-center ">
-        <h2 className="flex justify-center text-xl">Admin List</h2>
+        <h2 className="flex justify-center text-xl">Daftar Admin</h2>
         {adminUsers &&
           adminUsers?.map((user: Users) => (
             <div
@@ -57,9 +56,9 @@ const PendingPage = async () => {
       </div>
       <div className="flex flex-col md:flex-row space-x-2 justify-center items-center">
         <Button asChild>
-          <Link href="/sign-in">Log-in with another account</Link>
+          <Link href="/sign-in">Login dengan akun lain</Link>
         </Button>
-        <p>or</p>
+        <p>atau</p>
         <TryAgain />
       </div>
     </div>

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
  * calls. Kept simple and navigable so a lost visitor always has a clear way back.
  */
 export default async function NotFound() {
-  let locale = "en";
+  let locale = "id";
   try {
     locale = await getLocale();
   } catch {
@@ -28,30 +28,30 @@ export default async function NotFound() {
           Error 404
         </p>
         <h1 className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl">
-          Page not found
+          Halaman tidak ditemukan
         </h1>
         <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-muted-foreground">
-          The page you were looking for doesn&apos;t exist, may have moved, or the
-          link is no longer valid. Let&apos;s get you back on track.
+          Halaman yang Anda cari tidak tersedia, mungkin sudah dipindahkan, atau
+          Link tersebut tidak lagi berlaku. Silakan pilih tujuan di bawah ini.
         </p>
 
         <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
           <Button asChild size="lg">
             <Link href={`/${locale}`}>
               <Home className="size-4" />
-              Go home
+              Ke beranda
             </Link>
           </Button>
           <Button asChild size="lg" variant="outline">
             <Link href={`/${locale}/customer?view=sparepart`}>
               <ShoppingBag className="size-4" />
-              Browse catalogue
+              Lihat katalog
             </Link>
           </Button>
           <Button asChild size="lg" variant="ghost">
             <Link href={`/${locale}/sign-in`}>
               <LogIn className="size-4" />
-              Sign in
+              Login
             </Link>
           </Button>
         </div>

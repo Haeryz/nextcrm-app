@@ -28,7 +28,7 @@ export default function MektekPagination({
   totalPages,
   totalCount,
   pageSize,
-  itemLabel = "orders",
+  itemLabel = "pesanan",
   pageParam = "page",
   query = {},
 }: MektekPaginationProps) {
@@ -54,19 +54,19 @@ export default function MektekPagination({
       data-testid="mektek-pagination"
     >
       <p className="text-sm text-muted-foreground">
-        Showing {start}-{end} of {totalCount} {itemLabel}
+        Menampilkan {start}-{end} dari {totalCount} {itemLabel}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         {page <= 1 ? (
           <Button variant="outline" size="sm" disabled>
             <ChevronLeft className="h-4 w-4" />
-            Previous
+            Sebelumnya
           </Button>
         ) : (
           <Button asChild variant="outline" size="sm">
-            <Link href={hrefFor(page - 1)} aria-label="Previous page">
+            <Link href={hrefFor(page - 1)} aria-label="Halaman sebelumnya">
               <ChevronLeft className="h-4 w-4" />
-              Previous
+              Sebelumnya
             </Link>
           </Button>
         )}
@@ -95,13 +95,13 @@ export default function MektekPagination({
 
         {page >= totalPages ? (
           <Button variant="outline" size="sm" disabled>
-            Next
+            Berikutnya
             <ChevronRight className="h-4 w-4" />
           </Button>
         ) : (
           <Button asChild variant="outline" size="sm">
-            <Link href={hrefFor(page + 1)} aria-label="Next page">
-              Next
+            <Link href={hrefFor(page + 1)} aria-label="Halaman berikutnya">
+              Berikutnya
               <ChevronRight className="h-4 w-4" />
             </Link>
           </Button>

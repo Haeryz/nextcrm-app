@@ -5,7 +5,7 @@ export default function Loading() {
   return (
     <Container
       title="Catalogue Items"
-      description="Create, update, delete, and review items extracted from the parts catalogue"
+      description="Buat, perbarui, hapus, dan tinjau item dari parts catalogue"
     >
       <CardGridSkeleton cards={9} />
     </Container>

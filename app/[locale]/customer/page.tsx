@@ -78,15 +78,15 @@ function formatPrice(price: number | null) {
 }
 
 const marqueeItems: string[] = [
-  "Denso Authorized Workshop",
-  "Authorized Air Conditioner Dealer",
-  "Automotive AC Service",
-  "Engine Tune Up",
-  "Brake & Suspension",
+  "Bengkel Resmi Denso",
+  "Dealer Resmi Pendingin Udara",
+  "Servis AC Mobil",
+  "Tune-up Mesin",
+  "Rem & Suspensi",
 ];
 
 const landingHighlights: string[] = [
-  "Dealer Authorized Air Conditioner",
+  "Dealer Resmi Pendingin Udara",
   "Bengkel Resmi Denso di Tabalong",
   "Layanan mobil lengkap untuk kenyamanan perjalanan",
 ];
@@ -119,17 +119,17 @@ const serviceCards: LandingServiceCard[] = [
     icon: Fan,
   },
   {
-    title: "Engine Tune Up",
+    title: "Tune-up Mesin",
     description: "Pengecekan performa mesin untuk membantu kendaraan bekerja lebih stabil.",
     icon: Gauge,
   },
   {
-    title: "Oli & Battery",
-    description: "Penggantian oli dan layanan battery untuk menjaga kendaraan siap digunakan.",
+    title: "Oli & Aki",
+    description: "Penggantian oli dan layanan aki untuk menjaga kendaraan siap digunakan.",
     icon: BatteryCharging,
   },
   {
-    title: "Brake & Suspension",
+    title: "Rem & Suspensi",
     description: "Pemeriksaan rem dan suspensi untuk membantu kenyamanan dan keamanan berkendara.",
     icon: CarFront,
   },
@@ -149,7 +149,7 @@ const processSteps: LandingProcessStep[] = [
   {
     step: "03",
     title: "Servis dan tindak lanjut",
-    description: "Pekerjaan dilanjutkan sesuai kebutuhan AC, mesin, oli, battery, rem, atau suspensi.",
+    description: "Pekerjaan dilanjutkan sesuai kebutuhan AC, mesin, oli, aki, rem, atau suspensi.",
   },
 ];
 
@@ -167,8 +167,8 @@ function MektekLanding({
     ? `/${locale}/customer/profile`
     : `/${locale}/customer/access`;
   const accessLabel = isAuthenticated
-    ? customerName?.trim() || "My account"
-    : "Customer access";
+    ? customerName?.trim() || "Akun saya"
+    : "Akses pelanggan";
 
   return (
     <main className="min-h-screen bg-[#f7f8ff] text-[#091247]">
@@ -210,7 +210,7 @@ function MektekLanding({
             <div className="max-w-4xl space-y-4 sm:space-y-7">
               <div className="inline-flex items-center gap-2 rounded-md border border-[#fff200]/35 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase text-zinc-100 sm:py-2">
                 <BadgeCheck className="size-4 text-[#fff200]" />
-                Denso Authorized Workshop & AC Dealer
+                Bengkel Resmi Denso & Dealer AC
               </div>
 
               <div className="space-y-3 sm:space-y-5">
@@ -218,9 +218,9 @@ function MektekLanding({
                   PT Mektek Tanjung Lestari
                 </h1>
                 <p className="max-w-2xl text-sm leading-6 text-zinc-200 sm:text-lg sm:leading-7">
-                  Dealer Authorized Air Conditioner dan Bengkel Resmi Denso di
-                  Tabalong untuk AC mobil, engine tune up, ganti oli, battery,
-                  brake, dan suspension.
+                  Dealer Resmi Pendingin Udara dan Bengkel Resmi Denso di
+                  Tabalong untuk AC mobil, tune-up mesin, ganti oli, aki,
+                  rem, dan suspensi.
                 </p>
               </div>
 
@@ -312,7 +312,7 @@ function MektekLanding({
         <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-12 md:px-6 lg:grid-cols-[0.82fr_1.18fr] lg:py-16">
           <div className="space-y-4">
             <Badge className="bg-[#fff200] text-[#10164f] hover:bg-[#fff200]">
-              Official Denso Service
+              Servis Resmi Denso
             </Badge>
             <h2 className="text-2xl font-semibold leading-tight sm:text-4xl">
               Perawatan mobil yang rapi, jelas, dan ditangani bengkel resmi Denso.
@@ -325,7 +325,7 @@ function MektekLanding({
             <div className="flex items-start gap-3 rounded-md border-l-4 border-[#fff200] bg-[#f8f9ff] p-4">
               <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#151a63]" />
               <p className="text-sm leading-6 text-[#26305f]">
-                Yuk service mobilnya ke Dealer Resmi Denso Mektek Tanjung agar
+                Yuk servis mobilnya ke Dealer Resmi Denso Mektek Tanjung agar
                 pengemudi dan penumpang merasa nyaman di perjalanan.
               </p>
             </div>
@@ -364,7 +364,7 @@ function MektekLanding({
               Mulai dari kebutuhan servis, lalu lanjutkan dengan pengecekan kendaraan.
             </h2>
             <p className="max-w-xl text-sm leading-6 text-[#4b5577]">
-              Alur dibuat sederhana untuk customer yang ingin langsung datang ke
+              Alur dibuat sederhana untuk pelanggan yang ingin langsung datang ke
               bengkel atau melihat katalog sparepart terlebih dahulu.
             </p>
           </div>
@@ -391,9 +391,9 @@ function MektekLanding({
       <section className="bg-[#0b1151] text-white">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-8 sm:flex-row sm:items-center sm:justify-between md:px-6">
           <div>
-            <p className="text-lg font-semibold">Siap service di PT Mektek Tanjung Lestari?</p>
+            <p className="text-lg font-semibold">Siap servis di PT Mektek Tanjung Lestari?</p>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-50/70">
-              Buka katalog sparepart atau lanjut ke akses customer untuk melihat alur
+              Buka katalog sparepart atau lanjut ke akses pelanggan untuk melihat alur
               layanan yang tersedia.
             </p>
           </div>
@@ -429,7 +429,7 @@ export default async function CustomerCatalogPage({
   params,
   searchParams,
 }: CustomerCatalogPageProps) {
-  const { locale = "en" } = params ? await params : { locale: "en" };
+  const { locale = "id" } = params ? await params : { locale: "id" };
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const view = readSearchParam(resolvedSearchParams, "view");
   const query = readSearchParam(resolvedSearchParams, "q");
@@ -479,13 +479,13 @@ export default async function CustomerCatalogPage({
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-col gap-2">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#151a63]">
-                MekTek Catalogue
+                Katalog MekTek
               </p>
               <h1 className="text-3xl font-semibold md:text-4xl">
-                Sparepart catalogue
+                Katalog sparepart
               </h1>
               <p className="max-w-2xl text-sm text-[#4b5577] md:text-base">
-                Browse available machine parts by model, part number, or description.
+                Telusuri sparepart berdasarkan model, nomor komponen, atau deskripsi.
               </p>
             </div>
 
@@ -497,7 +497,7 @@ export default async function CustomerCatalogPage({
               >
                 <Link href={`/${locale}/customer`}>
                   <ArrowLeft className="size-4" />
-                  Customer home
+                  Beranda pelanggan
                 </Link>
               </Button>
               <Button
@@ -512,7 +512,7 @@ export default async function CustomerCatalogPage({
                   }
                 >
                   <UserRound className="size-4" />
-                  {isAuthenticated ? "My account" : "Customer access"}
+                  {isAuthenticated ? "Akun saya" : "Akses pelanggan"}
                 </Link>
               </Button>
               <CartButton />
@@ -526,13 +526,13 @@ export default async function CustomerCatalogPage({
             <input type="hidden" name="view" value="sparepart" />
             <Input
               name="q"
-              placeholder="Search part number, item name, or description"
+              placeholder="Cari nomor komponen, nama item, atau deskripsi"
               defaultValue={query}
               className="border-[#151a63]/20 bg-white text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
             />
             <Input
               name="machine"
-              placeholder="Machine"
+              placeholder="Mesin"
               defaultValue={machine}
               className="border-[#151a63]/20 bg-white text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
             />
@@ -541,7 +541,7 @@ export default async function CustomerCatalogPage({
               className="bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
             >
               <Search data-icon="inline-start" />
-              Search
+              Cari
             </Button>
           </form>
         </div>
@@ -550,7 +550,7 @@ export default async function CustomerCatalogPage({
       <section className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-6 md:px-6">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-[#4b5577]">
-            {catalog.totalCount} item{catalog.totalCount === 1 ? "" : "s"} found
+            {catalog.totalCount} item ditemukan
           </p>
           {(query || machine) && (
             <Button
@@ -559,7 +559,7 @@ export default async function CustomerCatalogPage({
               size="sm"
               className="text-[#151a63] hover:bg-[#eef1ff] hover:text-[#10164f]"
             >
-              <Link href={`/${locale}/customer?view=sparepart`}>Clear filters</Link>
+              <Link href={`/${locale}/customer?view=sparepart`}>Reset Filter</Link>
             </Button>
           )}
         </div>
@@ -587,7 +587,7 @@ export default async function CustomerCatalogPage({
                       {item.description}
                     </h2>
                     <p className="text-sm text-[#4b5577]">
-                      {item.partNumber || "No part number"}
+                      {item.partNumber || "Tanpa nomor komponen"}
                     </p>
                   </div>
                   {typeof item.price === "number" && item.price > 0 ? (
@@ -634,19 +634,19 @@ export default async function CustomerCatalogPage({
         {catalog.items.length === 0 && (
           <Card className="border-[#151a63]/10 bg-white">
             <CardContent className="p-10 text-center text-sm text-[#4b5577]">
-              No catalogue items match this search.
+              Tidak ada item katalog yang cocok dengan pencarian ini.
             </CardContent>
           </Card>
         )}
 
         <div className="flex flex-col gap-3 border-t border-[#151a63]/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-[#4b5577]">
-            Page {catalog.page} of {catalog.totalPages}
+            Halaman {catalog.page} dari {catalog.totalPages}
           </p>
           <div className="flex gap-2">
             {catalog.page <= 1 ? (
               <Button variant="outline" size="sm" disabled>
-                Previous
+                Sebelumnya
               </Button>
             ) : (
               <Button
@@ -655,12 +655,12 @@ export default async function CustomerCatalogPage({
                 size="sm"
                 className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff]"
               >
-                <Link href={pageHref(catalog.page - 1)}>Previous</Link>
+                <Link href={pageHref(catalog.page - 1)}>Sebelumnya</Link>
               </Button>
             )}
             {catalog.page >= catalog.totalPages ? (
               <Button variant="outline" size="sm" disabled>
-                Next
+                Berikutnya
               </Button>
             ) : (
               <Button
@@ -669,7 +669,7 @@ export default async function CustomerCatalogPage({
                 size="sm"
                 className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff]"
               >
-                <Link href={pageHref(catalog.page + 1)}>Next</Link>
+                <Link href={pageHref(catalog.page + 1)}>Berikutnya</Link>
               </Button>
             )}
           </div>

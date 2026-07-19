@@ -17,7 +17,7 @@ import { hasTrustedMutationOrigin } from "@/lib/trusted-origin";
 const LOGIN_LIMIT = 10;
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const IP_LOGIN_LIMIT = 30;
-const GENERIC_LOGIN_ERROR = "Invalid phone number or password.";
+const GENERIC_LOGIN_ERROR = "Nomor telepon atau Password tidak valid.";
 const DUMMY_PASSWORD_HASH =
   "$2b$12$yN9.V3124cVB69Brg/uOMeXaQn3Lpi1C9CdVHxnprIsbiEc9l5pXO";
 
@@ -31,7 +31,7 @@ export type CustomerLoginInput = {
 
 export async function loginCustomer(input: CustomerLoginInput) {
   if (!(await hasTrustedMutationOrigin())) {
-    return { error: "Request could not be verified." };
+    return { error: "Request tidak dapat diverifikasi." };
   }
 
   const phone = String(input?.phone ?? "").trim().slice(0, 64);
@@ -54,7 +54,7 @@ export async function loginCustomer(input: CustomerLoginInput) {
   ]);
 
   if (!accountLimit.ok || !ipLimit.ok) {
-    return { error: "Too many login attempts. Please try again later." };
+    return { error: "Terlalu banyak percobaan Login. Silakan coba lagi nanti." };
   }
 
   const user = phone
@@ -105,7 +105,7 @@ export async function loginCustomer(input: CustomerLoginInput) {
     rememberDevice: input.rememberDevice === true,
   });
 
-  const locale = String(input.locale || "en");
+  const locale = String(input.locale || "id");
   return {
     success: true as const,
     redirectTo: getSafeCustomerReturnPath(input.returnTo, locale),
@@ -114,7 +114,7 @@ export async function loginCustomer(input: CustomerLoginInput) {
 
 export async function logoutCustomer() {
   if (!(await hasTrustedMutationOrigin())) {
-    return { error: "Request could not be verified." };
+    return { error: "Request tidak dapat diverifikasi." };
   }
   await revokeCurrentCustomerSession();
   return { success: true as const };

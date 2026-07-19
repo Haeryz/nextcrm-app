@@ -35,19 +35,19 @@ export default function ServiceOrderItemsEditor({
     const validServiceItems = serviceItems.filter((item) => item.description.trim());
     const validSparepartItems = sparepartItems.filter((item) => item.description.trim());
     if (validServiceItems.length === 0 && validSparepartItems.length === 0) {
-      toast.error("Add at least one service or sparepart item");
+      toast.error("Tambahkan minimal satu item servis atau sparepart");
       return;
     }
 
     if (!haveRequiredMektekItemInputPrices(validServiceItems)) {
       toast.error(
-        "Estimated cost is required for every service description",
+        "Estimasi biaya wajib diisi untuk setiap deskripsi servis",
       );
       return;
     }
 
     if (!haveRequiredMektekItemInputPrices(validSparepartItems)) {
-      toast.error("Estimated cost is required for every sparepart item");
+      toast.error("Estimasi biaya wajib diisi untuk setiap sparepart");
       return;
     }
 
@@ -58,13 +58,13 @@ export default function ServiceOrderItemsEditor({
         sparepartItems: validSparepartItems,
       });
       if (!result || "error" in result) {
-        toast.error(result?.error || "Failed to add order items");
+        toast.error(result?.error || "Gagal menambahkan item pesanan");
         return;
       }
 
       setServiceItems([blankItem()]);
       setSparepartItems([]);
-      toast.success("Order items and payment total updated");
+      toast.success("Item pesanan dan total pembayaran diperbarui");
       router.refresh();
     });
   };
@@ -73,9 +73,9 @@ export default function ServiceOrderItemsEditor({
     <div className="space-y-5">
       <Separator />
       <div>
-        <p className="text-sm font-semibold">Add service or sparepart</p>
+        <p className="text-sm font-semibold">Tambah servis atau sparepart</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          New prices are added to the invoice and final payment total immediately.
+          Harga baru langsung ditambahkan ke invoice dan total pembayaran akhir.
         </p>
       </div>
 
@@ -83,18 +83,18 @@ export default function ServiceOrderItemsEditor({
         <DamageItemsInput
           items={serviceItems}
           onChange={setServiceItems}
-          label="Additional Service Description"
-          addLabel="Add service description"
-          emptyMessage="No additional service description yet."
-          descriptionPlaceholder={(index) => `Service description ${index + 1}`}
+          label="Deskripsi Servis Tambahan"
+          addLabel="Tambah deskripsi servis"
+          emptyMessage="Belum ada deskripsi servis tambahan."
+          descriptionPlaceholder={(index) => `Deskripsi servis ${index + 1}`}
           disabled={isPending}
         />
         <DamageItemsInput
           items={sparepartItems}
           onChange={setSparepartItems}
-          label="Additional Sparepart Items"
-          addLabel="Add sparepart"
-          emptyMessage="No additional sparepart yet."
+          label="Sparepart Tambahan"
+          addLabel="Tambah sparepart"
+          emptyMessage="Belum ada sparepart tambahan."
           descriptionPlaceholder={(index) => `Sparepart ${index + 1}`}
           disabled={isPending}
           catalogSearch
@@ -108,7 +108,7 @@ export default function ServiceOrderItemsEditor({
           ) : (
             <Plus data-icon="inline-start" />
           )}
-          Add to order
+          Tambahkan ke pesanan
         </Button>
       </div>
     </div>

@@ -77,9 +77,9 @@ export type MektekVoucherAdminRow = {
 
 async function ensureVoucherAdmin() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
   if (!canManageMektekVouchers(session.user)) {
-    return { error: "Forbidden: only admins can manage vouchers" };
+    return { error: "Forbidden: hanya Admin yang dapat mengelola Voucher" };
   }
   return { session };
 }
@@ -135,7 +135,7 @@ function formatPrismaError(error: unknown, fallback: string) {
     "code" in error &&
     error.code === "P2002"
   ) {
-    return "A voucher with this code already exists";
+    return "Voucher dengan Code ini sudah tersedia";
   }
   return fallback;
 }
@@ -178,17 +178,17 @@ async function normalizeVoucherInput(input: MektekVoucherInput) {
   const expiresAt = parseDate(input.expiresAt, true);
   const usageLimit = parseOptionalWholeNumber(input.usageLimit);
 
-  if (normalizedCode.length < 3) return { error: "Voucher code is required" };
-  if (!title) return { error: "Voucher title is required" };
-  if (!description) return { error: "Voucher description is required" };
+  if (normalizedCode.length < 3) return { error: "Voucher Code wajib diisi" };
+  if (!title) return { error: "Voucher Title wajib diisi" };
+  if (!description) return { error: "Voucher Description wajib diisi" };
   if (scope === "CUSTOMER_TYPE" && !customerType) {
-    return { error: "Customer type target is required" };
+    return { error: "Target Customer type wajib dipilih" };
   }
   if (scope === "CUSTOMER" && !customerId) {
-    return { error: "Customer target is required" };
+    return { error: "Target Customer wajib dipilih" };
   }
   if (startsAt && expiresAt && expiresAt.getTime() < startsAt.getTime()) {
-    return { error: "Expiry date must be after the start date" };
+    return { error: "Expiry Date harus setelah Start Date" };
   }
 
   const discountAmount =
@@ -201,10 +201,10 @@ async function normalizeVoucherInput(input: MektekVoucherInput) {
     discountType === "PERCENTAGE" ? parseOptionalWholeNumber(input.maxDiscount) : null;
 
   if (discountType === "FIXED" && (!discountAmount || discountAmount <= 0)) {
-    return { error: "Fixed discount amount must be greater than zero" };
+    return { error: "Fixed Discount Amount harus lebih dari nol" };
   }
   if (discountType === "PERCENTAGE" && (!discountPercent || discountPercent <= 0)) {
-    return { error: "Percentage discount must be between 1 and 100" };
+    return { error: "Percentage Discount harus antara 1 dan 100" };
   }
 
   if (customerId) {
@@ -212,7 +212,7 @@ async function normalizeVoucherInput(input: MektekVoucherInput) {
       where: { id: customerId },
       select: { id: true },
     });
-    if (!customer) return { error: "Selected customer was not found" };
+    if (!customer) return { error: "Customer yang dipilih tidak ditemukan" };
   }
 
   return {
@@ -379,7 +379,7 @@ export async function createMektekVoucher(input: MektekVoucherInput) {
     return { data: voucher };
   } catch (error) {
     console.log("[CREATE_MEKTEK_VOUCHER]", error);
-    return { error: formatPrismaError(error, "Failed to create voucher") };
+    return { error: formatPrismaError(error, "Gagal membuat Voucher") };
   }
 }
 
@@ -388,7 +388,7 @@ export async function updateMektekVoucher(id: string, input: MektekVoucherInput)
   if ("error" in access) return { error: access.error };
 
   const voucherId = compactText(id);
-  if (!voucherId) return { error: "Voucher ID is required" };
+  if (!voucherId) return { error: "Voucher ID wajib diisi" };
 
   const normalized = await normalizeVoucherInput(input);
   if ("error" in normalized) return { error: normalized.error };
@@ -404,7 +404,7 @@ export async function updateMektekVoucher(id: string, input: MektekVoucherInput)
     return { data: voucher };
   } catch (error) {
     console.log("[UPDATE_MEKTEK_VOUCHER]", error);
-    return { error: formatPrismaError(error, "Failed to update voucher") };
+    return { error: formatPrismaError(error, "Gagal memperbarui Voucher") };
   }
 }
 
@@ -413,7 +413,7 @@ export async function deleteMektekVoucher(id: string) {
   if ("error" in access) return { error: access.error };
 
   const voucherId = compactText(id);
-  if (!voucherId) return { error: "Voucher ID is required" };
+  if (!voucherId) return { error: "Voucher ID wajib diisi" };
 
   try {
     const voucher = await prismadb.mektekVoucher.findUnique({
@@ -424,9 +424,9 @@ export async function deleteMektekVoucher(id: string) {
       },
     });
 
-    if (!voucher) return { error: "Voucher not found" };
+    if (!voucher) return { error: "Voucher tidak ditemukan" };
     if (voucher.usedCount > 0) {
-      return { error: "Used vouchers cannot be deleted. Deactivate it instead." };
+      return { error: "Voucher yang sudah digunakan tidak dapat dihapus. Ubah Status menjadi Inactive." };
     }
 
     await prismadb.mektekVoucher.delete({
@@ -438,6 +438,6 @@ export async function deleteMektekVoucher(id: string) {
     return { data: { id: voucher.id } };
   } catch (error) {
     console.log("[DELETE_MEKTEK_VOUCHER]", error);
-    return { error: "Failed to delete voucher" };
+    return { error: "Gagal menghapus Voucher" };
   }
 }

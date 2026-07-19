@@ -25,10 +25,10 @@ const parseTags = (tags: unknown): Record<string, unknown> => {
   return tags as Record<string, unknown>;
 };
 
-export async function getMektekCustomerProfile(locale = "en") {
+export async function getMektekCustomerProfile(locale = "id") {
   const session = await getCustomerAuthSession();
   if (!session?.user?.id) {
-    return { error: "Unauthorized" };
+    return { error: "Unauthorized: silakan Login" };
   }
 
   const user = await prismadb.users.findUnique({
@@ -44,7 +44,7 @@ export async function getMektekCustomerProfile(locale = "en") {
   });
 
   if (!user) {
-    return { error: "User not found" };
+    return { error: "User tidak ditemukan" };
   }
 
   const phoneNormalized = user.phoneNormalized || normalizePhoneNumber(user.phone || "");
@@ -188,12 +188,12 @@ export async function claimMektekCustomerByPhone(
   otpCode: string
 ): Promise<{ success?: true; error?: string }> {
   if (!(await hasTrustedMutationOrigin())) {
-    return { error: "Request could not be verified" };
+    return { error: "Request tidak dapat diverifikasi" };
   }
 
   const session = await getCustomerAuthSession();
   if (!session?.user?.id) {
-    return { error: "Unauthorized" };
+    return { error: "Unauthorized: silakan Login" };
   }
 
   const user = await prismadb.users.findUnique({
@@ -201,7 +201,7 @@ export async function claimMektekCustomerByPhone(
     select: { id: true, phone: true, phoneNormalized: true },
   });
   if (!user) {
-    return { error: "User not found" };
+    return { error: "User tidak ditemukan" };
   }
 
   const phoneNormalized =

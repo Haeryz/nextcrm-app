@@ -26,7 +26,7 @@ function formatDiscount(voucher: MektekVoucher) {
   }
 
   return voucher.discount.maxDiscount
-    ? `${voucher.discount.percent}% up to ${formatCurrency(voucher.discount.maxDiscount)}`
+    ? `${voucher.discount.percent}% hingga ${formatCurrency(voucher.discount.maxDiscount)}`
     : `${voucher.discount.percent}%`;
 }
 
@@ -35,7 +35,7 @@ export function CustomerVoucherList({ vouchers }: CustomerVoucherListProps) {
 
   const copyCode = async (code: string) => {
     await navigator.clipboard.writeText(code);
-    toast.success("Voucher code copied");
+    toast.success("Voucher Code disalin");
   };
 
   return (
@@ -45,21 +45,21 @@ export function CustomerVoucherList({ vouchers }: CustomerVoucherListProps) {
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <TicketPercent className="size-5 text-[#151a63]" />
-              Available vouchers
+              Voucher tersedia
             </CardTitle>
             <p className="mt-1 text-sm text-[#4b5577]">
-              Use these codes when creating a service order or checking out spareparts.
+              Gunakan kode ini saat membuat pesanan servis atau checkout sparepart.
             </p>
           </div>
           <Badge className="bg-[#fff200] text-[#10164f] hover:bg-[#fff200]">
-            {availableVouchers.length} active
+            {availableVouchers.length} aktif
           </Badge>
         </div>
       </CardHeader>
       <CardContent>
         {availableVouchers.length === 0 ? (
           <div className="rounded-md border border-[#151a63]/10 bg-[#fafbff] px-4 py-8 text-center text-sm text-[#4b5577]">
-            No vouchers are available for this account right now.
+            Belum ada voucher yang tersedia untuk akun ini.
           </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -77,12 +77,12 @@ export function CustomerVoucherList({ vouchers }: CustomerVoucherListProps) {
                     </p>
                   </div>
                   <Badge className="bg-[#151a63] text-[#fff200] hover:bg-[#151a63]">
-                    Ready
+                    Siap digunakan
                   </Badge>
                 </div>
 
                 <div className="rounded-md border border-[#151a63]/10 bg-white px-3 py-2">
-                  <p className="text-xs text-[#4b5577]">Code</p>
+                  <p className="text-xs text-[#4b5577]">Kode</p>
                   <p className="mt-1 break-all font-mono text-sm font-semibold">
                     {voucher.code}
                   </p>
@@ -90,13 +90,13 @@ export function CustomerVoucherList({ vouchers }: CustomerVoucherListProps) {
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <p className="text-[#4b5577]">Discount</p>
+                    <p className="text-[#4b5577]">Diskon</p>
                     <p className="font-semibold">{formatDiscount(voucher)}</p>
                   </div>
                   <div>
                     <p className="text-[#4b5577]">Minimum</p>
                     <p className="font-semibold">
-                      {voucher.minSubtotal > 0 ? formatCurrency(voucher.minSubtotal) : "None"}
+                      {voucher.minSubtotal > 0 ? formatCurrency(voucher.minSubtotal) : "Tidak ada"}
                     </p>
                   </div>
                 </div>
@@ -113,7 +113,7 @@ export function CustomerVoucherList({ vouchers }: CustomerVoucherListProps) {
                 onClick={() => copyCode(voucher.code)}
               >
                 <Copy data-icon="inline-start" />
-                Copy code
+                Salin kode
               </Button>
             </div>
             ))}

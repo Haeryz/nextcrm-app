@@ -47,9 +47,9 @@ export type CustomerUserRow = {
 
 async function ensureCustomerAdmin() {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Unauthorized" };
+  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
   if (!canManageMektekCustomers(session.user)) {
-    return { error: "Forbidden: only admins can manage customers" };
+    return { error: "Forbidden: hanya Admin yang dapat mengelola Customer" };
   }
   return { session };
 }
@@ -71,11 +71,11 @@ function normalizeCustomerUserInput(input: CustomerUserInput) {
   const customerType = customerTypes.has(String(input.customerType))
     ? (String(input.customerType) as CatalogCustomerType)
     : ("STANDARD" as CatalogCustomerType);
-  if (!name) return { error: "Customer name is required" };
-  if (!isValidPhoneNumber(phone)) return { error: "Phone number is invalid" };
-  if (!email.includes("@")) return { error: "Email is invalid" };
+  if (!name) return { error: "Nama Customer wajib diisi" };
+  if (!isValidPhoneNumber(phone)) return { error: "Nomor telepon tidak valid" };
+  if (!email.includes("@")) return { error: "Email tidak valid" };
   if (password && password.length < 8) {
-    return { error: "Password must be at least 8 characters" };
+    return { error: "Password minimal 8 karakter" };
   }
 
   return {
@@ -114,7 +114,7 @@ function formatPrismaError(error: unknown, fallback: string) {
     "code" in error &&
     error.code === "P2002"
   ) {
-    return "A customer or user with this phone/email already exists";
+    return "Customer atau User dengan nomor telepon/Email ini sudah tersedia";
   }
   return fallback;
 }
@@ -214,7 +214,7 @@ export async function createMektekCustomerUser(input: CustomerUserInput) {
           email: data.email,
           phone: data.phone,
           phoneNormalized: data.phoneNormalized,
-          userLanguage: "en",
+          userLanguage: "id",
           userStatus: "ACTIVE",
           mektekRole: null,
           ...(password ? { password } : {}),
@@ -236,7 +236,7 @@ export async function createMektekCustomerUser(input: CustomerUserInput) {
     return { data: customer };
   } catch (error) {
     console.log("[CREATE_MEKTEK_CUSTOMER_USER]", error);
-    return { error: formatPrismaError(error, "Failed to create customer") };
+    return { error: formatPrismaError(error, "Gagal membuat Customer") };
   }
 }
 
@@ -245,7 +245,7 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
   if ("error" in access) return { error: access.error };
 
   const customerId = compactText(id);
-  if (!customerId) return { error: "Customer ID is required" };
+  if (!customerId) return { error: "Customer ID wajib diisi" };
 
   const normalized = normalizeCustomerUserInput(input);
   if ("error" in normalized) return { error: normalized.error };
@@ -311,7 +311,7 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
             ...userPayload,
             avatar: "",
             is_account_admin: false,
-            userLanguage: "en",
+            userLanguage: "id",
             userStatus: "ACTIVE",
           },
         });
@@ -336,12 +336,12 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
   } catch (error) {
     console.log("[UPDATE_MEKTEK_CUSTOMER_USER]", error);
     if (error instanceof Error && error.message === "CUSTOMER_NOT_FOUND") {
-      return { error: "Customer not found" };
+      return { error: "Customer tidak ditemukan" };
     }
     if (error instanceof Error && error.message === "PROTECTED_ACCOUNT") {
-      return { error: "Admin and staff accounts cannot be edited from customer management" };
+      return { error: "Admin dan Staff Account tidak dapat diedit dari Customer Management" };
     }
-    return { error: formatPrismaError(error, "Failed to update customer") };
+    return { error: formatPrismaError(error, "Gagal memperbarui Customer") };
   }
 }
 
@@ -350,7 +350,7 @@ export async function deleteMektekCustomerUser(id: string) {
   if ("error" in access) return { error: access.error };
 
   const customerId = compactText(id);
-  if (!customerId) return { error: "Customer ID is required" };
+  if (!customerId) return { error: "Customer ID wajib diisi" };
 
   try {
     await prismadb.$transaction(async (tx) => {
@@ -395,12 +395,12 @@ export async function deleteMektekCustomerUser(id: string) {
   } catch (error) {
     console.log("[DELETE_MEKTEK_CUSTOMER_USER]", error);
     if (error instanceof Error) {
-      if (error.message === "CUSTOMER_NOT_FOUND") return { error: "Customer not found" };
-      if (error.message === "SELF_DELETE") return { error: "You cannot delete your own user account" };
+      if (error.message === "CUSTOMER_NOT_FOUND") return { error: "Customer tidak ditemukan" };
+      if (error.message === "SELF_DELETE") return { error: "Anda tidak dapat menghapus User Account sendiri" };
       if (error.message === "PROTECTED_ACCOUNT") {
-        return { error: "Admin and staff accounts cannot be deleted from customer management" };
+        return { error: "Admin dan Staff Account tidak dapat dihapus dari Customer Management" };
       }
     }
-    return { error: "Failed to delete customer" };
+    return { error: "Gagal menghapus Customer" };
   }
 }

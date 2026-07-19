@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 
 const TryAgain = () => {
   const router = useRouter();
-  return <Button onClick={() => router.refresh()}>Try again</Button>;
+  return <Button onClick={() => router.refresh()}>Coba lagi</Button>;
 };
 
 export default TryAgain;

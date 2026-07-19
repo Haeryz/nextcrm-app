@@ -53,7 +53,7 @@ export default function VisitDiscountCard({ visitCount }: VisitDiscountCardProps
               <span>{item.label}</span>
               <span>
                 {item.minVisits}+ kunjungan -{" "}
-                {item.discount > 0 ? `${item.discount}% off` : "No discount"}
+                {item.discount > 0 ? `Diskon ${item.discount}%` : "Tanpa diskon"}
               </span>
             </div>
           ))}

@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 
   if (getWhatsAppDriverName() !== "baileys") {
     return Response.json(
-      { error: "Pairing over SSE requires the baileys driver." },
+      { error: "Pairing melalui SSE memerlukan Baileys Driver." },
       { status: 400 }
     );
   }
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   const lease = await acquireWhatsAppLease({ ttlMs: 60_000, waitMs: 10_000 });
   if (!lease) {
     return Response.json(
-      { error: "WhatsApp is busy sending a message. Try again in a moment." },
+      { error: "WhatsApp sedang mengirim pesan. Silakan coba lagi sebentar." },
       { status: 409 }
     );
   }

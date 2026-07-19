@@ -32,7 +32,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
   }
 
   items.push({
-    title: "Orders",
+    title: "Pesanan",
     url: "/mektek",
     exact: true,
     icon: ClipboardList,
@@ -40,7 +40,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
 
   if (canCreateMektekOrders(user)) {
     items.push({
-      title: "Items",
+      title: "Item",
       url: "/mektek/items",
       icon: PackageSearch,
     });
@@ -56,7 +56,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
 
   if (canManageMektekCustomers(user)) {
     items.push({
-      title: "Customers",
+      title: "Pelanggan",
       url: "/mektek/customers",
       icon: Users,
     });

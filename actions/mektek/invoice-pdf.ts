@@ -377,7 +377,7 @@ function buildPdfDocument(data: MektekInvoiceData) {
           React.createElement(
             View,
             { style: S.infoRow },
-            React.createElement(Text, { style: S.infoLabel }, "Date"),
+            React.createElement(Text, { style: S.infoLabel }, "Tanggal"),
             React.createElement(Text, { style: S.infoColon }, ":"),
             React.createElement(Text, { style: S.infoValue }, data.invoiceDate)
           )
@@ -475,7 +475,7 @@ function buildPdfDocument(data: MektekInvoiceData) {
         React.createElement(
           View,
           { style: S.sigBox },
-          React.createElement(Text, { style: S.sigTitle }, "Received"),
+          React.createElement(Text, { style: S.sigTitle }, "Diterima"),
           React.createElement(
             Text,
             { style: S.sigName },
@@ -485,7 +485,7 @@ function buildPdfDocument(data: MektekInvoiceData) {
         React.createElement(
           View,
           { style: S.sigBox },
-          React.createElement(Text, { style: S.sigTitle }, "Dept. Logistic"),
+          React.createElement(Text, { style: S.sigTitle }, "Dept. Logistik"),
           React.createElement(
             Text,
             { style: S.sigName },

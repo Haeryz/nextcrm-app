@@ -39,7 +39,7 @@ type CatalogSearchItem = {
 export default function DamageItemsInput({
   items,
   onChange,
-  label = "Service Description",
+  label = "Deskripsi Servis",
   addLabel = "Tambah item",
   emptyMessage = "Belum ada item servis. Klik \"Tambah item\" untuk menambah.",
   descriptionPlaceholder = (index) =>
@@ -145,10 +145,10 @@ export default function DamageItemsInput({
             {item.catalogItemId && (
               <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span className="rounded-full bg-muted px-2 py-1">
-                  Catalog
+                  Katalog
                 </span>
                 <span>{item.machine}</span>
-                <span>{item.partNumber || "No part number"}</span>
+                <span>{item.partNumber || "Tanpa nomor komponen"}</span>
               </div>
             )}
             <div className="flex flex-col gap-2 md:flex-row md:items-start">
@@ -168,7 +168,7 @@ export default function DamageItemsInput({
                   <div className="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-20 max-h-72 overflow-y-auto rounded-md border bg-popover text-popover-foreground shadow-md">
                     {isSearchingCatalog && (
                       <div className="px-3 py-2 text-xs text-muted-foreground">
-                        Searching catalogue...
+                        Mencari di katalog...
                       </div>
                     )}
                     {!isSearchingCatalog &&
@@ -186,7 +186,7 @@ export default function DamageItemsInput({
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {catalogItem.machine} -{" "}
-                            {catalogItem.partNumber || "No part number"}
+                            {catalogItem.partNumber || "Tanpa nomor komponen"}
                           </span>
                         </button>
                       ))}
@@ -194,15 +194,15 @@ export default function DamageItemsInput({
                       activeCatalogQuery.length >= 2 &&
                       catalogResults.length === 0 && (
                         <div className="px-3 py-2 text-xs text-muted-foreground">
-                          No catalogue item found.
+                          Item katalog tidak ditemukan.
                         </div>
                       )}
                   </div>
                 )}
               </div>
               <Input
-                aria-label="Quantity"
-                placeholder="Qty"
+                aria-label="Jumlah"
+                placeholder="Jml"
                 value={String(item.quantity ?? 1)}
                 onChange={(e) =>
                   updateItem(
@@ -215,7 +215,7 @@ export default function DamageItemsInput({
                 className="w-full md:w-24"
               />
                     <RupiahInput
-                      aria-label="Estimated cost in Rupiah"
+                      aria-label="Estimasi biaya dalam Rupiah"
                       placeholder="Estimasi biaya (Rp)"
                       value={item.estimatedCost}
                       onValueChange={(value) =>
@@ -232,7 +232,7 @@ export default function DamageItemsInput({
                 onClick={() => removeItem(index)}
                 disabled={disabled}
                 className="shrink-0 self-end md:self-auto"
-                aria-label={`Remove ${label.toLowerCase()} item ${index + 1}`}
+                aria-label={`Hapus item ${label.toLowerCase()} ${index + 1}`}
               >
                 <X className="w-4 h-4" />
               </Button>

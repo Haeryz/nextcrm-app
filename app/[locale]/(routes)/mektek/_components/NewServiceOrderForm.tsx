@@ -30,11 +30,13 @@ import DamageItemsInput, { DamageItem } from "./DamageItemsInput";
 const UNASSIGNED_TECHNICIAN = "UNASSIGNED";
 
 type NewServiceOrderFormProps = {
+  locale: string;
   initialEstimatedDone: string;
   technicians: MektekTechnicianOption[];
 };
 
 export default function NewServiceOrderForm({
+  locale,
   initialEstimatedDone,
   technicians,
 }: NewServiceOrderFormProps) {
@@ -105,19 +107,19 @@ export default function NewServiceOrderForm({
     );
 
     if (describedServiceItems.length === 0) {
-      toast.error("Add at least one service description");
+      toast.error("Tambahkan minimal satu deskripsi servis");
       return;
     }
 
     if (!haveRequiredMektekItemInputPrices(describedServiceItems)) {
       toast.error(
-        "Estimated cost is required for every service description",
+        "Estimasi biaya wajib diisi untuk setiap deskripsi servis",
       );
       return;
     }
 
     if (!haveRequiredMektekItemInputPrices(describedSparepartItems)) {
-      toast.error("Estimated cost is required for every sparepart item");
+      toast.error("Estimasi biaya wajib diisi untuk setiap sparepart");
       return;
     }
 
@@ -128,7 +130,7 @@ export default function NewServiceOrderForm({
             item.description.trim(),
             item.quantity && item.quantity > 1 ? `x${item.quantity}` : "",
             item.partNumber ? `(${item.partNumber})` : "",
-            item.estimatedCost ? `(Est. Rp ${item.estimatedCost})` : "",
+            item.estimatedCost ? `(Estimasi Rp ${item.estimatedCost})` : "",
           ]
             .filter(Boolean)
             .join(" ")
@@ -136,6 +138,7 @@ export default function NewServiceOrderForm({
         .join("\n");
 
       const result = await createMektekServiceOrder({
+        locale,
         customerName,
         vehicle,
         complaint: complaint || "-",
@@ -158,8 +161,8 @@ export default function NewServiceOrderForm({
       setSuccessBurstKey((currentKey) => currentKey + 1);
       toast.success(
         result?.data?.customerCreated
-          ? "Service order created. New customer saved automatically."
-          : "Service order created",
+          ? "Pesanan servis dibuat. Pelanggan baru disimpan secara otomatis."
+          : "Pesanan servis berhasil dibuat",
       );
       setTrackingLink(result?.data?.customerTrackingLink || "");
       const tags =
@@ -178,9 +181,9 @@ export default function NewServiceOrderForm({
         typeof voucher?.discountAmount === "number" ? voucher.discountAmount : 0;
       setLoyaltySummary(
         voucherTitle && voucherDiscount > 0
-          ? `${voucherTitle} voucher applied: Rp ${voucherDiscount.toLocaleString("id-ID")}`
+          ? `Voucher ${voucherTitle} digunakan: Rp ${voucherDiscount.toLocaleString("id-ID")}`
           : loyaltyTier && loyaltyDiscountRate > 0
-          ? `${loyaltyTier} discount applied automatically: ${loyaltyDiscountRate}%`
+          ? `Diskon ${loyaltyTier} diterapkan otomatis: ${loyaltyDiscountRate}%`
           : ""
       );
       selectedCustomerNameRef.current = "";
@@ -218,7 +221,7 @@ export default function NewServiceOrderForm({
   const copyLink = async () => {
     if (!trackingLink) return;
     await navigator.clipboard.writeText(trackingLink);
-    toast.success("Customer tracking link copied");
+    toast.success("Link tracking pelanggan disalin");
   };
 
   return (
@@ -227,19 +230,19 @@ export default function NewServiceOrderForm({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              Service Intake
+              Penerimaan Servis
             </p>
-            <h3 className="text-lg font-semibold">Input Service Baru</h3>
+            <h3 className="text-lg font-semibold">Input Servis Baru</h3>
           </div>
           <span className="text-xs rounded-full border px-3 py-1 text-muted-foreground">
-            Admin Only
+            Khusus Admin
           </span>
         </div>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="relative">
             <Input
-              placeholder="Customer name"
+              placeholder="Nama pelanggan"
               value={customerName}
               onFocus={() => {
                 if (customerSuggestions.length > 0) setCustomerSuggestionsOpen(true);
@@ -268,7 +271,7 @@ export default function NewServiceOrderForm({
                 >
                   {isSearchingCustomers && (
                     <div className="px-3 py-2 text-xs text-muted-foreground">
-                      Searching customers...
+                      Mencari pelanggan...
                     </div>
                   )}
                   {!isSearchingCustomers &&
@@ -294,14 +297,14 @@ export default function NewServiceOrderForm({
                     hasCustomerSearchResult &&
                     customerSuggestions.length === 0 && (
                       <div className="px-3 py-2 text-xs text-muted-foreground">
-                        No customer found. Continue as new customer.
+                        Pelanggan tidak ditemukan. Lanjutkan sebagai pelanggan baru.
                       </div>
                     )}
                 </div>
               )}
           </div>
           <Input
-            placeholder="Vehicle (e.g. Toyota Avanza 2021)"
+            placeholder="Kendaraan (mis. Toyota Avanza 2021)"
             value={vehicle}
             onChange={(event) => setVehicle(event.target.value)}
             disabled={isPending}
@@ -312,12 +315,12 @@ export default function NewServiceOrderForm({
             onValueChange={setTechnicianId}
             disabled={isPending}
           >
-            <SelectTrigger aria-label="Technician">
-              <SelectValue placeholder="Assign technician" />
+            <SelectTrigger aria-label="Teknisi">
+              <SelectValue placeholder="Pilih teknisi" />
             </SelectTrigger>
             <SelectContent>
               <SelectGroup>
-                <SelectItem value={UNASSIGNED_TECHNICIAN}>Unassigned technician</SelectItem>
+                <SelectItem value={UNASSIGNED_TECHNICIAN}>Belum ada teknisi</SelectItem>
                 {technicians.map((technician) => (
                   <SelectItem key={technician.id} value={technician.id}>
                     {technician.name || technician.email}
@@ -327,7 +330,7 @@ export default function NewServiceOrderForm({
             </SelectContent>
           </Select>
           <Input
-            placeholder="Phone"
+            placeholder="Telepon"
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
             disabled={isPending}
@@ -338,17 +341,17 @@ export default function NewServiceOrderForm({
             onValueChange={(nextValue) => setCustomerType(nextValue === "B2B" ? "B2B" : "STANDARD")}
             disabled={isPending}
           >
-            <SelectTrigger aria-label="Customer type">
+            <SelectTrigger aria-label="Jenis pelanggan">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="STANDARD">Standard customer</SelectItem>
+              <SelectItem value="STANDARD">Pelanggan standar</SelectItem>
               <SelectItem value="B2B">Perusahaan</SelectItem>
             </SelectContent>
           </Select>
           <Input
-            aria-label="Estimated done date"
-            placeholder="Estimated done"
+            aria-label="ETA"
+            placeholder="ETA"
             type="date"
             value={estimatedDone}
             onChange={(event) => setEstimatedDone(event.target.value)}
@@ -358,13 +361,13 @@ export default function NewServiceOrderForm({
 
         <div className="grid grid-cols-1 gap-3">
           <Input
-            placeholder="Address"
+            placeholder="Alamat"
             value={address}
             onChange={(event) => setAddress(event.target.value)}
             disabled={isPending}
           />
           <Input
-            placeholder="Voucher code"
+            placeholder="Kode voucher"
             value={voucherCode}
             onChange={(event) => setVoucherCode(event.target.value.toUpperCase())}
             disabled={isPending}
@@ -377,7 +380,7 @@ export default function NewServiceOrderForm({
           <DamageItemsInput
             items={sparepartItems}
             onChange={setSparepartItems}
-            label="Sparepart Items"
+            label="Daftar Sparepart"
             addLabel="Tambah sparepart"
             emptyMessage='Belum ada sparepart. Tambahkan dari katalog atau klik "Tambah sparepart".'
             descriptionPlaceholder={(index) =>
@@ -396,21 +399,21 @@ export default function NewServiceOrderForm({
             {isPending && (
               <Loader2 data-icon="inline-start" className="animate-spin" />
             )}
-            {isPending ? "Saving..." : "Add Service"}
+            {isPending ? "Menyimpan..." : "Tambah Servis"}
           </Button>
         </div>
       </form>
 
       {trackingLink && (
         <div className="rounded-xl border p-4 bg-muted/20">
-          <p className="text-sm font-medium mb-2">Customer tracking link</p>
+          <p className="text-sm font-medium mb-2">Link tracking pelanggan</p>
           {loyaltySummary && (
             <p className="mb-2 text-sm text-muted-foreground">{loyaltySummary}</p>
           )}
           <div className="flex flex-col gap-2 md:flex-row">
             <Input value={trackingLink} readOnly />
             <Button type="button" onClick={copyLink}>
-              Copy Link
+              Salin Link
             </Button>
           </div>
         </div>

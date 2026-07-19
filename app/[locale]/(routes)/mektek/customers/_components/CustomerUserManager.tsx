@@ -90,15 +90,15 @@ function Field({
 }
 
 function formatDate(value: string | null) {
-  if (!value) return "Never";
-  return new Intl.DateTimeFormat("en", {
+  if (!value) return "Belum pernah";
+  return new Intl.DateTimeFormat("id-ID", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
 }
 
 function roleLabel(customer: CustomerUserRow) {
-  if (!customer.user) return "No login";
+  if (!customer.user) return "Belum ada Login";
   if (customer.user.isAdmin) return "Admin";
   if (customer.user.mektekRole === "CS") return "CS";
   if (customer.user.mektekRole === "TECHNICIAN") return "Technician";
@@ -163,7 +163,7 @@ function CustomerUserForm({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="STANDARD">Standard customer</SelectItem>
+              <SelectItem value="STANDARD">Customer standard</SelectItem>
               <SelectItem value="B2B">Perusahaan</SelectItem>
             </SelectContent>
           </Select>
@@ -174,7 +174,7 @@ function CustomerUserForm({
             value={value.email ?? ""}
             onChange={(event) => update("email", event.target.value)}
             disabled={pending}
-            placeholder="Generated from phone if blank"
+            placeholder="Dibuat dari nomor telepon jika kosong"
           />
         </Field>
         <Field label={isEdit ? "New password" : "Password"}>
@@ -183,7 +183,7 @@ function CustomerUserForm({
             value={value.password ?? ""}
             onChange={(event) => update("password", event.target.value)}
             disabled={pending}
-            placeholder={isEdit ? "Leave blank to keep current" : "Optional"}
+            placeholder={isEdit ? "Kosongkan untuk mempertahankan Password saat ini" : "Opsional"}
           />
         </Field>
       </div>
@@ -209,7 +209,7 @@ export default function CustomerUserManager({
   const [createValue, setCreateValue] = useState<CustomerUserInput>(blankCustomer);
   const [editValue, setEditValue] = useState<CustomerUserInput>(blankCustomer);
 
-  const countLabel = `${customers.length} customer${customers.length === 1 ? "" : "s"} on this page`;
+  const countLabel = `${customers.length} Customer di halaman ini`;
 
   const submitCreate = () => {
     startTransition(async () => {
@@ -218,7 +218,7 @@ export default function CustomerUserManager({
         toast.error(result.error);
         return;
       }
-      toast.success("Customer created");
+      toast.success("Customer berhasil dibuat");
       setCreateValue(blankCustomer);
       setCreateOpen(false);
       router.refresh();
@@ -238,7 +238,7 @@ export default function CustomerUserManager({
         toast.error(result.error);
         return;
       }
-      toast.success("Customer updated");
+      toast.success("Customer berhasil diperbarui");
       setEditingCustomer(null);
       router.refresh();
     });
@@ -251,7 +251,7 @@ export default function CustomerUserManager({
         toast.error(result.error);
         return;
       }
-      toast.success("Customer deleted");
+      toast.success("Customer berhasil dihapus");
       router.refresh();
     });
   };
@@ -264,21 +264,21 @@ export default function CustomerUserManager({
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto">
               <Plus data-icon="inline-start" />
-              Add customer
+              Tambah Customer
             </Button>
           </DialogTrigger>
           <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Add customer</DialogTitle>
+              <DialogTitle>Tambah Customer</DialogTitle>
               <DialogDescription>
-                Create a customer profile and a linked user account for customer access.
+                Buat Customer Profile dan User Account yang terhubung untuk akses Customer.
               </DialogDescription>
             </DialogHeader>
             <CustomerUserForm
               value={createValue}
               onChange={setCreateValue}
               onSubmit={submitCreate}
-              submitLabel="Create customer"
+              submitLabel="Buat Customer"
               pending={isPending}
             />
           </DialogContent>
@@ -302,7 +302,7 @@ export default function CustomerUserManager({
               <Link
                 href={`/${locale}/mektek/customers/${customer.id}`}
                 className="group -m-2 grid min-w-0 gap-3 rounded-md p-2 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:col-span-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(160px,0.9fr)_minmax(128px,0.6fr)_minmax(120px,0.7fr)] lg:items-center lg:gap-4"
-                aria-label={`View ${customer.user?.name || customer.username} details`}
+                aria-label={`Lihat detail ${customer.user?.name || customer.username}`}
               >
                 <div className="min-w-0">
                   <p className="truncate font-medium group-hover:underline">
@@ -312,10 +312,10 @@ export default function CustomerUserManager({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm">
-                    {customer.user?.email ?? "No login account"}
+                    {customer.user?.email ?? "Belum ada Login Account"}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {customer.user ? "Customer login" : "No linked login"}
+                    {customer.user ? "Customer Login" : "Belum ada Login terhubung"}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -326,9 +326,9 @@ export default function CustomerUserManager({
                 </div>
                 <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
                   <div>
-                    <p>{customer.serviceCount} service orders</p>
+                    <p>{customer.serviceCount} Service Order</p>
                     <p className="text-xs">
-                      Last login: {formatDate(customer.user?.lastLoginAt ?? null)}
+                      Login terakhir: {formatDate(customer.user?.lastLoginAt ?? null)}
                     </p>
                   </div>
                   <ChevronRight className="size-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
@@ -352,7 +352,7 @@ export default function CustomerUserManager({
                   size="icon"
                   onClick={() => deleteCustomer(customer)}
                   disabled={isPending}
-                  aria-label={`Delete ${customer.user?.name || customer.username}`}
+                  aria-label={`Hapus ${customer.user?.name || customer.username}`}
                   className="shrink-0"
                 >
                   <Trash2 />
@@ -362,7 +362,7 @@ export default function CustomerUserManager({
           ))}
           {customers.length === 0 && (
             <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-              No customers match this filter.
+              Tidak ada Customer yang cocok dengan Filter ini.
             </div>
           )}
         </div>
@@ -371,16 +371,16 @@ export default function CustomerUserManager({
       <Dialog open={!!editingCustomer} onOpenChange={(open) => !open && setEditingCustomer(null)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Edit customer</DialogTitle>
+            <DialogTitle>Edit Customer</DialogTitle>
             <DialogDescription>
-              Changes update both the customer profile and linked user account.
+              Perubahan memperbarui Customer Profile dan User Account yang terhubung.
             </DialogDescription>
           </DialogHeader>
           <CustomerUserForm
             value={editValue}
             onChange={setEditValue}
             onSubmit={submitEdit}
-            submitLabel="Save changes"
+            submitLabel="Simpan perubahan"
             pending={isPending}
             isEdit
           />

@@ -5,7 +5,7 @@ export default function Loading() {
   return (
     <Container
       title="MEKTEK"
-      description="Service order tracking - manage and monitor all repair jobs"
+      description="Kelola dan pantau seluruh pekerjaan servis"
     >
       <ListPageSkeleton rows={8} />
     </Container>

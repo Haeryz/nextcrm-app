@@ -48,7 +48,7 @@ const customerSchema = z.object({
   phone: z.string().min(6).max(30),
   password: z.string().min(8).max(50),
   confirmPassword: z.string().min(8).max(50),
-  otpCode: z.string().length(6, "Enter the 6-digit WhatsApp code"),
+  otpCode: z.string().length(6, "Masukkan kode WhatsApp 6 digit"),
 });
 
 const staffSchema = z.object({
@@ -79,7 +79,7 @@ function PasswordToggle({
       size="icon"
       className="mt-7 shrink-0"
       onClick={onClick}
-      aria-label={show ? "Hide password" : "Show password"}
+      aria-label={show ? "Sembunyikan Password" : "Tampilkan Password"}
     >
       <Icon data-icon="inline-start" />
     </Button>
@@ -91,7 +91,7 @@ export function RegisterComponent() {
   const params = useParams<{ locale?: string }>();
   const searchParams = useSearchParams();
   const t = useTranslations("RegisterComponent");
-  const locale = params.locale || "en";
+  const locale = params.locale || "id";
   const initialPhone = searchParams.get("phone") || "";
 
   const [isLoading, setIsLoading] = React.useState(false);
@@ -113,7 +113,7 @@ export function RegisterComponent() {
   const onSendCustomerOtp = async () => {
     const phone = customerForm.getValues("phone");
     if (!phone?.trim()) {
-      toast.error("Enter your phone number first.");
+      toast.error("Masukkan nomor telepon terlebih dahulu.");
       return;
     }
     setOtpSending(true);
@@ -125,7 +125,7 @@ export function RegisterComponent() {
       }
       toast.success("Kode verifikasi dikirim via WhatsApp.");
     } catch (error: any) {
-      toast.error(error?.message || "Failed to send code");
+      toast.error(error?.message || "Gagal mengirim kode");
     } finally {
       setOtpSending(false);
     }
@@ -137,7 +137,7 @@ export function RegisterComponent() {
       name: "",
       username: "",
       email: "",
-      language: "",
+      language: "id",
       password: "",
       confirmPassword: "",
     },
@@ -161,16 +161,16 @@ export function RegisterComponent() {
       });
 
       if (status?.error) {
-        toast.error("Account created. Please sign in with your phone number.");
+        toast.error("Akun berhasil dibuat. Silakan Login dengan nomor telepon Anda.");
         router.push(`/${locale}/sign-in?customer=1&phone=${encodeURIComponent(data.phone)}`);
         return;
       }
 
-      toast.success("Customer account created.");
+      toast.success("Akun pelanggan berhasil dibuat.");
       router.push(`/${locale}/customer/profile`);
       router.refresh();
     } catch (error: any) {
-      toast.error(error?.message || "Customer registration failed");
+      toast.error(error?.message || "Pendaftaran pelanggan gagal");
     } finally {
       setIsLoading(false);
     }
@@ -186,10 +186,10 @@ export function RegisterComponent() {
         return;
       }
 
-      toast.success("User created successfully, please login.");
+      toast.success("Pengguna berhasil dibuat. Silakan Login.");
       router.push(`/${locale}`);
     } catch (error: any) {
-      toast.error(error?.message || "Registration failed");
+      toast.error(error?.message || "Pendaftaran gagal");
     } finally {
       setIsLoading(false);
     }
@@ -204,8 +204,8 @@ export function RegisterComponent() {
       <CardContent className="grid gap-4 overflow-auto">
         <Tabs defaultValue="customer" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="customer">Customer</TabsTrigger>
-            <TabsTrigger value="staff">Staff</TabsTrigger>
+            <TabsTrigger value="customer">Pelanggan</TabsTrigger>
+            <TabsTrigger value="staff">Staf</TabsTrigger>
           </TabsList>
 
           <TabsContent value="customer" className="mt-4">
@@ -219,11 +219,11 @@ export function RegisterComponent() {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Name</FormLabel>
+                      <FormLabel>Nama</FormLabel>
                       <FormControl>
                         <Input
                           disabled={isLoading}
-                          placeholder="John Doe"
+                          placeholder="Budi Santoso"
                           {...field}
                         />
                       </FormControl>
@@ -237,7 +237,7 @@ export function RegisterComponent() {
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Phone number</FormLabel>
+                      <FormLabel>Nomor telepon</FormLabel>
                       <FormControl>
                         <Input
                           disabled={isLoading}
@@ -256,14 +256,14 @@ export function RegisterComponent() {
                   name="otpCode"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>WhatsApp verification code</FormLabel>
+                      <FormLabel>Kode verifikasi WhatsApp</FormLabel>
                       <div className="flex items-start gap-2">
                         <FormControl>
                           <Input
                             disabled={isLoading}
                             inputMode="numeric"
                             autoComplete="one-time-code"
-                            placeholder="6-digit code"
+                            placeholder="Kode 6 digit"
                             {...field}
                             onChange={(event) =>
                               field.onChange(
@@ -314,7 +314,7 @@ export function RegisterComponent() {
                   name="confirmPassword"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Confirm Password</FormLabel>
+                      <FormLabel>Konfirmasi Password</FormLabel>
                       <FormControl>
                         <Input
                           disabled={isLoading}
@@ -329,7 +329,7 @@ export function RegisterComponent() {
                 />
 
                 <Button disabled={isLoading} type="submit" className="h-11 w-full">
-                  {isLoading ? "Creating account..." : "Create customer account"}
+                  {isLoading ? "Membuat akun..." : "Buat akun pelanggan"}
                 </Button>
               </form>
             </Form>
@@ -347,11 +347,11 @@ export function RegisterComponent() {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Name</FormLabel>
+                        <FormLabel>Nama</FormLabel>
                         <FormControl>
                           <Input
                             disabled={isLoading}
-                            placeholder="John Doe"
+                            placeholder="Budi Santoso"
                             {...field}
                           />
                         </FormControl>
@@ -377,7 +377,7 @@ export function RegisterComponent() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>E-mail</FormLabel>
+                        <FormLabel>Email</FormLabel>
                         <FormControl>
                           <Input
                             disabled={isLoading}
@@ -394,18 +394,18 @@ export function RegisterComponent() {
                     name="language"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Choose your language</FormLabel>
+                        <FormLabel>Pilih bahasa Anda</FormLabel>
                         <Select
                           onValueChange={field.onChange}
                           defaultValue={field.value}
                         >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Select a language" />
+                              <SelectValue placeholder="Pilih bahasa" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent className="flex h-56 overflow-y-auto">
-                            {["en", "de", "cz", "uk"].map((lng) => (
+                            {["id", "en", "de", "cz", "uk"].map((lng) => (
                               <SelectItem key={lng} value={lng}>
                                 {t("locale", { locale: lng })}
                               </SelectItem>
@@ -442,7 +442,7 @@ export function RegisterComponent() {
                     name="confirmPassword"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Confirm Password</FormLabel>
+                        <FormLabel>Konfirmasi Password</FormLabel>
                         <FormControl>
                           <Input
                             disabled={isLoading}
@@ -456,7 +456,7 @@ export function RegisterComponent() {
                     )}
                   />
                   <Button disabled={isLoading} type="submit" className="h-11 w-full">
-                    {isLoading ? "Creating account..." : "Create staff account"}
+                    {isLoading ? "Membuat akun..." : "Buat akun staf"}
                   </Button>
                 </form>
               </Form>
@@ -466,7 +466,7 @@ export function RegisterComponent() {
       </CardContent>
       <CardFooter className="flex flex-col gap-5">
         <div className="text-sm text-gray-500">
-          Already have an account?{" "}
+          Sudah memiliki akun?{" "}
           <Link
             href={{
               pathname: `/${locale}/sign-in`,
@@ -474,7 +474,7 @@ export function RegisterComponent() {
             }}
             className="text-blue-500"
           >
-            sign-in
+            Login
           </Link>
         </div>
       </CardFooter>

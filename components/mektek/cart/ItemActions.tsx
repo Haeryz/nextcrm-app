@@ -18,7 +18,7 @@ export function ItemActions({ item }: { item: StoreItem }) {
 
   const handleBuy = () => {
     if (!isAuthenticated) {
-      toast.error("Silakan masuk untuk melanjutkan pembelian.");
+      toast.error("Silakan Login untuk melanjutkan pembelian.");
       router.push(loginHref);
       return;
     }
