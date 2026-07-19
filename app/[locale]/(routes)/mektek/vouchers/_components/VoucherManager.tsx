@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { RupiahInput } from "@/components/mektek/RupiahInput";
 
 const NO_CUSTOMER = "NO_CUSTOMER";
 
@@ -337,11 +338,10 @@ function VoucherForm({
               />
             </Field>
             <Field label="Max discount">
-              <Input
-                type="number"
-                min="0"
+              <RupiahInput
+                aria-label="Maximum discount in Rupiah"
                 value={value.maxDiscount ?? ""}
-                onChange={(event) => update("maxDiscount", event.target.value)}
+                onValueChange={(nextValue) => update("maxDiscount", nextValue)}
                 disabled={pending}
                 placeholder="Optional"
               />
@@ -349,22 +349,20 @@ function VoucherForm({
           </>
         ) : (
           <Field label="Discount amount">
-            <Input
-              type="number"
-              min="1"
+            <RupiahInput
+              aria-label="Discount amount in Rupiah"
               value={value.discountAmount ?? ""}
-              onChange={(event) => update("discountAmount", event.target.value)}
+              onValueChange={(nextValue) => update("discountAmount", nextValue)}
               disabled={pending}
               required
             />
           </Field>
         )}
         <Field label="Minimum subtotal">
-          <Input
-            type="number"
-            min="0"
+          <RupiahInput
+            aria-label="Minimum subtotal in Rupiah"
             value={value.minSubtotal ?? ""}
-            onChange={(event) => update("minSubtotal", event.target.value)}
+            onValueChange={(nextValue) => update("minSubtotal", nextValue)}
             disabled={pending}
             placeholder="0"
           />

@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CatalogImage } from "@/components/mektek/CatalogImage";
+import { RupiahInput } from "@/components/mektek/RupiahInput";
 
 type CatalogItemRow = {
   id: string;
@@ -197,10 +198,10 @@ function CatalogItemForm({
           />
         </Field>
         <Field label="Price">
-          <Input
-            inputMode="numeric"
-            value={String(value.price ?? "")}
-            onChange={(event) => update("price", event.target.value.replace(/\D/g, ""))}
+          <RupiahInput
+            aria-label="Price in Rupiah"
+            value={value.price}
+            onValueChange={(nextValue) => update("price", nextValue)}
             disabled={pending}
           />
         </Field>

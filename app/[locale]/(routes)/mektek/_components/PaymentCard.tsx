@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { CheckCircle2, Circle, Save } from "lucide-react";
 import { updateMektekPayment } from "@/actions/mektek/service-orders";
+import { RupiahInput } from "@/components/mektek/RupiahInput";
 import type { MektekPaymentDetail } from "@/lib/mektek/financials";
 
 type PaymentMethod = "cash" | "transfer" | "qris";
@@ -97,10 +97,6 @@ export default function PaymentCard({
   const latestProviderPayment =
     providerPayments.find((payment) => payment.isPaid) ?? providerPayments[0] ?? null;
 
-  const updateNumber = (setter: (value: string) => void) => (value: string) => {
-    setter(value.replace(/\D/g, ""));
-  };
-
   const markPaid = () => {
     setAmountPaid(String(Math.round(totals.total)));
   };
@@ -173,9 +169,10 @@ export default function PaymentCard({
             <p className="mb-2 text-xs text-muted-foreground">Diskon</p>
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm text-muted-foreground">Rp</span>
-              <Input
+              <RupiahInput
+                aria-label="Diskon dalam Rupiah"
                 value={discount}
-                onChange={(event) => updateNumber(setDiscount)(event.target.value)}
+                onValueChange={setDiscount}
                 placeholder="0"
                 className="font-mono"
                 disabled={isPending}
@@ -186,9 +183,10 @@ export default function PaymentCard({
             <p className="mb-2 text-xs text-muted-foreground">Pajak / biaya lain</p>
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm text-muted-foreground">Rp</span>
-              <Input
+              <RupiahInput
+                aria-label="Pajak atau biaya lain dalam Rupiah"
                 value={tax}
-                onChange={(event) => updateNumber(setTax)(event.target.value)}
+                onValueChange={setTax}
                 placeholder="0"
                 className="font-mono"
                 disabled={isPending}
@@ -199,9 +197,10 @@ export default function PaymentCard({
             <p className="mb-2 text-xs text-muted-foreground">Sudah dibayar</p>
             <div className="flex items-center gap-2">
               <span className="font-mono text-sm text-muted-foreground">Rp</span>
-              <Input
+              <RupiahInput
+                aria-label="Jumlah yang sudah dibayar dalam Rupiah"
                 value={amountPaid}
-                onChange={(event) => updateNumber(setAmountPaid)(event.target.value)}
+                onValueChange={setAmountPaid}
                 placeholder="0"
                 className="font-mono"
                 disabled={isPending}

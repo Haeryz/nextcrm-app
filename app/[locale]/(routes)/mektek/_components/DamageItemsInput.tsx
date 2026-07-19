@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RupiahInput } from "@/components/mektek/RupiahInput";
 import { X, Plus } from "lucide-react";
 import { searchMektekCatalogItems } from "@/actions/mektek/service-orders";
 
@@ -213,11 +214,12 @@ export default function DamageItemsInput({
                 disabled={disabled}
                 className="w-full md:w-24"
               />
-              <Input
+              <RupiahInput
+                aria-label="Estimated cost in Rupiah"
                 placeholder="Estimasi biaya (Rp)"
                 value={item.estimatedCost}
-                onChange={(e) =>
-                  updateItem(index, "estimatedCost", e.target.value.replace(/\D/g, ""))
+                onValueChange={(value) =>
+                  updateItem(index, "estimatedCost", value)
                 }
                 disabled={disabled}
                 className="w-full md:w-44"
