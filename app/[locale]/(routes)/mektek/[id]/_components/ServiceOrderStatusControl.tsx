@@ -40,7 +40,6 @@ export default function ServiceOrderStatusControl({
   const [confirmation, setConfirmation] = useState<
     "AWAITING_PAYMENT" | "COMPLETE" | null
   >(null);
-  const [markAllComplete, setMarkAllComplete] = useState(true);
 
   const handleStatusChange = (newStatus: OrderStatus) => {
     if (
@@ -56,8 +55,6 @@ export default function ServiceOrderStatusControl({
         locale,
         serviceOrderId,
         newStatus,
-        markAllTimelineComplete:
-          newStatus === "AWAITING_PAYMENT" ? markAllComplete : false,
       });
       if (!result || "error" in result) {
         toast.error(result?.error || "Gagal memperbarui status pesanan");
@@ -138,20 +135,6 @@ export default function ServiceOrderStatusControl({
                 : "Done · Closed adalah status akhir setelah servis, peninjauan pelanggan, dan pembayaran selesai."}
             </p>
           </div>
-
-          {confirmation === "AWAITING_PAYMENT" && (
-            <label className="flex cursor-pointer select-none items-center gap-2">
-              <input
-                type="checkbox"
-                checked={markAllComplete}
-                onChange={(event) => setMarkAllComplete(event.target.checked)}
-                className="rounded"
-              />
-              <span className="text-xs text-muted-foreground">
-                Tandai semua Timeline Step sebagai Done
-              </span>
-            </label>
-          )}
 
           <div className="flex gap-2">
             <Button

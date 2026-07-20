@@ -155,20 +155,21 @@ model AuthRateLimit {
 }
 
 model crm_Accounts_Tasks {
-  id         String      @id @default(uuid()) @db.Uuid
-  v          Int         @map("__v")
-  content    String?
-  createdAt  DateTime?   @default(now())
-  createdBy  String?     @db.Uuid
-  updatedAt  DateTime?   @updatedAt
-  updatedBy  String?     @db.Uuid
-  dueDateAt  DateTime?   @default(now())
-  priority   String
-  tags       Json?       @db.JsonB
-  title      String
-  likes      BigInt?     @default(0)
-  user       String?     @db.Uuid
-  taskStatus taskStatus? @default(ACTIVE)
+  id            String      @id @default(uuid()) @db.Uuid
+  serviceNumber String?     @unique @db.VarChar(32)
+  v             Int         @map("__v")
+  content       String?
+  createdAt     DateTime?   @default(now())
+  createdBy     String?     @db.Uuid
+  updatedAt     DateTime?   @updatedAt
+  updatedBy     String?     @db.Uuid
+  dueDateAt     DateTime?   @default(now())
+  priority      String
+  tags          Json?       @db.JsonB
+  title         String
+  likes         BigInt?     @default(0)
+  user          String?     @db.Uuid
+  taskStatus    taskStatus? @default(ACTIVE)
 
   comments            tasksComments[]
   assigned_user       Users?               @relation(fields: [user], references: [id])
@@ -182,6 +183,13 @@ model crm_Accounts_Tasks {
   @@index([taskStatus])
   @@index([dueDateAt])
   @@index([createdAt])
+}
+
+model MektekServiceMonthlySequence {
+  monthKey  String   @id @db.VarChar(6)
+  lastValue Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model tasksComments {

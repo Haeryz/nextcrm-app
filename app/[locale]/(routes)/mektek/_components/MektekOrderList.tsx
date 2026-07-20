@@ -7,6 +7,7 @@ import { getStatusMeta } from "../_lib/constants";
 
 type MektekOrder = {
   id: string;
+  serviceNumber?: string | null;
   title: string | null;
   content?: string | null;
   taskStatus: string | null;
@@ -19,10 +20,6 @@ type MektekOrder = {
     name: string | null;
     email?: string | null;
   } | null;
-};
-
-type TimelineItem = {
-  completed: boolean;
 };
 
 type MektekOrderListProps = {
@@ -51,19 +48,12 @@ const getText = (
     : fallback;
 };
 
-const getTimeline = (tags: Record<string, unknown>): TimelineItem[] => {
+const getTimelineCount = (tags: Record<string, unknown>) => {
   const timeline = tags.timeline;
-  if (!Array.isArray(timeline)) return [];
-
-  return timeline
-    .map((item) => {
-      if (!item || typeof item !== "object" || Array.isArray(item)) return null;
-      const row = item as Record<string, unknown>;
-      return {
-        completed: typeof row.completed === "boolean" ? row.completed : true,
-      };
-    })
-    .filter((item): item is TimelineItem => item !== null);
+  if (!Array.isArray(timeline)) return 0;
+  return timeline.filter(
+    (item) => item && typeof item === "object" && !Array.isArray(item),
+  ).length;
 };
 
 export default function MektekOrderList({
@@ -102,9 +92,8 @@ export default function MektekOrderList({
           const vehicle = getText(tags, "vehicle", order.title ?? "Kendaraan tidak diketahui");
           const vehicleMileageKm =
             typeof tags.vehicleMileageKm === "number" ? tags.vehicleMileageKm : null;
-          const timeline = getTimeline(tags);
+          const timelineCount = getTimelineCount(tags) || 1;
           const status = getStatusMeta(order.taskStatus);
-          const timelineCount = timeline.length || 1;
           const technicianTag =
             tags.technician &&
             typeof tags.technician === "object" &&
@@ -143,7 +132,7 @@ export default function MektekOrderList({
                   </p>
                 </div>
                 <p className="font-mono text-[11px] text-muted-foreground">
-                  ID {order.id.slice(0, 8)}
+                  No. Service {order.serviceNumber ?? order.id.slice(0, 8)}
                 </p>
                 <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground lg:hidden">
                   <Wrench className="h-4 w-4 shrink-0" />

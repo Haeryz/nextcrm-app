@@ -5,7 +5,7 @@ import {
   getMektekServiceOrderExportMonthKey,
   getMektekServiceOrderExportMonthRange,
 } from "@/lib/mektek/service-order-export";
-import { mektekOrderWhere } from "@/lib/mektek/orders";
+import { mektekOrderWhere, mektekPaymentSelect } from "@/lib/mektek/orders";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
@@ -27,6 +27,7 @@ export async function getMektekServiceOrderExportData(month?: string) {
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
+      serviceNumber: true,
       title: true,
       taskStatus: true,
       dueDateAt: true,
@@ -34,6 +35,10 @@ export async function getMektekServiceOrderExportData(month?: string) {
       updatedAt: true,
       content: true,
       tags: true,
+      mektekPayments: {
+        orderBy: { createdAt: "desc" },
+        select: mektekPaymentSelect,
+      },
       assigned_user: {
         select: { id: true, name: true, email: true },
       },

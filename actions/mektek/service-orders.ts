@@ -67,6 +67,7 @@ import {
 } from "@/lib/mektek/order-lifecycle";
 import { getWhatsAppState, sendWhatsAppMessage } from "@/lib/whatsapp";
 import { normalizeMektekVehiclePlateNumber } from "@/lib/mektek/customer-vehicles";
+import { reserveMektekServiceNumber } from "@/lib/mektek/service-number";
 
 const DEFAULT_TIMELINE_MESSAGE =
   "Layanan Anda telah terbuat. Tim kami sedang menyiapkan pemeriksaan awal kendaraan.";
@@ -88,7 +89,6 @@ type MektekTimelineEntry = {
   id: string;
   description: string;
   createdAt: string;
-  completed?: boolean;
 };
 
 const parseTagsObject = (tags: unknown): Record<string, unknown> => {
@@ -164,7 +164,6 @@ const parseTimeline = (tags: unknown): MektekTimelineEntry[] => {
       const row = item as Record<string, unknown>;
       const description = typeof row.description === "string" ? row.description.trim() : "";
       const createdAt = typeof row.createdAt === "string" ? row.createdAt : new Date().toISOString();
-      const completed = typeof row.completed === "boolean" ? row.completed : undefined;
       const id = typeof row.id === "string" ? row.id : crypto.randomUUID();
 
       if (!description) return null;
@@ -172,7 +171,6 @@ const parseTimeline = (tags: unknown): MektekTimelineEntry[] => {
         id,
         description,
         createdAt,
-        ...(completed === undefined ? {} : { completed }),
       };
     })
     .filter((row): row is MektekTimelineEntry => !!row)
@@ -315,6 +313,7 @@ export const createMektekServiceOrder = async (
   }
 
   const locale = normalizeTrackingLocale(input?.locale || session.user.userLanguage);
+  const serviceCreatedAt = new Date();
 
   try {
     const creation = await prismadb.$transaction(async (tx) => {
@@ -429,9 +428,18 @@ export const createMektekServiceOrder = async (
         : appliesVoucher
           ? voucherDiscount
           : loyalty.discountAmount;
+      const serviceNumber = await reserveMektekServiceNumber(
+        {
+          mektekServiceMonthlySequence: {
+            upsert: (args) => tx.mektekServiceMonthlySequence.upsert(args),
+          },
+        },
+        serviceCreatedAt,
+      );
 
       const serviceOrder = await tx.crm_Accounts_Tasks.create({
         data: {
+          serviceNumber,
           v: 0,
           title: `${MEKTEK_TITLE_PREFIX} ${vehicle}`,
           content: complaint,
@@ -443,6 +451,7 @@ export const createMektekServiceOrder = async (
           createdBy: session.user.id,
           updatedBy: session.user.id,
           dueDateAt,
+          createdAt: serviceCreatedAt,
           tags: {
             module: "mektek",
             serviceType: "Vehicle Service",
@@ -500,8 +509,7 @@ export const createMektekServiceOrder = async (
               {
                 id: crypto.randomUUID(),
                 description: DEFAULT_TIMELINE_MESSAGE,
-                createdAt: new Date().toISOString(),
-                completed: true,
+                createdAt: serviceCreatedAt.toISOString(),
               },
             ],
           },
@@ -967,6 +975,7 @@ export const getPublicMektekServiceOrder = async (id: string, token: string) => 
     },
     select: {
       id: true,
+      serviceNumber: true,
       content: true,
       dueDateAt: true,
       taskStatus: true,
@@ -1012,6 +1021,7 @@ export const getPublicMektekServiceOrderByCode = async (code: string) => {
     },
     select: {
       id: true,
+      serviceNumber: true,
       content: true,
       dueDateAt: true,
       taskStatus: true,
@@ -1204,7 +1214,6 @@ export const appendMektekServiceOrderItems = async (input: {
         id: crypto.randomUUID(),
         description: `Added ${addedLabels.join(" and ")}. Invoice total updated.`,
         createdAt: new Date().toISOString(),
-        completed: true,
       },
     ];
 
@@ -1245,7 +1254,6 @@ export const appendMektekServiceOrderItems = async (input: {
 export const updateMektekServiceOrderStatus = async (input: {
   serviceOrderId: string;
   newStatus: "ACTIVE" | "PENDING" | "AWAITING_PAYMENT" | "COMPLETE";
-  markAllTimelineComplete?: boolean;
   locale?: string;
 }) => {
   const session = await getServerSession(authOptions);
@@ -1272,6 +1280,7 @@ export const updateMektekServiceOrderStatus = async (input: {
         tags: true,
         content: true,
         createdAt: true,
+        serviceNumber: true,
         taskStatus: true,
         mektekPayments: {
           orderBy: { createdAt: "desc" },
@@ -1314,15 +1323,7 @@ export const updateMektekServiceOrderStatus = async (input: {
     const shouldNotifyReady =
       newStatus === "AWAITING_PAYMENT" && lastStatus !== "AWAITING_PAYMENT";
     const shouldNotifyComplete = newStatus === "COMPLETE" && lastStatus !== "COMPLETE";
-    let timeline = parseTimeline(serviceOrder.tags);
-
-    if (
-      newStatus === "AWAITING_PAYMENT" &&
-      input?.markAllTimelineComplete &&
-      timeline.length > 0
-    ) {
-      timeline = timeline.map((e) => ({ ...e, completed: true }));
-    }
+    const timeline = parseTimeline(serviceOrder.tags);
 
     let customerToken = typeof tags.customerToken === "string" ? tags.customerToken : "";
     let customerCode = typeof tags.customerCode === "string" ? tags.customerCode : "";

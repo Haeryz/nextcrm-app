@@ -174,7 +174,9 @@ export default async function MektekDetailPage({ params }: Props) {
   return (
     <Container
       title="Pesanan Servis"
-      description={`${customerName} · ${vehicle} · ID ${order.id.slice(0, 8)}`}
+      description={`${customerName} · ${vehicle} · No. Service ${
+        order.serviceNumber ?? order.id.slice(0, 8)
+      }`}
     >
       <div className="space-y-6">
         <Card className="border shadow-sm">
@@ -183,8 +185,8 @@ export default async function MektekDetailPage({ params }: Props) {
               <div className="min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={statusMeta.badgeVariant}>{statusMeta.label}</Badge>
-                  <span className="break-all font-mono text-xs text-muted-foreground">
-                    {order.id}
+                  <span className="font-mono text-xs font-semibold text-muted-foreground">
+                    {order.serviceNumber ?? order.id.slice(0, 8)}
                   </span>
                 </div>
                 <div>

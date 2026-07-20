@@ -36,12 +36,26 @@ describe("service-order Excel export route", () => {
       ),
     );
     const workbook = XLSX.read(await response.arrayBuffer(), { type: "array" });
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const worksheet = workbook.Sheets[`Pesanan 2026-01`];
+    const summaryWorksheet = workbook.Sheets[`Ringkasan 2026-01`];
     const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1 });
+    const summaryRows = XLSX.utils.sheet_to_json<unknown[]>(summaryWorksheet, {
+      header: 1,
+    });
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-disposition")).toContain(
       "mektek-service-orders-2026-01.xlsx",
+    );
+    expect(workbook.SheetNames).toEqual([
+      "Ringkasan 2026-01",
+      "Pesanan 2026-01",
+    ]);
+    expect(summaryRows).toEqual(
+      expect.arrayContaining([
+        ["Metrik", "Nilai"],
+        ["Total Pesanan", 1],
+      ]),
     );
     expect(rows[0]).toEqual(
       expect.arrayContaining(["Nama Customer", "Nomor Plat", "Tanggal Masuk"]),

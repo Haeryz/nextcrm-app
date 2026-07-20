@@ -103,7 +103,11 @@ export function buildMektekFinancialSummary(
   const pphEnabled = customerType === "B2B" && parsedTags.pphEnabled !== false;
   const tax = ppnEnabled ? Math.round(taxBase * MEKTEK_PPN_RATE) : 0;
   const pph = pphEnabled ? Math.round(taxBase * MEKTEK_PPH_RATE) : 0;
-  const grandTotal = Math.max(0, taxBase + tax - pph);
+  const grossInvoiceTotal = Math.max(0, taxBase + tax);
+  const netPayable = Math.max(0, grossInvoiceTotal - pph);
+  // Kept as a compatibility alias for payment/invoice consumers. PPh 23 is
+  // withheld by the customer, so the amount payable in cash is the net figure.
+  const grandTotal = netPayable;
   const payment = parsePayment(parsedTags);
   const providerPayments = normalizeProviderPayments(payments);
   const paidProviderPayments = providerPayments.filter((item) => item.isPaid);
@@ -142,6 +146,8 @@ export function buildMektekFinancialSummary(
     pphEnabled,
     ppnRate: MEKTEK_PPN_RATE,
     pphRate: MEKTEK_PPH_RATE,
+    grossInvoiceTotal,
+    netPayable,
     grandTotal,
     amountPaid,
     balanceDue,

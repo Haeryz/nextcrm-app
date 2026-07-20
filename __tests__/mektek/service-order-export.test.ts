@@ -15,6 +15,7 @@ describe("monthly service-order export", () => {
     const rows = buildMektekServiceOrderExportRows([
       {
         id: "order-1",
+        serviceNumber: "SRV-202601-0001",
         title: "MEKTEK Service - AC tidak dingin",
         taskStatus: "ACTIVE",
         createdAt: new Date("2026-01-10T01:00:00.000Z"),
@@ -28,10 +29,20 @@ describe("monthly service-order export", () => {
           vehiclePlateNumber: "B 1234 XYZ",
           vehicleFleetNumber: null,
           vehicleMileageKm: 42_000,
-          customerType: "STANDARD",
+          customerType: "B2B",
           address: "Denpasar",
           serviceItems: [],
-          sparepartItems: [],
+          sparepartItems: [
+            {
+              name: "Kompresor",
+              quantity: 1,
+              unitPrice: 100_000,
+              total: 100_000,
+            },
+          ],
+          discount: 10_000,
+          ppnEnabled: true,
+          pphEnabled: true,
         },
         assigned_user: { id: "tech-1", name: "Made", email: null },
       },
@@ -40,11 +51,15 @@ describe("monthly service-order export", () => {
     expect(rows[0]).toEqual(
       expect.objectContaining({
         ID: "order-1",
+        "No. Service": "SRV-202601-0001",
         "Nama Customer": "Budi",
         Kendaraan: "Toyota Avanza 2021",
         "Nomor Plat": "B 1234 XYZ",
         Teknisi: "Made",
-        Keluhan: "AC tidak dingin",
+        Keluhan: "Periksa kompresor",
+        "Total Tagihan Bruto": 99_900,
+        "PPh 23 Dipotong": 1_800,
+        "Jumlah Net Dibayar": 98_100,
       }),
     );
   });

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { CheckCircle2, Circle, Save } from "lucide-react";
+import { CheckCircle2, Circle, Info, Save } from "lucide-react";
 import { updateMektekPayment } from "@/actions/mektek/service-orders";
 import { RupiahInput } from "@/components/mektek/RupiahInput";
 import { Switch } from "@/components/ui/switch";
@@ -84,15 +84,18 @@ export default function PaymentCard({
       customerType === "B2B" && pphEnabled
         ? Math.round(taxBase * MEKTEK_PPH_RATE)
         : 0;
-    const total = Math.max(0, taxBase + ppnAmount - pphAmount);
+    const grossInvoiceTotal = Math.max(0, taxBase + ppnAmount);
+    const total = Math.max(0, grossInvoiceTotal - pphAmount);
     const providerPaid = Math.min(initialProviderAmountPaid, total);
     const paid = Math.min(Math.max(paidAmount, providerPaid), total);
     const remaining = Math.max(0, total - paid);
     const status = total > 0 && remaining === 0 ? "paid" : paid > 0 ? "partial" : "unpaid";
     return {
       discountAmount,
+      taxBase,
       ppnAmount,
       pphAmount,
+      grossInvoiceTotal,
       total,
       providerPaid,
       paid,
@@ -232,11 +235,13 @@ export default function PaymentCard({
             {customerType === "B2B" && (
               <div className="flex items-center justify-between gap-3 rounded-md border bg-background/80 p-3">
                 <div>
-                  <p className="text-sm font-medium">PPH 2%</p>
-                  <p className="text-xs text-muted-foreground">Khusus invoice perusahaan</p>
+                  <p className="text-sm font-medium">PPh 23 dipotong 2%</p>
+                  <p className="text-xs text-muted-foreground">
+                    Dipotong pelanggan perusahaan, bukan biaya tambahan
+                  </p>
                 </div>
                 <Switch
-                  aria-label="Aktifkan PPH 2%"
+                  aria-label="Aktifkan pemotongan PPh 23 sebesar 2%"
                   checked={pphEnabled}
                   onCheckedChange={setPphEnabled}
                   disabled={isPending || !canManageTaxSettings}
@@ -248,6 +253,15 @@ export default function PaymentCard({
             <p className="mt-2 text-xs text-muted-foreground">
               Hanya Admin utama yang dapat mengubah pengaturan pajak.
             </p>
+          )}
+          {customerType === "B2B" && pphEnabled && (
+            <div className="mt-3 flex gap-2 rounded-md border border-dashed bg-background/70 p-3 text-xs text-muted-foreground">
+              <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <p>
+                PPh 23 mengurangi uang yang dibayar pelanggan kepada MekTek. Nilai
+                jasa tidak berkurang; bukti potongnya menjadi kredit pajak MekTek.
+              </p>
+            </div>
           )}
         </div>
 
@@ -297,9 +311,15 @@ export default function PaymentCard({
               </p>
             </div>
             <div className="min-w-0 rounded-md border bg-background/80 p-3">
-              <p className="text-xs text-muted-foreground">Total tagihan</p>
+              <p className="text-xs text-muted-foreground">Diskon (-)</p>
               <p className="break-words font-semibold leading-tight">
-                {formatCurrency(totals.total)}
+                {formatCurrency(totals.discountAmount)}
+              </p>
+            </div>
+            <div className="min-w-0 rounded-md border bg-background/80 p-3">
+              <p className="text-xs text-muted-foreground">DPP setelah diskon</p>
+              <p className="break-words font-semibold leading-tight">
+                {formatCurrency(totals.taxBase)}
               </p>
             </div>
             <div className="min-w-0 rounded-md border bg-background/80 p-3">
@@ -310,12 +330,28 @@ export default function PaymentCard({
             </div>
             {customerType === "B2B" && (
               <div className="min-w-0 rounded-md border bg-background/80 p-3">
-                <p className="text-xs text-muted-foreground">PPH</p>
+                <p className="text-xs text-muted-foreground">Total tagihan bruto</p>
                 <p className="break-words font-semibold leading-tight">
-                  {formatCurrency(totals.pphAmount)}
+                  {formatCurrency(totals.grossInvoiceTotal)}
                 </p>
               </div>
             )}
+            {customerType === "B2B" && (
+              <div className="min-w-0 rounded-md border bg-background/80 p-3">
+                <p className="text-xs text-muted-foreground">PPh 23 dipotong (-)</p>
+                <p className="break-words font-semibold leading-tight">
+                  - {formatCurrency(totals.pphAmount)}
+                </p>
+              </div>
+            )}
+            <div className="min-w-0 rounded-md border border-primary/30 bg-primary/5 p-3">
+              <p className="text-xs text-muted-foreground">
+                {customerType === "B2B" ? "Jumlah net dibayar" : "Total tagihan"}
+              </p>
+              <p className="break-words font-semibold leading-tight">
+                {formatCurrency(totals.total)}
+              </p>
+            </div>
             <div className="min-w-0 rounded-md border bg-background/80 p-3">
               <p className="text-xs text-muted-foreground">Dibayar</p>
               <p className="break-words font-semibold leading-tight">

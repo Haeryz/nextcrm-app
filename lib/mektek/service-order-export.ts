@@ -1,7 +1,11 @@
-import { normalizeMektekLineItems } from "@/lib/mektek/items";
+import {
+  buildMektekFinancialSummary,
+  type MektekPaymentRecord,
+} from "@/lib/mektek/financials";
 
 export type MektekServiceOrderExportOrder = {
   id: string;
+  serviceNumber?: string | null;
   title?: string | null;
   taskStatus?: string | null;
   dueDateAt?: Date | string | null;
@@ -9,6 +13,7 @@ export type MektekServiceOrderExportOrder = {
   updatedAt?: Date | string | null;
   content?: string | null;
   tags?: unknown;
+  mektekPayments?: MektekPaymentRecord[];
   assigned_user?: {
     id: string;
     name: string | null;
@@ -17,6 +22,7 @@ export type MektekServiceOrderExportOrder = {
 };
 
 export const MEKTEK_SERVICE_ORDER_EXPORT_HEADERS = [
+  "No. Service",
   "ID",
   "Nama Customer",
   "Tipe Customer",
@@ -37,6 +43,16 @@ export const MEKTEK_SERVICE_ORDER_EXPORT_HEADERS = [
   "Jumlah Sparepart",
   "Subtotal Servis",
   "Subtotal Sparepart",
+  "Diskon",
+  "DPP",
+  "PPN",
+  "Total Tagihan Bruto",
+  "PPh 23 Dipotong",
+  "Jumlah Net Dibayar",
+  "Sudah Dibayar",
+  "Sisa Bayar",
+  "Status Pembayaran",
+  "Metode Pembayaran",
 ] as const;
 
 const SERVICE_TITLE_PREFIXES = ["MEKTEK Service - ", "MEKTEK AC - "];
@@ -98,7 +114,12 @@ export function buildMektekServiceOrderExportRows(
       order.tags && typeof order.tags === "object" && !Array.isArray(order.tags)
         ? (order.tags as Record<string, unknown>)
         : {};
-    const normalizedItems = normalizeMektekLineItems(tags, order.content);
+    const financials = buildMektekFinancialSummary(
+      tags,
+      order.content,
+      order.mektekPayments,
+    );
+    const normalizedItems = financials.normalizedItems;
     const technicianTag =
       tags.technician &&
       typeof tags.technician === "object" &&
@@ -113,6 +134,7 @@ export function buildMektekServiceOrderExportRows(
       text(technicianTag.email);
 
     return {
+      "No. Service": order.serviceNumber ?? order.id.slice(0, 8),
       ID: order.id,
       "Nama Customer": text(tags.customerName),
       "Tipe Customer": tags.customerType === "B2B" ? "Perusahaan" : "Standard",
@@ -125,7 +147,7 @@ export function buildMektekServiceOrderExportRows(
         typeof tags.vehicleMileageKm === "number" ? tags.vehicleMileageKm : "",
       Teknisi: technicianName,
       Status: order.taskStatus ?? "",
-      Keluhan: stripServicePrefix(order.title ?? ""),
+      Keluhan: text(order.content) || stripServicePrefix(order.title ?? ""),
       ETA: formatExportDate(order.dueDateAt),
       "Tanggal Masuk": formatExportDate(order.createdAt),
       "Terakhir Update": formatExportDate(order.updatedAt),
@@ -134,6 +156,54 @@ export function buildMektekServiceOrderExportRows(
       "Jumlah Sparepart": normalizedItems.sparepartItems.length,
       "Subtotal Servis": normalizedItems.serviceSubtotal,
       "Subtotal Sparepart": normalizedItems.sparepartSubtotal,
+      Diskon: financials.discount,
+      DPP: financials.taxBase,
+      PPN: financials.tax,
+      "Total Tagihan Bruto": financials.grossInvoiceTotal,
+      "PPh 23 Dipotong": financials.pph,
+      "Jumlah Net Dibayar": financials.netPayable,
+      "Sudah Dibayar": financials.amountPaid,
+      "Sisa Bayar": financials.balanceDue,
+      "Status Pembayaran":
+        financials.payment.status === "paid"
+          ? "Lunas"
+          : financials.payment.status === "partial"
+            ? "Dibayar Sebagian"
+            : "Belum Bayar",
+      "Metode Pembayaran": financials.payment.method,
     };
   });
+}
+
+export function buildMektekServiceOrderExportSummary(
+  rows: readonly object[],
+  month: string,
+) {
+  const records = rows.map((row) => row as Record<string, unknown>);
+  const sum = (column: string) =>
+    records.reduce((total, row) => {
+      const value = row[column];
+      return total + (typeof value === "number" && Number.isFinite(value) ? value : 0);
+    }, 0);
+  const countStatus = (status: string) =>
+    records.filter((row) => row.Status === status).length;
+
+  return [
+    { Metrik: "Bulan Laporan", Nilai: month },
+    { Metrik: "Total Pesanan", Nilai: records.length },
+    { Metrik: "In Progress", Nilai: countStatus("ACTIVE") },
+    { Metrik: "Pending", Nilai: countStatus("PENDING") },
+    { Metrik: "Menunggu Pembayaran", Nilai: countStatus("AWAITING_PAYMENT") },
+    { Metrik: "Selesai", Nilai: countStatus("COMPLETE") },
+    { Metrik: "Subtotal Servis", Nilai: sum("Subtotal Servis") },
+    { Metrik: "Subtotal Sparepart", Nilai: sum("Subtotal Sparepart") },
+    { Metrik: "Diskon", Nilai: sum("Diskon") },
+    { Metrik: "DPP", Nilai: sum("DPP") },
+    { Metrik: "PPN", Nilai: sum("PPN") },
+    { Metrik: "Total Tagihan Bruto", Nilai: sum("Total Tagihan Bruto") },
+    { Metrik: "PPh 23 Dipotong", Nilai: sum("PPh 23 Dipotong") },
+    { Metrik: "Jumlah Net Dibayar", Nilai: sum("Jumlah Net Dibayar") },
+    { Metrik: "Sudah Dibayar", Nilai: sum("Sudah Dibayar") },
+    { Metrik: "Sisa Bayar", Nilai: sum("Sisa Bayar") },
+  ];
 }

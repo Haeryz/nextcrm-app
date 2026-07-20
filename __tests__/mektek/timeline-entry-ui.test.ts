@@ -17,6 +17,20 @@ describe("manual timeline entry UI", () => {
     resolve(process.cwd(), "actions/mektek/service-orders.ts"),
     "utf8",
   );
+  const publicTimelineSource = readFileSync(
+    resolve(
+      process.cwd(),
+      "app/[locale]/service-status/[id]/_components/LiveServiceStatus.tsx",
+    ),
+    "utf8",
+  );
+  const statusControlSource = readFileSync(
+    resolve(
+      process.cwd(),
+      "app/[locale]/(routes)/mektek/[id]/_components/ServiceOrderStatusControl.tsx",
+    ),
+    "utf8",
+  );
 
   it("only asks for the timeline description", () => {
     expect(formSource).toContain('placeholder="Contoh: Sparepart sudah dipasang"');
@@ -35,5 +49,9 @@ describe("manual timeline entry UI", () => {
     expect(detailSource).not.toMatch(/timelineItem\.completed/);
     expect(detailSource).not.toMatch(/Step Done/);
     expect(detailSource).not.toMatch(/\?\s*"Done"\s*:\s*"Pending"/);
+    expect(publicTimelineSource).not.toMatch(/item\.completed/);
+    expect(publicTimelineSource).not.toMatch(/\?\s*"Done"\s*:\s*"Pending"/);
+    expect(statusControlSource).not.toContain("markAllTimelineComplete");
+    expect(statusControlSource).not.toContain("Tandai semua Timeline Step sebagai Done");
   });
 });

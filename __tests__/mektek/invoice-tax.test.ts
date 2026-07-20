@@ -13,6 +13,7 @@ import { resolve } from "node:path";
 
 const order = (tags: Record<string, unknown>) => ({
   id: "12345678-1234-1234-1234-123456789012",
+  serviceNumber: "SRV-202607-0001",
   createdAt: new Date("2026-07-20T00:00:00.000Z"),
   content: "Servis",
   tags: {
@@ -23,6 +24,14 @@ const order = (tags: Record<string, unknown>) => ({
 });
 
 describe("business and private invoice data", () => {
+  it("uses the public service number for invoice and work-order references", () => {
+    const invoice = buildMektekInvoiceData(order({ customerType: "STANDARD" }));
+
+    expect(invoice.invoiceNumber).toBe("INV-202607-0001");
+    expect(invoice.reference).toBe("SRV-202607-0001");
+    expect(invoice.workOrder).toBe("SRV-202607-0001");
+  });
+
   it("creates a private invoice without PPH or a tax-document attachment", () => {
     const invoice = buildMektekInvoiceData(
       order({ customerType: "STANDARD", ppnEnabled: true, pphEnabled: true }),
@@ -40,6 +49,8 @@ describe("business and private invoice data", () => {
 
     expect(invoice.customer.type).toBe("B2B");
     expect(invoice.financials.pph).toBe(2000);
+    expect(invoice.financials.grossInvoiceTotal).toBe(111000);
+    expect(invoice.financials.netPayable).toBe(109000);
     expect(invoice.taxDocumentPlaceholder).toBe(true);
     expect(invoice.service.mileageKm).toBe(125000);
   });
@@ -59,8 +70,9 @@ describe("business and private invoice data", () => {
 
     expect(paymentCard).toMatch(/aria-label="Aktifkan PPN 11%"/);
     expect(paymentCard).toMatch(
-      /customerType === "B2B"[\s\S]*aria-label="Aktifkan PPH 2%"/,
+      /customerType === "B2B"[\s\S]*aria-label="Aktifkan pemotongan PPh 23 sebesar 2%"/,
     );
+    expect(paymentCard).toContain("bukan biaya tambahan");
     expect(paymentCard).toMatch(/disabled=\{isPending \|\| !canManageTaxSettings\}/);
     expect(serviceOrders).toMatch(
       /wantsTaxSettingChange[\s\S]*!session\.user\.isAdmin/,

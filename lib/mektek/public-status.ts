@@ -12,11 +12,11 @@ type PublicTimelineEntry = {
   id: string;
   description: string;
   createdAt: string;
-  completed: boolean;
 };
 
 type PublicOrder = {
   id: string;
+  serviceNumber?: string | null;
   content?: string | null;
   dueDateAt?: Date | null;
   taskStatus?: string | null;
@@ -41,11 +41,10 @@ const buildTimeline = (tags: Record<string, unknown>): PublicTimelineEntry[] =>
             typeof row.description === "string" ? row.description.trim() : "";
           const createdAt =
             typeof row.createdAt === "string" ? row.createdAt : new Date().toISOString();
-          const completed = typeof row.completed === "boolean" ? row.completed : true;
           const id =
             typeof row.id === "string" ? row.id : `${createdAt}-${description}`;
           if (!description) return null;
-          return { id, description, createdAt, completed };
+          return { id, description, createdAt };
         })
         .filter((item): item is PublicTimelineEntry => !!item)
         .sort(
@@ -68,6 +67,7 @@ export function buildMektekPublicSnapshot(order: PublicOrder) {
 
   return {
     id: order.id,
+    serviceNumber: order.serviceNumber ?? order.id.slice(0, 8),
     customerName:
       typeof tags.customerName === "string" && tags.customerName.trim()
         ? tags.customerName

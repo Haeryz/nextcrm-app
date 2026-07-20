@@ -54,6 +54,8 @@ export type MektekInvoiceData = {
     pphEnabled: boolean;
     ppnRate: number;
     pphRate: number;
+    grossInvoiceTotal: number;
+    netPayable: number;
     grandTotal: number;
     amountPaid: number;
     balanceDue: number;
@@ -354,7 +356,7 @@ function buildPdfDocument(data: MektekInvoiceData) {
 
   const totalsRows = [
     { label: "SUBTOTAL",   value: financials.subtotal,  bold: false },
-    { label: "DISCOUNT",   value: financials.discount,  bold: false },
+    { label: "DISKON (-)", value: financials.discount,  bold: false },
     { label: "DPP",        value: financials.taxBase,   bold: false },
     {
       label: `PPN ${Math.round(financials.ppnRate * 100)}%${financials.ppnEnabled ? "" : " (NONAKTIF)"}`,
@@ -362,13 +364,24 @@ function buildPdfDocument(data: MektekInvoiceData) {
       bold: false,
     },
     ...(isBusiness
-      ? [{
-          label: `PPH ${Math.round(financials.pphRate * 100)}%${financials.pphEnabled ? "" : " (NONAKTIF)"}`,
-          value: financials.pph,
-          bold: false,
-        }]
-      : []),
-    { label: "GRAND TOTAL",value: financials.grandTotal, bold: true },
+      ? [
+          {
+            label: "TOTAL TAGIHAN BRUTO",
+            value: financials.grossInvoiceTotal,
+            bold: false,
+          },
+          {
+            label: `PPH 23 DIPOTONG (-) ${Math.round(financials.pphRate * 100)}%${financials.pphEnabled ? "" : " (NONAKTIF)"}`,
+            value: financials.pph,
+            bold: false,
+          },
+          {
+            label: "JUMLAH NET DIBAYAR",
+            value: financials.netPayable,
+            bold: true,
+          },
+        ]
+      : [{ label: "GRAND TOTAL", value: financials.grandTotal, bold: true }]),
   ];
 
   return React.createElement(
@@ -625,6 +638,7 @@ function buildPdfDocument(data: MektekInvoiceData) {
 
 type ServiceOrderSummary = {
   id: string;
+  serviceNumber?: string | null;
   createdAt?: Date | null;
   content?: string | null;
   tags?: unknown;
@@ -638,6 +652,7 @@ function parseTags(tags: unknown): Record<string, unknown> {
 
 export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoiceData {
   const tags = parseTags(order.tags);
+  const serviceNumber = order.serviceNumber ?? order.id.slice(0, 8);
   const financialSummary = buildMektekFinancialSummary(
     tags,
     order.content,
@@ -668,10 +683,15 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
 
   return {
     type: "invoice",
-    invoiceNumber: String(tags.invoiceNumber ?? `INV-${order.id.slice(0, 8)}`),
+    invoiceNumber: String(
+      tags.invoiceNumber ??
+        (order.serviceNumber
+          ? order.serviceNumber.replace(/^SRV-/, "INV-")
+          : `INV-${order.id.slice(0, 8)}`),
+    ),
     invoiceDate: new Intl.DateTimeFormat("id-ID").format(order.createdAt ?? new Date()),
-    reference: typeof tags.reference === "string" ? tags.reference : undefined,
-    workOrder: typeof tags.workOrder === "string" ? tags.workOrder : undefined,
+    reference: typeof tags.reference === "string" ? tags.reference : serviceNumber,
+    workOrder: typeof tags.workOrder === "string" ? tags.workOrder : serviceNumber,
     company: {
       name: String(
         tags.companyName ??
@@ -725,6 +745,8 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
       pphEnabled: financialSummary.pphEnabled,
       ppnRate: financialSummary.ppnRate,
       pphRate: financialSummary.pphRate,
+      grossInvoiceTotal: financialSummary.grossInvoiceTotal,
+      netPayable: financialSummary.netPayable,
       grandTotal: financialSummary.grandTotal,
       amountPaid: financialSummary.amountPaid,
       balanceDue: financialSummary.balanceDue,

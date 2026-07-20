@@ -101,6 +101,7 @@ export async function getMektekDashboardSummary(
     where: mektekOrderWhere(),
     select: {
       id: true,
+      serviceNumber: true,
       title: true,
       dueDateAt: true,
       taskStatus: true,

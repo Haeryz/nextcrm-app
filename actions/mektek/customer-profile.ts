@@ -78,6 +78,7 @@ export async function getMektekCustomerProfile(locale = "id") {
           serviceOrder: {
             select: {
               id: true,
+              serviceNumber: true,
               content: true,
               dueDateAt: true,
               taskStatus: true,

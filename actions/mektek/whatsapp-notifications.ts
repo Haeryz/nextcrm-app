@@ -14,6 +14,7 @@ import { getWhatsAppState } from "@/lib/whatsapp";
 
 type ServiceOrderSummary = {
   id: string;
+  serviceNumber?: string | null;
   content?: string | null;
   createdAt?: Date | null;
   taskStatus?: string | null;
@@ -35,6 +36,9 @@ function buildContext(order: ServiceOrderSummary) {
 
   return { customerName, vehicle, phone, tags };
 }
+
+const getDocumentId = (order: ServiceOrderSummary) =>
+  order.serviceNumber ?? order.id.slice(0, 8);
 
 const DEFAULT_NEW_ORDER_TEMPLATE = [
   "Halo {customerName},",
@@ -129,6 +133,7 @@ export async function notifyMektekOrderCompleted(params: {
   ]);
   const invoicePdf = Buffer.from(invoiceRaw);
   const receiptPdf = Buffer.from(receiptRaw);
+  const documentId = getDocumentId(params.order);
 
   return sendWhatsAppMessage({
     to: context.phone,
@@ -136,13 +141,13 @@ export async function notifyMektekOrderCompleted(params: {
     media: [
       {
         mimeType: "application/pdf",
-        filename: `invoice-${params.order.id.slice(0, 8)}.pdf`,
+        filename: `invoice-${documentId}.pdf`,
         data: invoicePdf,
         caption: "Invoice",
       },
       {
         mimeType: "application/pdf",
-        filename: `struk-${params.order.id.slice(0, 8)}.pdf`,
+        filename: `struk-${documentId}.pdf`,
         data: receiptPdf,
         caption: "Struk",
       },
@@ -173,6 +178,7 @@ export async function notifyMektekOrderReadyForPayment(params: {
   const invoicePdf = Buffer.from(
     await renderMektekInvoicePdf(buildMektekInvoiceData(params.order)),
   );
+  const documentId = getDocumentId(params.order);
 
   return sendWhatsAppMessage({
     to: context.phone,
@@ -180,7 +186,7 @@ export async function notifyMektekOrderReadyForPayment(params: {
     media: [
       {
         mimeType: "application/pdf",
-        filename: `invoice-${params.order.id.slice(0, 8)}.pdf`,
+        filename: `invoice-${documentId}.pdf`,
         data: invoicePdf,
         caption: "Invoice",
       },

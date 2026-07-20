@@ -129,11 +129,11 @@ export default function LiveServiceStatus({
           <Card className="border shadow-sm">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs uppercase tracking-widest text-muted-foreground">
-                ID Servis
+                No. Service
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="font-mono text-sm font-semibold">{snapshot.id.slice(0, 8)}</p>
+              <p className="font-mono text-sm font-semibold">{snapshot.serviceNumber}</p>
             </CardContent>
           </Card>
 
@@ -351,14 +351,9 @@ export default function LiveServiceStatus({
                         : "bg-card"
                     }`}
                   >
-                    <div className="mb-2 flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold text-muted-foreground">
-                        {formatCustomerDateTime(item.createdAt)}
-                      </p>
-                      <Badge variant={item.completed ? "default" : "secondary"}>
-                        {item.completed ? "Done" : "Pending"}
-                      </Badge>
-                    </div>
+                    <p className="mb-2 text-xs font-semibold text-muted-foreground">
+                      {formatCustomerDateTime(item.createdAt)}
+                    </p>
                     <p className="break-words text-sm font-semibold text-foreground">{item.description}</p>
                   </div>
                 ))}

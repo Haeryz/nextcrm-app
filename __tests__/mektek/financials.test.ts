@@ -40,7 +40,9 @@ describe("buildMektekFinancialSummary", () => {
     expect(summary.pphEnabled).toBe(true);
     expect(summary.tax).toBe(11_000);
     expect(summary.pph).toBe(2_000);
+    expect(summary.grossInvoiceTotal).toBe(111_000);
     expect(summary.grandTotal).toBe(109_000);
+    expect(summary.netPayable).toBe(109_000);
   });
 
   it("lets an admin snapshot disable PPN and PPH independently", () => {

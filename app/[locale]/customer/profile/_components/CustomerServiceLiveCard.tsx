@@ -71,7 +71,7 @@ export function CustomerServiceLiveCard({
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-medium uppercase text-[#4b5577]">
-              Servis #{snapshot.id.slice(0, 8)}
+              Servis #{snapshot.serviceNumber}
             </p>
             <CardTitle className="mt-1 truncate text-xl">{snapshot.vehicle}</CardTitle>
             <p className="mt-1 text-sm text-[#4b5577]">

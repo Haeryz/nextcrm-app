@@ -7,6 +7,7 @@ import { headers } from "next/headers";
 import { prismadb } from "@/lib/prisma";
 import { isValidPhoneNumber, normalizePhoneNumber, phoneDigits } from "@/lib/phone";
 import { createMektekPaymentIntent } from "@/actions/mektek/payments";
+import { reserveMektekServiceNumber } from "@/lib/mektek/service-number";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getCustomerSessionUser } from "@/lib/customer-auth";
 import { boundedText, MAX_ADDRESS_LEN, MAX_NAME_LEN } from "@/lib/mektek/sanitize";
@@ -148,6 +149,7 @@ export const createMektekCatalogPurchaseIntent = async (
 
     const customerToken = crypto.randomBytes(20).toString("hex");
     const customerCode = createCustomerCode();
+    const orderCreatedAt = new Date();
     const titleSuffix =
       sparepartItems.length === 1
         ? sparepartItems[0].name.slice(0, 40)
@@ -167,13 +169,24 @@ export const createMektekCatalogPurchaseIntent = async (
         select: { id: true },
       });
 
+      const serviceNumber = await reserveMektekServiceNumber(
+        {
+          mektekServiceMonthlySequence: {
+            upsert: (args) => tx.mektekServiceMonthlySequence.upsert(args),
+          },
+        },
+        orderCreatedAt,
+      );
+
       const created = await tx.crm_Accounts_Tasks.create({
         data: {
+          serviceNumber,
           v: 0,
           title: `${MEKTEK_TITLE_PREFIX} ${titleSuffix}`,
           content: "Pembelian sparepart via katalog online",
           priority: "medium",
           taskStatus: "ACTIVE",
+          createdAt: orderCreatedAt,
           tags: {
             module: "mektek",
             serviceType: "Sparepart Purchase",
@@ -201,13 +214,12 @@ export const createMektekCatalogPurchaseIntent = async (
               {
                 id: crypto.randomUUID(),
                 description: STORE_TIMELINE_MESSAGE,
-                createdAt: new Date().toISOString(),
-                completed: true,
+                createdAt: orderCreatedAt.toISOString(),
               },
             ],
           },
         },
-        select: { id: true },
+        select: { id: true, serviceNumber: true },
       });
 
       await tx.catalogServiceLink.upsert({

@@ -1,9 +1,10 @@
 import { buildMektekPublicSnapshot } from "@/lib/mektek/public-status";
 
 describe("buildMektekPublicSnapshot", () => {
-  it("exposes split totals and timeline state for the public tracking page", () => {
+  it("exposes the service number, split totals, and state-free timeline", () => {
     const snapshot = buildMektekPublicSnapshot({
       id: "12345678-aaaa-bbbb-cccc-123456789012",
+      serviceNumber: "SRV-202605-0001",
       content: "Tune up",
       taskStatus: "ACTIVE",
       createdAt: new Date("2026-05-17T10:00:00.000Z"),
@@ -50,6 +51,7 @@ describe("buildMektekPublicSnapshot", () => {
     });
 
     expect(snapshot.customerName).toBe("Alya");
+    expect(snapshot.serviceNumber).toBe("SRV-202605-0001");
     expect(snapshot.itemSummary).toEqual({
       serviceSubtotal: 100000,
       sparepartSubtotal: 50000,
@@ -61,6 +63,7 @@ describe("buildMektekPublicSnapshot", () => {
       "Received",
     ]);
     expect(snapshot.latestTimeline?.description).toBe("In progress");
+    expect(snapshot.timeline[0]).not.toHaveProperty("completed");
     expect(snapshot.invoice.subtotal).toBe(150000);
     expect(snapshot.items.serviceItems[0]).toMatchObject({
       name: "Tune up",
