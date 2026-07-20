@@ -1,16 +1,25 @@
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import Link from "next/link";
 
-import { listMektekCatalogItems } from "@/actions/mektek/catalog-items";
+import { listMektekCatalogInventoryItems } from "@/actions/mektek/catalog-inventory";
 import { authOptions } from "@/lib/auth";
 import { canCreateMektekOrders } from "@/lib/mektek/permissions";
 import { getServerSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { getExistingCatalogImagePath } from "@/lib/catalog-images";
+import { getCatalogInventoryMonthKey } from "@/lib/mektek/catalog-inventory";
 import { getPaginationItems } from "@/lib/pagination";
 import CatalogItemManager from "./_components/CatalogItemManager";
+import CatalogInventoryPanel from "./_components/CatalogInventoryPanel";
 
 interface MektekCatalogItemsPageProps {
   params?: Promise<{ locale: string }>;
@@ -47,10 +56,19 @@ export default async function MektekCatalogItemsPage({
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const query = readSearchParam(resolvedSearchParams, "q");
   const machine = readSearchParam(resolvedSearchParams, "machine");
+  const rawProductionChannel = readSearchParam(resolvedSearchParams, "channel");
+  const productionChannel =
+    rawProductionChannel === "POWERTRAIN" || rawProductionChannel === "THERMAL"
+      ? rawProductionChannel
+      : "";
+  const currentMonth = getCatalogInventoryMonthKey();
+  const month = readSearchParam(resolvedSearchParams, "month") || currentMonth;
   const page = Math.max(Number(readSearchParam(resolvedSearchParams, "page")) || 1, 1);
-  const catalog = await listMektekCatalogItems({
+  const catalog = await listMektekCatalogInventoryItems({
     query,
     machine,
+    productionChannel,
+    month,
     page,
     pageSize: 18,
   });
@@ -61,6 +79,8 @@ export default async function MektekCatalogItemsPage({
   const queryString = new URLSearchParams();
   if (query) queryString.set("q", query);
   if (machine) queryString.set("machine", machine);
+  if (productionChannel) queryString.set("channel", productionChannel);
+  queryString.set("month", catalog.month);
 
   const pageHref = (targetPage: number) => {
     const paramsForPage = new URLSearchParams(queryString);
@@ -71,21 +91,42 @@ export default async function MektekCatalogItemsPage({
   return (
     <Container
       title="Catalogue Items"
-      description="Buat, perbarui, hapus, dan tinjau item dari parts catalogue"
+      description="Kelola data sparepart dan stok Gudang Belakang/Depan per bulan"
     >
       <div className="flex flex-col gap-6">
         <Card>
           <CardContent className="p-4">
             <form
               action={`/${locale}/mektek/items`}
-              className="grid gap-3 lg:grid-cols-[1fr_220px_auto_auto]"
+              className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_190px_180px_auto_auto]"
             >
-              <Input name="q" placeholder="Cari Description, Machine, atau Part Number" defaultValue={query} />
+              <Input
+                name="q"
+                placeholder="Cari Item Name, Machine, Part Number, atau lokasi"
+                defaultValue={query}
+              />
               <Input name="machine" placeholder="Machine" defaultValue={machine} />
+              <Select name="channel" defaultValue={productionChannel || "ALL"}>
+                <SelectTrigger aria-label="Filter Production Channel">
+                  <SelectValue placeholder="Production Channel" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Semua channel</SelectItem>
+                  <SelectItem value="POWERTRAIN">Powertrain · jarang</SelectItem>
+                  <SelectItem value="THERMAL">Thermal · sering</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                type="month"
+                name="month"
+                max={currentMonth}
+                defaultValue={catalog.month}
+                aria-label="Bulan inventory"
+              />
               <Button type="submit" variant="outline" className="w-full lg:w-auto">
                 Filter
               </Button>
-              {(query || machine) && (
+              {(query || machine || productionChannel || catalog.month !== currentMonth) && (
                 <Button asChild type="button" variant="ghost" className="w-full lg:w-auto">
                   <Link href={`/${locale}/mektek/items`}>Reset Filter</Link>
                 </Button>
@@ -99,6 +140,12 @@ export default async function MektekCatalogItemsPage({
             ...item,
             imagePath: getExistingCatalogImagePath(item.imagePath),
           }))}
+        />
+
+        <CatalogInventoryPanel
+          items={catalog.items}
+          month={catalog.month}
+          daysInMonth={catalog.daysInMonth}
         />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

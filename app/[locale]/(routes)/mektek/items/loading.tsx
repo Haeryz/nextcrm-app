@@ -1,13 +1,13 @@
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
-import { CardGridSkeleton } from "../_components/MektekSkeletons";
+import { CatalogInventorySkeleton } from "../_components/MektekSkeletons";
 
 export default function Loading() {
   return (
     <Container
       title="Catalogue Items"
-      description="Buat, perbarui, hapus, dan tinjau item dari parts catalogue"
+      description="Kelola data sparepart dan stok Gudang Belakang/Depan per bulan"
     >
-      <CardGridSkeleton cards={9} />
+      <CatalogInventorySkeleton />
     </Container>
   );
 }

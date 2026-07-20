@@ -49,6 +49,21 @@ enum CatalogCustomerType {
   B2B
 }
 
+enum CatalogProductionChannel {
+  POWERTRAIN
+  THERMAL
+}
+
+enum CatalogWarehouse {
+  REAR
+  FRONT
+}
+
+enum CatalogStockDirection {
+  IN
+  OUT
+}
+
 enum MektekVoucherDiscountType {
   FIXED
   PERCENTAGE
@@ -227,7 +242,7 @@ model CustomerPhoneVerification {
 }
 
 model CatalogItem {
-  id                String   @id
+  id                String                    @id
   machine           String
   rowNumber         Int
   illustration      String?
@@ -242,13 +257,59 @@ model CatalogItem {
   quantityUpdatedAt DateTime?
   price             Int?
   remark            String?
+  productionChannel CatalogProductionChannel?
+  rearLocation      String?
+  frontLocation     String?
+  rearStock         Int                       @default(0)
+  frontStock        Int                       @default(0)
   searchText        String
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+
+  inventoryMonths CatalogInventoryMonth[]
+  stockMovements  CatalogStockMovement[]
 
   @@index([machine])
   @@index([description])
   @@index([quantityUpdatedAt])
+  @@index([productionChannel])
+}
+
+model CatalogInventoryMonth {
+  id                String   @id @default(uuid()) @db.Uuid
+  catalogItemId     String
+  month             DateTime @db.Date
+  openingRearStock  Int      @default(0)
+  openingFrontStock Int      @default(0)
+  closingRearStock  Int      @default(0)
+  closingFrontStock Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  item      CatalogItem            @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  movements CatalogStockMovement[]
+
+  @@unique([catalogItemId, month])
+  @@index([month])
+}
+
+model CatalogStockMovement {
+  id               String                @id @default(uuid()) @db.Uuid
+  catalogItemId    String
+  inventoryMonthId String                @db.Uuid
+  warehouse        CatalogWarehouse
+  direction        CatalogStockDirection
+  quantity         Int
+  occurredAt       DateTime
+  note             String?
+  createdBy        String?               @db.Uuid
+  createdAt        DateTime              @default(now())
+
+  item           CatalogItem           @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  inventoryMonth CatalogInventoryMonth @relation(fields: [inventoryMonthId], references: [id], onDelete: Cascade)
+
+  @@index([catalogItemId, occurredAt])
+  @@index([inventoryMonthId])
 }
 
 model CatalogServiceLink {

@@ -13,12 +13,26 @@ import {
 } from "@/actions/mektek/catalog-items";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CatalogImage } from "@/components/mektek/CatalogImage";
 import { RupiahInput } from "@/components/mektek/RupiahInput";
+import { getCatalogProductionChannelLabel } from "@/lib/mektek/catalog-inventory";
 
 type CatalogItemRow = {
   id: string;
@@ -26,8 +40,13 @@ type CatalogItemRow = {
   imagePath: string | null;
   partNumber: string | null;
   description: string;
-  quantity: string | null;
   price: number | null;
+  productionChannel: "POWERTRAIN" | "THERMAL" | null;
+  rearLocation: string | null;
+  frontLocation: string | null;
+  rearStock: number;
+  frontStock: number;
+  remark: string | null;
 };
 
 type CatalogItemManagerProps = {
@@ -35,11 +54,16 @@ type CatalogItemManagerProps = {
 };
 
 const blankItem: CatalogItemInput = {
+  itemName: "",
   machine: "",
   partNumber: "",
-  description: "",
-  quantity: "",
   price: "",
+  productionChannel: "",
+  rearLocation: "",
+  frontLocation: "",
+  remark: "",
+  initialRearStock: "",
+  initialFrontStock: "",
 };
 
 type ImageDraft = {
@@ -58,11 +82,16 @@ const blankImageDraft: ImageDraft = {
 
 function itemToInput(item: CatalogItemRow): CatalogItemInput {
   return {
+    itemName: item.description,
     machine: item.machine,
     partNumber: item.partNumber ?? "",
-    description: item.description,
-    quantity: item.quantity ?? "",
     price: item.price ?? "",
+    productionChannel: item.productionChannel ?? "",
+    rearLocation: item.rearLocation ?? "",
+    frontLocation: item.frontLocation ?? "",
+    remark: item.remark ?? "",
+    initialRearStock: "",
+    initialFrontStock: "",
   };
 }
 
@@ -120,6 +149,7 @@ function CatalogItemForm({
   imageSrc,
   imageDraft,
   onImageDraftChange,
+  showInitialStock,
 }: {
   value: CatalogItemInput;
   onChange: (value: CatalogItemInput) => void;
@@ -129,6 +159,7 @@ function CatalogItemForm({
   imageSrc: string | null;
   imageDraft: ImageDraft;
   onImageDraftChange: (draft: ImageDraft) => void;
+  showInitialStock: boolean;
 }) {
   const update = (key: keyof CatalogItemInput, nextValue: string) => {
     onChange({ ...value, [key]: nextValue });
@@ -175,8 +206,18 @@ function CatalogItemForm({
       }}
     >
       <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Item Name">
+          <Input
+            aria-label="Item Name"
+            value={value.itemName}
+            onChange={(event) => update("itemName", event.target.value)}
+            disabled={pending}
+            required
+          />
+        </Field>
         <Field label="Machine">
           <Input
+            aria-label="Machine"
             value={value.machine}
             onChange={(event) => update("machine", event.target.value)}
             disabled={pending}
@@ -185,17 +226,32 @@ function CatalogItemForm({
         </Field>
         <Field label="Part Number">
           <Input
+            aria-label="Part Number"
             value={value.partNumber ?? ""}
             onChange={(event) => update("partNumber", event.target.value)}
             disabled={pending}
           />
         </Field>
-        <Field label="Quantity">
-          <Input
-            value={value.quantity ?? ""}
-            onChange={(event) => update("quantity", event.target.value)}
+        <Field label="Production Channel">
+          <Select
+            value={value.productionChannel || "NONE"}
+            onValueChange={(nextValue) =>
+              update(
+                "productionChannel",
+                nextValue === "NONE" ? "" : nextValue,
+              )
+            }
             disabled={pending}
-          />
+          >
+            <SelectTrigger aria-label="Production Channel">
+              <SelectValue placeholder="Bisa dikosongi" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="NONE">Tidak diatur</SelectItem>
+              <SelectItem value="POWERTRAIN">Powertrain · jarang bergerak</SelectItem>
+              <SelectItem value="THERMAL">Thermal · sering bergerak</SelectItem>
+            </SelectContent>
+          </Select>
         </Field>
         <Field label="Price">
           <RupiahInput
@@ -205,16 +261,61 @@ function CatalogItemForm({
             disabled={pending}
           />
         </Field>
+        <Field label="Lokasi G. Belakang">
+          <Input
+            aria-label="Lokasi Gudang Belakang"
+            value={value.rearLocation ?? ""}
+            onChange={(event) => update("rearLocation", event.target.value)}
+            disabled={pending}
+            placeholder="Contoh: 002C0601"
+          />
+        </Field>
+        <Field label="Lokasi G. Depan">
+          <Input
+            aria-label="Lokasi Gudang Depan"
+            value={value.frontLocation ?? ""}
+            onChange={(event) => update("frontLocation", event.target.value)}
+            disabled={pending}
+            placeholder="Contoh: 002D0203"
+          />
+        </Field>
+        <Field label="Remark">
+          <Input
+            aria-label="Remark"
+            value={value.remark ?? ""}
+            onChange={(event) => update("remark", event.target.value)}
+            disabled={pending}
+          />
+        </Field>
+        {showInitialStock && (
+          <>
+            <Field label="Stok Awal G. Belakang">
+              <Input
+                aria-label="Stok Awal Gudang Belakang"
+                inputMode="numeric"
+                value={value.initialRearStock ?? ""}
+                onChange={(event) =>
+                  update("initialRearStock", event.target.value.replace(/\D/g, ""))
+                }
+                disabled={pending}
+                placeholder="0"
+              />
+            </Field>
+            <Field label="Stok Awal G. Depan">
+              <Input
+                aria-label="Stok Awal Gudang Depan"
+                inputMode="numeric"
+                value={value.initialFrontStock ?? ""}
+                onChange={(event) =>
+                  update("initialFrontStock", event.target.value.replace(/\D/g, ""))
+                }
+                disabled={pending}
+                placeholder="0"
+              />
+            </Field>
+          </>
+        )}
       </div>
-
-      <Field label="Description">
-        <Textarea
-          value={value.description}
-          onChange={(event) => update("description", event.target.value)}
-          disabled={pending}
-          required
-        />
-      </Field>
 
       <Field label="Catalogue Image">
         <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-center">
@@ -370,14 +471,14 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto">
               <Plus data-icon="inline-start" />
-              Tambah item
+              Tambah Spare Part
             </Button>
           </DialogTrigger>
           <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
             <DialogHeader>
-              <DialogTitle>Tambah Catalogue Item</DialogTitle>
+              <DialogTitle>Tambah Spare Part</DialogTitle>
               <DialogDescription>
-                Buat item yang dapat dicari, ditampilkan kepada Customer, dan ditambahkan ke service order.
+                Simpan identitas item, Production Channel, lokasi, dan stok awal kedua gudang.
               </DialogDescription>
             </DialogHeader>
             <CatalogItemForm
@@ -389,24 +490,27 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
               imageSrc={null}
               imageDraft={createImage}
               onImageDraftChange={setCreateImage}
+              showInitialStock
             />
           </DialogContent>
         </Dialog>
       </div>
 
       <div className="overflow-hidden rounded-lg border">
-        <div className="hidden grid-cols-[72px_minmax(0,1.4fr)_minmax(120px,0.7fr)_minmax(120px,0.6fr)_128px] gap-4 border-b bg-muted/30 px-4 py-3 text-xs font-medium uppercase text-muted-foreground lg:grid">
+        <div className="hidden grid-cols-[72px_minmax(0,1.2fr)_120px_minmax(140px,0.8fr)_minmax(130px,0.7fr)_minmax(130px,0.7fr)_128px] gap-4 border-b bg-muted/30 px-4 py-3 text-xs font-medium uppercase text-muted-foreground xl:grid">
           <span>Image</span>
           <span>Item</span>
-          <span>Machine</span>
-          <span>Part</span>
+          <span>Channel</span>
+          <span>Machine / Part</span>
+          <span>G. Belakang</span>
+          <span>G. Depan</span>
           <span className="text-right">Actions</span>
         </div>
         <div className="divide-y">
           {items.map((item) => (
             <div
               key={item.id}
-              className="grid gap-3 px-4 py-4 lg:grid-cols-[72px_minmax(0,1.4fr)_minmax(120px,0.7fr)_minmax(120px,0.6fr)_128px] lg:items-center lg:gap-4"
+              className="grid gap-3 px-4 py-4 xl:grid-cols-[72px_minmax(0,1.2fr)_120px_minmax(140px,0.8fr)_minmax(130px,0.7fr)_minmax(130px,0.7fr)_128px] xl:items-center xl:gap-4"
             >
               <div className="size-16 overflow-hidden rounded-md border bg-muted">
                 <CatalogImage src={item.imagePath} alt={item.description} />
@@ -415,15 +519,30 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
                 <p className="truncate font-medium">{item.description}</p>
                 <p className="text-sm text-muted-foreground">{formatPrice(item.price)}</p>
               </div>
-              <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <Badge variant="secondary" className="max-w-full whitespace-normal">
-                  {item.machine}
+              <div>
+                <Badge variant={item.productionChannel ? "secondary" : "outline"}>
+                  {getCatalogProductionChannelLabel(item.productionChannel) || "Belum diatur"}
                 </Badge>
               </div>
-              <p className="truncate text-sm text-muted-foreground">
-                {item.partNumber || "Part Number belum tersedia"}
-              </p>
-              <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+              <div className="min-w-0 text-sm">
+                <p className="truncate font-medium">{item.machine}</p>
+                <p className="truncate text-muted-foreground">
+                  {item.partNumber || "Part Number belum tersedia"}
+                </p>
+              </div>
+              <div className="text-sm">
+                <p className="font-semibold tabular-nums">{item.rearStock} unit</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {item.rearLocation || "Lokasi belum diatur"}
+                </p>
+              </div>
+              <div className="text-sm">
+                <p className="font-semibold tabular-nums">{item.frontStock} unit</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {item.frontLocation || "Lokasi belum diatur"}
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-start gap-2 xl:justify-end">
                 <Button
                   type="button"
                   variant="outline"
@@ -474,6 +593,7 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
             imageSrc={editingItem?.imagePath ?? null}
             imageDraft={editImage}
             onImageDraftChange={setEditImage}
+            showInitialStock={false}
           />
         </DialogContent>
       </Dialog>

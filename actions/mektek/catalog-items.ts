@@ -2,7 +2,7 @@
 
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
-import type { Prisma } from "@prisma/client";
+import type { CatalogProductionChannel, Prisma } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
@@ -15,16 +15,25 @@ import {
   buildQuantityUpdateData,
 } from "@/lib/mektek/catalog-insights";
 import { mektekOrderWhere } from "@/lib/mektek/orders";
+import {
+  getCatalogInventoryMonthKey,
+  getCatalogInventoryMonthRange,
+} from "@/lib/mektek/catalog-inventory";
 
 const DEFAULT_PAGE_SIZE = 24;
 
 export type CatalogItemInput = {
   id?: string;
+  itemName: string;
   machine: string;
   partNumber?: string;
-  description: string;
-  quantity?: string;
   price?: number | string;
+  productionChannel?: CatalogProductionChannel | "";
+  rearLocation?: string;
+  frontLocation?: string;
+  remark?: string;
+  initialRearStock?: number | string;
+  initialFrontStock?: number | string;
 };
 
 function compactText(value: unknown) {
@@ -40,6 +49,13 @@ function parsePositiveInt(value: unknown) {
   const numeric =
     typeof value === "number" ? value : Number(String(value ?? "").replace(/\D/g, ""));
   return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : null;
+}
+
+function parseNonNegativeInt(value: unknown) {
+  const raw = compactText(value);
+  if (!raw) return 0;
+  const numeric = Number(raw);
+  return Number.isInteger(numeric) && numeric >= 0 ? numeric : null;
 }
 
 function slugify(value: string) {
@@ -93,27 +109,41 @@ function catalogWhere(input?: {
 
 function normalizeCatalogInput(input: CatalogItemInput) {
   const machine = compactText(input.machine);
-  const description = compactText(input.description);
+  const description = compactText(input.itemName);
   const partNumber = nullableText(input.partNumber);
-  const quantity = nullableText(input.quantity);
   const price = parsePositiveInt(input.price);
+  const initialRearStock = parseNonNegativeInt(input.initialRearStock);
+  const initialFrontStock = parseNonNegativeInt(input.initialFrontStock);
+  const rawProductionChannel = compactText(input.productionChannel).toUpperCase();
+  const productionChannel: CatalogProductionChannel | null =
+    rawProductionChannel === "POWERTRAIN" || rawProductionChannel === "THERMAL"
+      ? rawProductionChannel
+      : null;
 
   if (!machine) return { error: "Machine wajib diisi" };
-  if (!description) return { error: "Description wajib diisi" };
+  if (!description) return { error: "Item Name wajib diisi" };
+  if (initialRearStock === null || initialFrontStock === null) {
+    return { error: "Stok awal harus berupa angka 0 atau lebih" };
+  }
 
   return {
     data: {
       machine,
       partNumber,
       description,
-      quantity,
       price,
+      productionChannel,
+      rearLocation: nullableText(input.rearLocation),
+      frontLocation: nullableText(input.frontLocation),
+      remark: nullableText(input.remark),
       searchText: buildSearchText({
         machine,
         partNumber,
         description,
       }),
     },
+    initialRearStock,
+    initialFrontStock,
   };
 }
 
@@ -244,18 +274,36 @@ export async function createMektekCatalogItem(input: CatalogItemInput) {
 
   const id =
     compactText(input.id) ||
-    `${slugify(normalized.data.machine || "catalog-item")}-${crypto
+    `${slugify(normalized.data.description || "catalog-item")}-${crypto
       .randomBytes(5)
       .toString("hex")}`;
 
   try {
-    const item = await prismadb.catalogItem.create({
-      data: {
-        id,
-        rowNumber: 0,
-        ...normalized.data,
-      },
-      select: { id: true },
+    const month = getCatalogInventoryMonthRange(
+      getCatalogInventoryMonthKey(),
+    ).start;
+    const item = await prismadb.$transaction(async (tx) => {
+      const created = await tx.catalogItem.create({
+        data: {
+          id,
+          rowNumber: 0,
+          ...normalized.data,
+          rearStock: normalized.initialRearStock,
+          frontStock: normalized.initialFrontStock,
+        },
+        select: { id: true },
+      });
+      await tx.catalogInventoryMonth.create({
+        data: {
+          catalogItemId: created.id,
+          month,
+          openingRearStock: normalized.initialRearStock,
+          openingFrontStock: normalized.initialFrontStock,
+          closingRearStock: normalized.initialRearStock,
+          closingFrontStock: normalized.initialFrontStock,
+        },
+      });
+      return created;
     });
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
     revalidatePath("/[locale]/(routes)/mektek/dashboard", "page");
