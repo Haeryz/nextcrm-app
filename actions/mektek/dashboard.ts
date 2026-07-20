@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { getServerSession } from "@/lib/session";
 import { prismadb } from "@/lib/prisma";
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
+import { buildMektekDashboardAnalytics } from "@/lib/mektek/dashboard-analytics";
 import { mektekOrderWhere, mektekPaymentSelect } from "@/lib/mektek/orders";
 import { canViewMektekDashboard } from "@/lib/mektek/permissions";
 
@@ -43,6 +44,7 @@ export async function getMektekDashboardSummary(
       where: mektekOrderWhere(),
       select: {
         id: true,
+        createdAt: true,
         dueDateAt: true,
         taskStatus: true,
         updatedAt: true,
@@ -139,5 +141,6 @@ export async function getMektekDashboardSummary(
     recentOrdersPageSize,
     recentOrdersTotalCount,
     recentOrdersTotalPages,
+    analytics: buildMektekDashboardAnalytics(orders, now),
   };
 }

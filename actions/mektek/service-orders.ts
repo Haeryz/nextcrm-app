@@ -86,7 +86,7 @@ type MektekTimelineEntry = {
   id: string;
   description: string;
   createdAt: string;
-  completed: boolean;
+  completed?: boolean;
 };
 
 const parseTagsObject = (tags: unknown): Record<string, unknown> => {
@@ -152,11 +152,16 @@ const parseTimeline = (tags: unknown): MektekTimelineEntry[] => {
       const row = item as Record<string, unknown>;
       const description = typeof row.description === "string" ? row.description.trim() : "";
       const createdAt = typeof row.createdAt === "string" ? row.createdAt : new Date().toISOString();
-      const completed = typeof row.completed === "boolean" ? row.completed : true;
+      const completed = typeof row.completed === "boolean" ? row.completed : undefined;
       const id = typeof row.id === "string" ? row.id : crypto.randomUUID();
 
       if (!description) return null;
-      return { id, description, createdAt, completed };
+      return {
+        id,
+        description,
+        createdAt,
+        ...(completed === undefined ? {} : { completed }),
+      };
     })
     .filter((row): row is MektekTimelineEntry => !!row)
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
@@ -943,7 +948,6 @@ export const getPublicMektekServiceOrderByCode = async (code: string) => {
 export const addMektekTimelineEntry = async (data: {
   serviceOrderId: string;
   description: string;
-  completed: boolean;
 }) => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
@@ -953,7 +957,6 @@ export const addMektekTimelineEntry = async (data: {
 
   const serviceOrderId = String(data?.serviceOrderId ?? "").trim();
   const description = String(data?.description ?? "").trim();
-  const completed = !!data?.completed;
 
   if (!serviceOrderId) return { error: "Service Order ID wajib diisi" };
   if (!description) return { error: "Timeline Description wajib diisi" };
@@ -980,7 +983,6 @@ export const addMektekTimelineEntry = async (data: {
         id: crypto.randomUUID(),
         description,
         createdAt: new Date().toISOString(),
-        completed,
       },
     ];
 

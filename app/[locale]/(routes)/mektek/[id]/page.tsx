@@ -46,7 +46,6 @@ type TimelineEntry = {
   id: string;
   date: Date;
   description: string;
-  completed: boolean;
 };
 
 function valueOrDash(value?: string | null) {
@@ -118,11 +117,10 @@ export default async function MektekDetailPage({ params }: Props) {
           const createdAtValue =
             typeof row.createdAt === "string" ? row.createdAt : new Date().toISOString();
           const createdAt = new Date(createdAtValue);
-          const completed = typeof row.completed === "boolean" ? row.completed : true;
           const timelineId =
             typeof row.id === "string" ? row.id : `${createdAtValue}-${description}`;
           if (!description || Number.isNaN(createdAt.getTime())) return null;
-          return { id: timelineId, date: createdAt, description, completed };
+          return { id: timelineId, date: createdAt, description };
         })
         .filter((entry): entry is TimelineEntry => !!entry)
     : [];
@@ -137,10 +135,8 @@ export default async function MektekDetailPage({ params }: Props) {
           date: order.createdAt ?? new Date(),
           description:
             "Layanan Anda telah terbuat. Tim kami sedang menyiapkan pemeriksaan awal kendaraan.",
-          completed: true,
         },
       ];
-  const completedSteps = timeline.filter((item) => item.completed).length;
   const statusMeta = getStatusMeta(order.taskStatus);
   const invoiceData = buildMektekInvoiceData(order);
   const normalizedItems = normalizeMektekLineItems(tags, order.content);
@@ -213,7 +209,7 @@ export default async function MektekDetailPage({ params }: Props) {
                     {statusMeta.label}
                   </Badge>
                   <p className="text-xs text-muted-foreground">
-                    {completedSteps} dari {timeline.length} Step Done
+                    {timeline.length} pembaruan timeline
                   </p>
                 </div>
               </div>
@@ -360,23 +356,17 @@ export default async function MektekDetailPage({ params }: Props) {
                       className="grid grid-cols-[16px_1fr] gap-3 rounded-lg border p-4"
                     >
                       <span
-                        className={`mt-1 size-3 rounded-full ${
-                          timelineItem.completed ? "bg-foreground" : "bg-muted-foreground"
-                        }`}
+                        className="mt-1 size-3 rounded-full bg-primary"
+                        aria-hidden="true"
                       />
                       <div className="min-w-0 space-y-2">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs text-muted-foreground">
-                            {timelineItem.date.toLocaleDateString()} ·{" "}
-                            {timelineItem.date.toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </p>
-                          <Badge variant={timelineItem.completed ? "default" : "secondary"}>
-                            {timelineItem.completed ? "Done" : "Pending"}
-                          </Badge>
-                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {timelineItem.date.toLocaleDateString()} ·{" "}
+                          {timelineItem.date.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
                         <p className="text-sm font-medium text-foreground">
                           {timelineItem.description}
                         </p>

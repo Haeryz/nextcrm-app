@@ -7,13 +7,6 @@ import { useRouter } from "next/navigation";
 import { addMektekTimelineEntry } from "@/actions/mektek/service-orders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import WhatsAppNotifyToggle from "./WhatsAppNotifyToggle";
 
 interface AddTimelineEntryFormProps {
@@ -26,7 +19,6 @@ export default function AddTimelineEntryForm({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<"done" | "pending">("done");
 
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -35,7 +27,6 @@ export default function AddTimelineEntryForm({
       const result = await addMektekTimelineEntry({
         serviceOrderId,
         description,
-        completed: status === "done",
       });
 
       if (result?.error) {
@@ -45,36 +36,29 @@ export default function AddTimelineEntryForm({
 
       toast.success("Entri Timeline ditambahkan");
       setDescription("");
-      setStatus("done");
       router.refresh();
     });
   };
 
   return (
     <form onSubmit={onSubmit} className="rounded-lg border p-4 bg-card space-y-3">
-      <p className="text-sm font-semibold">Tambah Timeline pesanan</p>
-      <Input
-        placeholder="Contoh: Sparepart sudah dipasang"
-        value={description}
-        onChange={(event) => setDescription(event.target.value)}
-        disabled={isPending}
-        required
-      />
-      <div className="grid grid-cols-1 md:grid-cols-[180px_1fr] gap-3 items-center">
-        <Select value={status} onValueChange={(value) => setStatus(value as "done" | "pending")}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="done">Done</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-          </SelectContent>
-        </Select>
-        <div className="flex justify-end">
-          <Button type="submit" disabled={isPending}>
-            {isPending ? "Menyimpan..." : "Tambah Timeline"}
-          </Button>
-        </div>
+      <div>
+        <p className="text-sm font-semibold">Add Timeline</p>
+        <p className="text-xs text-muted-foreground">
+          Tambahkan catatan terbaru ke riwayat pesanan.
+        </p>
+      </div>
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Input
+          placeholder="Contoh: Sparepart sudah dipasang"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          disabled={isPending}
+          required
+        />
+        <Button type="submit" className="shrink-0" disabled={isPending}>
+          {isPending ? "Menyimpan..." : "Add Timeline"}
+        </Button>
       </div>
       <WhatsAppNotifyToggle />
     </form>

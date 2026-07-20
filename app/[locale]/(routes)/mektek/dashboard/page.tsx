@@ -7,6 +7,7 @@ import { getServerSession } from "@/lib/session";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import MektekOrderList from "../_components/MektekOrderList";
 import MektekPagination from "../_components/MektekPagination";
+import MektekDashboardInsights from "./_components/MektekDashboardInsights";
 import { redirect } from "next/navigation";
 
 interface MektekDashboardPageProps {
@@ -61,7 +62,7 @@ export default async function MektekDashboardPage({
   return (
     <Container
       title="MEKTEK Dashboard"
-      description="Ringkasan operasional pekerjaan servis saat ini"
+      description="Ringkasan operasional, penjualan, dan pelanggan MekTek"
     >
       <div className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -77,6 +78,8 @@ export default async function MektekDashboardPage({
             </Card>
           ))}
         </div>
+
+        <MektekDashboardInsights analytics={summary.analytics} />
 
         <Card>
           <CardHeader className="flex flex-col gap-2 space-y-0 sm:flex-row sm:items-center sm:justify-between">

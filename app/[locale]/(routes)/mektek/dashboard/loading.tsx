@@ -5,7 +5,7 @@ export default function Loading() {
   return (
     <Container
       title="MEKTEK Dashboard"
-      description="Ringkasan operasional pekerjaan servis saat ini"
+      description="Ringkasan operasional, penjualan, dan pelanggan MekTek"
     >
       <DashboardSkeleton />
     </Container>
