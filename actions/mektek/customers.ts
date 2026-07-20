@@ -104,6 +104,17 @@ function customerWhere(input?: { query?: string }): Prisma.CatalogCustomerWhereI
       { vehicleName: { contains: query, mode: "insensitive" } },
       { vehiclePlateNumber: { contains: query, mode: "insensitive" } },
       { vehicleFleetNumber: { contains: query, mode: "insensitive" } },
+      {
+        vehicles: {
+          some: {
+            OR: [
+              { name: { contains: query, mode: "insensitive" } },
+              { plateNumber: { contains: query, mode: "insensitive" } },
+              { fleetNumber: { contains: query, mode: "insensitive" } },
+            ],
+          },
+        },
+      },
       { user: { name: { contains: query, mode: "insensitive" } } },
       { user: { username: { contains: query, mode: "insensitive" } } },
       { user: { email: { contains: query, mode: "insensitive" } } },

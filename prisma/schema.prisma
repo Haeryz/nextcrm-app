@@ -214,14 +214,35 @@ model CatalogCustomer {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
-  user         Users?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user         Users?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
   serviceLinks CatalogServiceLink[]
+  vehicles     CatalogCustomerVehicle[]
   vouchers     MektekVoucher[]
 
   @@index([phoneNormalized])
   @@index([customerType])
   @@index([userId])
   @@index([createdAt])
+}
+
+model CatalogCustomerVehicle {
+  id                    String    @id @default(uuid()) @db.Uuid
+  customerId            String    @db.Uuid
+  name                  String
+  plateNumber           String
+  plateNumberNormalized String
+  fleetNumber           String?
+  isPrimary             Boolean   @default(false)
+  lastServiceAt         DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  customer CatalogCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, plateNumberNormalized])
+  @@index([customerId, isPrimary])
+  @@index([plateNumberNormalized])
+  @@index([lastServiceAt])
 }
 
 // One-time WhatsApp OTP used to prove ownership of a phone number before it can be

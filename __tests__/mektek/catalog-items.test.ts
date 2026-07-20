@@ -12,18 +12,25 @@ const tx = {
   },
 };
 
+const catalogItemFindUnique = jest.fn();
+const catalogItemUpdate = jest.fn();
+
 jest.mock("@/lib/prisma", () => ({
   prismadb: {
     $transaction: jest.fn((callback: (client: typeof tx) => unknown) =>
       callback(tx),
     ),
     catalogItem: {
-      update: jest.fn(),
+      findUnique: catalogItemFindUnique,
+      update: catalogItemUpdate,
     },
   },
 }));
 
-import { createMektekCatalogItem } from "@/actions/mektek/catalog-items";
+import {
+  createMektekCatalogItem,
+  updateMektekCatalogItem,
+} from "@/actions/mektek/catalog-items";
 import { getServerSession } from "@/lib/session";
 
 describe("catalog item inventory creation", () => {
@@ -34,6 +41,8 @@ describe("catalog item inventory creation", () => {
     });
     tx.catalogItem.create.mockResolvedValue({ id: "compressor" });
     tx.catalogInventoryMonth.create.mockResolvedValue({ id: "month" });
+    catalogItemFindUnique.mockResolvedValue({ id: "compressor" });
+    catalogItemUpdate.mockResolvedValue({ id: "compressor" });
   });
 
   it("stores the corrected field mapping and creates the opening warehouse ledger atomically", async () => {
@@ -71,6 +80,26 @@ describe("catalog item inventory creation", () => {
         closingRearStock: 10,
         closingFrontStock: 4,
       }),
+    });
+  });
+
+  it("updates catalogue metadata without reading or overwriting legacy quantity", async () => {
+    const result = await updateMektekCatalogItem("compressor", {
+      itemName: "Compressor Assy",
+      machine: "DENSO",
+      partNumber: "447220-7250",
+      productionChannel: "THERMAL",
+    });
+
+    expect(result).toEqual({ data: { id: "compressor" } });
+    expect(catalogItemFindUnique).toHaveBeenCalledWith({
+      where: { id: "compressor" },
+      select: { id: true },
+    });
+    expect(catalogItemUpdate).toHaveBeenCalledWith({
+      where: { id: "compressor" },
+      data: expect.not.objectContaining({ quantity: expect.anything() }),
+      select: { id: true },
     });
   });
 });

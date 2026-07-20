@@ -1,5 +1,12 @@
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, ChevronRight, Clock3, Wrench } from "lucide-react";
+import {
+  ArrowLeft,
+  CarFront,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  Wrench,
+} from "lucide-react";
 import { notFound } from "next/navigation";
 
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
@@ -12,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getStatusMeta } from "../../_lib/constants";
+import { normalizeMektekVehiclePlateNumber } from "@/lib/mektek/customer-vehicles";
 
 interface CustomerDetailPageProps {
   params: Promise<{ id: string; locale: string }>;
@@ -60,6 +68,21 @@ export default async function CustomerDetailPage({
       vehicleName: true,
       vehiclePlateNumber: true,
       vehicleFleetNumber: true,
+      vehicles: {
+        orderBy: [
+          { isPrimary: "desc" },
+          { lastServiceAt: "desc" },
+          { updatedAt: "desc" },
+        ],
+        select: {
+          id: true,
+          name: true,
+          plateNumber: true,
+          fleetNumber: true,
+          isPrimary: true,
+          lastServiceAt: true,
+        },
+      },
       createdAt: true,
       updatedAt: true,
       user: {
@@ -101,6 +124,44 @@ export default async function CustomerDetailPage({
   const summary = summarizeCustomerServiceHistory(
     orders.map((order) => order.taskStatus),
   );
+  const vehicles =
+    customer.vehicles.length > 0
+      ? customer.vehicles
+      : customer.vehiclePlateNumber
+        ? [
+            {
+              id: `legacy-${customer.id}`,
+              name: customer.vehicleName || "Kendaraan",
+              plateNumber: customer.vehiclePlateNumber,
+              fleetNumber: customer.vehicleFleetNumber,
+              isPrimary: true,
+              lastServiceAt: customer.updatedAt,
+            },
+          ]
+        : [];
+  const serviceHistoryByPlate = new Map<
+    string,
+    { count: number; lastServiceAt: Date | null }
+  >();
+  for (const order of orders) {
+    const tags = readTags(order.tags);
+    const plateNumber =
+      typeof tags.vehiclePlateNumber === "string"
+        ? tags.vehiclePlateNumber
+        : "";
+    const normalizedPlate = normalizeMektekVehiclePlateNumber(plateNumber);
+    if (!normalizedPlate) continue;
+    const current = serviceHistoryByPlate.get(normalizedPlate);
+    const serviceDate = order.createdAt ?? order.updatedAt ?? null;
+    serviceHistoryByPlate.set(normalizedPlate, {
+      count: (current?.count ?? 0) + 1,
+      lastServiceAt:
+        !current?.lastServiceAt ||
+        (serviceDate && serviceDate > current.lastServiceAt)
+          ? serviceDate
+          : current.lastServiceAt,
+    });
+  }
 
   return (
     <Container
@@ -143,24 +204,6 @@ export default async function CustomerDetailPage({
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Kendaraan</p>
-              <p className="mt-1 font-medium">{customer.vehicleName ?? "Belum tersimpan"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Nomor plat</p>
-              <p className="mt-1 font-medium">
-                {customer.vehiclePlateNumber ?? "Belum tersimpan"}
-              </p>
-            </div>
-            {customer.customerType === "B2B" && (
-              <div>
-                <p className="text-xs text-muted-foreground">Nomor lambung</p>
-                <p className="mt-1 font-medium">
-                  {customer.vehicleFleetNumber ?? "Belum tersimpan"}
-                </p>
-              </div>
-            )}
-            <div>
               <p className="text-xs text-muted-foreground">Customer sejak</p>
               <p className="mt-1 font-medium">{formatDateTime(customer.createdAt)}</p>
             </div>
@@ -176,6 +219,70 @@ export default async function CustomerDetailPage({
                 {customer.id}
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+            <div>
+              <CardTitle className="text-base">Kendaraan Customer</CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Semua kendaraan dan nomor plat yang pernah digunakan pelanggan.
+              </p>
+            </div>
+            <Badge variant="secondary">{vehicles.length} kendaraan</Badge>
+          </CardHeader>
+          <CardContent>
+            {vehicles.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                Belum ada kendaraan tersimpan. Kendaraan akan ditambahkan saat
+                membuat pesanan servis.
+              </div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {vehicles.map((vehicle) => {
+                  const history = serviceHistoryByPlate.get(
+                    normalizeMektekVehiclePlateNumber(vehicle.plateNumber),
+                  );
+                  const lastServiceAt =
+                    history?.lastServiceAt ?? vehicle.lastServiceAt;
+
+                  return (
+                    <article
+                      key={vehicle.id}
+                      className="rounded-lg border bg-muted/20 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <CarFront
+                            className="size-5 shrink-0 text-muted-foreground"
+                            aria-hidden="true"
+                          />
+                          <p className="truncate font-mono text-base font-semibold">
+                            {vehicle.plateNumber}
+                          </p>
+                        </div>
+                        {vehicle.isPrimary && (
+                          <Badge variant="outline">Utama</Badge>
+                        )}
+                      </div>
+                      <p className="mt-3 font-medium">{vehicle.name}</p>
+                      {vehicle.fleetNumber && (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Nomor lambung: {vehicle.fleetNumber}
+                        </p>
+                      )}
+                      <div className="mt-4 border-t pt-3 text-xs text-muted-foreground">
+                        <p>{history?.count ?? 0} riwayat servis</p>
+                        <p className="mt-1">
+                          Servis terakhir: {formatDateTime(lastServiceAt)}
+                        </p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -222,6 +329,10 @@ export default async function CustomerDetailPage({
                     typeof tags.vehicle === "string" && tags.vehicle.trim()
                       ? tags.vehicle
                       : order.title;
+                  const plateNumber =
+                    typeof tags.vehiclePlateNumber === "string"
+                      ? tags.vehiclePlateNumber
+                      : "";
                   const status = getStatusMeta(order.taskStatus ?? "ACTIVE");
                   const technicianTag =
                     tags.technician &&
@@ -245,6 +356,7 @@ export default async function CustomerDetailPage({
                       <div className="min-w-0">
                         <p className="truncate font-medium group-hover:underline">
                           {vehicle}
+                          {plateNumber ? ` · ${plateNumber}` : ""}
                         </p>
                         <p className="line-clamp-1 text-sm text-muted-foreground">
                           {order.content || "Belum ada catatan servis"}

@@ -382,28 +382,6 @@ export default async function MektekDetailPage({ params }: Props) {
               </CardContent>
             </Card>
 
-            <Card className="border shadow-sm">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Catatan Internal</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {order.comments.length > 0 ? (
-                  <div className="space-y-3">
-                    {order.comments.map((comment) => (
-                      <div key={comment.id} className="rounded-lg border p-3">
-                        <p className="text-sm text-foreground">{comment.comment}</p>
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          {comment.assigned_user?.name ?? "Tidak diketahui"} ·{" "}
-                          {comment.createdAt.toLocaleDateString()}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">Belum ada catatan internal.</p>
-                )}
-              </CardContent>
-            </Card>
           </div>
 
           <aside className="min-w-0 space-y-6">

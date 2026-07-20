@@ -14,6 +14,8 @@ import {
 import { ServiceCreatedBurst } from "@/components/mektek/ServiceCreatedBurst";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { formatMektekVehicleChoiceLabel } from "@/lib/mektek/customer-vehicles";
 import { haveRequiredMektekItemInputPrices } from "@/lib/mektek/items";
 import { getMektekTodayDateInput } from "@/lib/mektek/schedule";
 import { MEKTEK_TECHNICIAN_ROLE_LABELS } from "@/lib/mektek/technicians";
@@ -29,6 +31,7 @@ import {
 import DamageItemsInput, { DamageItem } from "./DamageItemsInput";
 
 const UNASSIGNED_TECHNICIAN = "UNASSIGNED";
+const NEW_CUSTOMER_VEHICLE = "NEW_CUSTOMER_VEHICLE";
 
 type NewServiceOrderFormProps = {
   locale: string;
@@ -66,6 +69,10 @@ export default function NewServiceOrderForm({
   const [estimatedDone, setEstimatedDone] = useState(initialEstimatedDone);
   const [voucherCode, setVoucherCode] = useState("");
   const [formResetKey, setFormResetKey] = useState(0);
+  const [customerVehicles, setCustomerVehicles] = useState<
+    MektekCustomerSearchResult["vehicles"]
+  >([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState("");
   const [customerSuggestions, setCustomerSuggestions] = useState<
     MektekCustomerSearchResult[]
   >([]);
@@ -240,6 +247,8 @@ export default function NewServiceOrderForm({
       setAddress("");
       setEstimatedDone(getMektekTodayDateInput());
       setVoucherCode("");
+      setCustomerVehicles([]);
+      setSelectedVehicleId("");
       setCustomerSuggestions([]);
       setCustomerSuggestionsOpen(false);
       setHasCustomerSearchResult(false);
@@ -249,19 +258,46 @@ export default function NewServiceOrderForm({
   };
 
   const selectCustomer = (customer: MektekCustomerSearchResult) => {
+    const preferredVehicle = customer.vehicles[0];
     selectedCustomerNameRef.current = customer.name;
     setCustomerName(customer.name);
     setPhone(customer.phone);
     setCustomerType(customer.customerType);
-    setVehicle(customer.vehicleName ?? "");
-    setVehiclePlateNumber(customer.vehiclePlateNumber ?? "");
-    setVehicleFleetNumber(customer.vehicleFleetNumber ?? "");
+    setCustomerVehicles(customer.vehicles);
+    setSelectedVehicleId(preferredVehicle?.id ?? NEW_CUSTOMER_VEHICLE);
+    setVehicle(preferredVehicle?.name ?? customer.vehicleName ?? "");
+    setVehiclePlateNumber(
+      preferredVehicle?.plateNumber ?? customer.vehiclePlateNumber ?? "",
+    );
+    setVehicleFleetNumber(
+      preferredVehicle?.fleetNumber ?? customer.vehicleFleetNumber ?? "",
+    );
     if (customer.address && !address.trim()) {
       setAddress(customer.address);
     }
     setCustomerSuggestions([]);
     setCustomerSuggestionsOpen(false);
     setHasCustomerSearchResult(false);
+  };
+
+  const selectCustomerVehicle = (vehicleId: string) => {
+    setSelectedVehicleId(vehicleId);
+    if (vehicleId === NEW_CUSTOMER_VEHICLE) {
+      setVehicle("");
+      setVehiclePlateNumber("");
+      setVehicleFleetNumber("");
+      setVehicleMileageKm("");
+      return;
+    }
+
+    const selectedVehicle = customerVehicles.find(
+      (item) => item.id === vehicleId,
+    );
+    if (!selectedVehicle) return;
+    setVehicle(selectedVehicle.name);
+    setVehiclePlateNumber(selectedVehicle.plateNumber);
+    setVehicleFleetNumber(selectedVehicle.fleetNumber ?? "");
+    setVehicleMileageKm("");
   };
 
   const copyLink = async () => {
@@ -302,6 +338,8 @@ export default function NewServiceOrderForm({
               onChange={(event) => {
                 selectedCustomerNameRef.current = "";
                 setCustomerName(event.target.value);
+                setCustomerVehicles([]);
+                setSelectedVehicleId("");
                 setCustomerSuggestionsOpen(true);
               }}
               disabled={isPending}
@@ -340,9 +378,11 @@ export default function NewServiceOrderForm({
                               {customer.customerType === "B2B"
                                 ? " - Perusahaan"
                                 : ""}
-                              {customer.vehicleName ? ` - ${customer.vehicleName}` : ""}
-                              {customer.vehiclePlateNumber
-                                ? ` - ${customer.vehiclePlateNumber}`
+                              {customer.vehicles.length > 0
+                                ? ` - ${customer.vehicles.length} kendaraan (${customer.vehicles
+                                    .slice(0, 2)
+                                    .map((vehicle) => vehicle.plateNumber)
+                                    .join(", ")})`
                                 : ""}
                               {customer.address ? ` - ${customer.address}` : ""}
                         </span>
@@ -358,6 +398,40 @@ export default function NewServiceOrderForm({
                 </div>
               )}
           </div>
+          {customerVehicles.length > 0 && (
+            <div className="space-y-1.5 md:col-span-2">
+              <Label htmlFor="customer-vehicle-select">
+                Pilih kendaraan / nomor plat
+              </Label>
+              <Select
+                value={selectedVehicleId}
+                onValueChange={selectCustomerVehicle}
+                disabled={isPending}
+              >
+                <SelectTrigger id="customer-vehicle-select">
+                  <SelectValue placeholder="Pilih kendaraan pelanggan" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {customerVehicles.map((customerVehicle) => (
+                      <SelectItem
+                        key={customerVehicle.id}
+                        value={customerVehicle.id}
+                      >
+                        {formatMektekVehicleChoiceLabel(customerVehicle)}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={NEW_CUSTOMER_VEHICLE}>
+                      Gunakan kendaraan baru
+                    </SelectItem>
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {customerVehicles.length} kendaraan tersimpan untuk pelanggan ini.
+              </p>
+            </div>
+          )}
           <Input
             placeholder="Kendaraan (mis. Toyota Avanza 2021)"
             value={vehicle}
@@ -368,7 +442,10 @@ export default function NewServiceOrderForm({
           <Input
             placeholder="Nomor plat kendaraan"
             value={vehiclePlateNumber}
-            onChange={(event) => setVehiclePlateNumber(event.target.value.toUpperCase())}
+            onChange={(event) => {
+              setSelectedVehicleId(NEW_CUSTOMER_VEHICLE);
+              setVehiclePlateNumber(event.target.value.toUpperCase());
+            }}
             disabled={isPending}
             required
           />

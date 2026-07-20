@@ -66,6 +66,7 @@ import {
   isMektekPaymentAvailable,
 } from "@/lib/mektek/order-lifecycle";
 import { getWhatsAppState, sendWhatsAppMessage } from "@/lib/whatsapp";
+import { normalizeMektekVehiclePlateNumber } from "@/lib/mektek/customer-vehicles";
 
 const DEFAULT_TIMELINE_MESSAGE =
   "Layanan Anda telah terbuat. Tim kami sedang menyiapkan pemeriksaan awal kendaraan.";
@@ -133,8 +134,17 @@ export type MektekCustomerSearchResult = {
   vehicleName: string | null;
   vehiclePlateNumber: string | null;
   vehicleFleetNumber: string | null;
+  vehicles: MektekCustomerVehicleSearchResult[];
   address: string | null;
   source: "customer" | "user";
+};
+
+export type MektekCustomerVehicleSearchResult = {
+  id: string;
+  name: string;
+  plateNumber: string;
+  fleetNumber: string | null;
+  isPrimary: boolean;
 };
 
 export type MektekTechnicianOption = {
@@ -259,6 +269,12 @@ export const createMektekServiceOrder = async (
   if (!customerName || !vehicle || !vehiclePlateNumber || !complaint) {
     return { error: "Nama Customer, kendaraan, nomor plat, dan keluhan wajib diisi" };
   }
+  const plateNumberNormalized = normalizeMektekVehiclePlateNumber(
+    vehiclePlateNumber,
+  );
+  if (!plateNumberNormalized) {
+    return { error: "Nomor plat kendaraan tidak valid" };
+  }
   if (customerType === "B2B" && !vehicleFleetNumber) {
     return { error: "Nomor lambung wajib diisi untuk kendaraan perusahaan" };
   }
@@ -333,6 +349,38 @@ export const createMektekServiceOrder = async (
         select: {
           id: true,
           customerType: true,
+        },
+      });
+      const existingVehicleCount = await tx.catalogCustomerVehicle.count({
+        where: { customerId: catalogCustomer.id },
+      });
+      const catalogCustomerVehicle = await tx.catalogCustomerVehicle.upsert({
+        where: {
+          customerId_plateNumberNormalized: {
+            customerId: catalogCustomer.id,
+            plateNumberNormalized,
+          },
+        },
+        update: {
+          name: vehicle,
+          plateNumber: vehiclePlateNumber,
+          fleetNumber:
+            catalogCustomer.customerType === "B2B"
+              ? vehicleFleetNumber
+              : null,
+          lastServiceAt: new Date(),
+        },
+        create: {
+          customerId: catalogCustomer.id,
+          name: vehicle,
+          plateNumber: vehiclePlateNumber,
+          plateNumberNormalized,
+          fleetNumber:
+            catalogCustomer.customerType === "B2B"
+              ? vehicleFleetNumber
+              : null,
+          isPrimary: existingVehicleCount === 0,
+          lastServiceAt: new Date(),
         },
       });
       const completedVisitCount = await tx.catalogServiceLink.count({
@@ -424,6 +472,7 @@ export const createMektekServiceOrder = async (
             })),
             technicians: technicians.map((row) => row.name).join(", "),
             catalogCustomerId: catalogCustomer.id,
+            catalogCustomerVehicleId: catalogCustomerVehicle.id,
             completedVisitCount,
             loyaltyTier: loyalty.tier?.label ?? null,
             loyaltyDiscountRate: loyalty.discountRate,
@@ -607,6 +656,17 @@ export const searchMektekCustomers = async (
     { vehicleName: { contains: search, mode: "insensitive" } },
     { vehiclePlateNumber: { contains: search, mode: "insensitive" } },
     { vehicleFleetNumber: { contains: search, mode: "insensitive" } },
+    {
+      vehicles: {
+        some: {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { plateNumber: { contains: search, mode: "insensitive" } },
+            { fleetNumber: { contains: search, mode: "insensitive" } },
+          ],
+        },
+      },
+    },
   ];
   const userWhere: Prisma.UsersWhereInput[] = [
     { name: { contains: search, mode: "insensitive" } },
@@ -638,6 +698,20 @@ export const searchMektekCustomers = async (
           vehicleName: true,
           vehiclePlateNumber: true,
           vehicleFleetNumber: true,
+          vehicles: {
+            orderBy: [
+              { isPrimary: "desc" },
+              { lastServiceAt: "desc" },
+              { updatedAt: "desc" },
+            ],
+            select: {
+              id: true,
+              name: true,
+              plateNumber: true,
+              fleetNumber: true,
+              isPrimary: true,
+            },
+          },
           serviceLinks: {
             orderBy: { createdAt: "desc" },
             take: 1,
@@ -668,6 +742,21 @@ export const searchMektekCustomers = async (
     const results: MektekCustomerSearchResult[] = customers.map((customer) => {
       const tags = parseTagsObject(customer.serviceLinks[0]?.serviceOrder?.tags);
       const address = typeof tags.address === "string" ? tags.address : null;
+      const vehicles: MektekCustomerVehicleSearchResult[] =
+        customer.vehicles.length > 0
+          ? customer.vehicles
+          : customer.vehiclePlateNumber
+            ? [
+                {
+                  id: `legacy-${customer.id}`,
+                  name: customer.vehicleName || "Kendaraan",
+                  plateNumber: customer.vehiclePlateNumber,
+                  fleetNumber: customer.vehicleFleetNumber,
+                  isPrimary: true,
+                },
+              ]
+            : [];
+      const preferredVehicle = vehicles[0];
 
       return {
         id: customer.id,
@@ -675,9 +764,12 @@ export const searchMektekCustomers = async (
         phone: customer.phone,
         phoneNormalized: customer.phoneNormalized,
         customerType: customer.customerType,
-        vehicleName: customer.vehicleName,
-        vehiclePlateNumber: customer.vehiclePlateNumber,
-        vehicleFleetNumber: customer.vehicleFleetNumber,
+        vehicleName: preferredVehicle?.name ?? customer.vehicleName,
+        vehiclePlateNumber:
+          preferredVehicle?.plateNumber ?? customer.vehiclePlateNumber,
+        vehicleFleetNumber:
+          preferredVehicle?.fleetNumber ?? customer.vehicleFleetNumber,
+        vehicles,
         address,
         source: "customer",
       };
@@ -697,6 +789,7 @@ export const searchMektekCustomers = async (
         vehicleName: null,
         vehiclePlateNumber: null,
         vehicleFleetNumber: null,
+        vehicles: [],
         address: null,
         source: "user",
       });
@@ -852,22 +945,6 @@ export const getMektekServiceOrderById = async (id: string) => {
         select: {
           id: true,
           name: true,
-        },
-      },
-      comments: {
-        orderBy: {
-          createdAt: "asc",
-        },
-        select: {
-          id: true,
-          comment: true,
-          createdAt: true,
-          assigned_user: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
         },
       },
       mektekPayments: {

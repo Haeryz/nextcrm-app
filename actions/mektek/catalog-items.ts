@@ -10,10 +10,7 @@ import { canCreateMektekOrders } from "@/lib/mektek/permissions";
 import { getServerSession } from "@/lib/session";
 import { getCatalogImageSource } from "@/lib/catalog-images";
 import { buildMektekDashboardAnalytics } from "@/lib/mektek/dashboard-analytics";
-import {
-  buildCatalogHighlights,
-  buildQuantityUpdateData,
-} from "@/lib/mektek/catalog-insights";
+import { buildCatalogHighlights } from "@/lib/mektek/catalog-insights";
 import { mektekOrderWhere } from "@/lib/mektek/orders";
 import {
   getCatalogInventoryMonthKey,
@@ -328,15 +325,12 @@ export async function updateMektekCatalogItem(id: string, input: CatalogItemInpu
   try {
     const current = await prismadb.catalogItem.findUnique({
       where: { id: itemId },
-      select: { quantity: true },
+      select: { id: true },
     });
     if (!current) return { error: "Catalogue Item tidak ditemukan" };
     const item = await prismadb.catalogItem.update({
       where: { id: itemId },
-      data: {
-        ...normalized.data,
-        ...buildQuantityUpdateData(current.quantity, normalized.data.quantity),
-      },
+      data: normalized.data,
       select: { id: true },
     });
     revalidatePath("/[locale]/(routes)/mektek/items", "page");

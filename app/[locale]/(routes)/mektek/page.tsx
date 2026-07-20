@@ -7,6 +7,7 @@ import {
 import { authOptions } from "@/lib/auth";
 import { canAccessMektekStaffArea, canCreateMektekOrders } from "@/lib/mektek/permissions";
 import { getMektekTodayDateInput } from "@/lib/mektek/schedule";
+import { getMektekServiceOrderExportMonthKey } from "@/lib/mektek/service-order-export";
 import { getServerSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -86,7 +87,9 @@ export default async function MektekPage({ params, searchParams }: MektekPagePro
 
         <div className="flex justify-stretch sm:justify-end">
           <div className="w-full sm:w-auto">
-            <ExcelExportButton orders={orders} />
+            <ExcelExportButton
+              initialMonth={getMektekServiceOrderExportMonthKey()}
+            />
           </div>
         </div>
 
