@@ -57,6 +57,9 @@ export default async function CustomerDetailPage({
       phone: true,
       phoneNormalized: true,
       customerType: true,
+      vehicleName: true,
+      vehiclePlateNumber: true,
+      vehicleFleetNumber: true,
       createdAt: true,
       updatedAt: true,
       user: {
@@ -139,6 +142,24 @@ export default async function CustomerDetailPage({
                 {customer.customerType === "B2B" ? "Perusahaan" : "Standard"}
               </p>
             </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Kendaraan</p>
+              <p className="mt-1 font-medium">{customer.vehicleName ?? "Belum tersimpan"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Nomor plat</p>
+              <p className="mt-1 font-medium">
+                {customer.vehiclePlateNumber ?? "Belum tersimpan"}
+              </p>
+            </div>
+            {customer.customerType === "B2B" && (
+              <div>
+                <p className="text-xs text-muted-foreground">Nomor lambung</p>
+                <p className="mt-1 font-medium">
+                  {customer.vehicleFleetNumber ?? "Belum tersimpan"}
+                </p>
+              </div>
+            )}
             <div>
               <p className="text-xs text-muted-foreground">Customer sejak</p>
               <p className="mt-1 font-medium">{formatDateTime(customer.createdAt)}</p>

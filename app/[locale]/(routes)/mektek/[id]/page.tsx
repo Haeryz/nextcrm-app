@@ -83,6 +83,10 @@ export default async function MektekDetailPage({ params }: Props) {
       : {};
 
   const vehicle = typeof tags.vehicle === "string" ? tags.vehicle : "Kendaraan tidak diketahui";
+  const vehiclePlateNumber =
+    typeof tags.vehiclePlateNumber === "string" ? tags.vehiclePlateNumber : undefined;
+  const vehicleFleetNumber =
+    typeof tags.vehicleFleetNumber === "string" ? tags.vehicleFleetNumber : undefined;
   const customerName =
     typeof tags.customerName === "string" && tags.customerName.length > 0
       ? tags.customerName
@@ -191,6 +195,8 @@ export default async function MektekDetailPage({ params }: Props) {
                   </h2>
                   <p className="text-sm text-muted-foreground">
                     {vehicle}
+                    {vehiclePlateNumber ? ` · ${vehiclePlateNumber}` : ""}
+                    {vehicleFleetNumber ? ` · Lambung ${vehicleFleetNumber}` : ""}
                   </p>
                 </div>
               </div>

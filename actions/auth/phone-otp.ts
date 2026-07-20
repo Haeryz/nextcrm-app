@@ -9,6 +9,7 @@ import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { issueOtpCode } from "@/lib/otp";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { hasTrustedMutationOrigin } from "@/lib/trusted-origin";
+import { reserveWhatsAppOtpSend } from "@/lib/whatsapp/otp-send-guard";
 
 // OTP requests write a DB row + trigger a WhatsApp send. Throttle hard by both IP
 // and phone so it can't be used to spam a victim's number or flood the table.
@@ -50,6 +51,14 @@ export async function requestCustomerPhoneOtp(
   );
   if (!ipLimit.ok || !phoneLimit.ok) {
     return { error: "Terlalu banyak permintaan. Coba lagi nanti." };
+  }
+
+  // IP/phone limits stop individual abuse. This sender-wide reservation also
+  // protects the linked WhatsApp account from distributed bursts across many
+  // IPs and phone numbers. It is shared and atomic across serverless instances.
+  const senderCapacity = await reserveWhatsAppOtpSend();
+  if (!senderCapacity.ok) {
+    return { error: "Pengiriman WhatsApp sedang padat. Coba lagi sebentar." };
   }
 
   const code = await issueOtpCode(phoneNormalized);

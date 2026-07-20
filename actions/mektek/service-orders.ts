@@ -47,7 +47,9 @@ import {
   MAX_ADDRESS_LEN,
   MAX_COMPLAINT_LEN,
   MAX_NAME_LEN,
+  MAX_VEHICLE_FLEET_NUMBER_LEN,
   MAX_VEHICLE_LEN,
+  MAX_VEHICLE_PLATE_NUMBER_LEN,
 } from "@/lib/mektek/sanitize";
 import {
   calculateMektekVoucherDiscount,
@@ -104,6 +106,8 @@ type CreateMektekServiceOrderInput = {
   locale?: string;
   customerName: string;
   vehicle: string;
+  vehiclePlateNumber: string;
+  vehicleFleetNumber?: string;
   complaint: string;
   /** @deprecated Use technicianIds. Retained for older callers during migration. */
   technicianId?: string;
@@ -124,6 +128,9 @@ export type MektekCustomerSearchResult = {
   phone: string;
   phoneNormalized: string;
   customerType: "STANDARD" | "B2B";
+  vehicleName: string | null;
+  vehiclePlateNumber: string | null;
+  vehicleFleetNumber: string | null;
   address: string | null;
   source: "customer" | "user";
 };
@@ -217,6 +224,14 @@ export const createMektekServiceOrder = async (
 
   const customerName = boundedText(input?.customerName, MAX_NAME_LEN);
   const vehicle = boundedText(input?.vehicle, MAX_VEHICLE_LEN);
+  const vehiclePlateNumber = boundedText(
+    input?.vehiclePlateNumber,
+    MAX_VEHICLE_PLATE_NUMBER_LEN,
+  ).toUpperCase();
+  const vehicleFleetNumber = boundedText(
+    input?.vehicleFleetNumber,
+    MAX_VEHICLE_FLEET_NUMBER_LEN,
+  );
   const complaint = boundedText(input?.complaint, MAX_COMPLAINT_LEN);
   const phone = String(input?.phone ?? "").trim();
   const address = boundedText(input?.address, MAX_ADDRESS_LEN);
@@ -233,8 +248,11 @@ export const createMektekServiceOrder = async (
   const manualDiscount = parseMoney(input?.manualDiscount);
   const voucherCode = String(input?.voucherCode ?? "").trim();
 
-  if (!customerName || !vehicle || !complaint) {
-    return { error: "Nama Customer, kendaraan, dan keluhan wajib diisi" };
+  if (!customerName || !vehicle || !vehiclePlateNumber || !complaint) {
+    return { error: "Nama Customer, kendaraan, nomor plat, dan keluhan wajib diisi" };
+  }
+  if (customerType === "B2B" && !vehicleFleetNumber) {
+    return { error: "Nomor lambung wajib diisi untuk kendaraan perusahaan" };
   }
   if (!isValidPhoneNumber(phone)) {
     return { error: "Nomor telepon wajib diisi untuk menambahkan Customer ke Customer/Users" };
@@ -299,6 +317,9 @@ export const createMektekServiceOrder = async (
           phone,
           phoneNormalized,
           customerType,
+          vehicleName: vehicle,
+          vehiclePlateNumber,
+          vehicleFleetNumber,
         }),
         select: {
           id: true,
@@ -375,6 +396,9 @@ export const createMektekServiceOrder = async (
             phone,
             phoneNormalized,
             customerType: catalogCustomer.customerType,
+            vehiclePlateNumber,
+            vehicleFleetNumber:
+              catalogCustomer.customerType === "B2B" ? vehicleFleetNumber : null,
             address: address || null,
             technician: technician
               ? {
@@ -569,6 +593,9 @@ export const searchMektekCustomers = async (
   const customerWhere: Prisma.CatalogCustomerWhereInput[] = [
     { username: { contains: search, mode: "insensitive" } },
     { phone: { contains: search } },
+    { vehicleName: { contains: search, mode: "insensitive" } },
+    { vehiclePlateNumber: { contains: search, mode: "insensitive" } },
+    { vehicleFleetNumber: { contains: search, mode: "insensitive" } },
   ];
   const userWhere: Prisma.UsersWhereInput[] = [
     { name: { contains: search, mode: "insensitive" } },
@@ -597,6 +624,9 @@ export const searchMektekCustomers = async (
           phone: true,
           phoneNormalized: true,
           customerType: true,
+          vehicleName: true,
+          vehiclePlateNumber: true,
+          vehicleFleetNumber: true,
           serviceLinks: {
             orderBy: { createdAt: "desc" },
             take: 1,
@@ -634,6 +664,9 @@ export const searchMektekCustomers = async (
         phone: customer.phone,
         phoneNormalized: customer.phoneNormalized,
         customerType: customer.customerType,
+        vehicleName: customer.vehicleName,
+        vehiclePlateNumber: customer.vehiclePlateNumber,
+        vehicleFleetNumber: customer.vehicleFleetNumber,
         address,
         source: "customer",
       };
@@ -650,6 +683,9 @@ export const searchMektekCustomers = async (
         phone: user.phone || phoneNormalized,
         phoneNormalized,
         customerType: "STANDARD",
+        vehicleName: null,
+        vehiclePlateNumber: null,
+        vehicleFleetNumber: null,
         address: null,
         source: "user",
       });

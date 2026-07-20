@@ -47,6 +47,8 @@ export default function NewServiceOrderForm({
   const [successBurstKey, setSuccessBurstKey] = useState(0);
   const [customerName, setCustomerName] = useState("");
   const [vehicle, setVehicle] = useState("");
+  const [vehiclePlateNumber, setVehiclePlateNumber] = useState("");
+  const [vehicleFleetNumber, setVehicleFleetNumber] = useState("");
   const [technicianIds, setTechnicianIds] = useState<string[]>([
     UNASSIGNED_TECHNICIAN,
     UNASSIGNED_TECHNICIAN,
@@ -171,6 +173,8 @@ export default function NewServiceOrderForm({
         locale,
         customerName,
         vehicle,
+        vehiclePlateNumber,
+        vehicleFleetNumber,
         complaint: complaint || "-",
         technicianIds: selectedTechnicianIds,
         phone,
@@ -218,6 +222,8 @@ export default function NewServiceOrderForm({
       selectedCustomerNameRef.current = "";
       setCustomerName("");
       setVehicle("");
+      setVehiclePlateNumber("");
+      setVehicleFleetNumber("");
       setTechnicianIds([
         UNASSIGNED_TECHNICIAN,
         UNASSIGNED_TECHNICIAN,
@@ -243,6 +249,9 @@ export default function NewServiceOrderForm({
     setCustomerName(customer.name);
     setPhone(customer.phone);
     setCustomerType(customer.customerType);
+    setVehicle(customer.vehicleName ?? "");
+    setVehiclePlateNumber(customer.vehiclePlateNumber ?? "");
+    setVehicleFleetNumber(customer.vehicleFleetNumber ?? "");
     if (customer.address && !address.trim()) {
       setAddress(customer.address);
     }
@@ -324,10 +333,14 @@ export default function NewServiceOrderForm({
                         <span className="text-sm font-medium">{customer.name}</span>
                         <span className="text-xs text-muted-foreground">
                           {customer.phone}
-                          {customer.customerType === "B2B"
-                            ? " - Perusahaan"
-                            : ""}
-                          {customer.address ? ` - ${customer.address}` : ""}
+                              {customer.customerType === "B2B"
+                                ? " - Perusahaan"
+                                : ""}
+                              {customer.vehicleName ? ` - ${customer.vehicleName}` : ""}
+                              {customer.vehiclePlateNumber
+                                ? ` - ${customer.vehiclePlateNumber}`
+                                : ""}
+                              {customer.address ? ` - ${customer.address}` : ""}
                         </span>
                       </button>
                     ))}
@@ -345,6 +358,13 @@ export default function NewServiceOrderForm({
             placeholder="Kendaraan (mis. Toyota Avanza 2021)"
             value={vehicle}
             onChange={(event) => setVehicle(event.target.value)}
+            disabled={isPending}
+            required
+          />
+          <Input
+            placeholder="Nomor plat kendaraan"
+            value={vehiclePlateNumber}
+            onChange={(event) => setVehiclePlateNumber(event.target.value.toUpperCase())}
             disabled={isPending}
             required
           />
@@ -387,7 +407,11 @@ export default function NewServiceOrderForm({
           />
           <Select
             value={customerType}
-            onValueChange={(nextValue) => setCustomerType(nextValue === "B2B" ? "B2B" : "STANDARD")}
+            onValueChange={(nextValue) => {
+              const nextCustomerType = nextValue === "B2B" ? "B2B" : "STANDARD";
+              setCustomerType(nextCustomerType);
+              if (nextCustomerType === "STANDARD") setVehicleFleetNumber("");
+            }}
             disabled={isPending}
           >
             <SelectTrigger aria-label="Jenis pelanggan">
@@ -398,6 +422,15 @@ export default function NewServiceOrderForm({
               <SelectItem value="B2B">Perusahaan</SelectItem>
             </SelectContent>
           </Select>
+          {customerType === "B2B" && (
+            <Input
+              placeholder="Nomor lambung"
+              value={vehicleFleetNumber}
+              onChange={(event) => setVehicleFleetNumber(event.target.value)}
+              disabled={isPending}
+              required
+            />
+          )}
           <Input
             aria-label="ETA"
             placeholder="ETA"

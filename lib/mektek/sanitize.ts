@@ -7,6 +7,8 @@ import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/phone";
 export const MAX_NAME_LEN = 120;
 export const MAX_ADDRESS_LEN = 500;
 export const MAX_VEHICLE_LEN = 120;
+export const MAX_VEHICLE_PLATE_NUMBER_LEN = 24;
+export const MAX_VEHICLE_FLEET_NUMBER_LEN = 80;
 export const MAX_COMPLAINT_LEN = 2000;
 
 /** Collapse whitespace, trim, and hard-cap length. */

@@ -18,4 +18,12 @@ describe("NewServiceOrderForm success reset", () => {
       /querySelector<HTMLInputElement>\("input"\)[\s\S]*?\?\.focus\(\)/,
     );
   });
+
+  it("collects, submits, and resets the saved vehicle identity fields", () => {
+    expect(source).toMatch(/placeholder="Nomor plat kendaraan"/);
+    expect(source).toMatch(/customerType === "B2B"[\s\S]*placeholder="Nomor lambung"/);
+    expect(source).toMatch(/createMektekServiceOrder\(\{[\s\S]*vehiclePlateNumber,[\s\S]*vehicleFleetNumber,/);
+    expect(source).toMatch(/setVehiclePlateNumber\(""\)/);
+    expect(source).toMatch(/setVehicleFleetNumber\(""\)/);
+  });
 });
