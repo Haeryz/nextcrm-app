@@ -136,6 +136,7 @@ export async function getCustomerServerSession(): Promise<Session | null> {
           userStatus: true,
           is_admin: true,
           mektekRole: true,
+          staffDivision: true,
           customerProfile: { select: { id: true } },
         },
       },
@@ -149,6 +150,7 @@ export async function getCustomerServerSession(): Promise<Session | null> {
     record.user.userStatus !== "ACTIVE" ||
     record.user.is_admin ||
     record.user.mektekRole !== null ||
+    !!record.user.staffDivision ||
     !record.user.customerProfile
   ) {
     await prismadb.customerSession.updateMany({
@@ -188,6 +190,7 @@ export async function getCustomerServerSession(): Promise<Session | null> {
       phoneNormalized: record.user.phoneNormalized,
       isAdmin: false,
       mektekRole: null,
+      staffDivision: null,
       userLanguage: String(record.user.userLanguage),
       userStatus: String(record.user.userStatus),
     },

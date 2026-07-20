@@ -44,6 +44,7 @@ export async function getRequestSessionUser(
     phoneNormalized: user.phoneNormalized,
     isAdmin: user.is_admin,
     mektekRole: user.mektekRole,
+    staffDivision: user.staffDivision,
     userLanguage: user.userLanguage,
     userStatus: user.userStatus,
     lastLoginAt: user.lastLoginAt,

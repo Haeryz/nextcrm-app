@@ -80,3 +80,17 @@ QRIS/GoPay E2E orders. Reuse it for regression testing login, direct purchase,
 cart checkout, payment reconciliation, invoices, and receipts.
 
 ---
+
+## 4. Staff Roles and Deferred Authorization
+
+Before changing staff authentication, admin/sub-admin accounts, navigation,
+permissions, middleware, or confidential-data access, **read
+[`docs/staff-authorization.md`](docs/staff-authorization.md) in full**.
+
+The division-role foundation and main-admin CRUD exist, but division-specific
+restrictions are intentionally deferred. `Users.is_admin` is the unrestricted
+owner key; `Users.staffDivision` is sub-admin metadata. The linked document is the
+authoritative handoff checklist for implementing the final server-side permission
+matrix later.
+
+---

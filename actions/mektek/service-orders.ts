@@ -40,6 +40,7 @@ import {
   mektekPaymentSelect,
 } from "@/lib/mektek/orders";
 import { buildMektekServiceCustomerUpsert } from "@/lib/mektek/service-customer";
+import { validateMektekTechnicianIds } from "@/lib/mektek/technicians";
 import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/phone";
 import {
   boundedText,
@@ -104,7 +105,9 @@ type CreateMektekServiceOrderInput = {
   customerName: string;
   vehicle: string;
   complaint: string;
+  /** @deprecated Use technicianIds. Retained for older callers during migration. */
   technicianId?: string;
+  technicianIds?: string[];
   phone?: string;
   address?: string;
   customerType?: "STANDARD" | "B2B";
@@ -127,9 +130,8 @@ export type MektekCustomerSearchResult = {
 
 export type MektekTechnicianOption = {
   id: string;
-  name: string | null;
-  email: string;
-  phone: string | null;
+  name: string;
+  role: "MECHANIC" | "HELPER" | "OJT";
 };
 
 const parseTimeline = (tags: unknown): MektekTimelineEntry[] => {
@@ -219,7 +221,14 @@ export const createMektekServiceOrder = async (
   const phone = String(input?.phone ?? "").trim();
   const address = boundedText(input?.address, MAX_ADDRESS_LEN);
   const customerType = input?.customerType === "B2B" ? "B2B" : "STANDARD";
-  const technicianId = String(input?.technicianId ?? "").trim();
+  let technicianIds: string[];
+  try {
+    technicianIds = validateMektekTechnicianIds(
+      input?.technicianIds ?? (input?.technicianId ? [input.technicianId] : []),
+    );
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Technician tidak valid" };
+  }
   const phoneNormalized = normalizePhoneNumber(phone);
   const manualDiscount = parseMoney(input?.manualDiscount);
   const voucherCode = String(input?.voucherCode ?? "").trim();
@@ -266,25 +275,19 @@ export const createMektekServiceOrder = async (
 
   try {
     const creation = await prismadb.$transaction(async (tx) => {
-      const technician = technicianId
-        ? await tx.users.findFirst({
-            where: {
-              id: technicianId,
-              mektekRole: "TECHNICIAN",
-              userStatus: "ACTIVE",
-            },
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-            },
-          })
-        : null;
+      const technicianRows = await tx.mektekTechnician.findMany({
+        where: { id: { in: technicianIds }, isActive: true },
+        select: { id: true, name: true, role: true },
+      });
+      const technicianById = new Map(technicianRows.map((row) => [row.id, row]));
+      const technicians = technicianIds
+        .map((id) => technicianById.get(id))
+        .filter((row): row is NonNullable<typeof row> => !!row);
 
-      if (technicianId && !technician) {
+      if (technicians.length !== technicianIds.length) {
         throw new Error("INVALID_TECHNICIAN");
       }
+      const technician = technicians[0];
 
       const existingCatalogCustomer = await tx.catalogCustomer.findUnique({
         where: { phoneNormalized },
@@ -356,7 +359,9 @@ export const createMektekServiceOrder = async (
           content: complaint,
           priority: "medium",
           taskStatus: "ACTIVE",
-          user: technician?.id ?? null,
+          // Technician directory records are not login Users. Keep the durable
+          // assignment snapshot in tags; legacy orders may still use `user`.
+          user: null,
           createdBy: session.user.id,
           updatedBy: session.user.id,
           dueDateAt,
@@ -375,10 +380,15 @@ export const createMektekServiceOrder = async (
               ? {
                   id: technician.id,
                   name: technician.name,
-                  email: technician.email,
-                  phone: technician.phone,
+                  role: technician.role,
                 }
               : null,
+            technicianAssignments: technicians.map((row) => ({
+              id: row.id,
+              name: row.name,
+              role: row.role,
+            })),
+            technicians: technicians.map((row) => row.name).join(", "),
             catalogCustomerId: catalogCustomer.id,
             completedVisitCount,
             loyaltyTier: loyalty.tier?.label ?? null,
@@ -519,17 +529,15 @@ export const getMektekTechnicians = async (): Promise<{
   }
 
   try {
-    const technicians = await prismadb.users.findMany({
+    const technicians = await prismadb.mektekTechnician.findMany({
       where: {
-        mektekRole: "TECHNICIAN",
-        userStatus: "ACTIVE",
+        isActive: true,
       },
-      orderBy: [{ name: "asc" }, { email: "asc" }],
+      orderBy: [{ name: "asc" }],
       select: {
         id: true,
         name: true,
-        email: true,
-        phone: true,
+        role: true,
       },
     });
 

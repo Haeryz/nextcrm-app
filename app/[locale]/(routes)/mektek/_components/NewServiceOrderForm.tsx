@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { haveRequiredMektekItemInputPrices } from "@/lib/mektek/items";
 import { getMektekTodayDateInput } from "@/lib/mektek/schedule";
+import { MEKTEK_TECHNICIAN_ROLE_LABELS } from "@/lib/mektek/technicians";
 import {
   Select,
   SelectContent,
@@ -46,7 +47,11 @@ export default function NewServiceOrderForm({
   const [successBurstKey, setSuccessBurstKey] = useState(0);
   const [customerName, setCustomerName] = useState("");
   const [vehicle, setVehicle] = useState("");
-  const [technicianId, setTechnicianId] = useState(UNASSIGNED_TECHNICIAN);
+  const [technicianIds, setTechnicianIds] = useState<string[]>([
+    UNASSIGNED_TECHNICIAN,
+    UNASSIGNED_TECHNICIAN,
+    UNASSIGNED_TECHNICIAN,
+  ]);
   const [serviceItems, setServiceItems] = useState<DamageItem[]>([
     { description: "", estimatedCost: "", quantity: 1 },
   ]);
@@ -136,6 +141,18 @@ export default function NewServiceOrderForm({
       return;
     }
 
+    const selectedTechnicianIds = technicianIds.filter(
+      (id) => id !== UNASSIGNED_TECHNICIAN,
+    );
+    if (selectedTechnicianIds.length < 1) {
+      toast.error("Pilih minimal 1 technician");
+      return;
+    }
+    if (new Set(selectedTechnicianIds).size !== selectedTechnicianIds.length) {
+      toast.error("Setiap technician harus berbeda");
+      return;
+    }
+
     startTransition(async () => {
       const complaint = describedServiceItems
         .map((item) =>
@@ -155,8 +172,7 @@ export default function NewServiceOrderForm({
         customerName,
         vehicle,
         complaint: complaint || "-",
-        technicianId:
-          technicianId === UNASSIGNED_TECHNICIAN ? undefined : technicianId,
+        technicianIds: selectedTechnicianIds,
         phone,
         customerType,
         address,
@@ -202,7 +218,11 @@ export default function NewServiceOrderForm({
       selectedCustomerNameRef.current = "";
       setCustomerName("");
       setVehicle("");
-      setTechnicianId(UNASSIGNED_TECHNICIAN);
+      setTechnicianIds([
+        UNASSIGNED_TECHNICIAN,
+        UNASSIGNED_TECHNICIAN,
+        UNASSIGNED_TECHNICIAN,
+      ]);
       setServiceItems([{ description: "", estimatedCost: "", quantity: 1 }]);
       setSparepartItems([]);
       setPhone("");
@@ -328,25 +348,36 @@ export default function NewServiceOrderForm({
             disabled={isPending}
             required
           />
-          <Select
-            value={technicianId}
-            onValueChange={setTechnicianId}
-            disabled={isPending}
-          >
-            <SelectTrigger aria-label="Teknisi">
-              <SelectValue placeholder="Pilih teknisi" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value={UNASSIGNED_TECHNICIAN}>Belum ada teknisi</SelectItem>
-                {technicians.map((technician) => (
-                  <SelectItem key={technician.id} value={technician.id}>
-                    {technician.name || technician.email}
+          {[0, 1, 2].map((slot) => (
+            <Select
+              key={slot}
+              value={technicianIds[slot]}
+              onValueChange={(value) =>
+                setTechnicianIds((current) =>
+                  current.map((item, index) => (index === slot ? value : item)),
+                )
+              }
+              disabled={isPending}
+            >
+              <SelectTrigger aria-label={`Teknisi ${slot + 1}`}>
+                <SelectValue
+                  placeholder={slot === 0 ? "Pilih teknisi utama" : "Tambah teknisi (opsional)"}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value={UNASSIGNED_TECHNICIAN}>
+                    {slot === 0 ? "Pilih teknisi utama" : "Tidak ada"}
                   </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+                  {technicians.map((technician) => (
+                    <SelectItem key={technician.id} value={technician.id}>
+                      {technician.name} - {MEKTEK_TECHNICIAN_ROLE_LABELS[technician.role]}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          ))}
           <Input
             placeholder="Telepon"
             value={phone}

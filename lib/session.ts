@@ -2,6 +2,7 @@ import { authOptions as defaultAuthOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession as getNextAuthServerSession } from "next-auth";
 import type { NextAuthOptions, Session } from "next-auth";
+import type { StaffDivision } from "@/lib/auth/staff-divisions";
 
 // No-auth mode is opt-in: it is enabled only when explicitly set to "true".
 const NO_AUTH_ENABLED = process.env.NEXTCRM_DISABLE_AUTH === "true";
@@ -54,6 +55,7 @@ type SessionUserLike = {
   userStatus: string;
   is_admin: boolean;
   mektekRole: "CS" | "TECHNICIAN" | null;
+  staffDivision: StaffDivision | null;
 };
 
 function toSession(user: SessionUserLike): Session {
@@ -72,6 +74,7 @@ function toSession(user: SessionUserLike): Session {
       // there is no real signed-in session.
       isAdmin: true,
       mektekRole: user.mektekRole,
+      staffDivision: user.staffDivision,
       userLanguage: user.userLanguage || "id",
       userStatus: "ACTIVE",
     },
@@ -96,6 +99,7 @@ function normalizeSession(session: Session): Session {
       phoneNormalized: user.phoneNormalized ?? null,
       isAdmin: !!user.isAdmin,
       mektekRole: user.mektekRole ?? null,
+      staffDivision: user.staffDivision ?? null,
       userLanguage: user.userLanguage || GUEST_USER_LANGUAGE,
       userStatus: user.userStatus || "ACTIVE",
     },
@@ -119,6 +123,7 @@ async function getFallbackUser(): Promise<SessionUserLike> {
       userStatus: true,
       is_admin: true,
       mektekRole: true,
+      staffDivision: true,
     },
   });
 
@@ -138,6 +143,7 @@ async function getFallbackUser(): Promise<SessionUserLike> {
       name: GUEST_USER_NAME,
       is_admin: true,
       mektekRole: null,
+      staffDivision: null,
       is_account_admin: true,
       userStatus: "ACTIVE",
       userLanguage: GUEST_USER_LANGUAGE as any,
@@ -149,6 +155,7 @@ async function getFallbackUser(): Promise<SessionUserLike> {
       name: GUEST_USER_NAME,
       is_admin: true,
       mektekRole: null,
+      staffDivision: null,
       is_account_admin: true,
       userStatus: "ACTIVE",
       userLanguage: GUEST_USER_LANGUAGE as any,
@@ -165,6 +172,7 @@ async function getFallbackUser(): Promise<SessionUserLike> {
       userStatus: true,
       is_admin: true,
       mektekRole: true,
+      staffDivision: true,
     },
   });
 
@@ -207,6 +215,7 @@ export async function getServerSession(
       userStatus: "ACTIVE",
       is_admin: true,
       mektekRole: null,
+      staffDivision: null,
     });
   }
 }

@@ -41,6 +41,7 @@ export type CustomerUserRow = {
     email: string;
     isAdmin: boolean;
     mektekRole: "CS" | "TECHNICIAN" | null;
+    staffDivision: import("@/lib/auth/staff-divisions").StaffDivision | null;
     lastLoginAt: Date | null;
   } | null;
 };
@@ -147,6 +148,7 @@ export async function listMektekCustomerUsers(input?: {
           email: true,
           is_admin: true,
           mektekRole: true,
+          staffDivision: true,
           lastLoginAt: true,
         },
       },
@@ -174,6 +176,7 @@ export async function listMektekCustomerUsers(input?: {
           email: customer.user.email,
           isAdmin: customer.user.is_admin,
           mektekRole: customer.user.mektekRole,
+          staffDivision: customer.user.staffDivision,
           lastLoginAt: customer.user.lastLoginAt,
         }
       : null,
@@ -262,6 +265,7 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
             select: {
               is_admin: true,
               mektekRole: true,
+              staffDivision: true,
             },
           },
         },
@@ -271,7 +275,7 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
         throw new Error("CUSTOMER_NOT_FOUND");
       }
 
-      if (existing.user?.is_admin || existing.user?.mektekRole) {
+      if (existing.user?.is_admin || existing.user?.mektekRole || existing.user?.staffDivision) {
         throw new Error("PROTECTED_ACCOUNT");
       }
 
@@ -362,6 +366,7 @@ export async function deleteMektekCustomerUser(id: string) {
               id: true,
               is_admin: true,
               mektekRole: true,
+              staffDivision: true,
             },
           },
         },
@@ -371,7 +376,7 @@ export async function deleteMektekCustomerUser(id: string) {
         throw new Error("CUSTOMER_NOT_FOUND");
       }
 
-      if (customer.user?.is_admin || customer.user?.mektekRole) {
+      if (customer.user?.is_admin || customer.user?.mektekRole || customer.user?.staffDivision) {
         throw new Error("PROTECTED_ACCOUNT");
       }
 

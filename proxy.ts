@@ -50,7 +50,7 @@ export async function proxy(req: NextRequest) {
     if (!token) {
       return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
     }
-    if (!token.isAdmin && token.mektekRole !== "CS") {
+    if (!token.isAdmin && !token.staffDivision && token.mektekRole !== "CS") {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     return NextResponse.next();

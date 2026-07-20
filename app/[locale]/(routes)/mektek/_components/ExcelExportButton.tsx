@@ -50,6 +50,7 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
             ? (tags.technician as Record<string, unknown>)
             : {};
         const technicianName =
+          (typeof tags.technicians === "string" ? tags.technicians : "") ||
           order.assigned_user?.name ||
           order.assigned_user?.email ||
           (typeof technicianTag.name === "string" ? technicianTag.name : "") ||

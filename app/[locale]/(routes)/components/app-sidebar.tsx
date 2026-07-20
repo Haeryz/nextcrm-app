@@ -15,6 +15,7 @@ import { NavUser } from "./nav-user";
 import { AdminThemeSwitch } from "./admin-theme-switch";
 import getMektekMenuItems from "./menu-items/Mektek";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
+import type { StaffDivision } from "@/lib/auth/staff-divisions";
 
 /**
  * AppSidebar Component - Task Groups 1.2, 2.2-2.7, 3.1, 5.3, 5.4
@@ -51,6 +52,7 @@ interface User {
   image?: string | null;
   isAdmin?: boolean;
   mektekRole?: "CS" | "TECHNICIAN" | null;
+  staffDivision?: StaffDivision | null;
   userStatus?: string;
   userLanguage?: string;
   lastLoginAt?: Date;

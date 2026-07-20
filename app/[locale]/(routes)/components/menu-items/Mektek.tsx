@@ -5,7 +5,10 @@ import {
   PackageSearch,
   TicketPercent,
   Users,
+  UserCog,
+  Wrench,
 } from "lucide-react";
+import type { StaffDivision } from "@/lib/auth/staff-divisions";
 import {
   canCreateMektekOrders,
   canManageMektekCustomers,
@@ -18,6 +21,8 @@ import { NavItem } from "../nav-main";
 type MektekMenuUser = {
   isAdmin?: boolean | null;
   mektekRole?: "CS" | "TECHNICIAN" | null;
+  staffDivision?: StaffDivision | null;
+  userStatus?: string | null;
 };
 
 const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
@@ -67,6 +72,20 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
       title: "Voucher",
       url: "/mektek/vouchers",
       icon: TicketPercent,
+    });
+  }
+
+  if (user?.isAdmin) {
+    items.push({
+      title: "Technician",
+      url: "/mektek/technicians",
+      icon: Wrench,
+    });
+
+    items.push({
+      title: "Sub-admin",
+      url: "/mektek/staff",
+      icon: UserCog,
     });
   }
 

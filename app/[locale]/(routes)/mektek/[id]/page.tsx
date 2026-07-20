@@ -98,6 +98,7 @@ export default async function MektekDetailPage({ params }: Props) {
       ? (tags.technician as Record<string, unknown>)
       : {};
   const technicianName =
+    (typeof tags.technicians === "string" ? tags.technicians : "") ||
     order.assigned_user?.name ||
     (typeof technicianTag.name === "string" ? technicianTag.name : "") ||
     (typeof technicianTag.email === "string" ? technicianTag.email : "") ||

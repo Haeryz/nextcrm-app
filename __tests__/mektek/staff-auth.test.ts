@@ -1,7 +1,7 @@
 import { canAuthenticateOnStaffPortal } from "@/lib/mektek/staff-auth";
 
 describe("canAuthenticateOnStaffPortal", () => {
-  it("allows only active admin, CS, and technician accounts", () => {
+  it("allows active admin, legacy operations roles, and division staff", () => {
     expect(
       canAuthenticateOnStaffPortal({ is_admin: true, userStatus: "ACTIVE" }),
     ).toBe(true);
@@ -17,6 +17,12 @@ describe("canAuthenticateOnStaffPortal", () => {
         userStatus: "ACTIVE",
       }),
     ).toBe(true);
+    expect(
+      canAuthenticateOnStaffPortal({
+        staffDivision: "FINANCE",
+        userStatus: "ACTIVE",
+      }),
+    ).toBe(true);
   });
 
   it("rejects customers and suspended staff", () => {
@@ -25,7 +31,7 @@ describe("canAuthenticateOnStaffPortal", () => {
     ).toBe(false);
     expect(
       canAuthenticateOnStaffPortal({
-        is_admin: true,
+        staffDivision: "HUMAN_RESOURCES",
         userStatus: "INACTIVE",
       }),
     ).toBe(false);

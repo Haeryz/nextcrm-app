@@ -103,7 +103,18 @@ export default function MektekOrderList({
           const timeline = getTimeline(tags);
           const status = getStatusMeta(order.taskStatus);
           const timelineCount = timeline.length || 1;
-          const technicianName = order.assigned_user?.name || order.assigned_user?.email || "Belum ditugaskan";
+          const technicianTag =
+            tags.technician &&
+            typeof tags.technician === "object" &&
+            !Array.isArray(tags.technician)
+              ? (tags.technician as Record<string, unknown>)
+              : {};
+          const technicianName =
+            (typeof tags.technicians === "string" ? tags.technicians : "") ||
+            order.assigned_user?.name ||
+            order.assigned_user?.email ||
+            (typeof technicianTag.name === "string" ? technicianTag.name : "") ||
+            "Belum ditugaskan";
 
           return (
             <Link

@@ -22,6 +22,24 @@ describe("MekTek permissions", () => {
     expect(canViewMektekDashboard(admin)).toBe(true);
   });
 
+  it("keeps division staff access broad until the authorization phase", () => {
+    const finance = {
+      isAdmin: false,
+      mektekRole: null,
+      staffDivision: "FINANCE" as const,
+      userStatus: "ACTIVE",
+    };
+
+    expect(canAccessMektekStaffArea(finance)).toBe(true);
+    expect(canCreateMektekOrders(finance)).toBe(true);
+    expect(canUseMektekCustomerTools(finance)).toBe(true);
+    expect(canUpdateMektekProgress(finance)).toBe(true);
+    expect(canManageMektekPayments(finance)).toBe(true);
+    expect(canManageMektekVouchers(finance)).toBe(true);
+    expect(canManageMektekSchedule(finance)).toBe(true);
+    expect(canViewMektekDashboard(finance)).toBe(true);
+  });
+
   it("splits CS and technician capabilities", () => {
     const cs = { isAdmin: false, mektekRole: "CS" as const, userStatus: "ACTIVE" };
     const technician = {

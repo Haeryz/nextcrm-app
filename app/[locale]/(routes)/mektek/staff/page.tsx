@@ -1,0 +1,119 @@
+import {
+  createSubAdmin,
+  deleteSubAdmin,
+  updateSubAdmin,
+} from "@/actions/auth/sub-admins";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { requireAdmin } from "@/lib/auth-guards";
+import {
+  STAFF_DIVISIONS,
+  STAFF_DIVISION_LABELS,
+} from "@/lib/auth/staff-divisions";
+import { prismadb } from "@/lib/prisma";
+
+const selectClass =
+  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
+
+export default async function StaffManagementPage() {
+  await requireAdmin();
+  const staff = await prismadb.users.findMany({
+    where: { is_admin: false, staffDivision: { not: null } },
+    orderBy: [{ staffDivision: "asc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      staffDivision: true,
+      userStatus: true,
+      lastLoginAt: true,
+    },
+  });
+
+  return (
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+      <header>
+        <h1 className="text-2xl font-semibold">Sub-admin &amp; Divisi</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Hanya main admin yang dapat membuat dan mengelola account ini.
+          Pembatasan halaman per divisi belum diaktifkan.
+        </p>
+      </header>
+
+      <section className="rounded-lg border bg-card p-5">
+        <h2 className="mb-4 text-lg font-medium">Tambah sub-admin</h2>
+        <form action={createSubAdmin} className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+          <Input name="name" placeholder="Nama" required maxLength={120} />
+          <Input name="email" type="email" placeholder="Email" required />
+          <Input
+            name="password"
+            type="password"
+            placeholder="Password (min. 12)"
+            required
+            minLength={12}
+            maxLength={50}
+          />
+          <select name="staffDivision" className={selectClass} required defaultValue="">
+            <option value="" disabled>Pilih divisi</option>
+            {STAFF_DIVISIONS.map((division) => (
+              <option key={division} value={division}>
+                {STAFF_DIVISION_LABELS[division]}
+              </option>
+            ))}
+          </select>
+          <Button type="submit">Buat sub-admin</Button>
+        </form>
+      </section>
+
+      <section className="space-y-4">
+        {staff.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+            Belum ada sub-admin.
+          </div>
+        ) : (
+          staff.map((member) => (
+            <article key={member.id} className="rounded-lg border bg-card p-5">
+              <form action={updateSubAdmin} className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+                <input type="hidden" name="id" value={member.id} />
+                <Input name="name" defaultValue={member.name ?? ""} required />
+                <Input name="email" type="email" defaultValue={member.email} required />
+                <select
+                  name="staffDivision"
+                  className={selectClass}
+                  defaultValue={member.staffDivision ?? ""}
+                  required
+                >
+                  {STAFF_DIVISIONS.map((division) => (
+                    <option key={division} value={division}>
+                      {STAFF_DIVISION_LABELS[division]}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  name="userStatus"
+                  className={selectClass}
+                  defaultValue={member.userStatus}
+                >
+                  <option value="ACTIVE">Active</option>
+                  <option value="INACTIVE">Inactive</option>
+                </select>
+                <Button type="submit" variant="secondary">Simpan</Button>
+              </form>
+              <div className="mt-3 flex items-center justify-between gap-4 text-xs text-muted-foreground">
+                <span>
+                  Login terakhir: {member.lastLoginAt?.toLocaleString("id-ID") ?? "Belum pernah"}
+                </span>
+                <form action={deleteSubAdmin}>
+                  <input type="hidden" name="id" value={member.id} />
+                  <Button type="submit" variant="destructive" size="sm">
+                    Hapus
+                  </Button>
+                </form>
+              </div>
+            </article>
+          ))
+        )}
+      </section>
+    </main>
+  );
+}

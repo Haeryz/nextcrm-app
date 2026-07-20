@@ -202,9 +202,17 @@ export default async function CustomerDetailPage({
                       ? tags.vehicle
                       : order.title;
                   const status = getStatusMeta(order.taskStatus ?? "ACTIVE");
+                  const technicianTag =
+                    tags.technician &&
+                    typeof tags.technician === "object" &&
+                    !Array.isArray(tags.technician)
+                      ? (tags.technician as Record<string, unknown>)
+                      : {};
                   const technician =
+                    (typeof tags.technicians === "string" ? tags.technicians : "") ||
                     order.assigned_user?.name ||
                     order.assigned_user?.email ||
+                    (typeof technicianTag.name === "string" ? technicianTag.name : "") ||
                     "Belum ditugaskan";
 
                   return (

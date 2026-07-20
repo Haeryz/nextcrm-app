@@ -25,6 +25,21 @@ describe("getPostLoginDestination", () => {
     },
   );
 
+  it("sends division staff to the dashboard during the foundation phase", () => {
+    expect(
+      getPostLoginDestination("en", {
+        staffDivision: "LOGISTICS",
+        userStatus: "ACTIVE",
+      }),
+    ).toBe("/en/mektek/dashboard");
+    expect(
+      shouldRedirectFromStaffLogin({
+        staffDivision: "LOGISTICS",
+        userStatus: "ACTIVE",
+      }),
+    ).toBe(true);
+  });
+
   it("keeps customers on the customer profile", () => {
     expect(
       getPostLoginDestination("en", { userStatus: "ACTIVE" }),

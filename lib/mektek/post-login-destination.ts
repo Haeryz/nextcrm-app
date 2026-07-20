@@ -1,6 +1,9 @@
+import type { StaffDivision } from "@/lib/auth/staff-divisions";
+
 type LoginDestinationUser = {
   isAdmin?: boolean | null;
   mektekRole?: "CS" | "TECHNICIAN" | null;
+  staffDivision?: StaffDivision | null;
   userStatus?: string | null;
 };
 
@@ -13,7 +16,8 @@ export function shouldRedirectFromStaffLogin(
     (user?.userStatus === "ACTIVE" &&
       (!!user?.isAdmin ||
         user?.mektekRole === "CS" ||
-        user?.mektekRole === "TECHNICIAN"))
+        user?.mektekRole === "TECHNICIAN" ||
+        !!user?.staffDivision))
   );
 }
 
@@ -26,6 +30,7 @@ export function getPostLoginDestination(
   if (user?.userStatus === "PENDING") return `${prefix}/pending`;
   if (user?.userStatus === "INACTIVE") return `${prefix}/inactive`;
   if (user?.isAdmin) return `${prefix}/mektek/dashboard`;
+  if (user?.staffDivision) return `${prefix}/mektek/dashboard`;
   if (user?.mektekRole === "CS" || user?.mektekRole === "TECHNICIAN") {
     return `${prefix}/mektek`;
   }

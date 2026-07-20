@@ -44,6 +44,7 @@ describe("getRequestSessionUser", () => {
       phoneNormalized: null,
       is_admin: true,
       mektekRole: null,
+      staffDivision: "OPERATIONS",
       userLanguage: "en",
       userStatus: "ACTIVE",
       lastLoginAt: null,
@@ -62,7 +63,13 @@ describe("getRequestSessionUser", () => {
     expect(mockedFindUnique).toHaveBeenCalledWith({
       where: { id: "admin-id" },
     });
-    expect(user).toEqual(expect.objectContaining({ id: "admin-id", isAdmin: true }));
+    expect(user).toEqual(
+      expect.objectContaining({
+        id: "admin-id",
+        isAdmin: true,
+        staffDivision: "OPERATIONS",
+      }),
+    );
   });
 
   it("rejects a JWT invalidated by an auth-version change", async () => {
