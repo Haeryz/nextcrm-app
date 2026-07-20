@@ -41,6 +41,7 @@ import {
 } from "@/lib/mektek/orders";
 import { buildMektekServiceCustomerUpsert } from "@/lib/mektek/service-customer";
 import { validateMektekTechnicianIds } from "@/lib/mektek/technicians";
+import { parseVehicleMileageKm } from "@/lib/mektek/vehicle-mileage";
 import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/phone";
 import {
   boundedText,
@@ -108,6 +109,7 @@ type CreateMektekServiceOrderInput = {
   vehicle: string;
   vehiclePlateNumber: string;
   vehicleFleetNumber?: string;
+  vehicleMileageKm: string | number;
   complaint: string;
   /** @deprecated Use technicianIds. Retained for older callers during migration. */
   technicianId?: string;
@@ -237,6 +239,7 @@ export const createMektekServiceOrder = async (
     input?.vehicleFleetNumber,
     MAX_VEHICLE_FLEET_NUMBER_LEN,
   );
+  const vehicleMileage = parseVehicleMileageKm(input?.vehicleMileageKm);
   const complaint = boundedText(input?.complaint, MAX_COMPLAINT_LEN);
   const phone = String(input?.phone ?? "").trim();
   const address = boundedText(input?.address, MAX_ADDRESS_LEN);
@@ -259,6 +262,7 @@ export const createMektekServiceOrder = async (
   if (customerType === "B2B" && !vehicleFleetNumber) {
     return { error: "Nomor lambung wajib diisi untuk kendaraan perusahaan" };
   }
+  if ("error" in vehicleMileage) return { error: vehicleMileage.error };
   if (!isValidPhoneNumber(phone)) {
     return { error: "Nomor telepon wajib diisi untuk menambahkan Customer ke Customer/Users" };
   }
@@ -404,6 +408,7 @@ export const createMektekServiceOrder = async (
             vehiclePlateNumber,
             vehicleFleetNumber:
               catalogCustomer.customerType === "B2B" ? vehicleFleetNumber : null,
+            vehicleMileageKm: vehicleMileage.data,
             address: address || null,
             technician: technician
               ? {
@@ -434,7 +439,8 @@ export const createMektekServiceOrder = async (
             serviceItems,
             sparepartItems,
             discount,
-            tax: 0,
+            ppnEnabled: true,
+            pphEnabled: catalogCustomer.customerType === "B2B",
             payment: {
               method: "cash",
               amountPaid: 0,
@@ -1323,7 +1329,8 @@ export const updateMektekPayment = async (input: {
   serviceOrderId: string;
   method: "cash" | "transfer" | "qris";
   discount?: string | number;
-  tax?: string | number;
+  ppnEnabled?: boolean;
+  pphEnabled?: boolean;
   amountPaid?: string | number;
 }) => {
   const session = await getServerSession(authOptions);
@@ -1375,11 +1382,26 @@ export const updateMektekPayment = async (input: {
       };
     }
     const discount = parseMoney(input.discount);
-    const tax = parseMoney(input.tax);
+    const wantsTaxSettingChange =
+      typeof input.ppnEnabled === "boolean" || typeof input.pphEnabled === "boolean";
+    if (wantsTaxSettingChange && !session.user.isAdmin) {
+      return { error: "Forbidden: hanya Admin utama yang dapat mengubah pengaturan pajak" };
+    }
+    const customerType = tags.customerType === "B2B" ? "B2B" : "STANDARD";
+    const ppnEnabled =
+      typeof input.ppnEnabled === "boolean"
+        ? input.ppnEnabled
+        : currentSummary.ppnEnabled;
+    const pphEnabled =
+      customerType === "B2B" &&
+      (typeof input.pphEnabled === "boolean"
+        ? input.pphEnabled
+        : currentSummary.pphEnabled);
     const nextTags = {
       ...tags,
       discount,
-      tax,
+      ppnEnabled,
+      pphEnabled,
     };
     const summary = buildMektekFinancialSummary(
       nextTags,
@@ -1405,7 +1427,6 @@ export const updateMektekPayment = async (input: {
         tags: {
           ...nextTags,
           discount,
-          tax,
           payment: {
             method: input.method,
             amountPaid,
@@ -1421,7 +1442,18 @@ export const updateMektekPayment = async (input: {
     revalidatePath("/[locale]/service-status/[id]", "page");
     revalidatePath("/[locale]/s/[code]", "page");
     revalidatePath("/[locale]/customer/profile", "page");
-    return { data: { discount, tax, amountPaid, grandTotal: summary.grandTotal, status } };
+    return {
+      data: {
+        discount,
+        ppnEnabled,
+        pphEnabled,
+        tax: summary.tax,
+        pph: summary.pph,
+        amountPaid,
+        grandTotal: summary.grandTotal,
+        status,
+      },
+    };
   } catch (error) {
     console.log("[UPDATE_MEKTEK_PAYMENT]", error);
     return { error: "Gagal memperbarui Payment" };

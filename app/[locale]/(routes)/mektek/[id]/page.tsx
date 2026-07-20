@@ -86,6 +86,8 @@ export default async function MektekDetailPage({ params }: Props) {
     typeof tags.vehiclePlateNumber === "string" ? tags.vehiclePlateNumber : undefined;
   const vehicleFleetNumber =
     typeof tags.vehicleFleetNumber === "string" ? tags.vehicleFleetNumber : undefined;
+  const vehicleMileageKm =
+    typeof tags.vehicleMileageKm === "number" ? tags.vehicleMileageKm : undefined;
   const customerName =
     typeof tags.customerName === "string" && tags.customerName.length > 0
       ? tags.customerName
@@ -193,6 +195,9 @@ export default async function MektekDetailPage({ params }: Props) {
                     {vehicle}
                     {vehiclePlateNumber ? ` · ${vehiclePlateNumber}` : ""}
                     {vehicleFleetNumber ? ` · Lambung ${vehicleFleetNumber}` : ""}
+                    {vehicleMileageKm !== undefined
+                      ? ` · ${vehicleMileageKm.toLocaleString("id-ID")} KM`
+                      : ""}
                   </p>
                 </div>
               </div>
@@ -453,8 +458,10 @@ export default async function MektekDetailPage({ params }: Props) {
                       serviceSubtotal={invoiceData.financials.serviceSubtotal}
                       sparepartSubtotal={invoiceData.financials.sparepartSubtotal}
                       initialDiscount={invoiceData.financials.discount}
-                      initialTax={invoiceData.financials.tax}
-                      initialPph={invoiceData.financials.pph}
+                      customerType={invoiceData.customer.type}
+                      initialPpnEnabled={invoiceData.financials.ppnEnabled}
+                      initialPphEnabled={invoiceData.financials.pphEnabled}
+                      canManageTaxSettings={!!session?.user?.isAdmin}
                       initialAmountPaid={invoiceData.financials.amountPaid}
                       initialProviderAmountPaid={invoiceData.payment.providerAmountPaid}
                       initialMethod={paymentMethod}

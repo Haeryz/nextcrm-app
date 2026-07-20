@@ -26,4 +26,11 @@ describe("NewServiceOrderForm success reset", () => {
     expect(source).toMatch(/setVehiclePlateNumber\(""\)/);
     expect(source).toMatch(/setVehicleFleetNumber\(""\)/);
   });
+
+  it("restricts KM mobil to a persisted whole-number input", () => {
+    expect(source).toMatch(/placeholder="KM mobil"[\s\S]*type="number"/);
+    expect(source).toMatch(/inputMode="numeric"/);
+    expect(source).toMatch(/createMektekServiceOrder\(\{[\s\S]*vehicleMileageKm,/);
+    expect(source).toMatch(/setVehicleMileageKm\(""\)/);
+  });
 });

@@ -15,6 +15,7 @@ type DashboardOrder = {
 
 type RankedItem = {
   key: string;
+  catalogItemId: string | null;
   name: string;
   quantity: number;
   revenue: number;
@@ -79,6 +80,7 @@ const addRankedItem = (
   const key = `${item.kind}:${identity}`;
   const current = target.get(key) ?? {
     key,
+    catalogItemId: item.catalogItemId || null,
     name: item.name,
     quantity: 0,
     revenue: 0,

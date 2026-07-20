@@ -9,6 +9,12 @@ import { prismadb } from "@/lib/prisma";
 import { canCreateMektekOrders } from "@/lib/mektek/permissions";
 import { getServerSession } from "@/lib/session";
 import { getCatalogImageSource } from "@/lib/catalog-images";
+import { buildMektekDashboardAnalytics } from "@/lib/mektek/dashboard-analytics";
+import {
+  buildCatalogHighlights,
+  buildQuantityUpdateData,
+} from "@/lib/mektek/catalog-insights";
+import { mektekOrderWhere } from "@/lib/mektek/orders";
 
 const DEFAULT_PAGE_SIZE = 24;
 
@@ -166,6 +172,69 @@ export async function listMektekCatalogItems(input?: {
   };
 }
 
+export async function getMektekCatalogHighlights() {
+  const [newestItems, orders] = await Promise.all([
+    prismadb.catalogItem.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: {
+        id: true,
+        machine: true,
+        imagePath: true,
+        imageMimeType: true,
+        partNumber: true,
+        description: true,
+        quantity: true,
+        price: true,
+        createdAt: true,
+      },
+    }),
+    prismadb.crm_Accounts_Tasks.findMany({
+      where: mektekOrderWhere(),
+      select: {
+        id: true,
+        createdAt: true,
+        taskStatus: true,
+        content: true,
+        tags: true,
+      },
+    }),
+  ]);
+  const salesRanks = buildMektekDashboardAnalytics(orders).topProducts;
+  const popularIds = salesRanks
+    .map((item) => item.catalogItemId)
+    .filter((id): id is string => Boolean(id));
+  const popularItems = popularIds.length
+    ? await prismadb.catalogItem.findMany({
+        where: { id: { in: popularIds } },
+        select: {
+          id: true,
+          machine: true,
+          imagePath: true,
+          imageMimeType: true,
+          partNumber: true,
+          description: true,
+          quantity: true,
+          price: true,
+          createdAt: true,
+        },
+      })
+    : [];
+  const uniqueItems = new Map(
+    [...newestItems, ...popularItems].map((item) => [item.id, item]),
+  );
+  const mappedItems = [...uniqueItems.values()].map(({ imageMimeType, ...item }) => ({
+    ...item,
+    imagePath: getCatalogImageSource({
+      id: item.id,
+      imageMimeType,
+      imagePath: item.imagePath,
+    }),
+  }));
+
+  return buildCatalogHighlights(mappedItems, salesRanks);
+}
+
 export async function createMektekCatalogItem(input: CatalogItemInput) {
   const access = await ensureCatalogManager();
   if ("error" in access) return { error: access.error };
@@ -189,6 +258,7 @@ export async function createMektekCatalogItem(input: CatalogItemInput) {
       select: { id: true },
     });
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
+    revalidatePath("/[locale]/(routes)/mektek/dashboard", "page");
     revalidatePath("/[locale]/customer", "page");
     return { data: item };
   } catch (error) {
@@ -208,12 +278,21 @@ export async function updateMektekCatalogItem(id: string, input: CatalogItemInpu
   if ("error" in normalized) return { error: normalized.error };
 
   try {
+    const current = await prismadb.catalogItem.findUnique({
+      where: { id: itemId },
+      select: { quantity: true },
+    });
+    if (!current) return { error: "Catalogue Item tidak ditemukan" };
     const item = await prismadb.catalogItem.update({
       where: { id: itemId },
-      data: normalized.data,
+      data: {
+        ...normalized.data,
+        ...buildQuantityUpdateData(current.quantity, normalized.data.quantity),
+      },
       select: { id: true },
     });
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
+    revalidatePath("/[locale]/(routes)/mektek/dashboard", "page");
     revalidatePath("/[locale]/customer", "page");
     return { data: item };
   } catch (error) {
@@ -232,6 +311,7 @@ export async function deleteMektekCatalogItem(id: string) {
   try {
     await prismadb.catalogItem.delete({ where: { id: itemId } });
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
+    revalidatePath("/[locale]/(routes)/mektek/dashboard", "page");
     revalidatePath("/[locale]/customer", "page");
     return { data: { id: itemId } };
   } catch (error) {

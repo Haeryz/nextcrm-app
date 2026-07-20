@@ -33,10 +33,12 @@ export type MektekInvoiceData = {
     name: string;
     address?: string;
     phone?: string;
+    type: "STANDARD" | "B2B";
   };
   service: {
     unit?: string;       // e.g. "DA 8159 BS / GRANMAX"
     usage?: string;      // HM value e.g. "257346"
+    mileageKm?: number;
     technicians?: string; // e.g. "Sadewo, Candra, Rudi"
   };
   items: MektekInvoiceItem[];
@@ -48,6 +50,10 @@ export type MektekInvoiceData = {
     taxBase: number;     // DPP
     tax: number;         // PPN 11%
     pph: number;         // PPH 2%
+    ppnEnabled: boolean;
+    pphEnabled: boolean;
+    ppnRate: number;
+    pphRate: number;
     grandTotal: number;
     amountPaid: number;
     balanceDue: number;
@@ -59,6 +65,7 @@ export type MektekInvoiceData = {
     providerPayments: MektekPaymentDetail[];
   };
   notes?: string;
+  taxDocumentPlaceholder: boolean;
   signatures?: {
     receiver?: string;
     logistics?: string;
@@ -271,6 +278,45 @@ const S = StyleSheet.create({
   },
   sigTitle: { fontSize: 8.5, fontFamily: "Helvetica-Bold" },
   sigName: { fontSize: 8.5, borderTopWidth: 1, borderTopColor: "#000", paddingTop: 3, minWidth: 100, textAlign: "center" },
+  taxAttachmentPage: {
+    padding: 42,
+    fontFamily: "Helvetica",
+    color: "#111827",
+    backgroundColor: "#fff",
+  },
+  taxAttachmentHeader: {
+    fontSize: 18,
+    fontFamily: "Helvetica-Bold",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  taxAttachmentSubheader: {
+    fontSize: 10,
+    textAlign: "center",
+    color: "#4b5563",
+    marginBottom: 28,
+  },
+  taxAttachmentBox: {
+    minHeight: 560,
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: "#9ca3af",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 36,
+  },
+  taxAttachmentTitle: {
+    fontSize: 16,
+    fontFamily: "Helvetica-Bold",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  taxAttachmentText: {
+    fontSize: 10,
+    lineHeight: 1.6,
+    color: "#4b5563",
+    textAlign: "center",
+  },
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -283,6 +329,13 @@ const fmt = (n: number) =>
 
 function buildPdfDocument(data: MektekInvoiceData) {
   const { company, customer, service, items, financials, signatures } = data;
+  const isBusiness = customer.type === "B2B";
+  const documentTitle =
+    data.type === "receipt"
+      ? "BUKTI PEMBAYARAN"
+      : isBusiness
+        ? "INVOICE PERUSAHAAN"
+        : "INVOICE PRIBADI";
 
   const renderTableRow = (item: MektekInvoiceItem, index: number) => {
     const rowStyle = index % 2 === 0 ? S.tableRow : S.tableRowAlt;
@@ -303,8 +356,18 @@ function buildPdfDocument(data: MektekInvoiceData) {
     { label: "SUBTOTAL",   value: financials.subtotal,  bold: false },
     { label: "DISCOUNT",   value: financials.discount,  bold: false },
     { label: "DPP",        value: financials.taxBase,   bold: false },
-    { label: "PPN 11%",    value: financials.tax,       bold: false },
-    { label: "PPH 2%",     value: financials.pph ?? 0, bold: false },
+    {
+      label: `PPN ${Math.round(financials.ppnRate * 100)}%${financials.ppnEnabled ? "" : " (NONAKTIF)"}`,
+      value: financials.tax,
+      bold: false,
+    },
+    ...(isBusiness
+      ? [{
+          label: `PPH ${Math.round(financials.pphRate * 100)}%${financials.pphEnabled ? "" : " (NONAKTIF)"}`,
+          value: financials.pph,
+          bold: false,
+        }]
+      : []),
     { label: "GRAND TOTAL",value: financials.grandTotal, bold: true },
   ];
 
@@ -355,7 +418,7 @@ function buildPdfDocument(data: MektekInvoiceData) {
       React.createElement(
         View,
         { style: S.titleRow },
-        React.createElement(Text, { style: S.titleText }, "DELIVERY SHEET"),
+        React.createElement(Text, { style: S.titleText }, documentTitle),
         React.createElement(View, { style: S.titleUnderline })
       ),
 
@@ -401,8 +464,18 @@ function buildPdfDocument(data: MektekInvoiceData) {
           React.createElement(
             View,
             { style: S.infoRow },
-            React.createElement(Text, { style: { ...S.infoLabel, width: 30 } }, "HM :"),
-            React.createElement(Text, { style: S.infoValue }, service.usage || "")
+            React.createElement(
+              Text,
+              { style: { ...S.infoLabel, width: 30 } },
+              service.mileageKm !== undefined ? "KM :" : "HM :",
+            ),
+            React.createElement(
+              Text,
+              { style: S.infoValue },
+              service.mileageKm !== undefined
+                ? service.mileageKm.toLocaleString("id-ID")
+                : service.usage || "",
+            )
           )
         )
       ),
@@ -514,7 +587,37 @@ function buildPdfDocument(data: MektekInvoiceData) {
             data.notes
           )
         : null
-    )
+    ),
+    data.type === "invoice" && isBusiness && data.taxDocumentPlaceholder
+      ? React.createElement(
+          Page,
+          { size: "A4", style: S.taxAttachmentPage },
+          React.createElement(
+            Text,
+            { style: S.taxAttachmentHeader },
+            "LAMPIRAN DOKUMEN PAJAK",
+          ),
+          React.createElement(
+            Text,
+            { style: S.taxAttachmentSubheader },
+            `Invoice ${data.invoiceNumber} - ${customer.name}`,
+          ),
+          React.createElement(
+            View,
+            { style: S.taxAttachmentBox },
+            React.createElement(
+              Text,
+              { style: S.taxAttachmentTitle },
+              "PLACEHOLDER DOKUMEN PAJAK",
+            ),
+            React.createElement(
+              Text,
+              { style: S.taxAttachmentText },
+              "Dokumen pajak perusahaan akan dilampirkan pada halaman ini setelah jenis, format, dan detail dokumen dikonfirmasi.",
+            ),
+          ),
+        )
+      : null
   );
 }
 
@@ -588,10 +691,25 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
       name: String(tags.customerName ?? "Customer"),
       address: typeof tags.address === "string" ? tags.address : undefined,
       phone: typeof tags.phone === "string" ? tags.phone : undefined,
+      type: financialSummary.customerType,
     },
     service: {
-      unit: typeof tags.vehicle === "string" ? tags.vehicle : undefined,
+      unit:
+        typeof tags.vehicle === "string"
+          ? [
+              typeof tags.vehiclePlateNumber === "string"
+                ? tags.vehiclePlateNumber
+                : null,
+              tags.vehicle,
+            ]
+              .filter(Boolean)
+              .join(" / ")
+          : undefined,
       usage: typeof tags.usage === "string" ? tags.usage : undefined,
+      mileageKm:
+        typeof tags.vehicleMileageKm === "number"
+          ? tags.vehicleMileageKm
+          : undefined,
       technicians: typeof tags.technicians === "string" ? tags.technicians : undefined,
     },
     items,
@@ -603,6 +721,10 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
       taxBase: financialSummary.taxBase,
       tax: financialSummary.tax,
       pph: financialSummary.pph,
+      ppnEnabled: financialSummary.ppnEnabled,
+      pphEnabled: financialSummary.pphEnabled,
+      ppnRate: financialSummary.ppnRate,
+      pphRate: financialSummary.pphRate,
       grandTotal: financialSummary.grandTotal,
       amountPaid: financialSummary.amountPaid,
       balanceDue: financialSummary.balanceDue,
@@ -615,6 +737,7 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
     },
     notes:
       typeof tags.invoiceNotes === "string" ? tags.invoiceNotes : undefined,
+    taxDocumentPlaceholder: financialSummary.customerType === "B2B",
     signatures: {
       receiver:
         typeof sigTags.receiver === "string" ? sigTags.receiver : undefined,

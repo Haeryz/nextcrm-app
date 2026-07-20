@@ -4,6 +4,9 @@ jest.mock("@/lib/prisma", () => ({
       findMany: jest.fn(),
       count: jest.fn(),
     },
+    catalogItem: {
+      findMany: jest.fn(),
+    },
   },
 }));
 jest.mock("@/lib/session", () => ({ getServerSession: jest.fn() }));
@@ -20,6 +23,7 @@ describe("getMektekDashboardSummary", () => {
     (getServerSession as jest.Mock).mockResolvedValue({
       user: { id: "admin1", isAdmin: true, mektekRole: null, userStatus: "ACTIVE" },
     });
+    (prismadb.catalogItem.findMany as jest.Mock).mockResolvedValue([]);
   });
 
   it("aggregates operations-first dashboard metrics", async () => {
@@ -72,11 +76,12 @@ describe("getMektekDashboardSummary", () => {
       dueToday: 1,
       overdue: 1,
       completedToday: 1,
-      unpaidBalance: 302000,
+      unpaidBalance: 309000,
     });
     expect(result.recentOrders).toHaveLength(3);
     expect(result.recentOrdersPage).toBe(1);
     expect(result.recentOrdersTotalPages).toBe(1);
+    expect(result.itemActivity).toEqual({ newestItems: [], quantityUpdates: [] });
   });
 
   it("throws for a non-admin session (item 22)", async () => {

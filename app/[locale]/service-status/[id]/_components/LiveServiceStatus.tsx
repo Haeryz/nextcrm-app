@@ -145,6 +145,11 @@ export default function LiveServiceStatus({
             </CardHeader>
             <CardContent>
               <p className="break-words text-sm font-semibold">{snapshot.vehicle}</p>
+              {snapshot.vehicleMileageKm !== null && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {snapshot.vehicleMileageKm.toLocaleString("id-ID")} KM
+                </p>
+              )}
             </CardContent>
           </Card>
 

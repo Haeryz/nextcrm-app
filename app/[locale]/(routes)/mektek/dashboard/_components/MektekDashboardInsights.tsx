@@ -5,6 +5,8 @@ import {
   Package,
   ReceiptText,
   ShoppingBag,
+  PackagePlus,
+  RefreshCw,
   TrendingUp,
   Users,
   Wrench,
@@ -15,6 +17,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import type { MektekDashboardAnalytics } from "@/lib/mektek/dashboard-analytics";
+import { formatQuantityChange } from "@/lib/mektek/catalog-insights";
+
+type ItemActivity = {
+  newestItems: Array<{ id: string; machine: string; description: string; partNumber: string | null; quantity: string | null; createdAt: Date }>;
+  quantityUpdates: Array<{ id: string; machine: string; description: string; partNumber: string | null; quantity: string | null; previousQuantity: string | null; quantityUpdatedAt: Date | null }>;
+};
 
 const formatCurrency = (amount: number) =>
   amount.toLocaleString("id-ID", {
@@ -175,9 +183,7 @@ function OrderValueTrend({
                     stroke="hsl(var(--primary))"
                     strokeWidth="3"
                   >
-                    <title>
-                      {point.label}: {formatCurrency(point.orderValue)} dari {point.orderCount} pesanan
-                    </title>
+                    <title>{`${point.label}: ${formatCurrency(point.orderValue)} dari ${point.orderCount} pesanan`}</title>
                   </circle>
                 )}
                 <text
@@ -205,7 +211,15 @@ function StatusDistribution({
   const total = statuses.reduce((sum, status) => sum + status.count, 0);
   const radius = 42;
   const circumference = 2 * Math.PI * radius;
-  let consumed = 0;
+  const segments = statuses.map((status, index) => {
+    const segment = total > 0 ? (status.count / total) * circumference : 0;
+    const consumed = statuses.slice(0, index).reduce(
+      (sum, previous) =>
+        sum + (total > 0 ? (previous.count / total) * circumference : 0),
+      0,
+    );
+    return { status, segment, offset: -consumed };
+  });
 
   return (
     <Card>
@@ -224,10 +238,7 @@ function StatusDistribution({
               stroke="hsl(var(--muted))"
               strokeWidth="14"
             />
-            {statuses.map((status, index) => {
-              const segment = total > 0 ? (status.count / total) * circumference : 0;
-              const offset = -consumed;
-              consumed += segment;
+            {segments.map(({ status, segment, offset }, index) => {
               return (
                 <circle
                   key={status.key}
@@ -241,7 +252,7 @@ function StatusDistribution({
                   strokeDashoffset={offset}
                   transform="rotate(-90 60 60)"
                 >
-                  <title>{status.label}: {status.count}</title>
+                  <title>{`${status.label}: ${status.count}`}</title>
                 </circle>
               );
             })}
@@ -388,10 +399,51 @@ function LoyalCustomerRanking({
   );
 }
 
+function ItemActivityCard({ title, description, items, icon: Icon, quantityChanges = false }: {
+  title: string;
+  description: string;
+  items: ItemActivity["newestItems"] | ItemActivity["quantityUpdates"];
+  icon: LucideIcon;
+  quantityChanges?: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+        <div className="space-y-1"><CardTitle className="text-base">{title}</CardTitle><p className="text-sm text-muted-foreground">{description}</p></div>
+        <Icon className="size-5 text-primary" aria-hidden="true" />
+      </CardHeader>
+      <CardContent>
+        {items.length === 0 ? (
+          <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">Belum ada aktivitas item.</div>
+        ) : (
+          <ol className="divide-y">
+            {items.map((item) => {
+              const date = quantityChanges && "quantityUpdatedAt" in item ? item.quantityUpdatedAt : "createdAt" in item ? item.createdAt : null;
+              return (
+                <li key={item.id} className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="min-w-0"><p className="truncate text-sm font-medium">{item.description}</p><p className="text-xs text-muted-foreground">{item.machine}{item.partNumber ? ` · ${item.partNumber}` : ""}</p></div>
+                  <div className="shrink-0 text-right">
+                    <Badge variant={quantityChanges ? "secondary" : "outline"} className="tabular-nums">
+                      {quantityChanges && "previousQuantity" in item ? formatQuantityChange(item.previousQuantity, item.quantity) : item.quantity || "Quantity belum diisi"}
+                    </Badge>
+                    {date && <p className="mt-1 text-[11px] text-muted-foreground">{new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date(date))}</p>}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function MektekDashboardInsights({
   analytics,
+  itemActivity,
 }: {
   analytics: MektekDashboardAnalytics;
+  itemActivity: ItemActivity;
 }) {
   const { kpis } = analytics;
 
@@ -459,6 +511,11 @@ export default function MektekDashboardInsights({
           emptyMessage="Belum ada layanan tercatat."
         />
         <LoyalCustomerRanking customers={analytics.loyalCustomers} />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ItemActivityCard title="Item terbaru ditambahkan" description="Catalogue item paling baru" items={itemActivity.newestItems} icon={PackagePlus} />
+        <ItemActivityCard title="Pembaruan quantity" description="Perubahan quantity terbaru, bukan edit biasa" items={itemActivity.quantityUpdates} icon={RefreshCw} quantityChanges />
       </div>
     </section>
   );

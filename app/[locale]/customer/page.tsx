@@ -19,7 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { listMektekCatalogItems } from "@/actions/mektek/catalog-items";
+import { getMektekCatalogHighlights, listMektekCatalogItems } from "@/actions/mektek/catalog-items";
 import { getCustomerSessionUser } from "@/lib/customer-auth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ import { CartButton } from "@/components/mektek/cart/CartButton";
 import { CartMount } from "@/components/mektek/cart/CartMount";
 import { ItemActions } from "@/components/mektek/cart/ItemActions";
 import { MektekBrandMark } from "@/components/mektek/MektekBrandMark";
+import CustomerCatalogHighlights from "./_components/CustomerCatalogHighlights";
 
 interface CustomerCatalogPageProps {
   params?: Promise<{ locale: string }>;
@@ -448,12 +449,13 @@ export default async function CustomerCatalogPage({
     );
   }
 
-  const catalog = await listMektekCatalogItems({
-    query,
-    machine,
-    page,
-    pageSize: 24,
-  });
+  const showHighlights = !query && !machine && page === 1;
+  const [catalog, highlights] = await Promise.all([
+    listMektekCatalogItems({ query, machine, page, pageSize: 24 }),
+    showHighlights
+      ? getMektekCatalogHighlights()
+      : Promise.resolve({ popular: [], newest: [] }),
+  ]);
 
   const baseParams = new URLSearchParams();
   baseParams.set("view", "sparepart");
@@ -548,6 +550,9 @@ export default async function CustomerCatalogPage({
       </section>
 
       <section className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-6 md:px-6">
+        {showHighlights && (
+          <CustomerCatalogHighlights locale={locale} {...highlights} />
+        )}
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-[#4b5577]">
             {catalog.totalCount} item ditemukan

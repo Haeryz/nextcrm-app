@@ -39,7 +39,7 @@ export async function getMektekDashboardSummary(
     1
   );
 
-  const [orders, recentOrdersTotalCount] = await Promise.all([
+  const [orders, recentOrdersTotalCount, newestItems, quantityUpdates] = await Promise.all([
     prismadb.crm_Accounts_Tasks.findMany({
       where: mektekOrderWhere(),
       select: {
@@ -60,6 +60,32 @@ export async function getMektekDashboardSummary(
     }),
     prismadb.crm_Accounts_Tasks.count({
       where: mektekOrderWhere(),
+    }),
+    prismadb.catalogItem.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        machine: true,
+        description: true,
+        partNumber: true,
+        quantity: true,
+        createdAt: true,
+      },
+    }),
+    prismadb.catalogItem.findMany({
+      where: { quantityUpdatedAt: { not: null } },
+      orderBy: { quantityUpdatedAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        machine: true,
+        description: true,
+        partNumber: true,
+        quantity: true,
+        previousQuantity: true,
+        quantityUpdatedAt: true,
+      },
     }),
   ]);
 
@@ -142,5 +168,6 @@ export async function getMektekDashboardSummary(
     recentOrdersTotalCount,
     recentOrdersTotalPages,
     analytics: buildMektekDashboardAnalytics(orders, now),
+    itemActivity: { newestItems, quantityUpdates },
   };
 }

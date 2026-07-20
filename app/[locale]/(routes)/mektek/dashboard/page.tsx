@@ -79,7 +79,10 @@ export default async function MektekDashboardPage({
           ))}
         </div>
 
-        <MektekDashboardInsights analytics={summary.analytics} />
+        <MektekDashboardInsights
+          analytics={summary.analytics}
+          itemActivity={summary.itemActivity}
+        />
 
         <Card>
           <CardHeader className="flex flex-col gap-2 space-y-0 sm:flex-row sm:items-center sm:justify-between">

@@ -63,6 +63,10 @@ export default function ExcelExportButton({ orders }: ExcelExportButtonProps) {
               ? tags.customerName
               : "",
           Kendaraan: typeof tags.vehicle === "string" ? tags.vehicle : "",
+          "KM Mobil":
+            typeof tags.vehicleMileageKm === "number"
+              ? tags.vehicleMileageKm
+              : "",
           Telepon:
             typeof tags.phone === "string"
               ? tags.phone

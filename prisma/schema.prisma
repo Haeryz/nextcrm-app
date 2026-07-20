@@ -238,6 +238,8 @@ model CatalogItem {
   catalogPartNumber String?
   description       String
   quantity          String?
+  previousQuantity  String?
+  quantityUpdatedAt DateTime?
   price             Int?
   remark            String?
   searchText        String
@@ -246,6 +248,7 @@ model CatalogItem {
 
   @@index([machine])
   @@index([description])
+  @@index([quantityUpdatedAt])
 }
 
 model CatalogServiceLink {

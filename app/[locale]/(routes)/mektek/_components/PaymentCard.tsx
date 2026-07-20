@@ -10,7 +10,12 @@ import { Separator } from "@/components/ui/separator";
 import { CheckCircle2, Circle, Save } from "lucide-react";
 import { updateMektekPayment } from "@/actions/mektek/service-orders";
 import { RupiahInput } from "@/components/mektek/RupiahInput";
-import type { MektekPaymentDetail } from "@/lib/mektek/financials";
+import { Switch } from "@/components/ui/switch";
+import {
+  MEKTEK_PPH_RATE,
+  MEKTEK_PPN_RATE,
+  type MektekPaymentDetail,
+} from "@/lib/mektek/financials";
 
 type PaymentMethod = "cash" | "transfer" | "qris";
 
@@ -19,8 +24,10 @@ type PaymentCardProps = {
   serviceSubtotal: number;
   sparepartSubtotal: number;
   initialDiscount: number;
-  initialTax: number;
-  initialPph: number;
+  customerType: "STANDARD" | "B2B";
+  initialPpnEnabled: boolean;
+  initialPphEnabled: boolean;
+  canManageTaxSettings: boolean;
   initialAmountPaid: number;
   initialProviderAmountPaid: number;
   initialMethod: PaymentMethod;
@@ -42,8 +49,10 @@ export default function PaymentCard({
   serviceSubtotal,
   sparepartSubtotal,
   initialDiscount,
-  initialTax,
-  initialPph,
+  customerType,
+  initialPpnEnabled,
+  initialPphEnabled,
+  canManageTaxSettings,
   initialAmountPaid,
   initialProviderAmountPaid,
   initialMethod,
@@ -52,7 +61,10 @@ export default function PaymentCard({
   const router = useRouter();
   const [method, setMethod] = useState<PaymentMethod>(initialMethod);
   const [discount, setDiscount] = useState(toInputValue(initialDiscount));
-  const [tax, setTax] = useState(toInputValue(initialTax));
+  const [ppnEnabled, setPpnEnabled] = useState(initialPpnEnabled);
+  const [pphEnabled, setPphEnabled] = useState(
+    customerType === "B2B" && initialPphEnabled,
+  );
   const [amountPaid, setAmountPaid] = useState(toInputValue(initialAmountPaid));
   const [isPending, startTransition] = useTransition();
 
@@ -64,19 +76,22 @@ export default function PaymentCard({
 
   const totals = useMemo(() => {
     const discountAmount = parseMoney(discount);
-    const taxAmount = parseMoney(tax);
     const paidAmount = parseMoney(amountPaid);
     const subtotal = serviceSubtotal + sparepartSubtotal;
     const taxBase = Math.max(0, subtotal - discountAmount);
-    const pphAmount = initialPph > 0 ? Math.round(taxBase * 0.02) : 0;
-    const total = Math.max(0, taxBase + taxAmount - pphAmount);
+    const ppnAmount = ppnEnabled ? Math.round(taxBase * MEKTEK_PPN_RATE) : 0;
+    const pphAmount =
+      customerType === "B2B" && pphEnabled
+        ? Math.round(taxBase * MEKTEK_PPH_RATE)
+        : 0;
+    const total = Math.max(0, taxBase + ppnAmount - pphAmount);
     const providerPaid = Math.min(initialProviderAmountPaid, total);
     const paid = Math.min(Math.max(paidAmount, providerPaid), total);
     const remaining = Math.max(0, total - paid);
     const status = total > 0 && remaining === 0 ? "paid" : paid > 0 ? "partial" : "unpaid";
     return {
       discountAmount,
-      taxAmount,
+      ppnAmount,
       pphAmount,
       total,
       providerPaid,
@@ -86,12 +101,13 @@ export default function PaymentCard({
     };
   }, [
     amountPaid,
+    customerType,
     discount,
-    initialPph,
     initialProviderAmountPaid,
+    pphEnabled,
+    ppnEnabled,
     serviceSubtotal,
     sparepartSubtotal,
-    tax,
   ]);
 
   const latestProviderPayment =
@@ -107,7 +123,8 @@ export default function PaymentCard({
         serviceOrderId,
         method,
         discount,
-        tax,
+        ppnEnabled: canManageTaxSettings ? ppnEnabled : undefined,
+        pphEnabled: canManageTaxSettings ? pphEnabled : undefined,
         amountPaid,
       });
 
@@ -164,7 +181,7 @@ export default function PaymentCard({
 
         <Separator />
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <p className="mb-2 text-xs text-muted-foreground">Diskon</p>
             <div className="flex items-center gap-2">
@@ -173,20 +190,6 @@ export default function PaymentCard({
                 aria-label="Diskon dalam Rupiah"
                 value={discount}
                 onValueChange={setDiscount}
-                placeholder="0"
-                className="font-mono"
-                disabled={isPending}
-              />
-            </div>
-          </div>
-          <div>
-            <p className="mb-2 text-xs text-muted-foreground">Pajak / biaya lain</p>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-sm text-muted-foreground">Rp</span>
-              <RupiahInput
-                aria-label="Pajak atau biaya lain dalam Rupiah"
-                value={tax}
-                onValueChange={setTax}
                 placeholder="0"
                 className="font-mono"
                 disabled={isPending}
@@ -207,6 +210,45 @@ export default function PaymentCard({
               />
             </div>
           </div>
+        </div>
+
+        <div className="rounded-lg border bg-muted/20 p-3">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Pengaturan Pajak
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="flex items-center justify-between gap-3 rounded-md border bg-background/80 p-3">
+              <div>
+                <p className="text-sm font-medium">PPN 11%</p>
+                <p className="text-xs text-muted-foreground">Berlaku untuk pribadi dan perusahaan</p>
+              </div>
+              <Switch
+                aria-label="Aktifkan PPN 11%"
+                checked={ppnEnabled}
+                onCheckedChange={setPpnEnabled}
+                disabled={isPending || !canManageTaxSettings}
+              />
+            </div>
+            {customerType === "B2B" && (
+              <div className="flex items-center justify-between gap-3 rounded-md border bg-background/80 p-3">
+                <div>
+                  <p className="text-sm font-medium">PPH 2%</p>
+                  <p className="text-xs text-muted-foreground">Khusus invoice perusahaan</p>
+                </div>
+                <Switch
+                  aria-label="Aktifkan PPH 2%"
+                  checked={pphEnabled}
+                  onCheckedChange={setPphEnabled}
+                  disabled={isPending || !canManageTaxSettings}
+                />
+              </div>
+            )}
+          </div>
+          {!canManageTaxSettings && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Hanya Admin utama yang dapat mengubah pengaturan pajak.
+            </p>
+          )}
         </div>
 
         {latestProviderPayment && (
@@ -261,11 +303,19 @@ export default function PaymentCard({
               </p>
             </div>
             <div className="min-w-0 rounded-md border bg-background/80 p-3">
-              <p className="text-xs text-muted-foreground">PPH</p>
+              <p className="text-xs text-muted-foreground">PPN</p>
               <p className="break-words font-semibold leading-tight">
-                {formatCurrency(totals.pphAmount)}
+                {formatCurrency(totals.ppnAmount)}
               </p>
             </div>
+            {customerType === "B2B" && (
+              <div className="min-w-0 rounded-md border bg-background/80 p-3">
+                <p className="text-xs text-muted-foreground">PPH</p>
+                <p className="break-words font-semibold leading-tight">
+                  {formatCurrency(totals.pphAmount)}
+                </p>
+              </div>
+            )}
             <div className="min-w-0 rounded-md border bg-background/80 p-3">
               <p className="text-xs text-muted-foreground">Dibayar</p>
               <p className="break-words font-semibold leading-tight">

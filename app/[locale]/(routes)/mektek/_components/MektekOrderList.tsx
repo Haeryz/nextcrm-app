@@ -100,6 +100,8 @@ export default function MektekOrderList({
           const tags = parseTags(order.tags);
           const customerName = getText(tags, "customerName", "Pelanggan tidak diketahui");
           const vehicle = getText(tags, "vehicle", order.title ?? "Kendaraan tidak diketahui");
+          const vehicleMileageKm =
+            typeof tags.vehicleMileageKm === "number" ? tags.vehicleMileageKm : null;
           const timeline = getTimeline(tags);
           const status = getStatusMeta(order.taskStatus);
           const timelineCount = timeline.length || 1;
@@ -133,7 +135,12 @@ export default function MektekOrderList({
                 </div>
                 <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
                   <Car className="h-4 w-4 shrink-0" />
-                  <p className="truncate">{vehicle}</p>
+                  <p className="truncate">
+                    {vehicle}
+                    {vehicleMileageKm !== null
+                      ? ` · ${vehicleMileageKm.toLocaleString("id-ID")} KM`
+                      : ""}
+                  </p>
                 </div>
                 <p className="font-mono text-[11px] text-muted-foreground">
                   ID {order.id.slice(0, 8)}

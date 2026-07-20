@@ -28,6 +28,8 @@ export type MektekPaymentDetail = {
 };
 
 const PAID_PROVIDER_STATUSES = new Set(["capture", "paid", "settlement"]);
+export const MEKTEK_PPN_RATE = 0.11;
+export const MEKTEK_PPH_RATE = 0.02;
 
 const parseTags = (tags: unknown): JsonRecord => {
   if (!tags || typeof tags !== "object" || Array.isArray(tags)) return {};
@@ -95,8 +97,12 @@ export function buildMektekFinancialSummary(
   const subtotal = normalizedItems.subtotal;
   const discount = parseMoney(parsedTags.discount);
   const taxBase = Math.max(0, subtotal - discount);
-  const tax = parseMoney(parsedTags.tax) || Math.round(taxBase * 0.11);
-  const pph = parseMoney(parsedTags.pph) || Math.round(taxBase * 0.02);
+  const customerType: "STANDARD" | "B2B" =
+    parsedTags.customerType === "B2B" ? "B2B" : "STANDARD";
+  const ppnEnabled = parsedTags.ppnEnabled !== false;
+  const pphEnabled = customerType === "B2B" && parsedTags.pphEnabled !== false;
+  const tax = ppnEnabled ? Math.round(taxBase * MEKTEK_PPN_RATE) : 0;
+  const pph = pphEnabled ? Math.round(taxBase * MEKTEK_PPH_RATE) : 0;
   const grandTotal = Math.max(0, taxBase + tax - pph);
   const payment = parsePayment(parsedTags);
   const providerPayments = normalizeProviderPayments(payments);
@@ -131,6 +137,11 @@ export function buildMektekFinancialSummary(
     taxBase,
     tax,
     pph,
+    customerType,
+    ppnEnabled,
+    pphEnabled,
+    ppnRate: MEKTEK_PPN_RATE,
+    pphRate: MEKTEK_PPH_RATE,
     grandTotal,
     amountPaid,
     balanceDue,

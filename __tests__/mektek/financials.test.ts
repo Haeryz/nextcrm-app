@@ -1,6 +1,7 @@
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
 
 const baseTags = {
+  customerType: "B2B",
   serviceItems: [
     {
       name: "Tune up",
@@ -14,6 +15,52 @@ const baseTags = {
 };
 
 describe("buildMektekFinancialSummary", () => {
+  it("applies PPN but never PPH to a private customer", () => {
+    const summary = buildMektekFinancialSummary({
+      ...baseTags,
+      customerType: "STANDARD",
+      ppnEnabled: true,
+      pphEnabled: true,
+    });
+
+    expect(summary.ppnEnabled).toBe(true);
+    expect(summary.pphEnabled).toBe(false);
+    expect(summary.tax).toBe(11_000);
+    expect(summary.pph).toBe(0);
+    expect(summary.grandTotal).toBe(111_000);
+  });
+
+  it("applies both PPN and PPH to a business customer by default", () => {
+    const summary = buildMektekFinancialSummary({
+      serviceItems: baseTags.serviceItems,
+      customerType: "B2B",
+    });
+
+    expect(summary.ppnEnabled).toBe(true);
+    expect(summary.pphEnabled).toBe(true);
+    expect(summary.tax).toBe(11_000);
+    expect(summary.pph).toBe(2_000);
+    expect(summary.grandTotal).toBe(109_000);
+  });
+
+  it("lets an admin snapshot disable PPN and PPH independently", () => {
+    const noPpn = buildMektekFinancialSummary({
+      serviceItems: baseTags.serviceItems,
+      customerType: "B2B",
+      ppnEnabled: false,
+      pphEnabled: true,
+    });
+    const noPph = buildMektekFinancialSummary({
+      serviceItems: baseTags.serviceItems,
+      customerType: "B2B",
+      ppnEnabled: true,
+      pphEnabled: false,
+    });
+
+    expect(noPpn.grandTotal).toBe(98_000);
+    expect(noPph.grandTotal).toBe(111_000);
+  });
+
   it("uses settled Midtrans payments when tags still say unpaid", () => {
     const summary = buildMektekFinancialSummary(
       {

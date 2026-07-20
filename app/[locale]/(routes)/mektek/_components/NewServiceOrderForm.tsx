@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { haveRequiredMektekItemInputPrices } from "@/lib/mektek/items";
 import { getMektekTodayDateInput } from "@/lib/mektek/schedule";
 import { MEKTEK_TECHNICIAN_ROLE_LABELS } from "@/lib/mektek/technicians";
+import { MAX_VEHICLE_MILEAGE_KM } from "@/lib/mektek/vehicle-mileage";
 import {
   Select,
   SelectContent,
@@ -49,6 +50,7 @@ export default function NewServiceOrderForm({
   const [vehicle, setVehicle] = useState("");
   const [vehiclePlateNumber, setVehiclePlateNumber] = useState("");
   const [vehicleFleetNumber, setVehicleFleetNumber] = useState("");
+  const [vehicleMileageKm, setVehicleMileageKm] = useState("");
   const [technicianIds, setTechnicianIds] = useState<string[]>([
     UNASSIGNED_TECHNICIAN,
     UNASSIGNED_TECHNICIAN,
@@ -175,6 +177,7 @@ export default function NewServiceOrderForm({
         vehicle,
         vehiclePlateNumber,
         vehicleFleetNumber,
+        vehicleMileageKm,
         complaint: complaint || "-",
         technicianIds: selectedTechnicianIds,
         phone,
@@ -224,6 +227,7 @@ export default function NewServiceOrderForm({
       setVehicle("");
       setVehiclePlateNumber("");
       setVehicleFleetNumber("");
+      setVehicleMileageKm("");
       setTechnicianIds([
         UNASSIGNED_TECHNICIAN,
         UNASSIGNED_TECHNICIAN,
@@ -365,6 +369,20 @@ export default function NewServiceOrderForm({
             placeholder="Nomor plat kendaraan"
             value={vehiclePlateNumber}
             onChange={(event) => setVehiclePlateNumber(event.target.value.toUpperCase())}
+            disabled={isPending}
+            required
+          />
+          <Input
+            placeholder="KM mobil"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={MAX_VEHICLE_MILEAGE_KM}
+            step={1}
+            value={vehicleMileageKm}
+            onChange={(event) =>
+              setVehicleMileageKm(event.target.value.replace(/\D/g, ""))
+            }
             disabled={isPending}
             required
           />

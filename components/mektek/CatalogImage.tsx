@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 
 /**
  * Catalog thumbnail with a graceful "No image" fallback when the src is
