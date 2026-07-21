@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
   AlertTriangle,
+  Camera,
   CheckCircle2,
   ChevronRight,
   Clock3,
@@ -172,7 +173,7 @@ async function uploadLogisticsReceiptImage(receiptId: string, file: File) {
     | { error?: string }
     | null;
   if (!response.ok) {
-    throw new Error(payload?.error || "Gagal mengunggah foto Surat Jalan");
+    throw new Error(payload?.error || "Gagal mengunggah foto kondisi barang");
   }
 }
 
@@ -185,6 +186,8 @@ export default function LogisticsManager({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const nextItemId = useRef(2);
+  const conditionCameraInputRef = useRef<HTMLInputElement>(null);
+  const conditionGalleryInputRef = useRef<HTMLInputElement>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createValue, setCreateValue] = useState<PurchaseOrderDraft>(() =>
     blankPurchaseOrder(),
@@ -291,12 +294,12 @@ export default function LogisticsManager({
     }
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
       setReceiptImage(null);
-      setReceiptImageError("Pilih foto Surat Jalan berformat JPEG, PNG, atau WebP");
+      setReceiptImageError("Pilih foto kondisi barang berformat JPEG, PNG, atau WebP");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
       setReceiptImage(null);
-      setReceiptImageError("Ukuran foto Surat Jalan maksimal 5 MB");
+      setReceiptImageError("Ukuran foto kondisi barang maksimal 5 MB");
       return;
     }
     setReceiptImage(file);
@@ -320,7 +323,7 @@ export default function LogisticsManager({
           await uploadLogisticsReceiptImage(result.data.receipt.id, receiptImage);
         } catch (error) {
           imageUploadError =
-            error instanceof Error ? error.message : "Gagal mengunggah foto Surat Jalan";
+            error instanceof Error ? error.message : "Gagal mengunggah foto kondisi barang";
         }
       }
       const closed = result.data.itemProgress.status === "CLOSED";
@@ -1101,24 +1104,74 @@ export default function LogisticsManager({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="logistics-receipt-image">Foto Surat Jalan</Label>
+                    <Label id="logistics-condition-photo-label">Foto Kondisi Barang</Label>
                     <div className="rounded-lg border bg-muted/20 p-3">
                       <Input
-                        id="logistics-receipt-image"
+                        ref={conditionCameraInputRef}
+                        id="logistics-condition-camera"
                         type="file"
                         accept="image/jpeg,image/png,image/webp"
                         capture="environment"
-                        onChange={(event) =>
-                          selectReceiptImage(event.target.files?.[0] ?? null)
-                        }
+                        className="sr-only"
+                        aria-label="Ambil foto kondisi barang menggunakan kamera"
+                        onChange={(event) => {
+                          const file = event.currentTarget.files?.[0];
+                          if (file) selectReceiptImage(file);
+                        }}
                         disabled={isPending}
                       />
-                      <div className="mt-2 flex items-start gap-2 text-xs text-muted-foreground">
-                        <ImagePlus className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                        <p>
-                          Ambil atau pilih foto JPEG, PNG, atau WebP dengan ukuran maksimal 5 MB.
-                        </p>
+                      <Input
+                        ref={conditionGalleryInputRef}
+                        id="logistics-condition-gallery"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="sr-only"
+                        aria-label="Pilih foto kondisi barang dari galeri"
+                        onChange={(event) => {
+                          const file = event.currentTarget.files?.[0];
+                          if (file) selectReceiptImage(file);
+                        }}
+                        disabled={isPending}
+                      />
+                      <div
+                        role="group"
+                        aria-labelledby="logistics-condition-photo-label"
+                        aria-describedby="logistics-condition-photo-help"
+                        className="grid gap-2 sm:grid-cols-2"
+                      >
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            if (!conditionCameraInputRef.current) return;
+                            conditionCameraInputRef.current.value = "";
+                            conditionCameraInputRef.current.click();
+                          }}
+                          disabled={isPending}
+                        >
+                          <Camera aria-hidden="true" />
+                          Ambil Foto
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            if (!conditionGalleryInputRef.current) return;
+                            conditionGalleryInputRef.current.value = "";
+                            conditionGalleryInputRef.current.click();
+                          }}
+                          disabled={isPending}
+                        >
+                          <ImagePlus aria-hidden="true" />
+                          Pilih dari Galeri
+                        </Button>
                       </div>
+                      <p
+                        id="logistics-condition-photo-help"
+                        className="mt-2 text-xs text-muted-foreground"
+                      >
+                        Format JPEG, PNG, atau WebP, maksimal 5 MB.
+                      </p>
                       {receiptImage && (
                         <p className="mt-2 truncate text-xs font-medium">
                           File dipilih: {receiptImage.name}
@@ -1177,7 +1230,7 @@ export default function LogisticsManager({
                                 target="_blank"
                                 rel="noreferrer"
                               >
-                                Foto
+                                Foto Kondisi
                               </a>
                             </Button>
                           )}

@@ -3,7 +3,7 @@ import {
   validateLogisticsReceiptImageUpload,
 } from "@/lib/mektek/logistics-receipt-image";
 
-describe("Logistics receipt image validation", () => {
+describe("Logistics received-item condition image validation", () => {
   it("accepts a JPEG signature", () => {
     expect(
       validateLogisticsReceiptImageUpload(
@@ -16,12 +16,12 @@ describe("Logistics receipt image validation", () => {
   it("rejects unsupported and oversized files", () => {
     expect(
       validateLogisticsReceiptImageUpload("application/pdf", new Uint8Array([1, 2, 3])),
-    ).toEqual({ error: "Pilih foto Surat Jalan berformat JPEG, PNG, atau WebP" });
+    ).toEqual({ error: "Pilih foto kondisi barang berformat JPEG, PNG, atau WebP" });
     expect(
       validateLogisticsReceiptImageUpload(
         "image/jpeg",
         new Uint8Array(MAX_LOGISTICS_RECEIPT_IMAGE_BYTES + 1),
       ),
-    ).toEqual({ error: "Ukuran foto Surat Jalan maksimal 5 MB" });
+    ).toEqual({ error: "Ukuran foto kondisi barang maksimal 5 MB" });
   });
 });

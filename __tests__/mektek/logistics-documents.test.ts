@@ -36,16 +36,20 @@ describe("MekTek Logistics receipt documents", () => {
     "utf8",
   );
 
-  it("stores receipt photos without including the binary in Logistics lists", () => {
+  it("stores item-condition photos without including the binary in Logistics lists", () => {
     expect(schema).toMatch(/imageData\s+Bytes\?/);
     expect(schema).toMatch(/imageMimeType\s+String\?/);
     expect(imageRouteSource).toContain("validateLogisticsReceiptImageUpload");
     expect(imageRouteSource).toContain("requireMektekLogisticsApiSession");
   });
 
-  it("adds receipt-photo input and protected document actions to receipt history", () => {
+  it("adds item-condition photo input and protected document actions to receipt history", () => {
     expect(managerSource).toContain('type="file"');
-    expect(managerSource).toContain("Foto Surat Jalan");
+    expect(managerSource).toContain("Foto Kondisi Barang");
+    expect(managerSource).not.toContain("Foto Surat Jalan");
+    expect(managerSource).toContain("Ambil Foto");
+    expect(managerSource).toContain("Pilih dari Galeri");
+    expect(managerSource).toContain('capture="environment"');
     expect(managerSource).toContain("Cetak PDF Surat Jalan");
     expect(managerSource).toContain("/api/mektek/logistics/receipts/");
     expect(pdfRouteSource).toContain("requireMektekLogisticsApiSession");

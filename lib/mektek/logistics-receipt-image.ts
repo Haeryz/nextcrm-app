@@ -29,13 +29,13 @@ export function validateLogisticsReceiptImageUpload(
   const normalizedType = String(contentType ?? "").toLowerCase().split(";")[0].trim();
 
   if (!SUPPORTED_CONTENT_TYPES.has(normalizedType)) {
-    return { error: "Pilih foto Surat Jalan berformat JPEG, PNG, atau WebP" };
+    return { error: "Pilih foto kondisi barang berformat JPEG, PNG, atau WebP" };
   }
   if (bytes.byteLength === 0) {
-    return { error: "Pilih file foto Surat Jalan yang tidak kosong" };
+    return { error: "Pilih file foto kondisi barang yang tidak kosong" };
   }
   if (bytes.byteLength > MAX_LOGISTICS_RECEIPT_IMAGE_BYTES) {
-    return { error: "Ukuran foto Surat Jalan maksimal 5 MB" };
+    return { error: "Ukuran foto kondisi barang maksimal 5 MB" };
   }
   if (!hasExpectedSignature(normalizedType, bytes)) {
     return { error: "File yang dipilih bukan gambar yang valid" };

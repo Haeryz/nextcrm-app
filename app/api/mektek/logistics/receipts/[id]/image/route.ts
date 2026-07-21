@@ -62,7 +62,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
     declaredLength > MAX_LOGISTICS_RECEIPT_IMAGE_BYTES
   ) {
     return NextResponse.json(
-      { error: "Ukuran foto Surat Jalan maksimal 5 MB" },
+      { error: "Ukuran foto kondisi barang maksimal 5 MB" },
       { status: 413 },
     );
   }
