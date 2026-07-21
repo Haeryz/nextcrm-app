@@ -4,6 +4,7 @@ import {
   MessageCircle,
   PackageSearch,
   TicketPercent,
+  Truck,
   Users,
   UserCog,
   Wrench,
@@ -12,6 +13,7 @@ import type { StaffDivision } from "@/lib/auth/staff-divisions";
 import {
   canCreateMektekOrders,
   canManageMektekCustomers,
+  canManageMektekLogistics,
   canManageMektekVouchers,
   canUseMektekCustomerTools,
   canViewMektekDashboard,
@@ -48,6 +50,14 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
       title: "Item",
       url: "/mektek/items",
       icon: PackageSearch,
+    });
+  }
+
+  if (canManageMektekLogistics(user)) {
+    items.push({
+      title: "Logistics",
+      url: "/mektek/logistics",
+      icon: Truck,
     });
   }
 

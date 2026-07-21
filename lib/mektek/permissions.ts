@@ -56,6 +56,10 @@ export function canManageMektekPayments(user?: MektekSessionUser | null) {
   return isActive(user) && (!!user?.isAdmin || isDivisionStaff(user));
 }
 
+export function canManageMektekLogistics(user?: MektekSessionUser | null) {
+  return isActive(user) && (!!user?.isAdmin || isDivisionStaff(user));
+}
+
 export function canManageMektekSchedule(user?: MektekSessionUser | null) {
   return isActive(user) && (!!user?.isAdmin || isDivisionStaff(user));
 }

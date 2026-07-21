@@ -64,6 +64,11 @@ enum CatalogStockDirection {
   OUT
 }
 
+enum LogisticsPurchaseOrderStatus {
+  OPEN
+  CLOSED
+}
+
 enum MektekVoucherDiscountType {
   FIXED
   PERCENTAGE
@@ -356,6 +361,68 @@ model CatalogServiceLink {
   @@index([customerId])
   @@index([serviceOrderId])
   @@index([source])
+}
+
+model LogisticsPurchaseOrder {
+  id           String                       @id @default(uuid()) @db.Uuid
+  poNumber     String                       @unique
+  supplierName String
+  userName     String
+  projectName  String
+  inputDate    DateTime                     @db.Date
+  dueDate      DateTime                     @db.Date
+  poType       String                       @default("Normal")
+  status       LogisticsPurchaseOrderStatus @default(OPEN)
+  notes        String?
+  createdBy    String?                      @db.Uuid
+  createdAt    DateTime                     @default(now())
+  updatedAt    DateTime                     @updatedAt
+
+  items LogisticsPurchaseOrderItem[]
+
+  @@index([status, dueDate])
+  @@index([supplierName])
+  @@index([userName])
+  @@index([projectName])
+  @@index([updatedAt])
+}
+
+model LogisticsPurchaseOrderItem {
+  id               String                       @id @default(uuid()) @db.Uuid
+  purchaseOrderId  String                       @db.Uuid
+  position         Int
+  partName         String
+  partNumber       String?
+  orderedQuantity  Int
+  receivedQuantity Int                          @default(0)
+  status           LogisticsPurchaseOrderStatus @default(OPEN)
+  createdAt        DateTime                     @default(now())
+  updatedAt        DateTime                     @updatedAt
+
+  purchaseOrder LogisticsPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  receipts      LogisticsReceipt[]
+
+  @@unique([purchaseOrderId, position])
+  @@index([purchaseOrderId, status])
+  @@index([partName])
+  @@index([partNumber])
+}
+
+model LogisticsReceipt {
+  id                  String   @id @default(uuid()) @db.Uuid
+  purchaseOrderItemId String   @db.Uuid
+  deliveryNoteNumber  String
+  quantity            Int
+  receivedAt          DateTime @db.Date
+  note                String?
+  createdBy           String?  @db.Uuid
+  createdAt           DateTime @default(now())
+
+  purchaseOrderItem LogisticsPurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id], onDelete: Cascade)
+
+  @@unique([purchaseOrderItemId, deliveryNoteNumber])
+  @@index([purchaseOrderItemId, receivedAt])
+  @@index([deliveryNoteNumber])
 }
 
 model MektekPayment {
