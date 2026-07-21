@@ -99,7 +99,7 @@ export default async function MektekLogisticsSpreadsheetPage({
     >
       <div className="flex flex-col gap-6">
         <div className="flex justify-start">
-          <Button asChild type="button" variant="ghost" className="w-full sm:w-auto">
+          <Button asChild type="button" variant="outline" className="w-full sm:w-auto">
             <Link href={`/${locale}/mektek/logistics`}>Kembali ke Logistics</Link>
           </Button>
         </div>

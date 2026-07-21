@@ -183,6 +183,22 @@ describe("MekTek Logistics actions", () => {
     expect(result).toEqual({ error: "PO No. PO-001 sudah terdaftar" });
   });
 
+  it("rejects a PO type outside Normal and Consignment", async () => {
+    const result = await createMektekLogisticsPurchaseOrder({
+      poNumber: "PO-INVALID-TYPE",
+      supplierName: "Supplier A",
+      userName: "PT XXX",
+      projectName: "Project X",
+      inputDate: "2026-07-01",
+      dueDate: "2026-07-10",
+      poType: "Urgent",
+      items: [{ partName: "Compressor", orderedQuantity: 10 }],
+    });
+
+    expect(result).toEqual({ error: "PO Type harus Normal atau Consignment" });
+    expect(purchaseOrderCreate).not.toHaveBeenCalled();
+  });
+
   it("creates every ordered Part even when nothing has arrived yet", async () => {
     purchaseOrderCreate.mockResolvedValueOnce({
       id: "po-2",

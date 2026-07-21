@@ -5,6 +5,7 @@ import type { LogisticsPurchaseOrderStatus, Prisma } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth";
 import {
+  isLogisticsPurchaseOrderType,
   normalizeLogisticsReference,
   validateLogisticsReceipt,
 } from "@/lib/mektek/logistics";
@@ -117,6 +118,9 @@ function normalizePurchaseOrderInput(input: LogisticsPurchaseOrderInput) {
   if (!supplierName) return { error: "Supplier wajib diisi" } as const;
   if (!userName) return { error: "User / PT wajib diisi" } as const;
   if (!projectName) return { error: "Job Site / Project wajib diisi" } as const;
+  if (!isLogisticsPurchaseOrderType(poType)) {
+    return { error: "PO Type harus Normal atau Consignment" } as const;
+  }
   if (!inputDate) return { error: "Tanggal Input tidak valid" } as const;
   if (!dueDate) return { error: "Due To tidak valid" } as const;
   if (dueDate < inputDate) {
@@ -253,7 +257,22 @@ export async function listMektekLogisticsPurchaseOrders(input?: {
         include: {
           items: {
             orderBy: { position: "asc" },
-            include: { receipts: { orderBy: [{ receivedAt: "desc" }, { createdAt: "desc" }] } },
+            include: {
+              receipts: {
+                orderBy: [{ receivedAt: "desc" }, { createdAt: "desc" }],
+                select: {
+                  id: true,
+                  purchaseOrderItemId: true,
+                  deliveryNoteNumber: true,
+                  quantity: true,
+                  receivedAt: true,
+                  note: true,
+                  imageMimeType: true,
+                  createdBy: true,
+                  createdAt: true,
+                },
+              },
+            },
           },
         },
       }),

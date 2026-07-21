@@ -6,9 +6,11 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  ImagePlus,
   Loader2,
   PackageCheck,
   Plus,
+  Printer,
   ReceiptText,
   Trash2,
 } from "lucide-react";
@@ -34,6 +36,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { getCatalogInventoryLocalDateKey } from "@/lib/mektek/catalog-inventory";
@@ -49,6 +58,7 @@ type LogisticsReceiptRow = {
   quantity: number;
   receivedAt: string;
   note: string | null;
+  imageMimeType: string | null;
   createdBy: string | null;
   createdAt: string;
 };
@@ -149,6 +159,23 @@ function formatDate(value: string) {
   return logisticsDateFormatter.format(new Date(value));
 }
 
+async function uploadLogisticsReceiptImage(receiptId: string, file: File) {
+  const response = await fetch(
+    `/api/mektek/logistics/receipts/${encodeURIComponent(receiptId)}/image`,
+    {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": file.type },
+    },
+  );
+  const payload = (await response.json().catch(() => null)) as
+    | { error?: string }
+    | null;
+  if (!response.ok) {
+    throw new Error(payload?.error || "Gagal mengunggah foto Surat Jalan");
+  }
+}
+
 export default function LogisticsManager({
   purchaseOrders,
   stats,
@@ -172,6 +199,8 @@ export default function LogisticsManager({
     receivedAt: getCatalogInventoryLocalDateKey(),
     note: "",
   });
+  const [receiptImage, setReceiptImage] = useState<File | null>(null);
+  const [receiptImageError, setReceiptImageError] = useState<string | null>(null);
 
   const rows = useMemo(
     () =>
@@ -250,6 +279,28 @@ export default function LogisticsManager({
       receivedAt: getCatalogInventoryLocalDateKey(),
       note: "",
     });
+    setReceiptImage(null);
+    setReceiptImageError(null);
+  };
+
+  const selectReceiptImage = (file: File | null) => {
+    if (!file) {
+      setReceiptImage(null);
+      setReceiptImageError(null);
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setReceiptImage(null);
+      setReceiptImageError("Pilih foto Surat Jalan berformat JPEG, PNG, atau WebP");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setReceiptImage(null);
+      setReceiptImageError("Ukuran foto Surat Jalan maksimal 5 MB");
+      return;
+    }
+    setReceiptImage(file);
+    setReceiptImageError(null);
   };
 
   const submitReceipt = () => {
@@ -263,12 +314,25 @@ export default function LogisticsManager({
         toast.error(result?.error || "Gagal mencatat barang masuk");
         return;
       }
+      let imageUploadError: string | null = null;
+      if (receiptImage) {
+        try {
+          await uploadLogisticsReceiptImage(result.data.receipt.id, receiptImage);
+        } catch (error) {
+          imageUploadError =
+            error instanceof Error ? error.message : "Gagal mengunggah foto Surat Jalan";
+        }
+      }
       const closed = result.data.itemProgress.status === "CLOSED";
-      toast.success(
-        closed
-          ? "Barang masuk tercatat dan item PO otomatis Closed"
-          : `Barang masuk tercatat. QTY Sisa ${result.data.itemProgress.remainingQuantity}`,
-      );
+      if (imageUploadError) {
+        toast.warning(`Barang masuk tersimpan, tetapi ${imageUploadError}`);
+      } else {
+        toast.success(
+          closed
+            ? "Barang masuk tercatat dan item PO otomatis Closed"
+            : `Barang masuk tercatat. QTY Sisa ${result.data.itemProgress.remainingQuantity}`,
+        );
+      }
       setActiveReceiptItem(null);
       router.refresh();
     });
@@ -277,6 +341,7 @@ export default function LogisticsManager({
   const activeProgress = activeReceiptItem
     ? getLogisticsItemProgress(activeReceiptItem.item)
     : null;
+  const latestReceipt = activeReceiptItem?.item.receipts[0] ?? null;
 
   return (
     <div className="space-y-6">
@@ -344,21 +409,21 @@ export default function LogisticsManager({
               Buat Purchase Order
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
-            <DialogHeader>
+           <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl md:flex md:flex-col md:overflow-hidden">
+             <DialogHeader className="shrink-0">
               <DialogTitle>Buat Purchase Order Logistics</DialogTitle>
               <DialogDescription>
                 Masukkan seluruh Part yang diorder, termasuk barang yang belum ready dari supplier.
               </DialogDescription>
             </DialogHeader>
             <form
-              className="space-y-5"
+               className="space-y-5 md:flex md:min-h-0 md:flex-1 md:flex-col md:space-y-0 md:gap-5"
               onSubmit={(event) => {
                 event.preventDefault();
                 submitPurchaseOrder();
               }}
             >
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+               <div className="grid shrink-0 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="logistics-po-number">PO No.</Label>
                   <Input
@@ -383,17 +448,22 @@ export default function LogisticsManager({
                     required
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="logistics-po-type">PO Type</Label>
-                  <Input
-                    id="logistics-po-type"
-                    value={createValue.poType}
-                    onChange={(event) => updateCreateValue("poType", event.target.value)}
-                    placeholder="Normal"
-                    disabled={isPending}
-                    required
-                  />
-                </div>
+                 <div className="space-y-1.5">
+                   <Label htmlFor="logistics-po-type">PO Type</Label>
+                   <Select
+                     value={createValue.poType}
+                     onValueChange={(value) => updateCreateValue("poType", value)}
+                     disabled={isPending}
+                   >
+                     <SelectTrigger id="logistics-po-type" className="w-full">
+                       <SelectValue placeholder="Pilih PO Type" />
+                     </SelectTrigger>
+                     <SelectContent>
+                       <SelectItem value="Normal">Normal</SelectItem>
+                       <SelectItem value="Consignment">Consignment</SelectItem>
+                     </SelectContent>
+                   </Select>
+                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="logistics-user">User / PT</Label>
                   <Input
@@ -447,9 +517,9 @@ export default function LogisticsManager({
                 </div>
               </div>
 
-              <fieldset className="space-y-3 rounded-lg border p-4">
+               <fieldset className="space-y-3 rounded-lg border p-4 md:flex md:min-h-0 md:flex-1 md:flex-col md:space-y-0 md:gap-3">
                 <legend className="sr-only">Part yang diorder</legend>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                 <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="font-medium">Part yang diorder</p>
                     <p className="text-xs text-muted-foreground">
@@ -467,13 +537,13 @@ export default function LogisticsManager({
                     Tambah Part
                   </Button>
                 </div>
-                <div className="space-y-3">
+                 <div className="max-h-[18rem] space-y-3 overflow-y-auto overscroll-contain pe-2 md:min-h-0 md:flex-1">
                   {createValue.items.map((item, index) => (
                     <div
                       key={item.clientId}
                       className="grid gap-3 rounded-md bg-muted/40 p-3 md:grid-cols-[minmax(200px,1fr)_180px_130px_auto] md:items-end"
                     >
-                      <div className="space-y-1.5">
+               <div className="shrink-0 space-y-1.5">
                         <Label htmlFor={`logistics-part-${item.clientId}`}>
                           Part {index + 1}
                         </Label>
@@ -549,7 +619,7 @@ export default function LogisticsManager({
                   disabled={isPending}
                 />
               </div>
-              <div className="flex justify-end">
+               <div className="flex shrink-0 justify-end">
                 <Button type="submit" disabled={isPending}>
                   {isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
                   Simpan Purchase Order
@@ -902,13 +972,29 @@ export default function LogisticsManager({
         onOpenChange={(open) => !open && setActiveReceiptItem(null)}
       >
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>
-              {activeProgress?.status === "OPEN" ? "Input Barang Masuk" : "Riwayat Barang Masuk"}
-            </DialogTitle>
-            <DialogDescription>
-              {activeReceiptItem?.purchaseOrder.poNumber} · {activeReceiptItem?.item.partName}
-            </DialogDescription>
+          <DialogHeader className="gap-3 sm:flex sm:flex-row sm:items-start sm:justify-between sm:text-left">
+            <div className="space-y-1.5">
+              <DialogTitle>
+                {activeProgress?.status === "OPEN"
+                  ? "Input Barang Masuk"
+                  : "Riwayat Barang Masuk"}
+              </DialogTitle>
+              <DialogDescription>
+                {activeReceiptItem?.purchaseOrder.poNumber} · {activeReceiptItem?.item.partName}
+              </DialogDescription>
+            </div>
+            {activeProgress?.status === "CLOSED" && latestReceipt && (
+              <Button asChild type="button" variant="outline" className="shrink-0">
+                <a
+                  href={`/api/mektek/logistics/receipts/${encodeURIComponent(latestReceipt.id)}/delivery-note`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <Printer data-icon="inline-start" />
+                  Cetak PDF Surat Jalan
+                </a>
+              </Button>
+            )}
           </DialogHeader>
 
           {activeReceiptItem && activeProgress && (
@@ -1014,8 +1100,39 @@ export default function LogisticsManager({
                       disabled={isPending}
                     />
                   </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="logistics-receipt-image">Foto Surat Jalan</Label>
+                    <div className="rounded-lg border bg-muted/20 p-3">
+                      <Input
+                        id="logistics-receipt-image"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        capture="environment"
+                        onChange={(event) =>
+                          selectReceiptImage(event.target.files?.[0] ?? null)
+                        }
+                        disabled={isPending}
+                      />
+                      <div className="mt-2 flex items-start gap-2 text-xs text-muted-foreground">
+                        <ImagePlus className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                        <p>
+                          Ambil atau pilih foto JPEG, PNG, atau WebP dengan ukuran maksimal 5 MB.
+                        </p>
+                      </div>
+                      {receiptImage && (
+                        <p className="mt-2 truncate text-xs font-medium">
+                          File dipilih: {receiptImage.name}
+                        </p>
+                      )}
+                      {receiptImageError && (
+                        <p className="mt-2 text-xs text-destructive" role="alert">
+                          {receiptImageError}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   <div className="flex justify-end">
-                    <Button type="submit" disabled={isPending}>
+                    <Button type="submit" disabled={isPending || !!receiptImageError}>
                       {isPending && (
                         <Loader2 data-icon="inline-start" className="animate-spin" />
                       )}
@@ -1038,7 +1155,7 @@ export default function LogisticsManager({
                     {activeReceiptItem.item.receipts.map((receipt) => (
                       <div
                         key={receipt.id}
-                        className="grid gap-2 p-3 text-sm sm:grid-cols-[130px_1fr_80px] sm:items-center"
+                        className="grid gap-2 p-3 text-sm sm:grid-cols-[130px_1fr_70px_auto] sm:items-center"
                       >
                         <span>{formatDate(receipt.receivedAt)}</span>
                         <div>
@@ -1052,6 +1169,31 @@ export default function LogisticsManager({
                         <span className="text-right font-mono font-semibold tabular-nums">
                           +{receipt.quantity}
                         </span>
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {receipt.imageMimeType && (
+                            <Button asChild type="button" variant="outline" size="sm">
+                              <a
+                                href={`/api/mektek/logistics/receipts/${encodeURIComponent(receipt.id)}/image`}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Foto
+                              </a>
+                            </Button>
+                          )}
+                          {activeProgress.status === "CLOSED" && (
+                            <Button asChild type="button" variant="outline" size="sm">
+                              <a
+                                href={`/api/mektek/logistics/receipts/${encodeURIComponent(receipt.id)}/delivery-note`}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label={`Cetak PDF Surat Jalan ${receipt.deliveryNoteNumber}`}
+                              >
+                                PDF
+                              </a>
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

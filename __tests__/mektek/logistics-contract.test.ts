@@ -62,4 +62,13 @@ describe("MekTek Logistics implementation contract", () => {
     expect(managerSource).toContain("QTY Sisa");
     expect(managerSource).toContain("Nomor Surat Jalan");
   });
+
+  it("limits PO Type and scrolls only the ordered-parts list", () => {
+    expect(managerSource).toContain('<SelectItem value="Normal">Normal</SelectItem>');
+    expect(managerSource).toContain(
+      '<SelectItem value="Consignment">Consignment</SelectItem>',
+    );
+    expect(managerSource).toContain("max-h-[18rem]");
+    expect(managerSource).toContain("overflow-y-auto overscroll-contain");
+  });
 });

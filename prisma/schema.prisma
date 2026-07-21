@@ -415,6 +415,9 @@ model LogisticsReceipt {
   quantity            Int
   receivedAt          DateTime @db.Date
   note                String?
+  imageData           Bytes?
+  imageMimeType       String?
+  imageUpdatedAt      DateTime?
   createdBy           String?  @db.Uuid
   createdAt           DateTime @default(now())
 

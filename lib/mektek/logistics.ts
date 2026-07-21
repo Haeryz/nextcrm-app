@@ -1,7 +1,17 @@
 export const LOGISTICS_PURCHASE_ORDER_STATUSES = ["OPEN", "CLOSED"] as const;
+export const LOGISTICS_PURCHASE_ORDER_TYPES = ["Normal", "Consignment"] as const;
 
 export type LogisticsPurchaseOrderStatus =
   (typeof LOGISTICS_PURCHASE_ORDER_STATUSES)[number];
+
+export type LogisticsPurchaseOrderType =
+  (typeof LOGISTICS_PURCHASE_ORDER_TYPES)[number];
+
+export function isLogisticsPurchaseOrderType(
+  value: string,
+): value is LogisticsPurchaseOrderType {
+  return LOGISTICS_PURCHASE_ORDER_TYPES.some((type) => type === value);
+}
 
 export type LogisticsQuantityInput = {
   orderedQuantity: number;
