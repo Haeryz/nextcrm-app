@@ -22,6 +22,14 @@ export type CatalogDailyInbound = {
   total: number;
 };
 
+export type CatalogDailyMovementTotals = Omit<CatalogDailyInbound, "day">;
+
+export type CatalogDailyMovement = {
+  day: number;
+  inbound: CatalogDailyMovementTotals;
+  outbound: CatalogDailyMovementTotals;
+};
+
 export type CatalogInventorySnapshot = {
   id: string;
   itemName: string;
@@ -37,7 +45,9 @@ export type CatalogInventorySnapshot = {
   closingFrontStock: number;
   openingStockEditable: boolean;
   totalInbound: number;
+  totalOutbound: number;
   dailyInbound: CatalogDailyInbound[];
+  dailyMovements: CatalogDailyMovement[];
 };
 
 export type CatalogInventoryQuantityField =
@@ -45,6 +55,7 @@ export type CatalogInventoryQuantityField =
   | "CLOSING_REAR_STOCK"
   | "CLOSING_FRONT_STOCK"
   | "TOTAL_INBOUND"
+  | "TOTAL_OUTBOUND"
   | "OPENING_REAR_STOCK"
   | "OPENING_FRONT_STOCK";
 
@@ -73,6 +84,7 @@ function getCatalogInventoryQuantity(
   if (field === "CLOSING_REAR_STOCK") return snapshot.closingRearStock;
   if (field === "CLOSING_FRONT_STOCK") return snapshot.closingFrontStock;
   if (field === "TOTAL_INBOUND") return snapshot.totalInbound;
+  if (field === "TOTAL_OUTBOUND") return snapshot.totalOutbound;
   if (field === "OPENING_REAR_STOCK") return snapshot.openingRearStock;
   if (field === "OPENING_FRONT_STOCK") return snapshot.openingFrontStock;
   return snapshot.closingRearStock + snapshot.closingFrontStock;
@@ -211,9 +223,18 @@ export function calculateCatalogInventoryMonth({
     { length: range.daysInMonth },
     (_, index) => ({ day: index + 1, rear: 0, front: 0, total: 0 }),
   );
+  const dailyMovements: CatalogDailyMovement[] = Array.from(
+    { length: range.daysInMonth },
+    (_, index) => ({
+      day: index + 1,
+      inbound: { rear: 0, front: 0, total: 0 },
+      outbound: { rear: 0, front: 0, total: 0 },
+    }),
+  );
   let closingRearStock = Math.max(0, Math.floor(openingRearStock));
   let closingFrontStock = Math.max(0, Math.floor(openingFrontStock));
   let totalInbound = 0;
+  let totalOutbound = 0;
 
   for (const movement of movements) {
     const occurredAt = new Date(movement.occurredAt);
@@ -232,13 +253,23 @@ export function calculateCatalogInventoryMonth({
     if (movement.warehouse === "REAR") closingRearStock += delta;
     else closingFrontStock += delta;
 
+    const dayIndex = occurredAt.getUTCDate() - 1;
+    const daily = dailyMovements[dayIndex];
+    if (!daily) continue;
+    const recap = movement.direction === "IN" ? daily.inbound : daily.outbound;
+    if (movement.warehouse === "REAR") recap.rear += quantity;
+    else recap.front += quantity;
+    recap.total += quantity;
+
     if (movement.direction === "IN") {
-      const daily = dailyInbound[occurredAt.getUTCDate() - 1];
-      if (!daily) continue;
-      if (movement.warehouse === "REAR") daily.rear += quantity;
-      else daily.front += quantity;
-      daily.total += quantity;
+      const inbound = dailyInbound[dayIndex];
+      if (!inbound) continue;
+      if (movement.warehouse === "REAR") inbound.rear += quantity;
+      else inbound.front += quantity;
+      inbound.total += quantity;
       totalInbound += quantity;
+    } else {
+      totalOutbound += quantity;
     }
   }
 
@@ -253,7 +284,9 @@ export function calculateCatalogInventoryMonth({
     closingRearStock,
     closingFrontStock,
     totalInbound,
+    totalOutbound,
     dailyInbound,
+    dailyMovements,
   };
 }
 
@@ -286,6 +319,7 @@ export function buildCatalogInventoryExportTable(
     "Stok Awal G. Depan",
     ...dayHeaders,
     "Total Masuk",
+    "Total Keluar",
     "Stok Akhir G. Belakang",
     "Stok Akhir G. Depan",
     "Total Stok Akhir",
@@ -307,11 +341,16 @@ export function buildCatalogInventoryExportTable(
     };
 
     for (let day = 1; day <= daysInMonth; day += 1) {
-      const inbound = snapshot.dailyInbound[day - 1]?.total ?? 0;
-      row[`Tanggal ${day}`] = inbound || "";
+      const recap = snapshot.dailyMovements?.[day - 1];
+      const inbound = recap?.inbound.total ?? snapshot.dailyInbound[day - 1]?.total ?? 0;
+      const outbound = recap?.outbound.total ?? 0;
+      row[`Tanggal ${day}`] = inbound && outbound
+        ? `+${inbound} / -${outbound}`
+        : inbound || (outbound ? `-${outbound}` : "");
     }
 
     row["Total Masuk"] = snapshot.totalInbound;
+    row["Total Keluar"] = snapshot.totalOutbound;
     row["Stok Akhir G. Belakang"] = snapshot.closingRearStock;
     row["Stok Akhir G. Depan"] = snapshot.closingFrontStock;
     row["Total Stok Akhir"] =

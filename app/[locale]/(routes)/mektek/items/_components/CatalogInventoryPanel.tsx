@@ -1,7 +1,14 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Download, Loader2, PackagePlus, Warehouse } from "lucide-react";
+import {
+  CalendarPlus,
+  Download,
+  Loader2,
+  PackageMinus,
+  PackagePlus,
+  Warehouse,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -70,12 +77,16 @@ function defaultMovementDate(month: string, daysInMonth: number) {
   return today;
 }
 
-function blankMovement(month: string, daysInMonth: number): MovementDraft {
+function blankMovement(
+  month: string,
+  daysInMonth: number,
+  occurredOn = defaultMovementDate(month, daysInMonth),
+): MovementDraft {
   return {
     warehouse: "REAR",
     direction: "IN",
     quantity: "",
-    occurredOn: defaultMovementDate(month, daysInMonth),
+    occurredOn,
     note: "",
   };
 }
@@ -96,6 +107,7 @@ export default function CatalogInventoryPanel({
 }: CatalogInventoryPanelProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [movementOpen, setMovementOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<
     CatalogInventoryPanelProps["items"][number] | null
   >(null);
@@ -142,9 +154,13 @@ export default function CatalogInventoryPanel({
     0,
   );
 
-  const openMovement = (item: CatalogInventoryPanelProps["items"][number]) => {
+  const openMovement = (
+    item: CatalogInventoryPanelProps["items"][number] | null,
+    occurredOn = defaultMovementDate(month, daysInMonth),
+  ) => {
     setActiveItem(item);
-    setDraft(blankMovement(month, daysInMonth));
+    setDraft(blankMovement(month, daysInMonth, occurredOn));
+    setMovementOpen(true);
   };
 
   const openOpeningStock = (
@@ -167,7 +183,7 @@ export default function CatalogInventoryPanel({
         return;
       }
       toast.success("Mutasi stok berhasil dicatat");
-      setActiveItem(null);
+      setMovementOpen(false);
       router.refresh();
     });
   };
@@ -199,7 +215,7 @@ export default function CatalogInventoryPanel({
             Inventory Bulanan · {monthLabel(month)}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Kolom tanggal menampilkan stok masuk; stok akhir juga memperhitungkan mutasi keluar.
+            Pilih tanggal atau sel tabel untuk mencatat stok masuk dan keluar. Rekap harian diperbarui otomatis.
           </p>
         </div>
         <Button asChild variant="outline" className="w-full lg:w-auto">
@@ -260,6 +276,7 @@ export default function CatalogInventoryPanel({
                   <SelectItem value="CLOSING_REAR_STOCK">Stok akhir G. Belakang</SelectItem>
                   <SelectItem value="CLOSING_FRONT_STOCK">Stok akhir G. Depan</SelectItem>
                   <SelectItem value="TOTAL_INBOUND">Total stok masuk</SelectItem>
+                  <SelectItem value="TOTAL_OUTBOUND">Total stok keluar</SelectItem>
                   <SelectItem value="OPENING_REAR_STOCK">Stok awal G. Belakang</SelectItem>
                   <SelectItem value="OPENING_FRONT_STOCK">Stok awal G. Depan</SelectItem>
                 </SelectContent>
@@ -319,7 +336,7 @@ export default function CatalogInventoryPanel({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
             <Warehouse className="size-5 text-primary" aria-hidden="true" />
@@ -352,6 +369,20 @@ export default function CatalogInventoryPanel({
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <PackageMinus className="size-5 text-destructive" aria-hidden="true" />
+            <div>
+              <p className="text-xs text-muted-foreground">Total stok keluar</p>
+              <p className="text-xl font-semibold tabular-nums">
+                {filteredItems.reduce(
+                  (sum, item) => sum + item.inventory.totalOutbound,
+                  0,
+                )}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Card>
@@ -372,12 +403,30 @@ export default function CatalogInventoryPanel({
                   <th className="min-w-28 border-b border-e px-3 py-3 text-left">Channel</th>
                   <th className="min-w-24 border-b border-e px-3 py-3 text-right">Awal B.</th>
                   <th className="min-w-24 border-b border-e px-3 py-3 text-right">Awal D.</th>
-                  {Array.from({ length: daysInMonth }, (_, index) => (
-                    <th key={index + 1} className="w-12 border-b border-e px-2 py-3 text-center">
-                      {index + 1}
-                    </th>
-                  ))}
+                  {Array.from({ length: daysInMonth }, (_, index) => {
+                    const day = index + 1;
+                    const date = `${month}-${String(day).padStart(2, "0")}`;
+                    const disabled = date > todayKey();
+                    return (
+                      <th key={day} className="w-16 border-b border-e px-1 py-1.5 text-center">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-9 w-full px-2"
+                          aria-label={`Catat mutasi tanggal ${day}`}
+                          title={disabled ? "Tanggal belum tersedia" : `Catat mutasi tanggal ${day}`}
+                          disabled={disabled}
+                          onClick={() => openMovement(null, date)}
+                        >
+                          <CalendarPlus className="size-3.5" aria-hidden="true" />
+                          {day}
+                        </Button>
+                      </th>
+                    );
+                  })}
                   <th className="min-w-24 border-b border-e px-3 py-3 text-right">Total Masuk</th>
+                  <th className="min-w-24 border-b border-e px-3 py-3 text-right">Total Keluar</th>
                   <th className="min-w-24 border-b border-e px-3 py-3 text-right">Akhir B.</th>
                   <th className="min-w-24 border-b border-e px-3 py-3 text-right">Akhir D.</th>
                   <th className="min-w-28 border-b border-e px-3 py-3 text-right">Total Akhir</th>
@@ -409,17 +458,45 @@ export default function CatalogInventoryPanel({
                       <td className="border-e px-3 py-3 text-right font-mono tabular-nums">
                         {inventory.openingFrontStock}
                       </td>
-                      {inventory.dailyInbound.map((daily) => (
+                      {inventory.dailyMovements.map((daily) => (
                         <td
                           key={daily.day}
-                          className="border-e px-2 py-3 text-center font-mono tabular-nums"
-                          title={`Belakang ${daily.rear} · Depan ${daily.front}`}
+                          className="border-e p-1 text-center font-mono tabular-nums"
+                          title={`Masuk: belakang ${daily.inbound.rear}, depan ${daily.inbound.front} · Keluar: belakang ${daily.outbound.rear}, depan ${daily.outbound.front}`}
                         >
-                          {daily.total || ""}
+                          <button
+                            type="button"
+                            className="flex min-h-10 w-full flex-col items-center justify-center rounded-md px-1 transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-label={`Catat ${item.description}, tanggal ${daily.day}`}
+                            onClick={() =>
+                              openMovement(
+                                item,
+                                `${month}-${String(daily.day).padStart(2, "0")}`,
+                              )
+                            }
+                            disabled={`${month}-${String(daily.day).padStart(2, "0")}` > todayKey()}
+                          >
+                            {daily.inbound.total > 0 && (
+                              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                                +{daily.inbound.total}
+                              </span>
+                            )}
+                            {daily.outbound.total > 0 && (
+                              <span className="text-xs font-semibold text-destructive">
+                                -{daily.outbound.total}
+                              </span>
+                            )}
+                            {!daily.inbound.total && !daily.outbound.total && (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
+                          </button>
                         </td>
                       ))}
                       <td className="border-e px-3 py-3 text-right font-mono font-semibold tabular-nums">
                         {inventory.totalInbound}
+                      </td>
+                      <td className="border-e px-3 py-3 text-right font-mono font-semibold tabular-nums">
+                        {inventory.totalOutbound}
                       </td>
                       <td className="border-e px-3 py-3 text-right font-mono font-semibold tabular-nums">
                         {inventory.closingRearStock}
@@ -460,7 +537,7 @@ export default function CatalogInventoryPanel({
                 })}
                 {filteredItems.length === 0 && (
                   <tr>
-                    <td colSpan={daysInMonth + 12} className="px-4 py-10 text-center text-muted-foreground">
+                    <td colSpan={daysInMonth + 13} className="px-4 py-10 text-center text-muted-foreground">
                       Tidak ada item yang cocok dengan filter spreadsheet ini.
                     </td>
                   </tr>
@@ -471,12 +548,18 @@ export default function CatalogInventoryPanel({
         </CardContent>
       </Card>
 
-      <Dialog open={!!activeItem} onOpenChange={(open) => !open && setActiveItem(null)}>
+      <Dialog
+        open={movementOpen}
+        onOpenChange={(open) => {
+          setMovementOpen(open);
+          if (!open) setActiveItem(null);
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Catat Mutasi Stok</DialogTitle>
             <DialogDescription>
-              {activeItem?.description} · saldo akan dihitung ulang sampai bulan terbaru.
+              {draft.occurredOn} · pilih item dan jenis mutasi. Saldo akan dihitung ulang otomatis.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -486,6 +569,27 @@ export default function CatalogInventoryPanel({
               submitMovement();
             }}
           >
+            <div className="space-y-1.5">
+              <Label>Item</Label>
+              <Select
+                value={activeItem?.id ?? ""}
+                onValueChange={(itemId) =>
+                  setActiveItem(items.find((item) => item.id === itemId) ?? null)
+                }
+                disabled={isPending}
+              >
+                <SelectTrigger aria-label="Item">
+                  <SelectValue placeholder="Pilih item" />
+                </SelectTrigger>
+                <SelectContent>
+                  {items.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.description}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Gudang</Label>
@@ -570,7 +674,7 @@ export default function CatalogInventoryPanel({
               />
             </div>
             <div className="flex justify-end">
-              <Button type="submit" disabled={isPending}>
+              <Button type="submit" disabled={isPending || !activeItem || !draft.quantity}>
                 {isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
                 Simpan Mutasi
               </Button>

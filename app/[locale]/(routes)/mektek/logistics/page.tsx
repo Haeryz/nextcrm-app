@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
 import { canManageMektekLogistics } from "@/lib/mektek/permissions";
 import { getPaginationItems } from "@/lib/pagination";
+import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import LogisticsManager from "./_components/LogisticsManager";
 
@@ -44,10 +45,17 @@ export default async function MektekLogisticsPage({
   }
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
-  const result = await listMektekLogisticsPurchaseOrders({
-    page: readPageParam(resolvedSearchParams),
-    pageSize: 10,
-  });
+  const [result, pics] = await Promise.all([
+    listMektekLogisticsPurchaseOrders({
+      page: readPageParam(resolvedSearchParams),
+      pageSize: 10,
+    }),
+    prismadb.logisticsPic.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
 
   if ("error" in result) {
     return (
@@ -74,7 +82,15 @@ export default async function MektekLogisticsPage({
       description="Kelola Purchase Order dan lihat riwayat penerimaan barang supplier"
     >
       <div className="flex flex-col gap-6">
+        {!!session?.user?.isAdmin && (
+          <div className="flex justify-end">
+            <Button asChild variant="outline">
+              <Link href={`/${locale}/mektek/logistics/pics`}>Kelola PIC</Link>
+            </Button>
+          </div>
+        )}
         <LogisticsManager
+          pics={pics}
           purchaseOrders={items.map((purchaseOrder) => ({
             ...purchaseOrder,
             inputDate: purchaseOrder.inputDate.toISOString(),

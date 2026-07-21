@@ -433,6 +433,7 @@ export async function recordMektekCatalogStockMovement(input: {
     });
 
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
+    revalidatePath("/[locale]/(routes)/mektek/items/spreadsheet", "page");
     return { data: { catalogItemId, month: range.month } };
   } catch (error) {
     console.log("[RECORD_MEKTEK_CATALOG_STOCK_MOVEMENT]", error);
@@ -491,6 +492,7 @@ export async function setMektekCatalogOpeningStock(input: {
       await recomputeInventoryFromMonth(tx, catalogItemId, firstLedger.month);
     });
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
+    revalidatePath("/[locale]/(routes)/mektek/items/spreadsheet", "page");
     return { data: { catalogItemId, month: range.month } };
   } catch (error) {
     console.log("[SET_MEKTEK_CATALOG_OPENING_STOCK]", error);

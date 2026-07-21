@@ -15,6 +15,7 @@ import {
 import { authOptions } from "@/lib/auth";
 import { canManageMektekLogistics } from "@/lib/mektek/permissions";
 import { getPaginationItems } from "@/lib/pagination";
+import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import LogisticsManager from "../_components/LogisticsManager";
 
@@ -58,12 +59,19 @@ export default async function MektekLogisticsSpreadsheetPage({
   const rawStatus = readSearchParam(resolvedSearchParams, "status").toUpperCase();
   const status = rawStatus === "OPEN" || rawStatus === "CLOSED" ? rawStatus : "";
   const page = Math.max(Number(readSearchParam(resolvedSearchParams, "page")) || 1, 1);
-  const result = await listMektekLogisticsPurchaseOrders({
-    query,
-    status,
-    page,
-    pageSize: 20,
-  });
+  const [result, pics] = await Promise.all([
+    listMektekLogisticsPurchaseOrders({
+      query,
+      status,
+      page,
+      pageSize: 20,
+    }),
+    prismadb.logisticsPic.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
 
   if ("error" in result) {
     return (
@@ -140,6 +148,7 @@ export default async function MektekLogisticsSpreadsheetPage({
         </Card>
 
         <LogisticsManager
+          pics={pics}
           purchaseOrders={items.map((purchaseOrder) => ({
             ...purchaseOrder,
             inputDate: purchaseOrder.inputDate.toISOString(),

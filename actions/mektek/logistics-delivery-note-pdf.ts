@@ -16,6 +16,7 @@ export type MektekDeliveryNoteData = {
   recipientName: string;
   projectName: string;
   poNumber: string;
+  picName: string;
   items: Array<{
     description: string;
     partNumber: string | null;
@@ -135,6 +136,7 @@ function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
           React.createElement(Text, { style: styles.recipientLine }, data.recipientName),
           React.createElement(Text, { style: styles.recipientLine }, `PROJECT: ${data.projectName}`),
           React.createElement(Text, { style: styles.recipientLine }, `PO: ${data.poNumber}`),
+          React.createElement(Text, { style: styles.recipientLine }, `PIC: ${data.picName}`),
         ),
       ),
       React.createElement(

@@ -25,12 +25,50 @@ describe("MekTek Logistics implementation contract", () => {
     ),
     "utf8",
   );
+  const picActionSource = readFileSync(
+    resolve(process.cwd(), "actions/mektek/logistics-pics.ts"),
+    "utf8",
+  );
+  const picPageSource = readFileSync(
+    resolve(
+      process.cwd(),
+      "app/[locale]/(routes)/mektek/logistics/pics/page.tsx",
+    ),
+    "utf8",
+  );
+  const picMigration = readFileSync(
+    resolve(
+      process.cwd(),
+      "prisma/migrations/20260721170000_logistics_receipt_pic/migration.sql",
+    ),
+    "utf8",
+  );
 
   it("stores PO headers, line items, and auditable receipt events", () => {
     expect(schema).toContain("model LogisticsPurchaseOrder {");
     expect(schema).toContain("model LogisticsPurchaseOrderItem {");
     expect(schema).toContain("model LogisticsReceipt {");
     expect(schema).toContain("@@unique([purchaseOrderItemId, deliveryNoteNumber])");
+  });
+
+  it("requires a PIC on each shipment and seeds the temporary directory", () => {
+    expect(schema).toContain("model LogisticsPic {");
+    expect(schema).toContain("picId               String   @db.Uuid");
+    expect(schema).toContain("pic               LogisticsPic");
+    expect(picMigration).toContain("'PIC 1'");
+    expect(picMigration).toContain("'PIC 2'");
+    expect(picMigration).toContain("'PIC 3'");
+    expect(picMigration).toContain('ALTER COLUMN "picId" SET NOT NULL');
+    expect(managerSource).toContain('PIC: {receipt.pic.name}');
+    expect(managerSource).toContain('htmlFor="logistics-receipt-pic"');
+  });
+
+  it("keeps PIC CRUD exclusive to the main admin", () => {
+    expect(picPageSource).toContain("await requireAdmin()");
+    expect(picPageSource).toContain("createMektekLogisticsPic");
+    expect(picPageSource).toContain("updateMektekLogisticsPic");
+    expect(picPageSource).toContain("deleteMektekLogisticsPic");
+    expect(picActionSource.match(/await requireAdmin\(\)/g)).toHaveLength(3);
   });
 
   it("guards receipt increments transactionally and authorizes on the server", () => {

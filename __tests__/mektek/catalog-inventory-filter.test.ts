@@ -20,7 +20,9 @@ function snapshot(
     closingFrontStock: 0,
     openingStockEditable: false,
     totalInbound: 0,
+    totalOutbound: 0,
     dailyInbound: [],
+    dailyMovements: [],
     ...values,
   };
 }

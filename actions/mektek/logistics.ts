@@ -45,6 +45,7 @@ export type LogisticsPurchaseOrderInput = {
 
 export type LogisticsReceiptInput = {
   purchaseOrderItemId: string;
+  picId: string;
   deliveryNoteNumber: string;
   quantity: string | number;
   receivedAt: string;
@@ -215,6 +216,15 @@ function logisticsWhere(input?: {
                         },
                       },
                     },
+                    {
+                      receipts: {
+                        some: {
+                          pic: {
+                            name: { contains: query, mode: "insensitive" },
+                          },
+                        },
+                      },
+                    },
                   ],
                 },
               },
@@ -268,6 +278,8 @@ export async function listMektekLogisticsPurchaseOrders(input?: {
                   receivedAt: true,
                   note: true,
                   imageMimeType: true,
+                  picId: true,
+                  pic: { select: { id: true, name: true } },
                   createdBy: true,
                   createdAt: true,
                 },
@@ -356,6 +368,7 @@ export async function recordMektekLogisticsReceipt(input: LogisticsReceiptInput)
   if ("error" in access) return { error: access.error };
 
   const purchaseOrderItemId = compactText(input?.purchaseOrderItemId);
+  const picId = compactText(input?.picId);
   const deliveryNoteNumber = normalizeLogisticsReference(
     boundedText(input?.deliveryNoteNumber, MAX_DELIVERY_NOTE_LEN),
   );
@@ -364,6 +377,7 @@ export async function recordMektekLogisticsReceipt(input: LogisticsReceiptInput)
   const note = boundedText(input?.note, MAX_NOTE_LEN);
 
   if (!purchaseOrderItemId) return { error: "Item PO wajib dipilih" };
+  if (!picId) return { error: "PIC wajib dipilih" };
   if (!deliveryNoteNumber) return { error: "Nomor Surat Jalan wajib diisi" };
   if (!quantity) {
     return { error: "QTY Masuk harus berupa angka bulat lebih dari 0" };
@@ -376,6 +390,14 @@ export async function recordMektekLogisticsReceipt(input: LogisticsReceiptInput)
 
   try {
     const result = await prismadb.$transaction(async (tx) => {
+      const pic = await tx.logisticsPic.findFirst({
+        where: { id: picId, isActive: true },
+        select: { id: true, name: true },
+      });
+      if (!pic) {
+        throw new LogisticsActionError("PIC tidak aktif atau tidak ditemukan");
+      }
+
       const item = await tx.logisticsPurchaseOrderItem.findUnique({
         where: { id: purchaseOrderItemId },
         include: {
@@ -426,6 +448,7 @@ export async function recordMektekLogisticsReceipt(input: LogisticsReceiptInput)
       const receipt = await tx.logisticsReceipt.create({
         data: {
           purchaseOrderItemId: item.id,
+          picId: pic.id,
           deliveryNoteNumber,
           quantity,
           receivedAt,

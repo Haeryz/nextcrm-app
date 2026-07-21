@@ -11,6 +11,7 @@ const purchaseOrderItemFindUnique = jest.fn();
 const purchaseOrderItemUpdateMany = jest.fn();
 const purchaseOrderItemCount = jest.fn();
 const receiptCreate = jest.fn();
+const logisticsPicFindFirst = jest.fn();
 const transaction = jest.fn();
 
 const transactionClient = {
@@ -21,6 +22,7 @@ const transactionClient = {
     count: purchaseOrderItemCount,
   },
   logisticsReceipt: { create: receiptCreate },
+  logisticsPic: { findFirst: logisticsPicFindFirst },
 };
 
 jest.mock("@/lib/prisma", () => ({
@@ -60,11 +62,13 @@ describe("MekTek Logistics actions", () => {
     purchaseOrderItemUpdateMany.mockResolvedValue({ count: 1 });
     purchaseOrderItemCount.mockResolvedValue(1);
     receiptCreate.mockResolvedValue({ id: "receipt-1" });
+    logisticsPicFindFirst.mockResolvedValue({ id: "pic-1", name: "PIC 1" });
   });
 
   it("records a partial receipt with an atomic remaining-quantity guard", async () => {
     const result = await recordMektekLogisticsReceipt({
       purchaseOrderItemId: "item-1",
+      picId: "pic-1",
       deliveryNoteNumber: "sj-001",
       quantity: 5,
       receivedAt: "2026-07-10",
@@ -97,9 +101,28 @@ describe("MekTek Logistics actions", () => {
     );
     expect(receiptCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ deliveryNoteNumber: "SJ-001" }),
+        data: expect.objectContaining({
+          deliveryNoteNumber: "SJ-001",
+          picId: "pic-1",
+        }),
       }),
     );
+  });
+
+  it("rejects a receipt when its PIC is missing or inactive", async () => {
+    logisticsPicFindFirst.mockResolvedValueOnce(null);
+
+    const result = await recordMektekLogisticsReceipt({
+      purchaseOrderItemId: "item-1",
+      picId: "inactive-pic",
+      deliveryNoteNumber: "SJ-002",
+      quantity: 1,
+      receivedAt: "2026-07-10",
+    });
+
+    expect(result).toEqual({ error: "PIC tidak aktif atau tidak ditemukan" });
+    expect(purchaseOrderItemUpdateMany).not.toHaveBeenCalled();
+    expect(receiptCreate).not.toHaveBeenCalled();
   });
 
   it("rejects over-receipt before changing any quantity", async () => {
@@ -117,6 +140,7 @@ describe("MekTek Logistics actions", () => {
 
     const result = await recordMektekLogisticsReceipt({
       purchaseOrderItemId: "item-1",
+      picId: "pic-1",
       deliveryNoteNumber: "SJ-002",
       quantity: 6,
       receivedAt: "2026-07-10",
@@ -132,6 +156,7 @@ describe("MekTek Logistics actions", () => {
 
     const result = await recordMektekLogisticsReceipt({
       purchaseOrderItemId: "item-1",
+      picId: "pic-1",
       deliveryNoteNumber: "SJ-003",
       quantity: 10,
       receivedAt: "2026-07-10",
@@ -156,6 +181,7 @@ describe("MekTek Logistics actions", () => {
 
     const result = await recordMektekLogisticsReceipt({
       purchaseOrderItemId: "item-1",
+      picId: "pic-1",
       deliveryNoteNumber: "sj-004",
       quantity: 5,
       receivedAt: "2026-07-10",

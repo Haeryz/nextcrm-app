@@ -408,9 +408,22 @@ model LogisticsPurchaseOrderItem {
   @@index([partNumber])
 }
 
+model LogisticsPic {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  receipts LogisticsReceipt[]
+
+  @@index([isActive, name])
+}
+
 model LogisticsReceipt {
   id                  String   @id @default(uuid()) @db.Uuid
   purchaseOrderItemId String   @db.Uuid
+  picId               String   @db.Uuid
   deliveryNoteNumber  String
   quantity            Int
   receivedAt          DateTime @db.Date
@@ -422,9 +435,11 @@ model LogisticsReceipt {
   createdAt           DateTime @default(now())
 
   purchaseOrderItem LogisticsPurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id], onDelete: Cascade)
+  pic               LogisticsPic               @relation(fields: [picId], references: [id], onDelete: Restrict)
 
   @@unique([purchaseOrderItemId, deliveryNoteNumber])
   @@index([purchaseOrderItemId, receivedAt])
+  @@index([picId, receivedAt])
   @@index([deliveryNoteNumber])
 }
 

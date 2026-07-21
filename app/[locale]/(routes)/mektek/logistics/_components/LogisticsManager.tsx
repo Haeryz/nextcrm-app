@@ -55,6 +55,8 @@ import {
 type LogisticsReceiptRow = {
   id: string;
   purchaseOrderItemId: string;
+  picId: string;
+  pic: { id: string; name: string };
   deliveryNoteNumber: string;
   quantity: number;
   receivedAt: string;
@@ -105,6 +107,7 @@ type LogisticsStats = {
 };
 
 type LogisticsManagerProps = {
+  pics: Array<{ id: string; name: string }>;
   purchaseOrders: LogisticsPurchaseOrderRow[];
   stats: LogisticsStats;
   mode: "overview" | "spreadsheet";
@@ -178,6 +181,7 @@ async function uploadLogisticsReceiptImage(receiptId: string, file: File) {
 }
 
 export default function LogisticsManager({
+  pics,
   purchaseOrders,
   stats,
   mode,
@@ -197,6 +201,7 @@ export default function LogisticsManager({
   const [activePurchaseOrder, setActivePurchaseOrder] =
     useState<LogisticsPurchaseOrderRow | null>(null);
   const [receiptDraft, setReceiptDraft] = useState({
+    picId: pics[0]?.id ?? "",
     deliveryNoteNumber: "",
     quantity: "",
     receivedAt: getCatalogInventoryLocalDateKey(),
@@ -277,6 +282,7 @@ export default function LogisticsManager({
   ) => {
     setActiveReceiptItem({ purchaseOrder, item });
     setReceiptDraft({
+      picId: pics[0]?.id ?? "",
       deliveryNoteNumber: "",
       quantity: "",
       receivedAt: getCatalogInventoryLocalDateKey(),
@@ -834,6 +840,9 @@ export default function LogisticsManager({
                                   <span className="font-mono">
                                     {receipt.deliveryNoteNumber}
                                   </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    PIC: {receipt.pic.name}
+                                  </span>
                                   <span className="font-mono font-semibold tabular-nums">
                                     +{receipt.quantity}
                                   </span>
@@ -1067,6 +1076,33 @@ export default function LogisticsManager({
                       />
                     </div>
                     <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="logistics-receipt-pic">PIC</Label>
+                      <Select
+                        value={receiptDraft.picId}
+                        onValueChange={(picId) =>
+                          setReceiptDraft((current) => ({ ...current, picId }))
+                        }
+                        disabled={isPending || pics.length === 0}
+                        required
+                      >
+                        <SelectTrigger id="logistics-receipt-pic">
+                          <SelectValue placeholder="Pilih PIC" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {pics.map((pic) => (
+                            <SelectItem key={pic.id} value={pic.id}>
+                              {pic.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {pics.length === 0 && (
+                        <p className="text-xs text-destructive">
+                          Belum ada PIC aktif. Admin perlu mengaktifkan PIC terlebih dahulu.
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
                       <Label htmlFor="logistics-received-quantity">QTY Masuk</Label>
                       <Input
                         id="logistics-received-quantity"
@@ -1185,7 +1221,10 @@ export default function LogisticsManager({
                     </div>
                   </div>
                   <div className="flex justify-end">
-                    <Button type="submit" disabled={isPending || !!receiptImageError}>
+                    <Button
+                      type="submit"
+                      disabled={isPending || !!receiptImageError || !receiptDraft.picId}
+                    >
                       {isPending && (
                         <Loader2 data-icon="inline-start" className="animate-spin" />
                       )}
@@ -1214,6 +1253,9 @@ export default function LogisticsManager({
                         <div>
                           <p className="font-mono font-medium">
                             {receipt.deliveryNoteNumber}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            PIC: {receipt.pic.name}
                           </p>
                           {receipt.note && (
                             <p className="text-xs text-muted-foreground">{receipt.note}</p>

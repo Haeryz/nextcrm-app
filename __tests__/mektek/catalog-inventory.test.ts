@@ -8,7 +8,7 @@ import {
 } from "@/lib/mektek/catalog-inventory";
 
 describe("catalog inventory month", () => {
-  it("tracks rear/front warehouses independently and groups inbound stock per date", () => {
+  it("tracks rear/front warehouses independently and recaps inbound and outbound stock per date", () => {
     const january = calculateCatalogInventoryMonth({
       month: "2026-01",
       openingRearStock: 10,
@@ -41,12 +41,23 @@ describe("catalog inventory month", () => {
       closingRearStock: 20,
       closingFrontStock: 7,
       totalInbound: 15,
+      totalOutbound: 2,
     });
     expect(january.dailyInbound[4]).toEqual({
       day: 5,
       rear: 12,
       front: 3,
       total: 15,
+    });
+    expect(january.dailyMovements[4]).toEqual({
+      day: 5,
+      inbound: { rear: 12, front: 3, total: 15 },
+      outbound: { rear: 0, front: 0, total: 0 },
+    });
+    expect(january.dailyMovements[19]).toEqual({
+      day: 20,
+      inbound: { rear: 0, front: 0, total: 0 },
+      outbound: { rear: 2, front: 0, total: 2 },
     });
   });
 
@@ -88,18 +99,36 @@ describe("catalog inventory export", () => {
     closingFrontStock: 7,
     openingStockEditable: true,
     totalInbound: 15,
+    totalOutbound: 2,
     dailyInbound: Array.from({ length: 31 }, (_, index) => ({
       day: index + 1,
       rear: index === 4 ? 12 : 0,
       front: index === 4 ? 3 : 0,
       total: index === 4 ? 15 : 0,
     })),
+    dailyMovements: Array.from({ length: 31 }, (_, index) => ({
+      day: index + 1,
+      inbound: {
+        rear: index === 4 ? 12 : 0,
+        front: index === 4 ? 3 : 0,
+        total: index === 4 ? 15 : 0,
+      },
+      outbound: {
+        rear: index === 19 ? 2 : 0,
+        front: 0,
+        total: index === 19 ? 2 : 0,
+      },
+    })),
   };
 
   it("creates one date column for every day in the requested month", () => {
     const july = buildCatalogInventoryExportTable([snapshot], "2026-07");
     const february = buildCatalogInventoryExportTable(
-      [{ ...snapshot, dailyInbound: snapshot.dailyInbound.slice(0, 28) }],
+      [{
+        ...snapshot,
+        dailyInbound: snapshot.dailyInbound.slice(0, 28),
+        dailyMovements: snapshot.dailyMovements.slice(0, 28),
+      }],
       "2026-02",
     );
 
@@ -110,6 +139,8 @@ describe("catalog inventory export", () => {
       "Item Name": "Compressor",
       "Production Channel": "Thermal",
       "Tanggal 5": 15,
+      "Tanggal 20": "-2",
+      "Total Keluar": 2,
       "Stok Akhir G. Belakang": 20,
       "Stok Akhir G. Depan": 7,
     });

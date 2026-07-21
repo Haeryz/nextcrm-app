@@ -30,6 +30,7 @@ export async function GET(
     select: {
       deliveryNoteNumber: true,
       receivedAt: true,
+      pic: { select: { name: true } },
       purchaseOrderItem: {
         select: {
           purchaseOrderId: true,
@@ -85,6 +86,7 @@ export async function GET(
     recipientName: purchaseOrder.userName,
     projectName: purchaseOrder.projectName,
     poNumber: purchaseOrder.poNumber,
+    picName: sourceReceipt.pic.name,
     items: relatedReceipts.map((receipt) => ({
       description: receipt.purchaseOrderItem.partName,
       partNumber: receipt.purchaseOrderItem.partNumber,

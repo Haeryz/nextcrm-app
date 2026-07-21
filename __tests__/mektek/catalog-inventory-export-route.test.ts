@@ -27,11 +27,21 @@ describe("catalog inventory Excel export route", () => {
           closingFrontStock: 7,
           openingStockEditable: false,
           totalInbound: 15,
+          totalOutbound: 0,
           dailyInbound: Array.from({ length: 31 }, (_, index) => ({
             day: index + 1,
             rear: index === 4 ? 12 : 0,
             front: index === 4 ? 3 : 0,
             total: index === 4 ? 15 : 0,
+          })),
+          dailyMovements: Array.from({ length: 31 }, (_, index) => ({
+            day: index + 1,
+            inbound: {
+              rear: index === 4 ? 12 : 0,
+              front: index === 4 ? 3 : 0,
+              total: index === 4 ? 15 : 0,
+            },
+            outbound: { rear: 0, front: 0, total: 0 },
           })),
         },
       ],
