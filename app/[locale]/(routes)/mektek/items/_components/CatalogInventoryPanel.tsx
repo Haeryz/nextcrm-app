@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { Download, Loader2, PackagePlus, Warehouse } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -29,9 +29,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  filterCatalogInventorySnapshots,
   getCatalogProductionChannelLabel,
   getCatalogInventoryLocalDateKey,
   type CatalogInventorySnapshot,
+  type CatalogInventoryQuantityField,
+  type CatalogInventoryQuantityOperator,
   type CatalogStockDirection,
   type CatalogWarehouse,
 } from "@/lib/mektek/catalog-inventory";
@@ -104,11 +107,37 @@ export default function CatalogInventoryPanel({
   const [draft, setDraft] = useState<MovementDraft>(() =>
     blankMovement(month, daysInMonth),
   );
-  const totalRearStock = items.reduce(
+  const [query, setQuery] = useState("");
+  const [productionChannel, setProductionChannel] = useState("");
+  const [quantityField, setQuantityField] =
+    useState<CatalogInventoryQuantityField>("TOTAL_CLOSING_STOCK");
+  const [quantityOperator, setQuantityOperator] =
+    useState<CatalogInventoryQuantityOperator>("LT");
+  const [quantityValue, setQuantityValue] = useState("");
+  const filteredItems = useMemo(() => {
+    const matchingIds = new Set(
+      filterCatalogInventorySnapshots(
+        items.map((item) => item.inventory),
+        {
+          query,
+          productionChannel:
+            productionChannel === "POWERTRAIN" || productionChannel === "THERMAL"
+              ? productionChannel
+              : "",
+          quantityField,
+          quantityOperator,
+          quantityValue,
+        },
+      ).map((snapshot) => snapshot.id),
+    );
+    return items.filter((item) => matchingIds.has(item.id));
+  }, [items, productionChannel, quantityField, quantityOperator, quantityValue, query]);
+  const hasActiveFilters = Boolean(query || productionChannel || quantityValue);
+  const totalRearStock = filteredItems.reduce(
     (sum, item) => sum + item.inventory.closingRearStock,
     0,
   );
-  const totalFrontStock = items.reduce(
+  const totalFrontStock = filteredItems.reduce(
     (sum, item) => sum + item.inventory.closingFrontStock,
     0,
   );
@@ -181,6 +210,115 @@ export default function CatalogInventoryPanel({
         </Button>
       </div>
 
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Filter spreadsheet</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_170px_210px_170px_140px_auto] xl:items-end">
+            <div className="space-y-1.5">
+              <Label htmlFor="spreadsheet-search">Cari seluruh kolom</Label>
+              <Input
+                id="spreadsheet-search"
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Item, machine, part number, lokasi..."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="spreadsheet-channel">Channel</Label>
+              <Select
+                value={productionChannel || "ALL"}
+                onValueChange={(value) =>
+                  setProductionChannel(value === "ALL" ? "" : value)
+                }
+              >
+                <SelectTrigger id="spreadsheet-channel">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Semua channel</SelectItem>
+                  <SelectItem value="POWERTRAIN">Powertrain</SelectItem>
+                  <SelectItem value="THERMAL">Thermal</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="spreadsheet-quantity-field">Kolom quantity</Label>
+              <Select
+                value={quantityField}
+                onValueChange={(value) =>
+                  setQuantityField(value as CatalogInventoryQuantityField)
+                }
+              >
+                <SelectTrigger id="spreadsheet-quantity-field">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TOTAL_CLOSING_STOCK">Total stok akhir</SelectItem>
+                  <SelectItem value="CLOSING_REAR_STOCK">Stok akhir G. Belakang</SelectItem>
+                  <SelectItem value="CLOSING_FRONT_STOCK">Stok akhir G. Depan</SelectItem>
+                  <SelectItem value="TOTAL_INBOUND">Total stok masuk</SelectItem>
+                  <SelectItem value="OPENING_REAR_STOCK">Stok awal G. Belakang</SelectItem>
+                  <SelectItem value="OPENING_FRONT_STOCK">Stok awal G. Depan</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="spreadsheet-quantity-operator">Operator</Label>
+              <Select
+                value={quantityOperator}
+                onValueChange={(value) =>
+                  setQuantityOperator(value as CatalogInventoryQuantityOperator)
+                }
+              >
+                <SelectTrigger id="spreadsheet-quantity-operator">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="LT">Kurang dari (&lt;)</SelectItem>
+                  <SelectItem value="LTE">Maksimal (≤)</SelectItem>
+                  <SelectItem value="EQ">Sama dengan (=)</SelectItem>
+                  <SelectItem value="GTE">Minimal (≥)</SelectItem>
+                  <SelectItem value="GT">Lebih dari (&gt;)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="spreadsheet-quantity">Nilai quantity</Label>
+              <Input
+                id="spreadsheet-quantity"
+                type="number"
+                inputMode="numeric"
+                min={0}
+                step={1}
+                value={quantityValue}
+                onChange={(event) => setQuantityValue(event.target.value)}
+                placeholder="Contoh: 100"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={!hasActiveFilters}
+              onClick={() => {
+                setQuery("");
+                setProductionChannel("");
+                setQuantityField("TOTAL_CLOSING_STOCK");
+                setQuantityOperator("LT");
+                setQuantityValue("");
+              }}
+            >
+              Reset Filter
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground" aria-live="polite">
+            Menampilkan {filteredItems.length} dari {items.length} item.
+          </p>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
@@ -206,7 +344,10 @@ export default function CatalogInventoryPanel({
             <div>
               <p className="text-xs text-muted-foreground">Total stok masuk</p>
               <p className="text-xl font-semibold tabular-nums">
-                {items.reduce((sum, item) => sum + item.inventory.totalInbound, 0)}
+                {filteredItems.reduce(
+                  (sum, item) => sum + item.inventory.totalInbound,
+                  0,
+                )}
               </p>
             </div>
           </CardContent>
@@ -239,13 +380,15 @@ export default function CatalogInventoryPanel({
                   <th className="min-w-24 border-b border-e px-3 py-3 text-right">Total Masuk</th>
                   <th className="min-w-24 border-b border-e px-3 py-3 text-right">Akhir B.</th>
                   <th className="min-w-24 border-b border-e px-3 py-3 text-right">Akhir D.</th>
+                  <th className="min-w-28 border-b border-e px-3 py-3 text-right">Total Akhir</th>
+                  <th className="min-w-40 border-b border-e px-3 py-3 text-left">Remark</th>
                   <th className="min-w-36 border-b border-e px-3 py-3 text-left">Lokasi B.</th>
                   <th className="min-w-36 border-b border-e px-3 py-3 text-left">Lokasi D.</th>
                   <th className="min-w-36 border-b px-3 py-3 text-right">Mutasi</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((item) => {
+                {filteredItems.map((item) => {
                   const inventory = item.inventory;
                   return (
                     <tr key={item.id} className="border-b last:border-b-0 hover:bg-muted/20">
@@ -284,6 +427,12 @@ export default function CatalogInventoryPanel({
                       <td className="border-e px-3 py-3 text-right font-mono font-semibold tabular-nums">
                         {inventory.closingFrontStock}
                       </td>
+                      <td className="border-e px-3 py-3 text-right font-mono font-semibold tabular-nums">
+                        {inventory.closingRearStock + inventory.closingFrontStock}
+                      </td>
+                      <td className="border-e px-3 py-3 text-muted-foreground">
+                        {inventory.remark || "-"}
+                      </td>
                       <td className="border-e px-3 py-3 text-muted-foreground">
                         {inventory.rearLocation || "-"}
                       </td>
@@ -309,10 +458,10 @@ export default function CatalogInventoryPanel({
                     </tr>
                   );
                 })}
-                {items.length === 0 && (
+                {filteredItems.length === 0 && (
                   <tr>
-                    <td colSpan={daysInMonth + 10} className="px-4 py-10 text-center text-muted-foreground">
-                      Tidak ada item untuk ditampilkan pada inventory bulan ini.
+                    <td colSpan={daysInMonth + 12} className="px-4 py-10 text-center text-muted-foreground">
+                      Tidak ada item yang cocok dengan filter spreadsheet ini.
                     </td>
                   </tr>
                 )}

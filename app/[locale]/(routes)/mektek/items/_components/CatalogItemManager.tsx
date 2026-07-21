@@ -248,8 +248,8 @@ function CatalogItemForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="NONE">Tidak diatur</SelectItem>
-              <SelectItem value="POWERTRAIN">Powertrain · jarang bergerak</SelectItem>
-              <SelectItem value="THERMAL">Thermal · sering bergerak</SelectItem>
+              <SelectItem value="POWERTRAIN">Powertrain</SelectItem>
+              <SelectItem value="THERMAL">Thermal</SelectItem>
             </SelectContent>
           </Select>
         </Field>

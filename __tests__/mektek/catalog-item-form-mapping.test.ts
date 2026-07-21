@@ -24,6 +24,14 @@ describe("Catalogue Item form field mapping", () => {
 
   it("includes production channel and both warehouse locations", () => {
     expect(source).toContain('label="Production Channel"');
+    expect(source).toContain(
+      '<SelectItem value="POWERTRAIN">Powertrain</SelectItem>',
+    );
+    expect(source).toContain(
+      '<SelectItem value="THERMAL">Thermal</SelectItem>',
+    );
+    expect(source).not.toContain("jarang bergerak");
+    expect(source).not.toContain("sering bergerak");
     expect(source).toContain('label="Lokasi G. Belakang"');
     expect(source).toContain('label="Lokasi G. Depan"');
     expect(source).toContain('label="Stok Awal G. Belakang"');

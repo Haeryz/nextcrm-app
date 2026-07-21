@@ -40,12 +40,108 @@ export type CatalogInventorySnapshot = {
   dailyInbound: CatalogDailyInbound[];
 };
 
+export type CatalogInventoryQuantityField =
+  | "TOTAL_CLOSING_STOCK"
+  | "CLOSING_REAR_STOCK"
+  | "CLOSING_FRONT_STOCK"
+  | "TOTAL_INBOUND"
+  | "OPENING_REAR_STOCK"
+  | "OPENING_FRONT_STOCK";
+
+export type CatalogInventoryQuantityOperator = "LT" | "LTE" | "EQ" | "GTE" | "GT";
+
+export type CatalogInventorySpreadsheetFilters = {
+  query?: string;
+  productionChannel?: CatalogProductionChannel | "";
+  quantityField?: CatalogInventoryQuantityField;
+  quantityOperator?: CatalogInventoryQuantityOperator;
+  quantityValue?: number | string;
+};
+
 export function getCatalogProductionChannelLabel(
   channel: CatalogProductionChannel | null,
 ) {
   if (channel === "POWERTRAIN") return "Powertrain";
   if (channel === "THERMAL") return "Thermal";
   return "";
+}
+
+function getCatalogInventoryQuantity(
+  snapshot: CatalogInventorySnapshot,
+  field: CatalogInventoryQuantityField,
+) {
+  if (field === "CLOSING_REAR_STOCK") return snapshot.closingRearStock;
+  if (field === "CLOSING_FRONT_STOCK") return snapshot.closingFrontStock;
+  if (field === "TOTAL_INBOUND") return snapshot.totalInbound;
+  if (field === "OPENING_REAR_STOCK") return snapshot.openingRearStock;
+  if (field === "OPENING_FRONT_STOCK") return snapshot.openingFrontStock;
+  return snapshot.closingRearStock + snapshot.closingFrontStock;
+}
+
+function matchesCatalogInventoryQuantity(
+  quantity: number,
+  operator: CatalogInventoryQuantityOperator,
+  target: number,
+) {
+  if (operator === "LTE") return quantity <= target;
+  if (operator === "EQ") return quantity === target;
+  if (operator === "GTE") return quantity >= target;
+  if (operator === "GT") return quantity > target;
+  return quantity < target;
+}
+
+export function filterCatalogInventorySnapshots(
+  snapshots: CatalogInventorySnapshot[],
+  filters: CatalogInventorySpreadsheetFilters,
+) {
+  const query = String(filters.query ?? "").trim().toLocaleLowerCase("id-ID");
+  const rawQuantityValue = filters.quantityValue;
+  const hasQuantityValue =
+    rawQuantityValue !== undefined &&
+    rawQuantityValue !== null &&
+    String(rawQuantityValue).trim() !== "";
+  const quantityValue = hasQuantityValue ? Number(rawQuantityValue) : Number.NaN;
+  const shouldFilterQuantity = Number.isFinite(quantityValue);
+  const quantityField = filters.quantityField ?? "TOTAL_CLOSING_STOCK";
+  const quantityOperator = filters.quantityOperator ?? "LT";
+
+  return snapshots.filter((snapshot) => {
+    if (
+      filters.productionChannel &&
+      snapshot.productionChannel !== filters.productionChannel
+    ) {
+      return false;
+    }
+
+    if (query) {
+      const searchableText = [
+        snapshot.itemName,
+        getCatalogProductionChannelLabel(snapshot.productionChannel),
+        snapshot.machine,
+        snapshot.partNumber,
+        snapshot.remark,
+        snapshot.rearLocation,
+        snapshot.frontLocation,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLocaleLowerCase("id-ID");
+      if (!searchableText.includes(query)) return false;
+    }
+
+    if (
+      shouldFilterQuantity &&
+      !matchesCatalogInventoryQuantity(
+        getCatalogInventoryQuantity(snapshot, quantityField),
+        quantityOperator,
+        quantityValue,
+      )
+    ) {
+      return false;
+    }
+
+    return true;
+  });
 }
 
 export function getCatalogInventoryMonthKey(date?: Date) {

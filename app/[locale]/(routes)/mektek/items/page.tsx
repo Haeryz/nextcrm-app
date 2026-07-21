@@ -16,10 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getExistingCatalogImagePath } from "@/lib/catalog-images";
-import { getCatalogInventoryMonthKey } from "@/lib/mektek/catalog-inventory";
 import { getPaginationItems } from "@/lib/pagination";
 import CatalogItemManager from "./_components/CatalogItemManager";
-import CatalogInventoryPanel from "./_components/CatalogInventoryPanel";
 
 interface MektekCatalogItemsPageProps {
   params?: Promise<{ locale: string }>;
@@ -61,14 +59,11 @@ export default async function MektekCatalogItemsPage({
     rawProductionChannel === "POWERTRAIN" || rawProductionChannel === "THERMAL"
       ? rawProductionChannel
       : "";
-  const currentMonth = getCatalogInventoryMonthKey();
-  const month = readSearchParam(resolvedSearchParams, "month") || currentMonth;
   const page = Math.max(Number(readSearchParam(resolvedSearchParams, "page")) || 1, 1);
   const catalog = await listMektekCatalogInventoryItems({
     query,
     machine,
     productionChannel,
-    month,
     page,
     pageSize: 18,
   });
@@ -80,7 +75,6 @@ export default async function MektekCatalogItemsPage({
   if (query) queryString.set("q", query);
   if (machine) queryString.set("machine", machine);
   if (productionChannel) queryString.set("channel", productionChannel);
-  queryString.set("month", catalog.month);
 
   const pageHref = (targetPage: number) => {
     const paramsForPage = new URLSearchParams(queryString);
@@ -91,14 +85,14 @@ export default async function MektekCatalogItemsPage({
   return (
     <Container
       title="Catalogue Items"
-      description="Kelola data sparepart dan stok Gudang Belakang/Depan per bulan"
+      description="Kelola data sparepart dan buka spreadsheet inventory dari halaman terpisah"
     >
       <div className="flex flex-col gap-6">
         <Card>
           <CardContent className="p-4">
             <form
               action={`/${locale}/mektek/items`}
-              className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_190px_180px_auto_auto]"
+              className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_190px_auto_auto]"
             >
               <Input
                 name="q"
@@ -112,21 +106,14 @@ export default async function MektekCatalogItemsPage({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">Semua channel</SelectItem>
-                  <SelectItem value="POWERTRAIN">Powertrain · jarang</SelectItem>
-                  <SelectItem value="THERMAL">Thermal · sering</SelectItem>
+                  <SelectItem value="POWERTRAIN">Powertrain</SelectItem>
+                  <SelectItem value="THERMAL">Thermal</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                type="month"
-                name="month"
-                max={currentMonth}
-                defaultValue={catalog.month}
-                aria-label="Bulan inventory"
-              />
               <Button type="submit" variant="outline" className="w-full lg:w-auto">
                 Filter
               </Button>
-              {(query || machine || productionChannel || catalog.month !== currentMonth) && (
+              {(query || machine || productionChannel) && (
                 <Button asChild type="button" variant="ghost" className="w-full lg:w-auto">
                   <Link href={`/${locale}/mektek/items`}>Reset Filter</Link>
                 </Button>
@@ -135,17 +122,19 @@ export default async function MektekCatalogItemsPage({
           </CardContent>
         </Card>
 
+        <div className="flex justify-end">
+          <Button asChild variant="outline" className="w-full sm:w-auto">
+            <Link href={`/${locale}/mektek/items/spreadsheet`}>
+              Buka Spreadsheet Inventory
+            </Link>
+          </Button>
+        </div>
+
         <CatalogItemManager
           items={catalog.items.map((item) => ({
             ...item,
             imagePath: getExistingCatalogImagePath(item.imagePath),
           }))}
-        />
-
-        <CatalogInventoryPanel
-          items={catalog.items}
-          month={catalog.month}
-          daysInMonth={catalog.daysInMonth}
         />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
