@@ -2,12 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Send } from "lucide-react";
 import { toast } from "sonner";
 
-import { appendMektekServiceOrderItems } from "@/actions/mektek/service-orders";
+import {
+  addMektekTimelineEntry,
+  appendMektekServiceOrderItems,
+} from "@/actions/mektek/service-orders";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { haveRequiredMektekItemInputPrices } from "@/lib/mektek/items";
 import DamageItemsInput, {
   type DamageItem,
@@ -24,6 +28,7 @@ export default function ServiceOrderItemsEditor({
   const [isPending, startTransition] = useTransition();
   const [serviceItems, setServiceItems] = useState<DamageItem[]>([]);
   const [sparepartItems, setSparepartItems] = useState<DamageItem[]>([]);
+  const [timelineDraft, setTimelineDraft] = useState("");
 
   const submit = () => {
     const validServiceItems = serviceItems.filter((item) => item.description.trim());
@@ -58,7 +63,25 @@ export default function ServiceOrderItemsEditor({
 
       setServiceItems([]);
       setSparepartItems([]);
+      setTimelineDraft(result.data.timelineDraft);
       toast.success("Item pesanan dan total pembayaran diperbarui");
+      router.refresh();
+    });
+  };
+
+  const sendTimelineDraft = () => {
+    if (!timelineDraft.trim()) return;
+    startTransition(async () => {
+      const result = await addMektekTimelineEntry({
+        serviceOrderId,
+        description: timelineDraft,
+      });
+      if (!result || "error" in result) {
+        toast.error(result?.error || "Gagal mengirim update Timeline");
+        return;
+      }
+      setTimelineDraft("");
+      toast.success("Update berhasil dikirim ke Timeline");
       router.refresh();
     });
   };
@@ -111,6 +134,30 @@ export default function ServiceOrderItemsEditor({
           Tambahkan ke pesanan
         </Button>
       </div>
+
+      {timelineDraft && (
+        <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
+          <div>
+            <p className="text-sm font-semibold">Template update Timeline siap</p>
+            <p className="text-xs text-muted-foreground">
+              Periksa pesannya lalu klik kirim agar pelanggan tidak melewatkan perubahan.
+            </p>
+          </div>
+          <Textarea
+            value={timelineDraft}
+            onChange={(event) => setTimelineDraft(event.target.value)}
+            disabled={isPending}
+          />
+          <Button type="button" onClick={sendTimelineDraft} disabled={isPending}>
+            {isPending ? (
+              <Loader2 data-icon="inline-start" className="animate-spin" />
+            ) : (
+              <Send data-icon="inline-start" />
+            )}
+            Kirim update ke Timeline
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

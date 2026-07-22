@@ -125,4 +125,32 @@ describe("appendMektekLineItems", () => {
     expect(result.sparepartSubtotal).toBe(210_000);
     expect(result.subtotal).toBe(410_000);
   });
+
+  it("merges matching service and sparepart rows by increasing quantity", () => {
+    const result = appendMektekLineItems(
+      {
+        serviceItems: [
+          { name: "Servis AC", quantity: 1, unitPrice: 125_000, total: 125_000 },
+        ],
+        sparepartItems: [
+          { name: "Filter Oli", quantity: 2, unitPrice: 50_000, total: 100_000 },
+        ],
+      }, null,
+      {
+        serviceItems: [
+          { description: "  servis ac ", quantity: 2, estimatedCost: 125_000 },
+        ],
+        sparepartItems: [
+          { description: "FILTER OLI", quantity: 3, estimatedCost: 50_000 },
+        ],
+      },
+    );
+
+    expect(result.serviceItems).toEqual([
+      expect.objectContaining({ name: "Servis AC", quantity: 3, total: 375_000 }),
+    ]);
+    expect(result.sparepartItems).toEqual([
+      expect.objectContaining({ name: "Filter Oli", quantity: 5, total: 250_000 }),
+    ]);
+  });
 });

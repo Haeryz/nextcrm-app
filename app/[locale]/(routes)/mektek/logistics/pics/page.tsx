@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { requireAdmin } from "@/lib/auth-guards";
 import { prismadb } from "@/lib/prisma";
+import StaffSubmitButton from "@/app/[locale]/(routes)/mektek/staff/_components/StaffSubmitButton";
 
 const selectClass =
   "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
@@ -64,7 +65,10 @@ export default async function LogisticsPicManagementPage({
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
               </select>
-              <Button type="submit" variant="secondary">Simpan</Button>
+              <StaffSubmitButton
+                idleLabel="Simpan Perubahan"
+                pendingLabel="Menyimpan..."
+              />
             </form>
             <div className="mt-3 flex items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">

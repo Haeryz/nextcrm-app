@@ -15,7 +15,7 @@ const baseTags = {
 };
 
 describe("buildMektekFinancialSummary", () => {
-  it("applies PPN but never PPH to a private customer", () => {
+  it("never applies PPN or PPH to a private customer", () => {
     const summary = buildMektekFinancialSummary({
       ...baseTags,
       customerType: "STANDARD",
@@ -23,26 +23,29 @@ describe("buildMektekFinancialSummary", () => {
       pphEnabled: true,
     });
 
-    expect(summary.ppnEnabled).toBe(true);
+    expect(summary.ppnEnabled).toBe(false);
     expect(summary.pphEnabled).toBe(false);
-    expect(summary.tax).toBe(11_000);
+    expect(summary.tax).toBe(0);
     expect(summary.pph).toBe(0);
-    expect(summary.grandTotal).toBe(111_000);
+    expect(summary.grandTotal).toBe(100_000);
   });
 
   it("applies both PPN and PPH to a business customer by default", () => {
     const summary = buildMektekFinancialSummary({
       serviceItems: baseTags.serviceItems,
+      sparepartItems: [
+        { name: "Filter", quantity: 1, unitPrice: 50_000, total: 50_000 },
+      ],
       customerType: "B2B",
     });
 
     expect(summary.ppnEnabled).toBe(true);
     expect(summary.pphEnabled).toBe(true);
-    expect(summary.tax).toBe(11_000);
+    expect(summary.tax).toBe(16_500);
     expect(summary.pph).toBe(2_000);
-    expect(summary.grossInvoiceTotal).toBe(113_000);
-    expect(summary.grandTotal).toBe(113_000);
-    expect(summary.netPayable).toBe(113_000);
+    expect(summary.grossInvoiceTotal).toBe(168_500);
+    expect(summary.grandTotal).toBe(168_500);
+    expect(summary.netPayable).toBe(168_500);
   });
 
   it("lets an admin snapshot disable PPN and PPH independently", () => {

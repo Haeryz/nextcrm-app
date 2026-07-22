@@ -315,10 +315,22 @@ export default function DamageItemsInput({
                               ))}
                             {!isSearchingCatalog &&
                               catalogResults.length === 0 && (
-                                <div className="px-3 py-2 text-xs text-muted-foreground">
-                                  Item katalog tidak ditemukan. Data tetap dapat
-                                  diisi manual.
-                                </div>
+                                <button
+                                  type="button"
+                                  className="w-full px-3 py-2.5 text-left text-xs hover:bg-accent"
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => {
+                                    setActiveCatalogIndex(null);
+                                    setCatalogResults([]);
+                                  }}
+                                >
+                                  <span className="font-medium text-foreground">
+                                    Gunakan nama manual ini
+                                  </span>
+                                  <span className="mt-0.5 block text-muted-foreground">
+                                    &quot;{activeCatalogQuery}&quot; tidak ada di katalog.
+                                  </span>
+                                </button>
                               )}
                           </div>
                         )}

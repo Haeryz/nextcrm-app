@@ -76,7 +76,7 @@ describe("getMektekDashboardSummary", () => {
       dueToday: 1,
       overdue: 1,
       completedToday: 1,
-      unpaidBalance: 309000,
+      unpaidBalance: 275000,
     });
     expect(result.recentOrders).toHaveLength(3);
     expect(result.recentOrdersPage).toBe(1);

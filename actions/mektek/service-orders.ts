@@ -17,6 +17,7 @@ import {
   buildMektekStoredItems,
   haveRequiredMektekItemPrices,
   normalizeMektekLineItems,
+  type MektekLineItem,
   type MektekLineItemInput,
 } from "@/lib/mektek/items";
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
@@ -68,6 +69,10 @@ import {
 import { getWhatsAppState, sendWhatsAppMessage } from "@/lib/whatsapp";
 import { normalizeMektekVehiclePlateNumber } from "@/lib/mektek/customer-vehicles";
 import { reserveMektekServiceNumber } from "@/lib/mektek/service-number";
+import {
+  inferMektekCustomerType,
+  resolveMektekCustomerNames,
+} from "@/lib/mektek/customer-type";
 
 const DEFAULT_TIMELINE_MESSAGE =
   "Layanan Anda telah terbuat. Tim kami sedang menyiapkan pemeriksaan awal kendaraan.";
@@ -107,10 +112,12 @@ const parseWhatsappMeta = (tags: Record<string, unknown>): Record<string, unknow
 type CreateMektekServiceOrderInput = {
   locale?: string;
   customerName: string;
+  companyName?: string;
+  contactName?: string;
   vehicle: string;
   vehiclePlateNumber: string;
   vehicleFleetNumber?: string;
-  vehicleMileageKm: string | number;
+  vehicleMileageKm?: string | number;
   complaint: string;
   /** @deprecated Use technicianIds. Retained for older callers during migration. */
   technicianId?: string;
@@ -237,7 +244,9 @@ export const createMektekServiceOrder = async (
     return { error: "Forbidden: hanya Admin atau CS MekTek yang dapat membuat Service Order" };
   }
 
-  const customerName = boundedText(input?.customerName, MAX_NAME_LEN);
+  const enteredCustomerName = boundedText(input?.customerName, MAX_NAME_LEN);
+  const enteredCompanyName = boundedText(input?.companyName, MAX_NAME_LEN);
+  const enteredContactName = boundedText(input?.contactName, MAX_NAME_LEN);
   const vehicle = boundedText(input?.vehicle, MAX_VEHICLE_LEN);
   const vehiclePlateNumber = boundedText(
     input?.vehiclePlateNumber,
@@ -251,7 +260,24 @@ export const createMektekServiceOrder = async (
   const complaint = boundedText(input?.complaint, MAX_COMPLAINT_LEN);
   const phone = String(input?.phone ?? "").trim();
   const address = boundedText(input?.address, MAX_ADDRESS_LEN);
-  const customerType = input?.customerType === "B2B" ? "B2B" : "STANDARD";
+  const customerType = inferMektekCustomerType(
+    enteredCompanyName || enteredCustomerName,
+    input?.customerType === "B2B" ? "B2B" : "STANDARD",
+  );
+  const companyNames =
+    customerType === "B2B"
+      ? resolveMektekCustomerNames({
+          companyName: enteredCompanyName || enteredCustomerName,
+          contactName: enteredCompanyName
+            ? enteredContactName || enteredCustomerName
+            : enteredContactName,
+        })
+      : {
+          customerName: enteredCustomerName,
+          companyName: null,
+          contactName: enteredCustomerName || null,
+        };
+  const customerName = companyNames.customerName;
   let technicianIds: string[];
   try {
     technicianIds = validateMektekTechnicianIds(
@@ -265,16 +291,13 @@ export const createMektekServiceOrder = async (
   const voucherCode = String(input?.voucherCode ?? "").trim();
 
   if (!customerName || !vehicle || !vehiclePlateNumber || !complaint) {
-    return { error: "Nama Customer, kendaraan, nomor plat, dan keluhan wajib diisi" };
+    return { error: "Nama Customer, kendaraan, nomor plat, dan jasa wajib diisi" };
   }
   const plateNumberNormalized = normalizeMektekVehiclePlateNumber(
     vehiclePlateNumber,
   );
   if (!plateNumberNormalized) {
     return { error: "Nomor plat kendaraan tidak valid" };
-  }
-  if (customerType === "B2B" && !vehicleFleetNumber) {
-    return { error: "Nomor lambung wajib diisi untuk kendaraan perusahaan" };
   }
   if ("error" in vehicleMileage) return { error: vehicleMileage.error };
   if (!isValidPhoneNumber(phone)) {
@@ -459,6 +482,8 @@ export const createMektekServiceOrder = async (
             customerCode,
             vehicle,
             customerName,
+            customerCompanyName: companyNames.companyName,
+            customerContactName: companyNames.contactName,
             phone,
             phoneNormalized,
             customerType: catalogCustomer.customerType,
@@ -497,7 +522,7 @@ export const createMektekServiceOrder = async (
             serviceItems,
             sparepartItems,
             discount,
-            ppnEnabled: true,
+            ppnEnabled: catalogCustomer.customerType === "B2B",
             pphEnabled: catalogCustomer.customerType === "B2B",
             payment: {
               method: "cash",
@@ -1199,23 +1224,19 @@ export const appendMektekServiceOrderItems = async (input: {
       return { error: "Service Order maksimal berisi 100 item" };
     }
 
-    const timeline = parseTimeline(order.tags);
-    const addedLabels = [
-      addedServiceItems.length
-        ? `${addedServiceItems.length} service item${addedServiceItems.length === 1 ? "" : "s"}`
-        : "",
-      addedSparepartItems.length
-        ? `${addedSparepartItems.length} sparepart item${addedSparepartItems.length === 1 ? "" : "s"}`
-        : "",
-    ].filter(Boolean);
-    const nextTimeline = [
-      ...timeline,
-      {
-        id: crypto.randomUUID(),
-        description: `Added ${addedLabels.join(" and ")}. Invoice total updated.`,
-        createdAt: new Date().toISOString(),
-      },
-    ];
+    const describeAddedItems = (label: string, items: MektekLineItem[]) =>
+      items.length
+        ? `${label}: ${items
+            .map((item) => `${item.name} (x${item.quantity})`)
+            .join(", ")}.`
+        : "";
+    const timelineDraft = [
+      describeAddedItems("Jasa ditambahkan", addedServiceItems),
+      describeAddedItems("Sparepart ditambahkan", addedSparepartItems),
+      "Rincian pekerjaan dan total tagihan telah diperbarui.",
+    ]
+      .filter(Boolean)
+      .join(" ");
 
     await prismadb.crm_Accounts_Tasks.update({
       where: { id: order.id },
@@ -1224,7 +1245,6 @@ export const appendMektekServiceOrderItems = async (input: {
           ...tags,
           serviceItems: nextItems.serviceItems,
           sparepartItems: nextItems.sparepartItems,
-          timeline: nextTimeline,
         },
         updatedBy: session.user.id,
       },
@@ -1243,6 +1263,7 @@ export const appendMektekServiceOrderItems = async (input: {
         serviceSubtotal: nextItems.serviceSubtotal,
         sparepartSubtotal: nextItems.sparepartSubtotal,
         subtotal: nextItems.subtotal,
+        timelineDraft,
       },
     };
   } catch (error) {
@@ -1467,9 +1488,10 @@ export const updateMektekPayment = async (input: {
     }
     const customerType = tags.customerType === "B2B" ? "B2B" : "STANDARD";
     const ppnEnabled =
-      typeof input.ppnEnabled === "boolean"
+      customerType === "B2B" &&
+      (typeof input.ppnEnabled === "boolean"
         ? input.ppnEnabled
-        : currentSummary.ppnEnabled;
+        : currentSummary.ppnEnabled);
     const pphEnabled =
       customerType === "B2B" &&
       (typeof input.pphEnabled === "boolean"

@@ -190,14 +190,43 @@ export const appendMektekLineItems = (
   },
 ) => {
   const current = normalizeMektekLineItems(tags, content);
-  const serviceItems = [
-    ...current.serviceItems,
-    ...buildMektekStoredItems(additions.serviceItems, "service"),
-  ];
-  const sparepartItems = [
-    ...current.sparepartItems,
-    ...buildMektekStoredItems(additions.sparepartItems, "sparepart"),
-  ];
+  const mergeItems = (
+    existing: MektekLineItem[],
+    added: MektekLineItem[],
+  ) => {
+    const merged = existing.map((item) => ({ ...item }));
+
+    for (const addition of added) {
+      const normalizedName = addition.name.trim().toLocaleLowerCase("id-ID");
+      const matchingIndex = merged.findIndex((item) =>
+        addition.catalogItemId && item.catalogItemId
+          ? addition.catalogItemId === item.catalogItemId
+          : item.name.trim().toLocaleLowerCase("id-ID") === normalizedName,
+      );
+      if (matchingIndex < 0) {
+        merged.push(addition);
+        continue;
+      }
+
+      const currentItem = merged[matchingIndex];
+      const quantity = currentItem.quantity + addition.quantity;
+      merged[matchingIndex] = {
+        ...currentItem,
+        quantity,
+        total: currentItem.unitPrice * quantity,
+      };
+    }
+
+    return merged;
+  };
+  const serviceItems = mergeItems(
+    current.serviceItems,
+    buildMektekStoredItems(additions.serviceItems, "service"),
+  );
+  const sparepartItems = mergeItems(
+    current.sparepartItems,
+    buildMektekStoredItems(additions.sparepartItems, "sparepart"),
+  );
 
   return normalizeMektekLineItems({ serviceItems, sparepartItems });
 };

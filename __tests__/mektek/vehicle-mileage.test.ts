@@ -4,6 +4,13 @@ import {
 } from "@/lib/mektek/vehicle-mileage";
 
 describe("parseVehicleMileageKm", () => {
+  it.each(["", "   ", null, undefined])(
+    "accepts a missing optional odometer value",
+    (input) => {
+      expect(parseVehicleMileageKm(input)).toEqual({ data: null });
+    },
+  );
+
   it.each([
     ["0", 0],
     ["125000", 125000],
@@ -12,7 +19,7 @@ describe("parseVehicleMileageKm", () => {
     expect(parseVehicleMileageKm(input)).toEqual({ data: expected });
   });
 
-  it.each(["", "12.5", "1e3", "-1", "12 km", MAX_VEHICLE_MILEAGE_KM + 1])(
+  it.each(["12.5", "1e3", "-1", "12 km", MAX_VEHICLE_MILEAGE_KM + 1])(
     "rejects an invalid or out-of-range odometer value",
     (input) => {
       expect(parseVehicleMileageKm(input)).toEqual({

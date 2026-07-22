@@ -35,6 +35,17 @@ describe("MekTek Logistics receipt documents", () => {
     resolve(process.cwd(), "actions/mektek/logistics-delivery-note-pdf.ts"),
     "utf8",
   );
+  const purchaseOrderPdfRoute = readFileSync(
+    resolve(
+      process.cwd(),
+      "app/api/mektek/logistics/purchase-orders/[id]/pdf/route.ts",
+    ),
+    "utf8",
+  );
+  const whatsappSource = readFileSync(
+    resolve(process.cwd(), "actions/mektek/logistics-document-whatsapp.ts"),
+    "utf8",
+  );
 
   it("stores item-condition photos without including the binary in Logistics lists", () => {
     expect(schema).toMatch(/imageData\s+Bytes\?/);
@@ -62,6 +73,17 @@ describe("MekTek Logistics receipt documents", () => {
     expect(pdfSource).toContain("DESCRIPTION");
     expect(pdfSource).toContain("PART NUMBER");
     expect(pdfSource).toContain("QTY");
+  });
+
+  it("downloads and sends PO and DO PDFs through WhatsApp", () => {
+    expect(managerSource).toContain("PDF PO");
+    expect(managerSource).toContain("WhatsApp PO");
+    expect(managerSource).toContain("WhatsApp DO");
+    expect(managerSource).toContain("sendMektekLogisticsDocumentWhatsApp");
+    expect(purchaseOrderPdfRoute).toContain("renderMektekPurchaseOrderPdf");
+    expect(whatsappSource).toContain('documentType: "PO" | "DO"');
+    expect(whatsappSource).toContain('mimeType: "application/pdf"');
+    expect(whatsappSource).toContain("renderMektekDeliveryNotePdf");
   });
 
   it("makes the return-to-Logistics action visibly bordered", () => {

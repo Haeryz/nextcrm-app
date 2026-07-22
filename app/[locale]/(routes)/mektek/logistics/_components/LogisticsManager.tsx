@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   ImagePlus,
   Loader2,
+  MessageCircle,
   PackageCheck,
   Plus,
   Printer,
@@ -26,6 +27,7 @@ import {
   recordMektekLogisticsPurchaseOrderReceipt,
   type LogisticsPurchaseOrderInput,
 } from "@/actions/mektek/logistics";
+import { sendMektekLogisticsDocumentWhatsApp } from "@/actions/mektek/logistics-document-whatsapp";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -225,6 +227,8 @@ export default function LogisticsManager({
   >({});
   const [receiptImage, setReceiptImage] = useState<File | null>(null);
   const [receiptImageError, setReceiptImageError] = useState<string | null>(null);
+  const [documentPhone, setDocumentPhone] = useState("");
+  const [isSendingDocument, startSendingDocument] = useTransition();
 
   const today = getCatalogInventoryLocalDateKey();
 
@@ -427,6 +431,23 @@ export default function LogisticsManager({
     }
     return Array.from(groups.values());
   }, [activeReceiptPurchaseOrder]);
+
+  const sendDocument = (documentType: "PO" | "DO", receiptId?: string) => {
+    if (!activePurchaseOrder) return;
+    startSendingDocument(async () => {
+      const result = await sendMektekLogisticsDocumentWhatsApp({
+        documentType,
+        purchaseOrderId: activePurchaseOrder.id,
+        receiptId,
+        phone: documentPhone,
+      });
+      if (!result || "error" in result) {
+        toast.error(result?.error || "Gagal mengirim dokumen WhatsApp");
+        return;
+      }
+      toast.success(`${documentType} berhasil dikirim melalui WhatsApp`);
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -882,6 +903,47 @@ export default function LogisticsManager({
                     </div>
                   )}
 
+                  <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+                    <div>
+                      <p className="text-sm font-semibold">PDF & WhatsApp</p>
+                      <p className="text-xs text-muted-foreground">
+                        Masukkan nomor tujuan untuk mengirim file PO atau DO sebagai lampiran PDF.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Input
+                        aria-label="Nomor WhatsApp tujuan dokumen Logistics"
+                        placeholder="Contoh: 0812 3456 7890"
+                        value={documentPhone}
+                        onChange={(event) => setDocumentPhone(event.target.value)}
+                        inputMode="tel"
+                        disabled={isSendingDocument}
+                      />
+                      <Button asChild type="button" variant="outline">
+                        <a
+                          href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activePurchaseOrder.id)}/pdf`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Printer data-icon="inline-start" />
+                          PDF PO
+                        </a>
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => sendDocument("PO")}
+                        disabled={isSendingDocument || !documentPhone.trim()}
+                      >
+                        {isSendingDocument ? (
+                          <Loader2 data-icon="inline-start" className="animate-spin" />
+                        ) : (
+                          <MessageCircle data-icon="inline-start" />
+                        )}
+                        WhatsApp PO
+                      </Button>
+                    </div>
+                  </div>
+
                   <Separator />
                   <div className="space-y-3">
                     <h3 className="font-medium">Detail Part</h3>
@@ -931,7 +993,7 @@ export default function LogisticsManager({
                               {item.receipts.map((receipt) => (
                                 <div
                                   key={receipt.id}
-                                  className="grid gap-1 text-sm sm:grid-cols-[120px_1fr_auto] sm:items-center"
+                                  className="grid gap-2 text-sm sm:grid-cols-[120px_1fr_auto_auto_auto] sm:items-center"
                                 >
                                   <span>{formatDate(receipt.receivedAt)}</span>
                                   <span className="font-mono">
@@ -943,6 +1005,28 @@ export default function LogisticsManager({
                                   <span className="font-mono font-semibold tabular-nums">
                                     +{receipt.quantity}
                                   </span>
+                                  {progress.status === "CLOSED" && (
+                                    <Button asChild type="button" size="sm" variant="outline">
+                                      <a
+                                        href={`/api/mektek/logistics/receipts/${encodeURIComponent(receipt.id)}/delivery-note`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        PDF DO
+                                      </a>
+                                    </Button>
+                                  )}
+                                  {progress.status === "CLOSED" && (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      onClick={() => sendDocument("DO", receipt.id)}
+                                      disabled={isSendingDocument || !documentPhone.trim()}
+                                    >
+                                      <MessageCircle data-icon="inline-start" />
+                                      WhatsApp DO
+                                    </Button>
+                                  )}
                                 </div>
                               ))}
                             </div>

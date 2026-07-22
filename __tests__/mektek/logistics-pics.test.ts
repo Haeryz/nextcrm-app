@@ -18,6 +18,8 @@ import {
 } from "@/actions/mektek/logistics-pics";
 import { requireAdmin } from "@/lib/auth-guards";
 import { prismadb } from "@/lib/prisma";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const mockedRequireAdmin = requireAdmin as jest.Mock;
 
@@ -70,5 +72,16 @@ describe("MekTek Logistics PIC directory", () => {
 
     await expect(createMektekLogisticsPic(form)).rejects.toThrow("NEXT_REDIRECT");
     expect(prismadb.logisticsPic.create).not.toHaveBeenCalled();
+  });
+
+  it("makes the PIC save action prominent and shows pending feedback", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "app/[locale]/(routes)/mektek/logistics/pics/page.tsx"),
+      "utf8",
+    );
+
+    expect(source).toContain('idleLabel="Simpan Perubahan"');
+    expect(source).toContain('pendingLabel="Menyimpan..."');
+    expect(source).not.toContain('variant="secondary">Simpan');
   });
 });

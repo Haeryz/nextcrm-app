@@ -21,7 +21,14 @@ jest.mock("@/actions/mektek/invoice-pdf", () => ({
   renderMektekReceiptPdf: jest.fn(),
 }));
 
-import { notifyMektekOrderCreated } from "@/actions/mektek/whatsapp-notifications";
+import {
+  notifyMektekOrderCompleted,
+  notifyMektekOrderCreated,
+} from "@/actions/mektek/whatsapp-notifications";
+import {
+  renderMektekInvoicePdf,
+  renderMektekReceiptPdf,
+} from "@/actions/mektek/invoice-pdf";
 
 describe("Mektek WhatsApp notifications", () => {
   beforeEach(() => {
@@ -52,5 +59,34 @@ describe("Mektek WhatsApp notifications", () => {
       message:
         "Hai Budi, Toyota Avanza bisa dilacak di https://mektek.test/id/s/abc",
     });
+  });
+
+  it("sends invoice and receipt PDFs when an order is completed", async () => {
+    getActiveTemplate.mockResolvedValue("Selesai {customerName} {trackingLink}");
+    (renderMektekInvoicePdf as jest.Mock).mockResolvedValue(new Uint8Array([1]));
+    (renderMektekReceiptPdf as jest.Mock).mockResolvedValue(new Uint8Array([2]));
+
+    await notifyMektekOrderCompleted({
+      order: {
+        id: "order-1",
+        serviceNumber: "SRV-202607-0001",
+        tags: {
+          customerName: "Budi",
+          vehicle: "Toyota Avanza",
+          phone: "+628123456789",
+        },
+      },
+      trackingLink: "https://mektek.test/id/s/abc",
+    });
+
+    expect(sendWhatsAppMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "+628123456789",
+        media: [
+          expect.objectContaining({ filename: "invoice-SRV-202607-0001.pdf", caption: "Invoice" }),
+          expect.objectContaining({ filename: "struk-SRV-202607-0001.pdf", caption: "Struk" }),
+        ],
+      }),
+    );
   });
 });

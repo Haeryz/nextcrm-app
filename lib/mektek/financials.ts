@@ -99,10 +99,11 @@ export function buildMektekFinancialSummary(
   const taxBase = Math.max(0, subtotal - discount);
   const customerType: "STANDARD" | "B2B" =
     parsedTags.customerType === "B2B" ? "B2B" : "STANDARD";
-  const ppnEnabled = parsedTags.ppnEnabled !== false;
+  const ppnEnabled = customerType === "B2B" && parsedTags.ppnEnabled !== false;
   const pphEnabled = customerType === "B2B" && parsedTags.pphEnabled !== false;
   const tax = ppnEnabled ? Math.round(taxBase * MEKTEK_PPN_RATE) : 0;
-  const pph = pphEnabled ? Math.round(taxBase * MEKTEK_PPH_RATE) : 0;
+  const pphBase = normalizedItems.serviceSubtotal;
+  const pph = pphEnabled ? Math.round(pphBase * MEKTEK_PPH_RATE) : 0;
   const grossInvoiceTotal = Math.max(0, taxBase + tax + pph);
   // Kept as compatibility aliases for payment/invoice consumers.
   const netPayable = grossInvoiceTotal;
@@ -138,6 +139,7 @@ export function buildMektekFinancialSummary(
     subtotal,
     discount,
     taxBase,
+    pphBase,
     tax,
     pph,
     customerType,

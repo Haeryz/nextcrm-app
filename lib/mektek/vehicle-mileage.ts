@@ -6,6 +6,7 @@ const error = () => ({
 
 export function parseVehicleMileageKm(value: unknown) {
   const raw = String(value ?? "").trim();
+  if (!raw) return { data: null } as const;
   if (!/^\d+$/.test(raw)) return error();
 
   const mileage = Number(raw);

@@ -42,6 +42,7 @@ import {
 import { getMektekTodayDateInput } from "@/lib/mektek/schedule";
 import { MEKTEK_TECHNICIAN_ROLE_LABELS } from "@/lib/mektek/technicians";
 import { MAX_VEHICLE_MILEAGE_KM } from "@/lib/mektek/vehicle-mileage";
+import { inferMektekCustomerType } from "@/lib/mektek/customer-type";
 import {
   Select,
   SelectContent,
@@ -101,6 +102,71 @@ function OrderFormSection({
   );
 }
 
+function TechnicianSearchInput({
+  id,
+  selectedId,
+  technicians,
+  unavailableIds,
+  disabled,
+  onSelect,
+}: {
+  id: string;
+  selectedId: string;
+  technicians: MektekTechnicianOption[];
+  unavailableIds: string[];
+  disabled: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const selectedTechnician = technicians.find((item) => item.id === selectedId);
+  const [query, setQuery] = useState(selectedTechnician?.name ?? "");
+
+  const availableTechnicians = technicians.filter(
+    (technician) =>
+      technician.id === selectedId || !unavailableIds.includes(technician.id),
+  );
+
+  return (
+    <>
+      <Input
+        id={id}
+        list={`${id}-options`}
+        role="combobox"
+        aria-autocomplete="list"
+        placeholder="Ketik nama teknisi"
+        value={query}
+        disabled={disabled}
+        autoComplete="off"
+        onChange={(event) => {
+          const nextQuery = event.target.value;
+          setQuery(nextQuery);
+          const match = availableTechnicians.find(
+            (item) =>
+              item.name.toLocaleLowerCase("id-ID") ===
+              nextQuery.trim().toLocaleLowerCase("id-ID"),
+          );
+          if (match) onSelect(match.id);
+          else if (!nextQuery.trim()) onSelect(UNASSIGNED_TECHNICIAN);
+        }}
+        onBlur={() => {
+          const exactMatch = availableTechnicians.find(
+            (item) =>
+              item.name.toLocaleLowerCase("id-ID") ===
+              query.trim().toLocaleLowerCase("id-ID"),
+          );
+          if (!exactMatch) setQuery(selectedTechnician?.name ?? "");
+        }}
+      />
+      <datalist id={`${id}-options`}>
+        {availableTechnicians.map((technician) => (
+          <option key={technician.id} value={technician.name}>
+            {MEKTEK_TECHNICIAN_ROLE_LABELS[technician.role]}
+          </option>
+        ))}
+      </datalist>
+    </>
+  );
+}
+
 export default function NewServiceOrderForm({
   locale,
   initialEstimatedDone,
@@ -113,6 +179,7 @@ export default function NewServiceOrderForm({
   const [successBurstKey, setSuccessBurstKey] = useState(0);
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [vehicle, setVehicle] = useState("");
   const [vehiclePlateNumber, setVehiclePlateNumber] = useState("");
   const [vehicleFleetNumber, setVehicleFleetNumber] = useState("");
@@ -248,7 +315,9 @@ export default function NewServiceOrderForm({
 
       const result = await createMektekServiceOrder({
         locale,
-        customerName,
+        customerName: customerType === "B2B" ? companyName : customerName,
+        companyName: customerType === "B2B" ? companyName : undefined,
+        contactName: customerType === "B2B" ? customerName : undefined,
         vehicle,
         vehiclePlateNumber,
         vehicleFleetNumber,
@@ -300,6 +369,7 @@ export default function NewServiceOrderForm({
       selectedCustomerSearchRef.current = "";
       setCustomerSearchQuery("");
       setCustomerName("");
+      setCompanyName("");
       setVehicle("");
       setVehiclePlateNumber("");
       setVehicleFleetNumber("");
@@ -347,7 +417,8 @@ export default function NewServiceOrderForm({
     const preferredVehicle = matchedVehicle ?? customer.vehicles[0];
     selectedCustomerSearchRef.current = customer.name;
     setCustomerSearchQuery(customer.name);
-    setCustomerName(customer.name);
+    setCustomerName(customer.customerType === "B2B" ? "" : customer.name);
+    setCompanyName(customer.customerType === "B2B" ? customer.name : "");
     setPhone(customer.phone);
     setCustomerType(customer.customerType);
     setCustomerVehicles(customer.vehicles);
@@ -444,8 +515,14 @@ export default function NewServiceOrderForm({
           icon={UserRound}
         >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-1.5 md:col-span-2">
-            <Label htmlFor="customer-search">
+          <div className="space-y-2 rounded-lg border bg-muted/20 p-4 md:col-span-2">
+            <div>
+              <p className="text-sm font-semibold">Pilih pelanggan lama</p>
+              <p className="text-xs text-muted-foreground">
+                Opsional. Cari dulu agar data pelanggan tidak tersimpan ganda.
+              </p>
+            </div>
+            <Label htmlFor="customer-search" className="sr-only">
               Cari pelanggan tersimpan
             </Label>
             <div className="relative">
@@ -533,18 +610,53 @@ export default function NewServiceOrderForm({
           </div>
             <div className="space-y-1.5">
               <Label htmlFor="customer-name">
-                Nama pelanggan <span className="text-destructive">*</span>
+                {customerType === "B2B" ? "Nama PIC / utusan" : "Nama pelanggan"}{" "}
+                {customerType === "B2B" ? (
+                  <span className="font-normal text-muted-foreground">(opsional)</span>
+                ) : (
+                  <span className="text-destructive">*</span>
+                )}
               </Label>
               <Input
                 id="customer-name"
                 placeholder="Contoh: Budi Santoso"
                 value={customerName}
-                onChange={(event) => setCustomerName(event.target.value)}
+                onChange={(event) => {
+                  const nextName = event.target.value;
+                  if (
+                    customerType === "STANDARD" &&
+                    inferMektekCustomerType(nextName) === "B2B"
+                  ) {
+                    setCompanyName(nextName);
+                    setCustomerName("");
+                    setCustomerType("B2B");
+                    return;
+                  }
+                  setCustomerName(nextName);
+                }}
                 disabled={isPending}
                 autoComplete="name"
-                required
+                required={customerType === "STANDARD"}
               />
             </div>
+            {customerType === "B2B" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="company-name">
+                  Nama perusahaan <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="company-name"
+                  placeholder="Contoh: PT Maju Jaya atau CV Sumber Makmur"
+                  value={companyName}
+                  onChange={(event) => setCompanyName(event.target.value)}
+                  disabled={isPending}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Terdeteksi otomatis dari kata PT/CV, tetapi tetap dapat dipilih manual.
+                </p>
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="customer-phone">
                 Nomor telepon <span className="text-destructive">*</span>
@@ -570,6 +682,12 @@ export default function NewServiceOrderForm({
                   setCustomerType(nextCustomerType);
                   if (nextCustomerType === "STANDARD") {
                     setVehicleFleetNumber("");
+                    setCompanyName("");
+                  } else if (
+                    inferMektekCustomerType(customerName) === "B2B"
+                  ) {
+                    setCompanyName(customerName);
+                    setCustomerName("");
                   }
                 }}
                 disabled={isPending}
@@ -675,7 +793,8 @@ export default function NewServiceOrderForm({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="vehicle-mileage">
-                Kilometer saat masuk <span className="text-destructive">*</span>
+                Kilometer saat masuk{" "}
+                <span className="font-normal text-muted-foreground">(opsional)</span>
               </Label>
               <Input
                 id="vehicle-mileage"
@@ -690,13 +809,13 @@ export default function NewServiceOrderForm({
                   setVehicleMileageKm(event.target.value.replace(/\D/g, ""))
                 }
                 disabled={isPending}
-                required
               />
             </div>
           {customerType === "B2B" && (
             <div className="space-y-1.5">
               <Label htmlFor="vehicle-fleet-number">
-                Nomor lambung <span className="text-destructive">*</span>
+                Nomor lambung{" "}
+                <span className="font-normal text-muted-foreground">(opsional)</span>
               </Label>
               <Input
                 id="vehicle-fleet-number"
@@ -704,7 +823,6 @@ export default function NewServiceOrderForm({
                 value={vehicleFleetNumber}
                 onChange={(event) => setVehicleFleetNumber(event.target.value)}
                 disabled={isPending}
-                required
               />
             </div>
           )}
@@ -765,6 +883,23 @@ export default function NewServiceOrderForm({
                         </span>
                       )}
                     </Label>
+                    <TechnicianSearchInput
+                      key={`${slot}-${technicianIds[slot]}`}
+                      id={`technician-search-${slot}`}
+                      selectedId={technicianIds[slot]}
+                      technicians={technicians}
+                      unavailableIds={technicianIds.filter(
+                        (_selectedId, selectedSlot) => selectedSlot !== slot,
+                      )}
+                      disabled={isPending}
+                      onSelect={(value) =>
+                        setTechnicianIds((current) =>
+                          current.map((item, index) =>
+                            index === slot ? value : item,
+                          ),
+                        )
+                      }
+                    />
                     <Select
                       value={technicianIds[slot]}
                       onValueChange={(value) =>

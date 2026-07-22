@@ -92,6 +92,10 @@ export default async function MektekDetailPage({ params }: Props) {
     typeof tags.customerName === "string" && tags.customerName.length > 0
       ? tags.customerName
       : "Pelanggan tidak diketahui";
+  const customerContactName =
+    typeof tags.customerContactName === "string" && tags.customerContactName.trim()
+      ? tags.customerContactName
+      : undefined;
   const customerId =
     typeof tags.catalogCustomerId === "string" && tags.catalogCustomerId.length > 0
       ? tags.catalogCustomerId
@@ -193,6 +197,11 @@ export default async function MektekDetailPage({ params }: Props) {
                   <h2 className="break-words text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                     {customerName}
                   </h2>
+                  {customerContactName && (
+                    <p className="break-words text-sm text-muted-foreground">
+                      PIC / utusan: {customerContactName}
+                    </p>
+                  )}
                   <p className="break-words text-sm text-muted-foreground">
                     {vehicle}
                     {vehiclePlateNumber ? ` · ${vehiclePlateNumber}` : ""}

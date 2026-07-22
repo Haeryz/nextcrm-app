@@ -61,7 +61,9 @@ export default function PaymentCard({
   const router = useRouter();
   const [method, setMethod] = useState<PaymentMethod>(initialMethod);
   const [discount, setDiscount] = useState(toInputValue(initialDiscount));
-  const [ppnEnabled, setPpnEnabled] = useState(initialPpnEnabled);
+  const [ppnEnabled, setPpnEnabled] = useState(
+    customerType === "B2B" && initialPpnEnabled,
+  );
   const [pphEnabled, setPphEnabled] = useState(
     customerType === "B2B" && initialPphEnabled,
   );
@@ -79,10 +81,13 @@ export default function PaymentCard({
     const paidAmount = parseMoney(amountPaid);
     const subtotal = serviceSubtotal + sparepartSubtotal;
     const taxBase = Math.max(0, subtotal - discountAmount);
-    const ppnAmount = ppnEnabled ? Math.round(taxBase * MEKTEK_PPN_RATE) : 0;
+    const ppnAmount =
+      customerType === "B2B" && ppnEnabled
+        ? Math.round(taxBase * MEKTEK_PPN_RATE)
+        : 0;
     const pphAmount =
       customerType === "B2B" && pphEnabled
-        ? Math.round(taxBase * MEKTEK_PPH_RATE)
+        ? Math.round(serviceSubtotal * MEKTEK_PPH_RATE)
         : 0;
     const totalBeforePph = Math.max(0, taxBase + ppnAmount);
     const grossInvoiceTotal = Math.max(0, totalBeforePph + pphAmount);
@@ -217,6 +222,7 @@ export default function PaymentCard({
           </div>
         </div>
 
+        {customerType === "B2B" && (
         <div className="rounded-lg border bg-muted/20 p-3">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Pengaturan Pajak
@@ -225,7 +231,7 @@ export default function PaymentCard({
             <div className="flex flex-col items-start gap-3 rounded-md border bg-background/80 p-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
               <div className="min-w-0">
                 <p className="text-sm font-medium">PPN 11%</p>
-                <p className="text-xs text-muted-foreground">Berlaku untuk pribadi dan perusahaan</p>
+                <p className="text-xs text-muted-foreground">Khusus pelanggan perusahaan</p>
               </div>
               <Switch
                 className="shrink-0"
@@ -235,39 +241,38 @@ export default function PaymentCard({
                 disabled={isPending || !canManageTaxSettings}
               />
             </div>
-            {customerType === "B2B" && (
-              <div className="flex flex-col items-start gap-3 rounded-md border bg-background/80 p-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
+            <div className="flex flex-col items-start gap-3 rounded-md border bg-background/80 p-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium">PPh 23 dipotong 2%</p>
+                  <p className="text-sm font-medium">PPh 23 ditambahkan 2%</p>
                   <p className="text-xs text-muted-foreground">
-                    Ditambahkan ke total pelanggan perusahaan
+                    Dihitung 2% dari total jasa saja
                   </p>
                 </div>
                 <Switch
                   className="shrink-0"
-                  aria-label="Aktifkan pemotongan PPh 23 sebesar 2%"
+                  aria-label="Aktifkan penambahan PPh 23 sebesar 2%"
                   checked={pphEnabled}
                   onCheckedChange={setPphEnabled}
                   disabled={isPending || !canManageTaxSettings}
                 />
-              </div>
-            )}
+            </div>
           </div>
           {!canManageTaxSettings && (
             <p className="mt-2 text-xs text-muted-foreground">
               Hanya Admin utama yang dapat mengubah pengaturan pajak.
             </p>
           )}
-          {customerType === "B2B" && pphEnabled && (
+          {pphEnabled && (
             <div className="mt-3 flex gap-2 rounded-md border border-dashed bg-background/70 p-3 text-xs text-muted-foreground">
               <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <p>
-                PPh 23 mengurangi uang yang dibayar pelanggan kepada MekTek. Nilai
-                jasa tidak berkurang; bukti potongnya menjadi kredit pajak MekTek.
+                PPh 23 ditambahkan sebesar 2% dari total jasa saja dan tidak
+                dihitung dari nilai sparepart.
               </p>
             </div>
           )}
         </div>
+        )}
 
         {latestProviderPayment && (
           <div className="rounded-md border bg-muted/20 p-3">

@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  Download,
   Wrench,
 } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -189,12 +190,18 @@ export default async function CustomerDetailPage({
       description="Customer Profile, total servis, dan riwayat service order lengkap"
     >
       <div className="flex flex-col gap-6">
-        <div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <Button asChild variant="ghost" size="sm">
             <Link href={`/${locale}/mektek/customers`}>
               <ArrowLeft data-icon="inline-start" />
               Kembali ke Customers
             </Link>
+          </Button>
+          <Button asChild size="sm">
+            <a href={`/api/mektek/customers/${customer.id}/summary`}>
+              <Download data-icon="inline-start" />
+              PDF Pelanggan
+            </a>
           </Button>
         </div>
 
