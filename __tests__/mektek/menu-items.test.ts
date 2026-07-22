@@ -1,13 +1,18 @@
 import getMektekMenuItems from "@/app/[locale]/(routes)/components/menu-items/Mektek";
 
 describe("Mektek sidebar menu", () => {
-  it("shows Logistics as its own submenu directly after Item", () => {
-    const titles = getMektekMenuItems({
+  it("groups Catalog, Monitoring PO, and Receiving under Logistics", () => {
+    const menu = getMektekMenuItems({
       isAdmin: true,
       userStatus: "ACTIVE",
-    }).map((item) => item.title);
+    });
+    const logistics = menu.find((item) => item.title === "Logistics");
 
-    expect(titles.indexOf("Logistics")).toBe(titles.indexOf("Item") + 1);
+    expect(logistics?.items?.map((item) => item.title)).toEqual([
+      "Catalog / Item",
+      "Monitoring PO",
+      "Receiving",
+    ]);
   });
 
   it("shows Voucher, Technician, then Sub-admin to the main admin", () => {

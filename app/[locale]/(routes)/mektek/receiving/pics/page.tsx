@@ -14,7 +14,7 @@ import StaffSubmitButton from "@/app/[locale]/(routes)/mektek/staff/_components/
 const selectClass =
   "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
 
-export default async function LogisticsPicManagementPage({
+export default async function ReceivingPicManagementPage({
   params,
 }: {
   params: Promise<{ locale: string }>;
@@ -30,10 +30,10 @@ export default async function LogisticsPicManagementPage({
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6">
       <header className="space-y-2">
         <Button asChild variant="outline" size="sm">
-          <Link href={`/${locale}/mektek/logistics`}>Kembali ke Logistics</Link>
+          <Link href={`/${locale}/mektek/receiving`}>Kembali ke Receiving</Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-semibold">PIC Logistics</h1>
+          <h1 className="text-2xl font-semibold">PIC Receiving</h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Kelola person in charge yang dapat ditugaskan ke setiap shipment.
           </p>

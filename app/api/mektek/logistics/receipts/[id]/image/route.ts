@@ -18,6 +18,8 @@ type RouteContext = {
 function revalidateLogistics() {
   revalidatePath("/[locale]/(routes)/mektek/logistics", "page");
   revalidatePath("/[locale]/(routes)/mektek/logistics/spreadsheet", "page");
+  revalidatePath("/[locale]/(routes)/mektek/receiving", "page");
+  revalidatePath("/[locale]/(routes)/mektek/receiving/spreadsheet", "page");
 }
 
 export async function GET(_request: Request, { params }: RouteContext) {

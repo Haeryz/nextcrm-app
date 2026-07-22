@@ -1,124 +1,68 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-describe("MekTek Logistics implementation contract", () => {
-  const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf8");
-  const actionSource = readFileSync(
-    resolve(process.cwd(), "actions/mektek/logistics.ts"),
-    "utf8",
+const readSource = (path: string) =>
+  readFileSync(resolve(process.cwd(), path), "utf8");
+
+describe("MekTek Logistics and Receiving implementation contract", () => {
+  const schema = readSource("prisma/schema.prisma");
+  const actionSource = readSource("actions/mektek/logistics.ts");
+  const outboundManager = readSource(
+    "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
   );
-  const pageSource = readFileSync(
-    resolve(process.cwd(), "app/[locale]/(routes)/mektek/logistics/page.tsx"),
-    "utf8",
+  const receivingManager = readSource(
+    "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
   );
-  const spreadsheetPageSource = readFileSync(
-    resolve(
-      process.cwd(),
-      "app/[locale]/(routes)/mektek/logistics/spreadsheet/page.tsx",
-    ),
-    "utf8",
+  const receivingPage = readSource(
+    "app/[locale]/(routes)/mektek/receiving/page.tsx",
   );
-  const managerSource = readFileSync(
-    resolve(
-      process.cwd(),
-      "app/[locale]/(routes)/mektek/logistics/_components/LogisticsManager.tsx",
-    ),
-    "utf8",
-  );
-  const picActionSource = readFileSync(
-    resolve(process.cwd(), "actions/mektek/logistics-pics.ts"),
-    "utf8",
-  );
-  const picPageSource = readFileSync(
-    resolve(
-      process.cwd(),
-      "app/[locale]/(routes)/mektek/logistics/pics/page.tsx",
-    ),
-    "utf8",
-  );
-  const picMigration = readFileSync(
-    resolve(
-      process.cwd(),
-      "prisma/migrations/20260721170000_logistics_receipt_pic/migration.sql",
-    ),
-    "utf8",
+  const picActionSource = readSource("actions/mektek/logistics-pics.ts");
+  const picPageSource = readSource(
+    "app/[locale]/(routes)/mektek/receiving/pics/page.tsx",
   );
 
-  it("stores PO headers, line items, and auditable receipt events", () => {
-    expect(schema).toContain("model LogisticsPurchaseOrder {");
-    expect(schema).toContain("model LogisticsPurchaseOrderItem {");
-    expect(schema).toContain("model LogisticsReceipt {");
-    expect(schema).toContain("@@unique([purchaseOrderItemId, deliveryNoteNumber])");
+  it("separates inbound Receiving from outbound Monitoring PO", () => {
+    expect(schema).toContain("enum LogisticsPurchaseOrderFlow");
+    expect(schema).toContain("flow               LogisticsPurchaseOrderFlow");
+    expect(actionSource).toContain("listMektekReceivingPurchaseOrders");
+    expect(actionSource).toContain("listMektekOutboundPurchaseOrders");
+    expect(receivingPage).toContain("listMektekReceivingPurchaseOrders");
+    expect(outboundManager).toContain("createMektekOutboundPurchaseOrder");
   });
 
-  it("requires a PIC on each shipment and seeds the temporary directory", () => {
-    expect(schema).toContain("model LogisticsPic {");
-    expect(schema).toContain("picId               String   @db.Uuid");
-    expect(schema).toContain("pic               LogisticsPic");
-    expect(picMigration).toContain("'PIC 1'");
-    expect(picMigration).toContain("'PIC 2'");
-    expect(picMigration).toContain("'PIC 3'");
-    expect(picMigration).toContain('ALTER COLUMN "picId" SET NOT NULL');
-    expect(managerSource).toContain('PIC: {receipt.pic.name}');
-    expect(managerSource).toContain('htmlFor="logistics-receipt-pic"');
+  it("links both flows to Catalog and the shared stock ledger", () => {
+    expect(schema).toMatch(/catalogItemId\s+String\?/);
+    expect(schema).toMatch(/source\s+CatalogStockMovementSource/);
+    expect(actionSource).toContain("applyCatalogStockMovement");
+    expect(actionSource).toContain('source: "RECEIVING"');
+    expect(actionSource).toContain('source: "OUTBOUND_PO"');
   });
 
-  it("keeps PIC CRUD exclusive to the main admin", () => {
+  it("keeps Receiving notes and warehouses scoped to each item", () => {
+    expect(actionSource).toContain("note: boundedText(item?.note, MAX_NOTE_LEN)");
+    expect(actionSource).toContain("warehouse: item?.warehouse");
+    expect(receivingManager).toContain(
+      "id={`logistics-receipt-note-${item.id}`}",
+    );
+    expect(receivingManager).toContain(
+      "Keterangan ini hanya berlaku untuk item ini.",
+    );
+    expect(receivingManager).not.toContain("Surat Jalan");
+  });
+
+  it("creates and exposes a delivery note for each outbound batch", () => {
+    expect(actionSource).toContain("buildOutboundDispatchReference");
+    expect(actionSource).toContain("recordMektekOutboundPurchaseOrderDispatch");
+    expect(outboundManager).toContain("Simpan Barang Keluar");
+    expect(outboundManager).toContain("PDF Surat Jalan");
+  });
+
+  it("keeps Receiving PIC management exclusive to the main admin", () => {
     expect(picPageSource).toContain("await requireAdmin()");
     expect(picPageSource).toContain("createMektekLogisticsPic");
     expect(picPageSource).toContain("updateMektekLogisticsPic");
     expect(picPageSource).toContain("deleteMektekLogisticsPic");
     expect(picActionSource.match(/await requireAdmin\(\)/g)).toHaveLength(3);
-  });
-
-  it("guards receipt increments transactionally and authorizes on the server", () => {
-    expect(actionSource).toContain("canManageMektekLogistics");
-    expect(actionSource).toContain("prismadb.$transaction");
-    expect(actionSource).toMatch(/receivedQuantity:\s*\{\s*lte:/);
-    expect(actionSource).toContain("validateLogisticsReceipt");
-  });
-
-  it("keeps receipt notes scoped to their individual delivery-note items", () => {
-    expect(actionSource).toContain("note: boundedText(item?.note, MAX_NOTE_LEN)");
-    expect(actionSource).toContain("note: validatedItem.note || null");
-    expect(managerSource).toContain(
-      "id={`logistics-receipt-note-${item.id}`}",
-    );
-    expect(managerSource).toContain(
-      "Keterangan ini hanya berlaku untuk item ini.",
-    );
-    expect(managerSource).not.toContain('id="logistics-receipt-note"');
-  });
-
-  it("keeps the PO spreadsheet on a dedicated Logistics route", () => {
-    expect(pageSource).toContain("listMektekLogisticsPurchaseOrders");
-    expect(pageSource).toContain("/mektek/logistics/spreadsheet");
-    expect(pageSource).toContain("<LogisticsManager");
-    expect(pageSource).toContain('mode="overview"');
-    expect(spreadsheetPageSource).toContain("listMektekLogisticsPurchaseOrders");
-    expect(spreadsheetPageSource).toContain("<LogisticsManager");
-    expect(spreadsheetPageSource).toContain('mode="spreadsheet"');
-    expect(spreadsheetPageSource).toContain("Kembali ke Logistics");
-    expect(managerSource).toContain("PO Open");
-    expect(managerSource).toContain("PO Closed");
-    expect(managerSource).toContain("Total QTY Sisa");
-    expect(managerSource).toContain("PO Terlambat");
-    expect(managerSource).toContain("Buat Purchase Order");
-    expect(managerSource).toContain("Buka Spreadsheet PO");
-    expect(managerSource).toContain("Riwayat Purchase Order");
-    expect(managerSource).toContain("Detail Purchase Order");
-    expect(managerSource).toContain("QTY Masuk");
-    expect(managerSource).toContain("QTY Order");
-    expect(managerSource).toContain("QTY Sisa");
-    expect(managerSource).toContain("Nomor Surat Jalan");
-  });
-
-  it("limits PO Type and scrolls only the ordered-parts list", () => {
-    expect(managerSource).toContain('<SelectItem value="Normal">Normal</SelectItem>');
-    expect(managerSource).toContain(
-      '<SelectItem value="Consignment">Consignment</SelectItem>',
-    );
-    expect(managerSource).toContain("max-h-[18rem]");
-    expect(managerSource).toContain("overflow-y-auto overscroll-contain");
+    expect(receivingManager).toContain("Kelola PIC");
   });
 });

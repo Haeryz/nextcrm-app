@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth-guards";
 import { prismadb } from "@/lib/prisma";
 
-const MANAGEMENT_PATH = "/mektek/logistics/pics";
-const LOGISTICS_PATH = "/mektek/logistics";
+const MANAGEMENT_PATH = "/mektek/receiving/pics";
+const LOGISTICS_PATH = "/mektek/receiving";
 
 function text(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();

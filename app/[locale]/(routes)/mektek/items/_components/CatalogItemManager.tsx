@@ -3,11 +3,10 @@
 import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Edit, FileSpreadsheet, ImagePlus, Loader2, Plus, Trash2, X } from "lucide-react";
+import { Edit, FileSpreadsheet, ImagePlus, Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
-  createMektekCatalogItem,
   deleteMektekCatalogItem,
   updateMektekCatalogItem,
   type CatalogItemInput,
@@ -20,7 +19,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -386,43 +384,11 @@ export default function CatalogItemManager({
 }: CatalogItemManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [createOpen, setCreateOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<CatalogItemRow | null>(null);
-  const [createValue, setCreateValue] = useState<CatalogItemInput>(blankItem);
   const [editValue, setEditValue] = useState<CatalogItemInput>(blankItem);
-  const [createImage, setCreateImage] = useState<ImageDraft>(blankImageDraft);
   const [editImage, setEditImage] = useState<ImageDraft>(blankImageDraft);
 
   const itemCountLabel = `${items.length} item di halaman ini`;
-
-  const submitCreate = () => {
-    startTransition(async () => {
-      const result = await createMektekCatalogItem(createValue);
-      if (!result || "error" in result) {
-        toast.error(result?.error || "Gagal membuat Catalogue Item");
-        return;
-      }
-      try {
-        await updateCatalogImage(result.data.id, createImage);
-      } catch (error) {
-        toast.error(
-          error instanceof Error
-            ? `Item berhasil dibuat, tetapi image tidak tersimpan: ${error.message}`
-            : "Item berhasil dibuat, tetapi image tidak tersimpan",
-        );
-        setCreateValue(blankItem);
-        setCreateImage(blankImageDraft);
-        setCreateOpen(false);
-        router.refresh();
-        return;
-      }
-      toast.success("Catalogue Item berhasil dibuat");
-      setCreateValue(blankItem);
-      setCreateImage(blankImageDraft);
-      setCreateOpen(false);
-      router.refresh();
-    });
-  };
 
   const openEdit = (item: CatalogItemRow) => {
     setEditingItem(item);
@@ -480,34 +446,6 @@ export default function CatalogItemManager({
               <span className="hidden sm:inline">Buka Spreadsheet Inventory</span>
             </Link>
           </Button>
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-            <DialogTrigger asChild>
-              <Button className="min-w-0 flex-1 sm:flex-none">
-                <Plus data-icon="inline-start" />
-                <span className="sm:hidden">Tambah Item</span>
-                <span className="hidden sm:inline">Tambah Spare Part</span>
-              </Button>
-            </DialogTrigger>
-          <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>Tambah Spare Part</DialogTitle>
-              <DialogDescription>
-                Simpan identitas item, Production Channel, lokasi, dan stok awal kedua gudang.
-              </DialogDescription>
-            </DialogHeader>
-            <CatalogItemForm
-              value={createValue}
-              onChange={setCreateValue}
-              onSubmit={submitCreate}
-              submitLabel="Buat item"
-              pending={isPending}
-              imageSrc={null}
-              imageDraft={createImage}
-              onImageDraftChange={setCreateImage}
-              showInitialStock
-            />
-          </DialogContent>
-          </Dialog>
         </div>
       </div>
 

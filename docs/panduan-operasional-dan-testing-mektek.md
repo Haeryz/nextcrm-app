@@ -119,7 +119,7 @@ Hasil yang diharapkan:
 1. Buka halaman `/en/mektek/dashboard`.
 2. Periksa ringkasan operasional yang tampil:
    - **Open orders**
-   - **Due today**
+   - **Due Dateday**
    - **Overdue**
    - **Completed today**
    - **Unpaid balance**
@@ -617,7 +617,7 @@ Poin testing:
 Fitur:
 
 - Ringkasan jumlah open orders.
-- Jumlah order due today.
+- Jumlah order Due Dateday.
 - Jumlah overdue.
 - Jumlah completed today.
 - Total unpaid balance.
@@ -839,7 +839,7 @@ Poin testing:
 **Expected result:**
 
 - Heading **MEKTEK Dashboard** tampil.
-- Kartu Open orders, Due today, Overdue, Completed today, dan Unpaid balance tampil.
+- Kartu Open orders, Due Dateday, Overdue, Completed today, dan Unpaid balance tampil.
 - Recent orders tampil atau menampilkan empty state.
 
 ### TC-004 CS Membuat Service Order Baru

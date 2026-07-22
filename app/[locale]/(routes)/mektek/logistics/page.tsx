@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { listMektekLogisticsPurchaseOrders } from "@/actions/mektek/logistics";
+import { listMektekOutboundPurchaseOrders } from "@/actions/mektek/logistics";
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,17 +9,16 @@ import { canManageMektekLogistics } from "@/lib/mektek/permissions";
 import { getPaginationItems } from "@/lib/pagination";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
-import LogisticsManager from "./_components/LogisticsManager";
+import OutboundLogisticsManager from "./_components/OutboundLogisticsManager";
 
 interface MektekLogisticsPageProps {
   params?: Promise<{ locale: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function readPageParam(searchParams: Record<string, string | string[] | undefined>) {
+function readPage(searchParams: Record<string, string | string[] | undefined>) {
   const value = searchParams.page;
-  const page = Array.isArray(value) ? value[0] : value;
-  return Math.max(Number(page) || 1, 1);
+  return Math.max(Number(Array.isArray(value) ? value[0] : value) || 1, 1);
 }
 
 export default async function MektekLogisticsPage({
@@ -28,12 +27,11 @@ export default async function MektekLogisticsPage({
 }: MektekLogisticsPageProps) {
   const { locale = "id" } = params ? await params : { locale: "id" };
   const session = await getServerSession(authOptions);
-
   if (!canManageMektekLogistics(session?.user)) {
     return (
       <Container
-        title="Logistics"
-        description="Tracking Purchase Order dan barang masuk dari supplier"
+        title="Monitoring PO"
+        description="Pengiriman item MekTek kepada User"
       >
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
@@ -45,10 +43,21 @@ export default async function MektekLogisticsPage({
   }
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
-  const [result, pics] = await Promise.all([
-    listMektekLogisticsPurchaseOrders({
-      page: readPageParam(resolvedSearchParams),
+  const [result, catalogItems, pics] = await Promise.all([
+    listMektekOutboundPurchaseOrders({
+      page: readPage(resolvedSearchParams),
       pageSize: 10,
+    }),
+    prismadb.catalogItem.findMany({
+      orderBy: [{ description: "asc" }, { partNumber: "asc" }],
+      select: {
+        id: true,
+        description: true,
+        partNumber: true,
+        catalogPartNumber: true,
+        rearStock: true,
+        frontStock: true,
+      },
     }),
     prismadb.logisticsPic.findMany({
       where: { isActive: true },
@@ -56,13 +65,9 @@ export default async function MektekLogisticsPage({
       select: { id: true, name: true },
     }),
   ]);
-
   if ("error" in result) {
     return (
-      <Container
-        title="Logistics"
-        description="Tracking Purchase Order dan barang masuk dari supplier"
-      >
+      <Container title="Monitoring PO" description="Pengiriman item MekTek kepada User">
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
             {result.error}
@@ -72,93 +77,88 @@ export default async function MektekLogisticsPage({
     );
   }
 
-  const { items, stats, totalCount, totalPages } = result.data;
-  const paginationItems = getPaginationItems(result.data.page, totalPages);
-  const pageHref = (targetPage: number) => `/${locale}/mektek/logistics?page=${targetPage}`;
-
+  const paginationItems = getPaginationItems(result.data.page, result.data.totalPages);
+  const pageHref = (page: number) => `/${locale}/mektek/logistics?page=${page}`;
+  const purchaseOrders = result.data.items.map(
+    ({ inputDate, dueDate, deliveryDate, createdAt, updatedAt, items, ...order }) => ({
+      ...order,
+      inputDate: inputDate.toISOString(),
+      dueDate: dueDate.toISOString(),
+      deliveryDate: deliveryDate?.toISOString() ?? null,
+      createdAt: createdAt.toISOString(),
+      updatedAt: updatedAt.toISOString(),
+      items: items.map(({ createdAt, updatedAt, receipts, ...item }) => ({
+        ...item,
+        createdAt: createdAt.toISOString(),
+        updatedAt: updatedAt.toISOString(),
+        receipts: receipts.map(({ receivedAt, createdAt, ...receipt }) => ({
+          ...receipt,
+          receivedAt: receivedAt.toISOString(),
+          createdAt: createdAt.toISOString(),
+        })),
+      })),
+    }),
+  );
   return (
     <Container
-      title="Logistics"
-      description="Kelola Purchase Order dan lihat riwayat penerimaan barang supplier"
+      title="Monitoring PO"
+      description="Kelola PO pengiriman MekTek ke User, stok keluar, dan Surat Jalan"
     >
       <div className="flex flex-col gap-6">
-        <LogisticsManager
+        <OutboundLogisticsManager
           pics={pics}
-          purchaseOrders={items.map((purchaseOrder) => ({
-            ...purchaseOrder,
-            inputDate: purchaseOrder.inputDate.toISOString(),
-            dueDate: purchaseOrder.dueDate.toISOString(),
-            createdAt: purchaseOrder.createdAt.toISOString(),
-            updatedAt: purchaseOrder.updatedAt.toISOString(),
-            items: purchaseOrder.items.map((item) => ({
-              ...item,
-              createdAt: item.createdAt.toISOString(),
-              updatedAt: item.updatedAt.toISOString(),
-              receipts: item.receipts.map((receipt) => ({
-                ...receipt,
-                receivedAt: receipt.receivedAt.toISOString(),
-                createdAt: receipt.createdAt.toISOString(),
-              })),
-            })),
+          purchaseOrders={purchaseOrders}
+          catalogItems={catalogItems.map(({ catalogPartNumber, ...item }) => ({
+            ...item,
+            partNumber: item.partNumber || catalogPartNumber,
           }))}
-          stats={stats}
+          stats={result.data.stats}
           mode="overview"
           spreadsheetHref={`/${locale}/mektek/logistics/spreadsheet`}
-          managePicsHref={
-            session?.user?.isAdmin
-              ? `/${locale}/mektek/logistics/pics`
-              : undefined
-          }
         />
-
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
-            Page {result.data.page} of {totalPages} · {totalCount} Purchase Order
+            Page {result.data.page} of {result.data.totalPages} · {result.data.totalCount} PO
           </p>
-          <nav
-            aria-label="Halaman riwayat Purchase Order"
-            className="flex flex-wrap items-center gap-2"
-          >
-            {result.data.page > 1 ? (
-              <Button asChild variant="outline" size="sm">
+          <nav aria-label="Halaman Monitoring PO" className="flex flex-wrap gap-2">
+            <Button
+              asChild={result.data.page > 1}
+              variant="outline"
+              size="sm"
+              disabled={result.data.page <= 1}
+            >
+              {result.data.page > 1 ? (
                 <Link href={pageHref(result.data.page - 1)}>Sebelumnya</Link>
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm" disabled>
-                Sebelumnya
-              </Button>
-            )}
+              ) : (
+                <span>Sebelumnya</span>
+              )}
+            </Button>
             {paginationItems.map((item, index) =>
               item === "ellipsis" ? (
-                <span
-                  key={`ellipsis-${index}`}
-                  className="px-1 text-sm text-muted-foreground"
-                  aria-hidden="true"
-                >
-                  …
-                </span>
+                <span key={`ellipsis-${index}`} className="px-1 text-muted-foreground">…</span>
               ) : (
                 <Button
                   key={item}
                   asChild
-                  variant={item === result.data.page ? "default" : "outline"}
                   size="icon"
-                  aria-current={item === result.data.page ? "page" : undefined}
-                  aria-label={`Halaman ${item}`}
+                  variant={item === result.data.page ? "default" : "outline"}
                 >
                   <Link href={pageHref(item)}>{item}</Link>
                 </Button>
               ),
             )}
-            {result.data.page < totalPages ? (
-              <Button asChild variant="outline" size="sm">
+            <Button
+              asChild={result.data.page < result.data.totalPages}
+              variant="outline"
+              size="sm"
+              disabled={result.data.page >= result.data.totalPages}
+            >
+              {result.data.page < result.data.totalPages ? (
                 <Link href={pageHref(result.data.page + 1)}>Berikutnya</Link>
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm" disabled>
-                Berikutnya
-              </Button>
-            )}
+              ) : (
+                <span>Berikutnya</span>
+              )}
+            </Button>
           </nav>
         </div>
       </div>

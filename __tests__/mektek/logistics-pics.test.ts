@@ -76,7 +76,7 @@ describe("MekTek Logistics PIC directory", () => {
 
   it("makes the PIC save action prominent and shows pending feedback", () => {
     const source = readFileSync(
-      resolve(process.cwd(), "app/[locale]/(routes)/mektek/logistics/pics/page.tsx"),
+      resolve(process.cwd(), "app/[locale]/(routes)/mektek/receiving/pics/page.tsx"),
       "utf8",
     );
 

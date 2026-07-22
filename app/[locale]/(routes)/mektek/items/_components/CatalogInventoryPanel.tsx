@@ -54,6 +54,8 @@ type CatalogInventoryPanelProps = {
   }>;
   month: string;
   daysInMonth: number;
+  locale: string;
+  currentMonth: string;
 };
 
 type MovementDraft = {
@@ -104,6 +106,8 @@ export default function CatalogInventoryPanel({
   items,
   month,
   daysInMonth,
+  locale,
+  currentMonth,
 }: CatalogInventoryPanelProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -209,133 +213,6 @@ export default function CatalogInventoryPanel({
 
   return (
     <section aria-labelledby="monthly-inventory-title" className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <h2 id="monthly-inventory-title" className="text-lg font-semibold">
-            Inventory Bulanan · {monthLabel(month)}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            Klik nama item untuk mencatat stok masuk atau keluar. Tanggal mutasi dapat dipilih di dalam form.
-          </p>
-        </div>
-        <Button asChild variant="outline" className="w-full lg:w-auto">
-          <a href={`/api/mektek/catalog-inventory/export?month=${month}`}>
-            <Download data-icon="inline-start" />
-            Export Excel {month}
-          </a>
-        </Button>
-      </div>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Filter spreadsheet</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(240px,1.4fr)_170px_210px_170px_140px_auto] xl:items-end">
-            <div className="space-y-1.5">
-              <Label htmlFor="spreadsheet-search">Cari seluruh kolom</Label>
-              <Input
-                id="spreadsheet-search"
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Item, machine, part number, lokasi..."
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="spreadsheet-channel">Channel</Label>
-              <Select
-                value={productionChannel || "ALL"}
-                onValueChange={(value) =>
-                  setProductionChannel(value === "ALL" ? "" : value)
-                }
-              >
-                <SelectTrigger id="spreadsheet-channel">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Semua channel</SelectItem>
-                  <SelectItem value="POWERTRAIN">Powertrain</SelectItem>
-                  <SelectItem value="THERMAL">Thermal</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="spreadsheet-quantity-field">Kolom quantity</Label>
-              <Select
-                value={quantityField}
-                onValueChange={(value) =>
-                  setQuantityField(value as CatalogInventoryQuantityField)
-                }
-              >
-                <SelectTrigger id="spreadsheet-quantity-field">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="TOTAL_CLOSING_STOCK">Total stok akhir</SelectItem>
-                  <SelectItem value="CLOSING_REAR_STOCK">Stok akhir G. Belakang</SelectItem>
-                  <SelectItem value="CLOSING_FRONT_STOCK">Stok akhir G. Depan</SelectItem>
-                  <SelectItem value="TOTAL_INBOUND">Total stok masuk</SelectItem>
-                  <SelectItem value="TOTAL_OUTBOUND">Total stok keluar</SelectItem>
-                  <SelectItem value="OPENING_REAR_STOCK">Stok awal G. Belakang</SelectItem>
-                  <SelectItem value="OPENING_FRONT_STOCK">Stok awal G. Depan</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="spreadsheet-quantity-operator">Operator</Label>
-              <Select
-                value={quantityOperator}
-                onValueChange={(value) =>
-                  setQuantityOperator(value as CatalogInventoryQuantityOperator)
-                }
-              >
-                <SelectTrigger id="spreadsheet-quantity-operator">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="LT">Kurang dari (&lt;)</SelectItem>
-                  <SelectItem value="LTE">Maksimal (≤)</SelectItem>
-                  <SelectItem value="EQ">Sama dengan (=)</SelectItem>
-                  <SelectItem value="GTE">Minimal (≥)</SelectItem>
-                  <SelectItem value="GT">Lebih dari (&gt;)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="spreadsheet-quantity">Nilai quantity</Label>
-              <Input
-                id="spreadsheet-quantity"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={1}
-                value={quantityValue}
-                onChange={(event) => setQuantityValue(event.target.value)}
-                placeholder="Contoh: 100"
-              />
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              disabled={!hasActiveFilters}
-              onClick={() => {
-                setQuery("");
-                setProductionChannel("");
-                setQuantityField("TOTAL_CLOSING_STOCK");
-                setQuantityOperator("LT");
-                setQuantityValue("");
-              }}
-            >
-              Reset Filter
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground" aria-live="polite">
-            Menampilkan {filteredItems.length} dari {items.length} item.
-          </p>
-        </CardContent>
-      </Card>
-
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
@@ -386,8 +263,142 @@ export default function CatalogInventoryPanel({
       </div>
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Kartu stok sparepart</CardTitle>
+        <CardHeader className="gap-4 border-b pb-4">
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+            <div>
+              <CardTitle id="monthly-inventory-title" className="text-base">
+                Kartu stok sparepart · {monthLabel(month)}
+              </CardTitle>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Filter & periode kartu stok berada di satu tempat agar konteks tabel tetap jelas.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <form
+                action={`/${locale}/mektek/items/spreadsheet`}
+                className="flex flex-col gap-2 sm:flex-row sm:items-end"
+              >
+                <div className="space-y-1.5">
+                  <Label htmlFor="inventory-month">Bulan kartu stok</Label>
+                  <Input
+                    id="inventory-month"
+                    type="month"
+                    name="month"
+                    max={currentMonth}
+                    defaultValue={month}
+                  />
+                </div>
+                <Button type="submit" variant="outline">
+                  Tampilkan
+                </Button>
+              </form>
+              <Button asChild variant="outline">
+                <a href={`/api/mektek/catalog-inventory/export?month=${month}`}>
+                  <Download data-icon="inline-start" />
+                  Export Excel
+                </a>
+              </Button>
+            </div>
+          </div>
+          <div>
+            <p className="mb-3 text-sm font-medium">Filter & periode kartu stok</p>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_160px_200px_150px_130px_auto] xl:items-end">
+              <div className="space-y-1.5">
+                <Label htmlFor="stock-card-search">Cari seluruh kolom</Label>
+                <Input
+                  id="stock-card-search"
+                  type="search"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Item, machine, part number, lokasi..."
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="stock-card-channel">Channel</Label>
+                <Select
+                  value={productionChannel || "ALL"}
+                  onValueChange={(value) =>
+                    setProductionChannel(value === "ALL" ? "" : value)
+                  }
+                >
+                  <SelectTrigger id="stock-card-channel"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Semua channel</SelectItem>
+                    <SelectItem value="POWERTRAIN">Powertrain</SelectItem>
+                    <SelectItem value="THERMAL">Thermal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="stock-card-quantity-field">Kolom quantity</Label>
+                <Select
+                  value={quantityField}
+                  onValueChange={(value) =>
+                    setQuantityField(value as CatalogInventoryQuantityField)
+                  }
+                >
+                  <SelectTrigger id="stock-card-quantity-field"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="TOTAL_CLOSING_STOCK">Total stok akhir</SelectItem>
+                    <SelectItem value="CLOSING_REAR_STOCK">Akhir G. Belakang</SelectItem>
+                    <SelectItem value="CLOSING_FRONT_STOCK">Akhir G. Depan</SelectItem>
+                    <SelectItem value="TOTAL_INBOUND">Total stok masuk</SelectItem>
+                    <SelectItem value="TOTAL_OUTBOUND">Total stok keluar</SelectItem>
+                    <SelectItem value="OPENING_REAR_STOCK">Awal G. Belakang</SelectItem>
+                    <SelectItem value="OPENING_FRONT_STOCK">Awal G. Depan</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="stock-card-operator">Operator</Label>
+                <Select
+                  value={quantityOperator}
+                  onValueChange={(value) =>
+                    setQuantityOperator(value as CatalogInventoryQuantityOperator)
+                  }
+                >
+                  <SelectTrigger id="stock-card-operator"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LT">Kurang dari (&lt;)</SelectItem>
+                    <SelectItem value="LTE">Maksimal (≤)</SelectItem>
+                    <SelectItem value="EQ">Sama dengan (=)</SelectItem>
+                    <SelectItem value="GTE">Minimal (≥)</SelectItem>
+                    <SelectItem value="GT">Lebih dari (&gt;)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="stock-card-quantity">Nilai</Label>
+                <Input
+                  id="stock-card-quantity"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  value={quantityValue}
+                  onChange={(event) => setQuantityValue(event.target.value)}
+                  placeholder="100"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={!hasActiveFilters}
+                onClick={() => {
+                  setQuery("");
+                  setProductionChannel("");
+                  setQuantityField("TOTAL_CLOSING_STOCK");
+                  setQuantityOperator("LT");
+                  setQuantityValue("");
+                }}
+              >
+                Reset Filter
+              </Button>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground" aria-live="polite">
+              Menampilkan {filteredItems.length} dari {items.length} item.
+            </p>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">

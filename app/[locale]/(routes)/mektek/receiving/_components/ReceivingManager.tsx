@@ -23,11 +23,13 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
-  createMektekLogisticsPurchaseOrder,
-  recordMektekLogisticsPurchaseOrderReceipt,
-  type LogisticsPurchaseOrderInput,
+  createMektekReceivingPurchaseOrder,
+  recordMektekReceivingPurchaseOrderReceipt,
+  type MektekReceivingPurchaseOrderInput,
+  type MektekReceivingPurchaseOrderItemInput,
 } from "@/actions/mektek/logistics";
 import { sendMektekLogisticsDocumentWhatsApp } from "@/actions/mektek/logistics-document-whatsapp";
+import { CatalogOrManualItemPicker } from "@/app/[locale]/(routes)/mektek/_components/CatalogOrManualItemPicker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,8 +63,9 @@ type LogisticsReceiptRow = {
   purchaseOrderItemId: string;
   picId: string;
   pic: { id: string; name: string };
-  deliveryNoteNumber: string;
+  receivingReference: string;
   quantity: number;
+  warehouse: "REAR" | "FRONT";
   receivedAt: string;
   note: string | null;
   imageMimeType: string | null;
@@ -73,11 +76,15 @@ type LogisticsReceiptRow = {
 type LogisticsPurchaseOrderItemRow = {
   id: string;
   purchaseOrderId: string;
+  catalogItemId: string | null;
+  source: "CATALOG" | "MANUAL";
   position: number;
   partName: string;
   partNumber: string | null;
   orderedQuantity: number;
   receivedQuantity: number;
+  warehouse: "REAR" | "FRONT" | null;
+  note: string | null;
   status: "OPEN" | "CLOSED";
   createdAt: string;
   updatedAt: string;
@@ -88,7 +95,6 @@ type LogisticsPurchaseOrderRow = {
   id: string;
   poNumber: string;
   supplierName: string;
-  userName: string;
   projectName: string;
   inputDate: string;
   dueDate: string;
@@ -110,8 +116,15 @@ type LogisticsStats = {
   totalRemaining: number;
 };
 
-type LogisticsManagerProps = {
+type ReceivingManagerProps = {
   pics: Array<{ id: string; name: string }>;
+  catalogItems: Array<{
+    id: string;
+    description: string;
+    partNumber: string | null;
+    rearStock: number;
+    frontStock: number;
+  }>;
   purchaseOrders: LogisticsPurchaseOrderRow[];
   stats: LogisticsStats;
   mode: "overview" | "spreadsheet";
@@ -121,22 +134,26 @@ type LogisticsManagerProps = {
 
 type PurchaseOrderItemDraft = {
   clientId: string;
+  source: "CATALOG" | "MANUAL";
+  catalogItemId: string;
+  catalogQuery: string;
   partName: string;
   partNumber: string;
   orderedQuantity: string;
 };
 
-type PurchaseOrderDraft = Omit<LogisticsPurchaseOrderInput, "items"> & {
+type PurchaseOrderDraft = Omit<MektekReceivingPurchaseOrderInput, "items"> & {
   items: PurchaseOrderItemDraft[];
 };
 
 type LogisticsReceiptItemDraft = {
   quantity: string;
+  warehouse: "REAR" | "FRONT";
   note: string;
 };
 
-type LogisticsDeliveryNoteGroup = {
-  deliveryNoteNumber: string;
+type LogisticsReceivingBatchGroup = {
+  receivingReference: string;
   receivedAt: string;
   createdAt: string;
   pic: { id: string; name: string };
@@ -146,24 +163,48 @@ type LogisticsDeliveryNoteGroup = {
   }>;
 };
 
+function blankPurchaseOrderItem(clientId: string): PurchaseOrderItemDraft {
+  return {
+    clientId,
+    source: "CATALOG",
+    catalogItemId: "",
+    catalogQuery: "",
+    partName: "",
+    partNumber: "",
+    orderedQuantity: "",
+  };
+}
+
+function toReceivingPurchaseOrderItem(
+  item: PurchaseOrderItemDraft,
+): MektekReceivingPurchaseOrderItemInput {
+  if (item.source === "MANUAL") {
+    return {
+      source: "MANUAL",
+      partName: item.partName,
+      partNumber: item.partNumber,
+      orderedQuantity: item.orderedQuantity,
+    };
+  }
+  return {
+    source: "CATALOG",
+    catalogItemId: item.catalogItemId,
+    orderedQuantity: item.orderedQuantity,
+  };
+}
+
 function blankPurchaseOrder(): PurchaseOrderDraft {
   const today = getCatalogInventoryLocalDateKey();
   return {
     poNumber: "",
     supplierName: "",
-    userName: "",
     projectName: "",
     inputDate: today,
     dueDate: today,
     poType: "Normal",
     notes: "",
     items: [
-      {
-        clientId: "item-1",
-        partName: "",
-        partNumber: "",
-        orderedQuantity: "",
-      },
+      blankPurchaseOrderItem("item-1"),
     ],
   };
 }
@@ -196,14 +237,15 @@ async function uploadLogisticsReceiptImage(receiptId: string, file: File) {
   }
 }
 
-export default function LogisticsManager({
+export default function ReceivingManager({
   pics,
+  catalogItems,
   purchaseOrders,
   stats,
   mode,
   spreadsheetHref,
   managePicsHref,
-}: LogisticsManagerProps) {
+}: ReceivingManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const nextItemId = useRef(2);
@@ -219,7 +261,6 @@ export default function LogisticsManager({
     useState<LogisticsPurchaseOrderRow | null>(null);
   const [receiptDraft, setReceiptDraft] = useState({
     picId: pics[0]?.id ?? "",
-    deliveryNoteNumber: "",
     receivedAt: getCatalogInventoryLocalDateKey(),
   });
   const [receiptItemDrafts, setReceiptItemDrafts] = useState<
@@ -231,6 +272,17 @@ export default function LogisticsManager({
   const [isSendingDocument, startSendingDocument] = useTransition();
 
   const today = getCatalogInventoryLocalDateKey();
+  const selectedCatalogItemIds = useMemo(
+    () =>
+      new Set(
+        createValue.items.flatMap((item) =>
+          item.source === "CATALOG" && item.catalogItemId
+            ? [item.catalogItemId]
+            : [],
+        ),
+      ),
+    [createValue.items],
+  );
 
   const updateCreateValue = <K extends keyof PurchaseOrderDraft>(
     key: K,
@@ -239,15 +291,65 @@ export default function LogisticsManager({
     setCreateValue((current) => ({ ...current, [key]: value }));
   };
 
-  const updateItem = (
+  const updateItem = <K extends Exclude<keyof PurchaseOrderItemDraft, "clientId">>(
     clientId: string,
-    key: Exclude<keyof PurchaseOrderItemDraft, "clientId">,
-    value: string,
+    key: K,
+    value: PurchaseOrderItemDraft[K],
   ) => {
     setCreateValue((current) => ({
       ...current,
       items: current.items.map((item) =>
         item.clientId === clientId ? { ...item, [key]: value } : item,
+      ),
+    }));
+  };
+
+  const switchItemSource = (
+    clientId: string,
+    source: PurchaseOrderItemDraft["source"],
+  ) => {
+    setCreateValue((current) => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.clientId === clientId
+          ? {
+              ...blankPurchaseOrderItem(clientId),
+              source,
+              orderedQuantity: item.orderedQuantity,
+            }
+          : item,
+      ),
+    }));
+  };
+
+  const updateCatalogQuery = (clientId: string, catalogQuery: string) => {
+    setCreateValue((current) => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.clientId === clientId
+          ? { ...item, catalogItemId: "", catalogQuery }
+          : item,
+      ),
+    }));
+  };
+
+  const selectCatalogItem = (
+    clientId: string,
+    catalogItem: Pick<
+      ReceivingManagerProps["catalogItems"][number],
+      "id" | "description" | "partNumber"
+    >,
+  ) => {
+    setCreateValue((current) => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.clientId === clientId
+          ? {
+              ...item,
+              catalogItemId: catalogItem.id,
+              catalogQuery: `${catalogItem.description} · ${catalogItem.partNumber || "Tanpa PN"}`,
+            }
+          : item,
       ),
     }));
   };
@@ -259,7 +361,7 @@ export default function LogisticsManager({
       ...current,
       items: [
         ...current.items,
-        { clientId, partName: "", partNumber: "", orderedQuantity: "" },
+        blankPurchaseOrderItem(clientId),
       ],
     }));
   };
@@ -271,15 +373,16 @@ export default function LogisticsManager({
     }));
   };
 
-  const updateReceiptItem = (
+  const updateReceiptItem = <K extends keyof LogisticsReceiptItemDraft>(
     itemId: string,
-    key: keyof LogisticsReceiptItemDraft,
-    value: string,
+    key: K,
+    value: LogisticsReceiptItemDraft[K],
   ) => {
     setReceiptItemDrafts((current) => ({
       ...current,
       [itemId]: {
         quantity: current[itemId]?.quantity ?? "",
+        warehouse: current[itemId]?.warehouse ?? "REAR",
         note: current[itemId]?.note ?? "",
         [key]: value,
       },
@@ -288,9 +391,9 @@ export default function LogisticsManager({
 
   const submitPurchaseOrder = () => {
     startTransition(async () => {
-      const result = await createMektekLogisticsPurchaseOrder({
+      const result = await createMektekReceivingPurchaseOrder({
         ...createValue,
-        items: createValue.items.map(({ clientId: _clientId, ...item }) => item),
+        items: createValue.items.map(toReceivingPurchaseOrderItem),
       });
       if (!result || "error" in result) {
         toast.error(result?.error || "Gagal membuat Purchase Order");
@@ -308,18 +411,16 @@ export default function LogisticsManager({
     setActiveReceiptPurchaseOrder(purchaseOrder);
     setReceiptDraft({
       picId: pics[0]?.id ?? "",
-      deliveryNoteNumber: "",
       receivedAt: getCatalogInventoryLocalDateKey(),
     });
     setReceiptItemDrafts(
       Object.fromEntries(
         purchaseOrder.items.map((item) => {
-          const progress = getLogisticsItemProgress(item);
           return [
             item.id,
             {
-              quantity:
-                progress.status === "OPEN" ? String(progress.remainingQuantity) : "",
+              quantity: "",
+              warehouse: "REAR",
               note: "",
             },
           ];
@@ -356,17 +457,18 @@ export default function LogisticsManager({
       .map((item) => ({
         purchaseOrderItemId: item.id,
         quantity: receiptItemDrafts[item.id]?.quantity ?? "",
+        warehouse: receiptItemDrafts[item.id]?.warehouse ?? "REAR",
         note: receiptItemDrafts[item.id]?.note ?? "",
       }))
       .filter((item) => Number(item.quantity) > 0);
     startTransition(async () => {
-      const result = await recordMektekLogisticsPurchaseOrderReceipt({
+      const result = await recordMektekReceivingPurchaseOrderReceipt({
         purchaseOrderId: activeReceiptPurchaseOrder.id,
         ...receiptDraft,
         items: receiptItems,
       });
       if (!result || "error" in result) {
-        toast.error(result?.error || "Gagal mencatat Surat Jalan");
+        toast.error(result?.error || "Gagal mencatat barang masuk");
         return;
       }
       let imageUploadError: string | null = null;
@@ -381,12 +483,12 @@ export default function LogisticsManager({
       }
       const closed = result.data.purchaseOrderStatus === "CLOSED";
       if (imageUploadError) {
-        toast.warning(`Surat Jalan tersimpan, tetapi ${imageUploadError}`);
+        toast.warning(`Penerimaan tersimpan, tetapi ${imageUploadError}`);
       } else {
         toast.success(
           closed
-            ? "Surat Jalan tersimpan dan Purchase Order otomatis Closed"
-            : `Surat Jalan tersimpan untuk ${result.data.receipts.length} item`,
+            ? "Penerimaan tersimpan dan Purchase Order otomatis Closed"
+            : `Penerimaan tersimpan untuk ${result.data.receipts.length} item`,
         );
       }
       setActiveReceiptPurchaseOrder(null);
@@ -407,22 +509,33 @@ export default function LogisticsManager({
         { orderedQuantity: 0, receivedQuantity: 0, remainingQuantity: 0 },
       )
     : null;
-  const activeDeliveryNotes = useMemo(() => {
+  const hasSelectedReceiptItems =
+    activeReceiptPurchaseOrder?.items.some(
+      (item) =>
+        (item.source === "MANUAL" || !!item.catalogItemId) &&
+        Number(receiptItemDrafts[item.id]?.quantity) > 0,
+    ) ?? false;
+  const hasInvalidCreateItems = createValue.items.some((item) =>
+    item.source === "CATALOG"
+      ? !item.catalogItemId
+      : !item.partName.trim() || !item.partNumber.trim(),
+  );
+  const activeReceivingBatches = useMemo(() => {
     if (!activeReceiptPurchaseOrder) return [];
     const receiptLines = activeReceiptPurchaseOrder.items
       .flatMap((item) => item.receipts.map((receipt) => ({ item, receipt })))
       .sort((left, right) =>
         right.receipt.createdAt.localeCompare(left.receipt.createdAt),
       );
-    const groups = new Map<string, LogisticsDeliveryNoteGroup>();
+    const groups = new Map<string, LogisticsReceivingBatchGroup>();
     for (const line of receiptLines) {
-      const current = groups.get(line.receipt.deliveryNoteNumber);
+      const current = groups.get(line.receipt.receivingReference);
       if (current) {
         current.lines.push(line);
         continue;
       }
-      groups.set(line.receipt.deliveryNoteNumber, {
-        deliveryNoteNumber: line.receipt.deliveryNoteNumber,
+      groups.set(line.receipt.receivingReference, {
+        receivingReference: line.receipt.receivingReference,
         receivedAt: line.receipt.receivedAt,
         createdAt: line.receipt.createdAt,
         pic: line.receipt.pic,
@@ -432,20 +545,19 @@ export default function LogisticsManager({
     return Array.from(groups.values());
   }, [activeReceiptPurchaseOrder]);
 
-  const sendDocument = (documentType: "PO" | "DO", receiptId?: string) => {
+  const sendDocument = () => {
     if (!activePurchaseOrder) return;
     startSendingDocument(async () => {
       const result = await sendMektekLogisticsDocumentWhatsApp({
-        documentType,
+        documentType: "PO",
         purchaseOrderId: activePurchaseOrder.id,
-        receiptId,
         phone: documentPhone,
       });
       if (!result || "error" in result) {
         toast.error(result?.error || "Gagal mengirim dokumen WhatsApp");
         return;
       }
-      toast.success(`${documentType} berhasil dikirim melalui WhatsApp`);
+      toast.success("PO Receiving berhasil dikirim melalui WhatsApp");
     });
   };
 
@@ -502,7 +614,7 @@ export default function LogisticsManager({
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold">Purchase Order Logistics</h2>
+              <h2 className="text-lg font-semibold">Purchase Order Receiving</h2>
               <p className="text-sm text-muted-foreground">
                 Buat PO baru atau buka spreadsheet untuk mencatat barang masuk.
               </p>
@@ -516,21 +628,21 @@ export default function LogisticsManager({
               <span className="hidden sm:inline">Buat Purchase Order</span>
             </Button>
           </DialogTrigger>
-           <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl md:flex md:flex-col md:overflow-hidden">
-             <DialogHeader className="shrink-0">
-              <DialogTitle>Buat Purchase Order Logistics</DialogTitle>
+           <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
+             <DialogHeader>
+              <DialogTitle>Buat Purchase Order Receiving</DialogTitle>
               <DialogDescription>
                 Masukkan seluruh Part yang diorder, termasuk barang yang belum ready dari supplier.
               </DialogDescription>
             </DialogHeader>
             <form
-               className="space-y-5 md:flex md:min-h-0 md:flex-1 md:flex-col md:space-y-0 md:gap-5"
+               className="space-y-5"
               onSubmit={(event) => {
                 event.preventDefault();
                 submitPurchaseOrder();
               }}
             >
-               <div className="grid shrink-0 gap-4 md:grid-cols-2 lg:grid-cols-3">
+               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="logistics-po-number">PO No.</Label>
                   <Input
@@ -572,17 +684,6 @@ export default function LogisticsManager({
                    </Select>
                  </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="logistics-user">User / PT</Label>
-                  <Input
-                    id="logistics-user"
-                    value={createValue.userName}
-                    onChange={(event) => updateCreateValue("userName", event.target.value)}
-                    placeholder="PT XXX"
-                    disabled={isPending}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
                   <Label htmlFor="logistics-project">Job Site / Project</Label>
                   <Input
                     id="logistics-project"
@@ -610,7 +711,7 @@ export default function LogisticsManager({
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="logistics-due-date">Due To</Label>
+                    <Label htmlFor="logistics-due-date">Due Date</Label>
                     <Input
                       id="logistics-due-date"
                       type="date"
@@ -624,13 +725,14 @@ export default function LogisticsManager({
                 </div>
               </div>
 
-               <fieldset className="space-y-3 rounded-lg border p-4 md:flex md:min-h-0 md:flex-1 md:flex-col md:space-y-0 md:gap-3">
-                <legend className="sr-only">Part yang diorder</legend>
-                 <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <fieldset className="space-y-3 rounded-lg border p-4">
+                <legend className="sr-only">Item yang dipesan</legend>
+                <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="font-medium">Part yang diorder</p>
+                    <p className="font-medium">Item yang dipesan</p>
                     <p className="text-xs text-muted-foreground">
-                      Jangan hapus Part yang belum ready; biarkan QTY Masuk 0 agar tetap pending.
+                      Cari seluruh Catalog / Item atau gunakan input manual jika barang
+                      belum terdaftar.
                     </p>
                   </div>
                   <Button
@@ -638,81 +740,90 @@ export default function LogisticsManager({
                     variant="outline"
                     size="sm"
                     onClick={addItem}
-                    disabled={isPending}
+                    disabled={isPending || createValue.items.length >= 100}
                   >
                     <Plus data-icon="inline-start" />
-                    Tambah Part
+                    Tambah Item
                   </Button>
                 </div>
-                 <div className="max-h-[18rem] space-y-3 overflow-y-auto overscroll-contain pe-2 md:min-h-0 md:flex-1">
-                  {createValue.items.map((item, index) => (
-                    <div
-                      key={item.clientId}
-                      className="grid gap-3 rounded-md bg-muted/40 p-3 md:grid-cols-[minmax(200px,1fr)_180px_130px_auto] md:items-end"
-                    >
-               <div className="shrink-0 space-y-1.5">
-                        <Label htmlFor={`logistics-part-${item.clientId}`}>
-                          Part {index + 1}
-                        </Label>
-                        <Input
-                          id={`logistics-part-${item.clientId}`}
-                          value={item.partName}
-                          onChange={(event) =>
-                            updateItem(item.clientId, "partName", event.target.value)
-                          }
-                          placeholder="Compressor, Aki, Baterai..."
-                          disabled={isPending}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor={`logistics-part-number-${item.clientId}`}>
-                          Part Number
-                        </Label>
-                        <Input
-                          id={`logistics-part-number-${item.clientId}`}
-                          value={item.partNumber}
-                          onChange={(event) =>
-                            updateItem(item.clientId, "partNumber", event.target.value)
-                          }
-                          placeholder="Opsional"
-                          disabled={isPending}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor={`logistics-qty-${item.clientId}`}>
-                          QTY Order
-                        </Label>
-                        <Input
-                          id={`logistics-qty-${item.clientId}`}
-                          type="number"
-                          inputMode="numeric"
-                          min={1}
-                          step={1}
-                          value={item.orderedQuantity}
-                          onChange={(event) =>
-                            updateItem(
-                              item.clientId,
-                              "orderedQuantity",
-                              event.target.value,
-                            )
-                          }
-                          disabled={isPending}
-                          required
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeItem(item.clientId)}
-                        disabled={isPending || createValue.items.length === 1}
-                        aria-label={`Hapus Part ${index + 1}`}
+                <div className="max-h-[24rem] space-y-3 overflow-y-auto overscroll-contain pe-2">
+                  {createValue.items.map((item, index) => {
+                    return (
+                      <div
+                        key={item.clientId}
+                        className="space-y-3 rounded-md bg-muted/40 p-3"
                       >
-                        <Trash2 />
-                      </Button>
-                    </div>
-                  ))}
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-medium">Item {index + 1}</p>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeItem(item.clientId)}
+                            disabled={isPending || createValue.items.length === 1}
+                            aria-label={`Hapus Item ${index + 1}`}
+                          >
+                            <Trash2 aria-hidden="true" />
+                          </Button>
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px] md:items-end">
+                          <CatalogOrManualItemPicker
+                            idPrefix={`receiving-${item.clientId}`}
+                            itemNumber={index + 1}
+                            source={item.source}
+                            catalogItemId={item.catalogItemId}
+                            catalogQuery={item.catalogQuery}
+                            partName={item.partName}
+                            partNumber={item.partNumber}
+                            catalogItems={catalogItems}
+                            excludedCatalogItemIds={selectedCatalogItemIds}
+                            disabled={isPending}
+                            catalogStockMessage="Terhubung ke Catalog / Item dan akan menambah stok ketika diterima."
+                            manualStockMessage="Item manual tidak mengubah stok Catalog saat diterima."
+                            onSourceChange={(source) =>
+                              switchItemSource(item.clientId, source)
+                            }
+                            onCatalogQueryChange={(query) =>
+                              updateCatalogQuery(item.clientId, query)
+                            }
+                            onCatalogItemSelect={(catalogItem) =>
+                              selectCatalogItem(item.clientId, catalogItem)
+                            }
+                            onPartNameChange={(value) =>
+                              updateItem(item.clientId, "partName", value)
+                            }
+                            onPartNumberChange={(value) =>
+                              updateItem(item.clientId, "partNumber", value)
+                            }
+                          />
+
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`logistics-qty-${item.clientId}`}>
+                              QTY Order
+                            </Label>
+                            <Input
+                              id={`logistics-qty-${item.clientId}`}
+                              type="number"
+                              inputMode="numeric"
+                              min={1}
+                              step={1}
+                              value={item.orderedQuantity}
+                              onChange={(event) =>
+                                updateItem(
+                                  item.clientId,
+                                  "orderedQuantity",
+                                  event.target.value,
+                                )
+                              }
+                              disabled={isPending}
+                              required
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </fieldset>
 
@@ -722,12 +833,15 @@ export default function LogisticsManager({
                   id="logistics-notes"
                   value={createValue.notes}
                   onChange={(event) => updateCreateValue("notes", event.target.value)}
-                  placeholder="Catatan tambahan untuk supplier atau tim Logistics"
+                  placeholder="Catatan tambahan untuk supplier atau tim Purchasing"
                   disabled={isPending}
                 />
               </div>
                <div className="flex shrink-0 justify-end">
-                <Button type="submit" disabled={isPending}>
+                <Button
+                  type="submit"
+                  disabled={isPending || hasInvalidCreateItems}
+                >
                   {isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
                   Simpan Purchase Order
                 </Button>
@@ -805,9 +919,11 @@ export default function LogisticsManager({
                             </p>
                           </div>
                           <div className="min-w-0">
-                            <p className="truncate font-medium">{purchaseOrder.userName}</p>
-                            <p className="truncate text-xs text-muted-foreground">
+                            <p className="truncate font-medium">
                               {purchaseOrder.projectName}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              Job Site / Project
                             </p>
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
@@ -850,7 +966,7 @@ export default function LogisticsManager({
 
               {activePurchaseOrder && (
                 <div className="space-y-5">
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="rounded-lg bg-muted/50 p-3">
                       <p className="text-xs text-muted-foreground">Status</p>
                       <Badge
@@ -861,10 +977,6 @@ export default function LogisticsManager({
                       >
                         {getLogisticsStatusLabel(activePurchaseOrder.status)}
                       </Badge>
-                    </div>
-                    <div className="rounded-lg bg-muted/50 p-3">
-                      <p className="text-xs text-muted-foreground">User / PT</p>
-                      <p className="mt-1 font-medium">{activePurchaseOrder.userName}</p>
                     </div>
                     <div className="rounded-lg bg-muted/50 p-3">
                       <p className="text-xs text-muted-foreground">Job Site / Project</p>
@@ -881,7 +993,7 @@ export default function LogisticsManager({
                       </p>
                     </div>
                     <div className="rounded-lg bg-muted/50 p-3">
-                      <p className="text-xs text-muted-foreground">Due To</p>
+                      <p className="text-xs text-muted-foreground">Due Date</p>
                       <p className="mt-1 font-medium">
                         {formatDate(activePurchaseOrder.dueDate)}
                       </p>
@@ -912,7 +1024,7 @@ export default function LogisticsManager({
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <Input
-                        aria-label="Nomor WhatsApp tujuan dokumen Logistics"
+                        aria-label="Nomor WhatsApp tujuan dokumen Receiving"
                         placeholder="Contoh: 0812 3456 7890"
                         value={documentPhone}
                         onChange={(event) => setDocumentPhone(event.target.value)}
@@ -931,7 +1043,7 @@ export default function LogisticsManager({
                       </Button>
                       <Button
                         type="button"
-                        onClick={() => sendDocument("PO")}
+                        onClick={sendDocument}
                         disabled={isSendingDocument || !documentPhone.trim()}
                       >
                         {isSendingDocument ? (
@@ -954,7 +1066,12 @@ export default function LogisticsManager({
                         <div key={item.id} className="rounded-lg border">
                           <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                              <p className="font-medium">{item.partName}</p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-medium">{item.partName}</p>
+                                {item.source === "MANUAL" && (
+                                  <Badge variant="outline">Manual</Badge>
+                                )}
+                              </div>
                               <p className="text-xs text-muted-foreground">
                                 {item.partNumber || "Tanpa Part Number"}
                               </p>
@@ -993,11 +1110,13 @@ export default function LogisticsManager({
                               {item.receipts.map((receipt) => (
                                 <div
                                   key={receipt.id}
-                                  className="grid gap-2 text-sm sm:grid-cols-[120px_1fr_auto_auto_auto] sm:items-center"
+                                  className="grid gap-2 text-sm sm:grid-cols-[120px_1fr_auto_auto] sm:items-center"
                                 >
                                   <span>{formatDate(receipt.receivedAt)}</span>
-                                  <span className="font-mono">
-                                    {receipt.deliveryNoteNumber}
+                                  <span className="text-xs text-muted-foreground">
+                                    {receipt.warehouse === "FRONT"
+                                      ? "Gudang Depan"
+                                      : "Gudang Belakang"}
                                   </span>
                                   <span className="text-xs text-muted-foreground">
                                     PIC: {receipt.pic.name}
@@ -1005,28 +1124,6 @@ export default function LogisticsManager({
                                   <span className="font-mono font-semibold tabular-nums">
                                     +{receipt.quantity}
                                   </span>
-                                  {progress.status === "CLOSED" && (
-                                    <Button asChild type="button" size="sm" variant="outline">
-                                      <a
-                                        href={`/api/mektek/logistics/receipts/${encodeURIComponent(receipt.id)}/delivery-note`}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                      >
-                                        PDF DO
-                                      </a>
-                                    </Button>
-                                  )}
-                                  {progress.status === "CLOSED" && (
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      onClick={() => sendDocument("DO", receipt.id)}
-                                      disabled={isSendingDocument || !documentPhone.trim()}
-                                    >
-                                      <MessageCircle data-icon="inline-start" />
-                                      WhatsApp DO
-                                    </Button>
-                                  )}
                                 </div>
                               ))}
                             </div>
@@ -1050,26 +1147,25 @@ export default function LogisticsManager({
             Spreadsheet PO · {purchaseOrders.length} Purchase Order pada halaman ini
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Setiap PO tampil satu kali. Buka detail untuk melihat seluruh part dan Surat Jalan.
+            Setiap PO tampil satu kali. Buka detail untuk melihat progres dan riwayat barang masuk.
           </p>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="min-w-[1500px] border-collapse text-sm">
+            <table className="min-w-[1360px] border-collapse text-sm">
               <caption className="sr-only">
                 Tracking Purchase Order supplier dan quantity barang yang masuk ke Logistics
               </caption>
               <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="border-b border-e px-3 py-3 text-center">No</th>
-                  <th className="min-w-40 border-b border-e px-3 py-3 text-left">User/PT</th>
                   <th className="min-w-44 border-b border-e px-3 py-3 text-left">
                     Job Site / Project
                   </th>
                   <th className="min-w-32 border-b border-e px-3 py-3 text-left">
                     Tanggal Input
                   </th>
-                  <th className="min-w-32 border-b border-e px-3 py-3 text-left">Due To</th>
+                  <th className="min-w-32 border-b border-e px-3 py-3 text-left">Due Date</th>
                   <th className="min-w-36 border-b border-e px-3 py-3 text-left">
                     PO No. User
                   </th>
@@ -1121,9 +1217,6 @@ export default function LogisticsManager({
                     >
                       <td className="border-e px-3 py-3 text-center font-mono tabular-nums">
                         {index + 1}
-                      </td>
-                      <td className="border-e px-3 py-3 font-medium">
-                        {purchaseOrder.userName}
                       </td>
                       <td className="border-e px-3 py-3">{purchaseOrder.projectName}</td>
                       <td className="border-e px-3 py-3">{formatDate(purchaseOrder.inputDate)}</td>
@@ -1187,7 +1280,7 @@ export default function LogisticsManager({
                 })}
                 {purchaseOrders.length === 0 && (
                   <tr>
-                    <td colSpan={14} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={13} className="px-4 py-12 text-center text-muted-foreground">
                       Belum ada Purchase Order Logistics yang cocok dengan filter ini.
                     </td>
                   </tr>
@@ -1204,7 +1297,7 @@ export default function LogisticsManager({
       >
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Detail Purchase Order & Surat Jalan</DialogTitle>
+            <DialogTitle>Detail Purchase Order Receiving</DialogTitle>
             <DialogDescription>
               {activeReceiptPurchaseOrder?.poNumber} ·{" "}
               {activeReceiptPurchaseOrder?.supplierName}
@@ -1213,13 +1306,7 @@ export default function LogisticsManager({
 
           {activeReceiptPurchaseOrder && activeProgress && (
             <div className="space-y-5">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">User / PT</p>
-                  <p className="mt-1 font-medium">
-                    {activeReceiptPurchaseOrder.userName}
-                  </p>
-                </div>
+              <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg bg-muted/50 p-3">
                   <p className="text-xs text-muted-foreground">Project</p>
                   <p className="mt-1 font-medium">
@@ -1279,7 +1366,12 @@ export default function LogisticsManager({
                         className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                       >
                         <div className="min-w-0">
-                          <p className="break-words font-medium">{item.partName}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="break-words font-medium">{item.partName}</p>
+                            {item.source === "MANUAL" && (
+                              <Badge variant="outline">Manual</Badge>
+                            )}
+                          </div>
                           <p className="break-words text-xs text-muted-foreground">
                             {item.partNumber || "Tanpa Part Number"}
                           </p>
@@ -1317,28 +1409,12 @@ export default function LogisticsManager({
                   }}
                 >
                   <div>
-                    <h3 className="font-medium">Input Surat Jalan</h3>
+                    <h3 className="font-medium">Catat Barang Masuk</h3>
                     <p className="text-xs text-muted-foreground">
-                      Satu nomor Surat Jalan dapat memuat beberapa item PO sekaligus.
+                      Pilih item, gudang tujuan, dan quantity yang benar-benar diterima.
                     </p>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="logistics-delivery-note">Nomor Surat Jalan</Label>
-                      <Input
-                        id="logistics-delivery-note"
-                        value={receiptDraft.deliveryNoteNumber}
-                        onChange={(event) =>
-                          setReceiptDraft((current) => ({
-                            ...current,
-                            deliveryNoteNumber: event.target.value,
-                          }))
-                        }
-                        placeholder="Contoh: SJ-001"
-                        disabled={isPending}
-                        required
-                      />
-                    </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="logistics-received-date">Tanggal Masuk</Label>
                       <Input
@@ -1357,7 +1433,7 @@ export default function LogisticsManager({
                         required
                       />
                     </div>
-                    <div className="space-y-1.5 sm:col-span-2">
+                    <div className="space-y-1.5">
                       <Label htmlFor="logistics-receipt-pic">PIC</Label>
                       <Select
                         value={receiptDraft.picId}
@@ -1388,7 +1464,7 @@ export default function LogisticsManager({
 
                   <div className="space-y-2">
                     <div>
-                      <h4 className="text-sm font-medium">Item dalam Surat Jalan</h4>
+                      <h4 className="text-sm font-medium">Item yang diterima</h4>
                       <p className="text-xs text-muted-foreground">
                         Isi 0 atau kosongkan item yang belum diterima.
                       </p>
@@ -1396,18 +1472,34 @@ export default function LogisticsManager({
                     <div className="divide-y rounded-lg border">
                       {activeReceiptPurchaseOrder.items.map((item) => {
                         const progress = getLogisticsItemProgress(item);
+                        const canReceiveItem =
+                          item.source === "MANUAL" || !!item.catalogItemId;
                         return (
                           <div
                             key={item.id}
-                            className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_140px] sm:items-end"
+                            className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_140px_180px] sm:items-end"
                           >
                             <div className="min-w-0">
-                              <p className="break-words text-sm font-medium">
-                                {item.partName}
-                              </p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="break-words text-sm font-medium">
+                                  {item.partName}
+                                </p>
+                                {item.source === "MANUAL" && (
+                                  <Badge variant="outline">Manual</Badge>
+                                )}
+                              </div>
                               <p className="text-xs text-muted-foreground">
                                 {item.partNumber || "Tanpa Part Number"} · Sisa {progress.remainingQuantity}
                               </p>
+                              {item.source === "MANUAL" ? (
+                                <p className="text-xs text-muted-foreground">
+                                  Item manual · penerimaan tidak mengubah stok Catalog.
+                                </p>
+                              ) : !item.catalogItemId ? (
+                                <p className="text-xs text-destructive">
+                                  Belum terhubung ke Catalog / Item.
+                                </p>
+                              ) : null}
                             </div>
                             <div className="space-y-1.5">
                               <Label htmlFor={`logistics-received-quantity-${item.id}`}>
@@ -1425,11 +1517,43 @@ export default function LogisticsManager({
                                   updateReceiptItem(item.id, "quantity", event.target.value)
                                 }
                                 placeholder="0"
-                                disabled={isPending || progress.status === "CLOSED"}
+                                disabled={
+                                  isPending ||
+                                  progress.status === "CLOSED" ||
+                                  !canReceiveItem
+                                }
                               />
                             </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor={`receiving-warehouse-${item.id}`}>
+                                Gudang Tujuan
+                              </Label>
+                              <Select
+                                value={receiptItemDrafts[item.id]?.warehouse ?? "REAR"}
+                                onValueChange={(value) =>
+                                  updateReceiptItem(
+                                    item.id,
+                                    "warehouse",
+                                    value as LogisticsReceiptItemDraft["warehouse"],
+                                  )
+                                }
+                                disabled={
+                                  isPending ||
+                                  progress.status === "CLOSED" ||
+                                  !canReceiveItem
+                                }
+                              >
+                                <SelectTrigger id={`receiving-warehouse-${item.id}`}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="REAR">Gudang Belakang</SelectItem>
+                                  <SelectItem value="FRONT">Gudang Depan</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                             {Number(receiptItemDrafts[item.id]?.quantity) > 0 && (
-                              <div className="space-y-1.5 sm:col-span-2">
+                              <div className="space-y-1.5 sm:col-span-3">
                                 <Label htmlFor={`logistics-receipt-note-${item.id}`}>
                                   Keterangan Item
                                   <span className="ml-1 font-normal text-muted-foreground">
@@ -1445,7 +1569,11 @@ export default function LogisticsManager({
                                   placeholder={`Kondisi atau catatan khusus untuk ${item.partName}`}
                                   maxLength={500}
                                   rows={2}
-                                  disabled={isPending || progress.status === "CLOSED"}
+                                  disabled={
+                                    isPending ||
+                                    progress.status === "CLOSED" ||
+                                    !canReceiveItem
+                                  }
                                 />
                                 <p className="text-xs text-muted-foreground">
                                   Keterangan ini hanya berlaku untuk item ini.
@@ -1543,12 +1671,17 @@ export default function LogisticsManager({
                   <div className="flex justify-end">
                     <Button
                       type="submit"
-                      disabled={isPending || !!receiptImageError || !receiptDraft.picId}
+                      disabled={
+                        isPending ||
+                        !!receiptImageError ||
+                        !receiptDraft.picId ||
+                        !hasSelectedReceiptItems
+                      }
                     >
                       {isPending && (
                         <Loader2 data-icon="inline-start" className="animate-spin" />
                       )}
-                      Simpan Surat Jalan
+                      Simpan Penerimaan
                     </Button>
                   </div>
                 </form>
@@ -1557,30 +1690,29 @@ export default function LogisticsManager({
               <Separator />
               <div className="space-y-3">
                 <div>
-                  <h3 className="font-medium">Riwayat Surat Jalan</h3>
+                  <h3 className="font-medium">Riwayat Barang Masuk</h3>
                   <p className="text-xs text-muted-foreground">
-                    Setiap nomor tampil satu kali bersama seluruh item yang diterima.
+                    Setiap batch tampil satu kali bersama seluruh item yang diterima.
                   </p>
                 </div>
-                {activeDeliveryNotes.length > 0 ? (
+                {activeReceivingBatches.length > 0 ? (
                   <div className="space-y-3">
-                    {activeDeliveryNotes.map((deliveryNote) => {
-                      const imageReceipt = deliveryNote.lines.find(
+                    {activeReceivingBatches.map((batch) => {
+                      const imageReceipt = batch.lines.find(
                         ({ receipt }) => receipt.imageMimeType,
                       )?.receipt;
-                      const sourceReceipt = deliveryNote.lines[0]?.receipt;
                       return (
                         <div
-                          key={deliveryNote.deliveryNoteNumber}
+                          key={batch.receivingReference}
                           className="rounded-lg border p-3 sm:p-4"
                         >
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                               <p className="font-mono font-semibold">
-                                {deliveryNote.deliveryNoteNumber}
+                                Batch {batch.receivingReference}
                               </p>
                               <p className="text-xs text-muted-foreground">
-                                {formatDate(deliveryNote.receivedAt)} · PIC {deliveryNote.pic.name}
+                                {formatDate(batch.receivedAt)} · PIC {batch.pic.name}
                               </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
@@ -1595,29 +1727,10 @@ export default function LogisticsManager({
                                   </a>
                                 </Button>
                               )}
-                              {activeReceiptPurchaseOrder.status === "CLOSED" &&
-                                sourceReceipt && (
-                                  <Button
-                                    asChild
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                  >
-                                    <a
-                                      href={`/api/mektek/logistics/receipts/${encodeURIComponent(sourceReceipt.id)}/delivery-note`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      aria-label={`Cetak PDF Surat Jalan ${deliveryNote.deliveryNoteNumber}`}
-                                    >
-                                      <Printer data-icon="inline-start" />
-                                      PDF Surat Jalan
-                                    </a>
-                                  </Button>
-                                )}
                             </div>
                           </div>
                           <div className="mt-3 divide-y rounded-md border">
-                            {[...deliveryNote.lines]
+                            {[...batch.lines]
                               .sort((left, right) => left.item.position - right.item.position)
                               .map(({ item, receipt }) => (
                                 <div
@@ -1626,9 +1739,14 @@ export default function LogisticsManager({
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
-                                      <p className="break-words font-medium">
-                                        {item.partName}
-                                      </p>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="break-words font-medium">
+                                          {item.partName}
+                                        </p>
+                                        {item.source === "MANUAL" && (
+                                          <Badge variant="outline">Manual</Badge>
+                                        )}
+                                      </div>
                                       <p className="break-words text-xs text-muted-foreground">
                                         {item.partNumber || "Tanpa Part Number"}
                                       </p>
@@ -1654,7 +1772,7 @@ export default function LogisticsManager({
                   </div>
                 ) : (
                   <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                    Belum ada Surat Jalan untuk Purchase Order ini.
+                    Belum ada barang masuk untuk Purchase Order ini.
                   </p>
                 )}
               </div>

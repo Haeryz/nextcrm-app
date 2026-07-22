@@ -4,7 +4,6 @@ import { getMektekCatalogInventoryExportData } from "@/actions/mektek/catalog-in
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { authOptions } from "@/lib/auth";
 import {
   getCatalogInventoryMonthKey,
@@ -61,36 +60,11 @@ export default async function MektekCatalogInventorySpreadsheetPage({
       description="Seluruh barang dalam satu tabel dengan pencarian dan filter quantity"
     >
       <div className="flex flex-col gap-6">
-        <Card>
-          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end sm:justify-between">
-            <Button asChild type="button" variant="ghost" className="w-full sm:w-auto">
-              <Link href={`/${locale}/mektek/items`}>Kembali ke Catalogue Items</Link>
-            </Button>
-            <form
-              action={`/${locale}/mektek/items/spreadsheet`}
-              className="flex flex-col gap-3 sm:flex-row sm:items-end"
-            >
-              <div className="space-y-1.5">
-                <label
-                  htmlFor="inventory-month"
-                  className="text-sm font-medium leading-none"
-                >
-                  Bulan inventory
-                </label>
-                <Input
-                  id="inventory-month"
-                  type="month"
-                  name="month"
-                  max={currentMonth}
-                  defaultValue={inventory.month}
-                />
-              </div>
-              <Button type="submit" variant="outline">
-                Tampilkan Bulan
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        <div>
+          <Button asChild type="button" variant="outline">
+            <Link href={`/${locale}/mektek/items`}>Kembali ke Catalog / Item</Link>
+          </Button>
+        </div>
 
         <CatalogInventoryPanel
           items={inventory.snapshots.map((snapshot) => ({
@@ -100,6 +74,8 @@ export default async function MektekCatalogInventorySpreadsheetPage({
           }))}
           month={inventory.month}
           daysInMonth={daysInMonth}
+          locale={locale}
+          currentMonth={currentMonth}
         />
       </div>
     </Container>

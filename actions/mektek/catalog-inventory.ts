@@ -18,6 +18,10 @@ import {
   parseCatalogInventoryDateKey,
   type CatalogInventorySnapshot,
 } from "@/lib/mektek/catalog-inventory";
+import {
+  applyCatalogStockMovement,
+  recomputeCatalogInventoryFromMonth,
+} from "@/lib/mektek/catalog-stock-ledger";
 import { canCreateMektekOrders } from "@/lib/mektek/permissions";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
@@ -283,55 +287,6 @@ export async function listMektekCatalogInventoryItems(input?: {
   };
 }
 
-async function recomputeInventoryFromMonth(
-  tx: Prisma.TransactionClient,
-  catalogItemId: string,
-  fromMonth: Date,
-) {
-  const previous = await tx.catalogInventoryMonth.findFirst({
-    where: { catalogItemId, month: { lt: fromMonth } },
-    orderBy: { month: "desc" },
-    select: { closingRearStock: true, closingFrontStock: true },
-  });
-  const ledgers = await tx.catalogInventoryMonth.findMany({
-    where: { catalogItemId, month: { gte: fromMonth } },
-    orderBy: { month: "asc" },
-    include: { movements: true },
-  });
-  if (ledgers.length === 0) return;
-
-  let openingRearStock =
-    previous?.closingRearStock ?? ledgers[0].openingRearStock;
-  let openingFrontStock =
-    previous?.closingFrontStock ?? ledgers[0].openingFrontStock;
-
-  for (const ledger of ledgers) {
-    const month = getCatalogInventoryMonthKey(new Date(ledger.month));
-    const calculated = calculateCatalogInventoryMonth({
-      month,
-      openingRearStock,
-      openingFrontStock,
-      movements: ledger.movements,
-    });
-    await tx.catalogInventoryMonth.update({
-      where: { id: ledger.id },
-      data: {
-        openingRearStock,
-        openingFrontStock,
-        closingRearStock: calculated.closingRearStock,
-        closingFrontStock: calculated.closingFrontStock,
-      },
-    });
-    openingRearStock = calculated.closingRearStock;
-    openingFrontStock = calculated.closingFrontStock;
-  }
-
-  await tx.catalogItem.update({
-    where: { id: catalogItemId },
-    data: { rearStock: openingRearStock, frontStock: openingFrontStock },
-  });
-}
-
 export async function recordMektekCatalogStockMovement(input: {
   catalogItemId: string;
   warehouse: CatalogWarehouse;
@@ -371,65 +326,16 @@ export async function recordMektekCatalogStockMovement(input: {
 
   try {
     await prismadb.$transaction(async (tx) => {
-      const item = await tx.catalogItem.findUnique({
-        where: { id: catalogItemId },
-        select: {
-          id: true,
-          rearStock: true,
-          frontStock: true,
-          inventoryMonths: {
-            orderBy: { month: "asc" },
-            take: 1,
-            select: { month: true },
-          },
-        },
+      await applyCatalogStockMovement(tx, {
+        catalogItemId,
+        warehouse: input.warehouse,
+        direction: input.direction,
+        quantity,
+        occurredAt,
+        note: compactText(input.note) || null,
+        createdBy: access.session.user.id,
+        source: "MANUAL",
       });
-      if (!item) throw new Error("Catalogue Item tidak ditemukan");
-
-      const firstMonth = item.inventoryMonths[0]?.month;
-      if (firstMonth && range.start < firstMonth) {
-        throw new Error(
-          `Mutasi tidak boleh sebelum bulan stok awal (${getCatalogInventoryMonthKey(firstMonth)})`,
-        );
-      }
-
-      let ledger = await tx.catalogInventoryMonth.findUnique({
-        where: {
-          catalogItemId_month: { catalogItemId, month: range.start },
-        },
-      });
-      if (!ledger) {
-        const previous = await tx.catalogInventoryMonth.findFirst({
-          where: { catalogItemId, month: { lt: range.start } },
-          orderBy: { month: "desc" },
-        });
-        const openingRearStock = previous?.closingRearStock ?? item.rearStock;
-        const openingFrontStock = previous?.closingFrontStock ?? item.frontStock;
-        ledger = await tx.catalogInventoryMonth.create({
-          data: {
-            catalogItemId,
-            month: range.start,
-            openingRearStock,
-            openingFrontStock,
-            closingRearStock: openingRearStock,
-            closingFrontStock: openingFrontStock,
-          },
-        });
-      }
-
-      await tx.catalogStockMovement.create({
-        data: {
-          catalogItemId,
-          inventoryMonthId: ledger.id,
-          warehouse: input.warehouse,
-          direction: input.direction,
-          quantity,
-          occurredAt,
-          note: compactText(input.note) || null,
-          createdBy: access.session.user.id,
-        },
-      });
-      await recomputeInventoryFromMonth(tx, catalogItemId, range.start);
     });
 
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
@@ -489,7 +395,11 @@ export async function setMektekCatalogOpeningStock(input: {
         where: { id: firstLedger.id },
         data: { openingRearStock, openingFrontStock },
       });
-      await recomputeInventoryFromMonth(tx, catalogItemId, firstLedger.month);
+      await recomputeCatalogInventoryFromMonth(
+        tx,
+        catalogItemId,
+        firstLedger.month,
+      );
     });
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
     revalidatePath("/[locale]/(routes)/mektek/items/spreadsheet", "page");

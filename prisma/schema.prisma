@@ -64,6 +64,22 @@ enum CatalogStockDirection {
   OUT
 }
 
+enum CatalogStockMovementSource {
+  MANUAL
+  RECEIVING
+  OUTBOUND_PO
+}
+
+enum LogisticsPurchaseOrderFlow {
+  RECEIVING
+  OUTBOUND
+}
+
+enum LogisticsPurchaseOrderItemSource {
+  CATALOG
+  MANUAL
+}
+
 enum LogisticsPurchaseOrderStatus {
   OPEN
   CLOSED
@@ -302,6 +318,7 @@ model CatalogItem {
 
   inventoryMonths CatalogInventoryMonth[]
   stockMovements  CatalogStockMovement[]
+  logisticsItems  LogisticsPurchaseOrderItem[]
 
   @@index([machine])
   @@index([description])
@@ -328,20 +345,23 @@ model CatalogInventoryMonth {
 }
 
 model CatalogStockMovement {
-  id               String                @id @default(uuid()) @db.Uuid
+  id               String                     @id @default(uuid()) @db.Uuid
   catalogItemId    String
-  inventoryMonthId String                @db.Uuid
+  inventoryMonthId String                     @db.Uuid
   warehouse        CatalogWarehouse
   direction        CatalogStockDirection
   quantity         Int
   occurredAt       DateTime
   note             String?
-  createdBy        String?               @db.Uuid
-  createdAt        DateTime              @default(now())
+  source           CatalogStockMovementSource @default(MANUAL)
+  sourceId         String?
+  createdBy        String?                    @db.Uuid
+  createdAt        DateTime                   @default(now())
 
   item           CatalogItem           @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
   inventoryMonth CatalogInventoryMonth @relation(fields: [inventoryMonthId], references: [id], onDelete: Cascade)
 
+  @@unique([source, sourceId])
   @@index([catalogItemId, occurredAt])
   @@index([inventoryMonthId])
 }
@@ -364,23 +384,27 @@ model CatalogServiceLink {
 }
 
 model LogisticsPurchaseOrder {
-  id           String                       @id @default(uuid()) @db.Uuid
-  poNumber     String                       @unique
-  supplierName String
-  userName     String
-  projectName  String
-  inputDate    DateTime                     @db.Date
-  dueDate      DateTime                     @db.Date
-  poType       String                       @default("Normal")
-  status       LogisticsPurchaseOrderStatus @default(OPEN)
-  notes        String?
-  createdBy    String?                      @db.Uuid
-  createdAt    DateTime                     @default(now())
-  updatedAt    DateTime                     @updatedAt
+  id                 String                       @id @default(uuid()) @db.Uuid
+  poNumber           String
+  flow               LogisticsPurchaseOrderFlow   @default(RECEIVING)
+  supplierName       String
+  userName           String
+  projectName        String
+  inputDate          DateTime                     @db.Date
+  dueDate            DateTime                     @db.Date
+  poType             String                       @default("Normal")
+  status             LogisticsPurchaseOrderStatus @default(OPEN)
+  deliveryNoteNumber String?                      @unique
+  deliveryDate       DateTime?                    @db.Date
+  notes              String?
+  createdBy          String?                      @db.Uuid
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
 
   items LogisticsPurchaseOrderItem[]
 
-  @@index([status, dueDate])
+  @@unique([flow, poNumber])
+  @@index([flow, status, dueDate])
   @@index([supplierName])
   @@index([userName])
   @@index([projectName])
@@ -388,22 +412,28 @@ model LogisticsPurchaseOrder {
 }
 
 model LogisticsPurchaseOrderItem {
-  id               String                       @id @default(uuid()) @db.Uuid
-  purchaseOrderId  String                       @db.Uuid
+  id               String                           @id @default(uuid()) @db.Uuid
+  purchaseOrderId  String                           @db.Uuid
+  catalogItemId    String?
+  source           LogisticsPurchaseOrderItemSource @default(CATALOG)
   position         Int
   partName         String
   partNumber       String?
   orderedQuantity  Int
-  receivedQuantity Int                          @default(0)
-  status           LogisticsPurchaseOrderStatus @default(OPEN)
-  createdAt        DateTime                     @default(now())
-  updatedAt        DateTime                     @updatedAt
+  receivedQuantity Int                              @default(0)
+  warehouse        CatalogWarehouse?
+  note             String?
+  status           LogisticsPurchaseOrderStatus     @default(OPEN)
+  createdAt        DateTime                         @default(now())
+  updatedAt        DateTime                         @updatedAt
 
   purchaseOrder LogisticsPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  catalogItem   CatalogItem?           @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
   receipts      LogisticsReceipt[]
 
   @@unique([purchaseOrderId, position])
   @@index([purchaseOrderId, status])
+  @@index([catalogItemId])
   @@index([partName])
   @@index([partNumber])
 }
@@ -421,26 +451,27 @@ model LogisticsPic {
 }
 
 model LogisticsReceipt {
-  id                  String   @id @default(uuid()) @db.Uuid
-  purchaseOrderItemId String   @db.Uuid
-  picId               String   @db.Uuid
-  deliveryNoteNumber  String
+  id                  String           @id @default(uuid()) @db.Uuid
+  purchaseOrderItemId String           @db.Uuid
+  picId               String           @db.Uuid
+  receivingReference  String
   quantity            Int
-  receivedAt          DateTime @db.Date
+  warehouse           CatalogWarehouse @default(REAR)
+  receivedAt          DateTime         @db.Date
   note                String?
   imageData           Bytes?
   imageMimeType       String?
   imageUpdatedAt      DateTime?
-  createdBy           String?  @db.Uuid
-  createdAt           DateTime @default(now())
+  createdBy           String?          @db.Uuid
+  createdAt           DateTime         @default(now())
 
   purchaseOrderItem LogisticsPurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id], onDelete: Cascade)
   pic               LogisticsPic               @relation(fields: [picId], references: [id], onDelete: Restrict)
 
-  @@unique([purchaseOrderItemId, deliveryNoteNumber])
+  @@unique([purchaseOrderItemId, receivingReference])
   @@index([purchaseOrderItemId, receivedAt])
   @@index([picId, receivedAt])
-  @@index([deliveryNoteNumber])
+  @@index([receivingReference])
 }
 
 model MektekPayment {

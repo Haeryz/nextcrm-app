@@ -2,7 +2,6 @@ import {
   Activity,
   ClipboardList,
   MessageCircle,
-  PackageSearch,
   TicketPercent,
   Truck,
   Users,
@@ -45,19 +44,23 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
     icon: ClipboardList,
   });
 
-  if (canCreateMektekOrders(user)) {
-    items.push({
-      title: "Item",
-      url: "/mektek/items",
-      icon: PackageSearch,
-    });
-  }
-
-  if (canManageMektekLogistics(user)) {
+  const canUseCatalog = canCreateMektekOrders(user);
+  const canUseLogistics = canManageMektekLogistics(user);
+  if (canUseCatalog || canUseLogistics) {
     items.push({
       title: "Logistics",
-      url: "/mektek/logistics",
       icon: Truck,
+      items: [
+        ...(canUseCatalog
+          ? [{ title: "Catalog / Item", url: "/mektek/items" }]
+          : []),
+        ...(canUseLogistics
+          ? [
+              { title: "Monitoring PO", url: "/mektek/logistics" },
+              { title: "Receiving", url: "/mektek/receiving" },
+            ]
+          : []),
+      ],
     });
   }
 

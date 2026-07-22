@@ -28,18 +28,22 @@ describe("operations page UI contracts", () => {
       "app/[locale]/(routes)/mektek/logistics/page.tsx",
     );
     const logisticsManager = readSource(
-      "app/[locale]/(routes)/mektek/logistics/_components/LogisticsManager.tsx",
+      "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
+    );
+    const receivingManager = readSource(
+      "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
     );
 
     expect(itemsPage).toContain("spreadsheetHref=");
     expect(itemManager).toContain("Buka Spreadsheet Inventory");
-    expect(itemManager).toContain("Tambah Spare Part");
+    expect(itemManager).not.toContain("Tambah Spare Part");
     expect(itemManager).toContain("flex w-full gap-2 sm:w-auto");
 
-    expect(logisticsPage).toContain("managePicsHref=");
-    expect(logisticsManager).toContain("managePicsHref?: string");
-    expect(logisticsManager).toContain("Kelola PIC");
-    expect(logisticsManager).toContain("flex flex-wrap items-center");
+    expect(logisticsPage).toContain("OutboundLogisticsManager");
+    expect(logisticsManager).toContain("Simpan Barang Keluar");
+    expect(receivingManager).toContain("managePicsHref?: string");
+    expect(receivingManager).toContain("Kelola PIC");
+    expect(receivingManager).toContain("flex flex-wrap items-center");
   });
 
   it("presents the technician directory with labeled cards and status context", () => {

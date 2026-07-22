@@ -1,11 +1,18 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-describe("MekTek Logistics grouped Purchase Orders", () => {
-  const managerSource = readFileSync(
+describe("MekTek Purchase Order grouping", () => {
+  const outboundManager = readFileSync(
     resolve(
       process.cwd(),
-      "app/[locale]/(routes)/mektek/logistics/_components/LogisticsManager.tsx",
+      "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
+    ),
+    "utf8",
+  );
+  const receivingManager = readFileSync(
+    resolve(
+      process.cwd(),
+      "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
     ),
     "utf8",
   );
@@ -14,21 +21,19 @@ describe("MekTek Logistics grouped Purchase Orders", () => {
     "utf8",
   );
 
-  it("renders one spreadsheet history row for each Purchase Order", () => {
-    expect(managerSource).not.toContain("purchaseOrders.flatMap");
-    expect(managerSource).toContain("purchaseOrders.map((purchaseOrder, index)");
-    expect(managerSource).toContain("Buka detail");
-    expect(managerSource).toContain("Detail Part");
+  it("renders one outbound history row for each Purchase Order", () => {
+    expect(outboundManager).not.toContain("purchaseOrders.flatMap");
+    expect(outboundManager).toContain("purchaseOrders.map((purchaseOrder)");
+    expect(outboundManager).toContain("Detail Purchase Order Monitoring");
   });
 
-  it("records one delivery-note number for multiple PO items", () => {
-    expect(actionSource).toContain(
-      "recordMektekLogisticsPurchaseOrderReceipt",
+  it("records one Receiving batch for multiple selected PO items", () => {
+    expect(actionSource).toContain("recordMektekReceivingPurchaseOrderReceipt");
+    expect(receivingManager).toContain(
+      "recordMektekReceivingPurchaseOrderReceipt",
     );
-    expect(managerSource).toContain(
-      "recordMektekLogisticsPurchaseOrderReceipt",
-    );
-    expect(managerSource).toContain("Item dalam Surat Jalan");
-    expect(managerSource).toContain("Simpan Surat Jalan");
+    expect(receivingManager).toContain("Catat Barang Masuk");
+    expect(receivingManager).toContain("Simpan Penerimaan");
+    expect(receivingManager).not.toContain("Surat Jalan");
   });
 });

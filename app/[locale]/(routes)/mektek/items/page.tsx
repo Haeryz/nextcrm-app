@@ -84,8 +84,8 @@ export default async function MektekCatalogItemsPage({
 
   return (
     <Container
-      title="Catalogue Items"
-      description="Kelola data sparepart dan buka spreadsheet inventory dari halaman terpisah"
+      title="Catalog / Item"
+      description="Master sparepart terintegrasi dengan Monitoring PO, Receiving, dan inventory"
     >
       <div className="flex flex-col gap-6">
         <Card>

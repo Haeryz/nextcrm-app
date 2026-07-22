@@ -4,410 +4,506 @@ jest.mock("@/lib/auth", () => ({ authOptions: {} }));
 jest.mock("@/lib/mektek/permissions", () => ({
   canManageMektekLogistics: jest.fn(() => true),
 }));
+jest.mock("@/lib/mektek/catalog-stock-ledger", () => ({
+  applyCatalogStockMovement: jest.fn(),
+}));
 
 const purchaseOrderCreate = jest.fn();
 const purchaseOrderFindUnique = jest.fn();
 const purchaseOrderUpdate = jest.fn();
-const purchaseOrderItemFindUnique = jest.fn();
+const purchaseOrderUpdateMany = jest.fn();
+const purchaseOrderItemCreate = jest.fn();
 const purchaseOrderItemUpdateMany = jest.fn();
 const purchaseOrderItemCount = jest.fn();
 const receiptCreate = jest.fn();
-const receiptFindFirst = jest.fn();
 const logisticsPicFindFirst = jest.fn();
+const catalogItemFindMany = jest.fn();
 const transaction = jest.fn();
 
 const transactionClient = {
   logisticsPurchaseOrder: {
+    create: purchaseOrderCreate,
     findUnique: purchaseOrderFindUnique,
     update: purchaseOrderUpdate,
+    updateMany: purchaseOrderUpdateMany,
   },
   logisticsPurchaseOrderItem: {
-    findUnique: purchaseOrderItemFindUnique,
+    create: purchaseOrderItemCreate,
     updateMany: purchaseOrderItemUpdateMany,
     count: purchaseOrderItemCount,
   },
-  logisticsReceipt: { create: receiptCreate, findFirst: receiptFindFirst },
+  logisticsReceipt: { create: receiptCreate },
   logisticsPic: { findFirst: logisticsPicFindFirst },
+  catalogItem: { findMany: catalogItemFindMany },
 };
 
 jest.mock("@/lib/prisma", () => ({
   prismadb: {
     $transaction: transaction,
     logisticsPurchaseOrder: {
-      create: purchaseOrderCreate,
+      count: jest.fn(),
+      findMany: jest.fn(),
+      groupBy: jest.fn(),
     },
+    logisticsPurchaseOrderItem: { aggregate: jest.fn() },
   },
 }));
 
 import {
-  createMektekLogisticsPurchaseOrder,
-  recordMektekLogisticsPurchaseOrderReceipt,
-  recordMektekLogisticsReceipt,
+  createMektekOutboundPurchaseOrder,
+  createMektekReceivingPurchaseOrder,
+  recordMektekOutboundPurchaseOrderDispatch,
+  recordMektekReceivingPurchaseOrderReceipt,
 } from "@/actions/mektek/logistics";
+import { applyCatalogStockMovement } from "@/lib/mektek/catalog-stock-ledger";
+import { buildAutomaticDeliveryNoteNumber } from "@/lib/mektek/logistics";
 import { getServerSession } from "@/lib/session";
 
-describe("MekTek Logistics actions", () => {
+const catalogRows = [
+  {
+    id: "catalog-1",
+    description: "Compressor",
+    partNumber: "CMP-001",
+    catalogPartNumber: null,
+    rearStock: 10,
+    frontStock: 4,
+  },
+  {
+    id: "catalog-2",
+    description: "Filter",
+    partNumber: "FLT-002",
+    catalogPartNumber: null,
+    rearStock: 8,
+    frontStock: 3,
+  },
+];
+
+describe("MekTek Logistics and Receiving actions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    purchaseOrderItemCreate.mockReset();
+    receiptCreate.mockReset();
     (getServerSession as jest.Mock).mockResolvedValue({
       user: { id: "admin-id", userStatus: "ACTIVE" },
     });
     transaction.mockImplementation(async (callback) => callback(transactionClient));
-    purchaseOrderItemFindUnique.mockResolvedValue({
-      id: "item-1",
-      orderedQuantity: 10,
-      receivedQuantity: 0,
-      status: "OPEN",
-      purchaseOrder: {
-        id: "po-1",
-        poNumber: "PO-001",
-        inputDate: new Date("2026-07-01T00:00:00.000Z"),
-      },
-    });
-    purchaseOrderUpdate.mockResolvedValue({ id: "po-1" });
-    purchaseOrderFindUnique.mockResolvedValue({
+    catalogItemFindMany.mockResolvedValue(catalogRows);
+    purchaseOrderCreate.mockResolvedValue({
       id: "po-1",
       poNumber: "PO-001",
-      inputDate: new Date("2026-07-01T00:00:00.000Z"),
-      items: [
-        {
-          id: "item-1",
-          orderedQuantity: 10,
-          receivedQuantity: 0,
-          status: "OPEN",
-        },
-        {
-          id: "item-2",
-          orderedQuantity: 5,
-          receivedQuantity: 0,
-          status: "OPEN",
-        },
-      ],
+      deliveryNoteNumber: "SJ-PO-001",
     });
+    purchaseOrderItemCreate
+      .mockResolvedValueOnce({ id: "po-item-1" })
+      .mockResolvedValueOnce({ id: "po-item-2" });
+    logisticsPicFindFirst.mockResolvedValue({ id: "pic-1", name: "PIC 1" });
+    purchaseOrderUpdate.mockResolvedValue({ id: "po-1" });
     purchaseOrderItemUpdateMany.mockResolvedValue({ count: 1 });
     purchaseOrderItemCount.mockResolvedValue(1);
-    receiptCreate.mockResolvedValue({ id: "receipt-1" });
-    receiptFindFirst.mockResolvedValue(null);
-    logisticsPicFindFirst.mockResolvedValue({ id: "pic-1", name: "PIC 1" });
-  });
-
-  it("records multiple PO items under one delivery-note number atomically", async () => {
-    purchaseOrderItemCount.mockResolvedValueOnce(0);
     receiptCreate
       .mockResolvedValueOnce({ id: "receipt-1" })
       .mockResolvedValueOnce({ id: "receipt-2" });
-
-    const result = await recordMektekLogisticsPurchaseOrderReceipt({
-      purchaseOrderId: "po-1",
-      picId: "pic-1",
-      deliveryNoteNumber: "sj-group-001",
-      receivedAt: "2026-07-10",
-      items: [
-        { purchaseOrderItemId: "item-1", quantity: 10 },
-        { purchaseOrderItemId: "item-2", quantity: 5 },
-      ],
-    });
-
-    expect(result).toEqual(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          purchaseOrderStatus: "CLOSED",
-          receipts: [{ id: "receipt-1" }, { id: "receipt-2" }],
-        }),
-      }),
-    );
-    expect(purchaseOrderItemUpdateMany).toHaveBeenCalledTimes(2);
-    expect(receiptCreate).toHaveBeenCalledTimes(2);
-    expect(receiptCreate).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        data: expect.objectContaining({
-          purchaseOrderItemId: "item-1",
-          deliveryNoteNumber: "SJ-GROUP-001",
-        }),
-      }),
-    );
-    expect(receiptCreate).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        data: expect.objectContaining({
-          purchaseOrderItemId: "item-2",
-          deliveryNoteNumber: "SJ-GROUP-001",
-        }),
-      }),
-    );
   });
 
-  it("stores a different receipt note for every delivery-note item", async () => {
-    receiptCreate
-      .mockResolvedValueOnce({ id: "receipt-1" })
-      .mockResolvedValueOnce({ id: "receipt-2" });
-
-    const result = await recordMektekLogisticsPurchaseOrderReceipt({
-      purchaseOrderId: "po-1",
-      picId: "pic-1",
-      deliveryNoteNumber: "SJ-NOTE-001",
-      receivedAt: "2026-07-10",
+  it("creates an outbound PO without dispatching stock before Barang Keluar", async () => {
+    const result = await createMektekOutboundPurchaseOrder({
+      poNumber: "po-001",
+      userName: "PT User",
+      projectName: "Project A",
+      inputDate: "2026-07-10",
+      dueDate: "2026-07-20",
+      poType: "Normal",
       items: [
         {
-          purchaseOrderItemId: "item-1",
-          quantity: 4,
-          note: "Kemasan penyok ringan",
+          catalogItemId: "catalog-1",
+          orderedQuantity: 3,
+          note: "Unit A",
         },
         {
-          purchaseOrderItemId: "item-2",
-          quantity: 2,
-          note: "Barang lengkap dan baik",
+          catalogItemId: "catalog-2",
+          orderedQuantity: 2,
         },
       ],
     });
 
     expect(result).toEqual(expect.objectContaining({ data: expect.any(Object) }));
-    expect(receiptCreate).toHaveBeenNthCalledWith(
-      1,
+    expect(purchaseOrderCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ note: "Kemasan penyok ringan" }),
+        data: expect.objectContaining({
+          flow: "OUTBOUND",
+          poNumber: "PO-001",
+          deliveryNoteNumber: null,
+          supplierName: "PT. Mektek Tanjung Lestari",
+        }),
       }),
     );
-    expect(receiptCreate).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        data: expect.objectContaining({ note: "Barang lengkap dan baik" }),
+    expect(purchaseOrderItemCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        source: "CATALOG",
+        catalogItemId: "catalog-1",
+        warehouse: null,
+        orderedQuantity: 3,
       }),
-    );
+    });
+    expect(applyCatalogStockMovement).not.toHaveBeenCalled();
   });
 
-  it("rejects a duplicate delivery-note number for the same PO", async () => {
-    receiptFindFirst.mockResolvedValueOnce({ id: "existing-receipt" });
-
-    const result = await recordMektekLogisticsPurchaseOrderReceipt({
-      purchaseOrderId: "po-1",
-      picId: "pic-1",
-      deliveryNoteNumber: "SJ-GROUP-001",
-      receivedAt: "2026-07-10",
-      items: [{ purchaseOrderItemId: "item-1", quantity: 10 }],
-    });
-
-    expect(result).toEqual({
-      error: "Surat Jalan SJ-GROUP-001 sudah pernah diinput untuk PO ini",
-    });
-    expect(purchaseOrderItemUpdateMany).not.toHaveBeenCalled();
-    expect(receiptCreate).not.toHaveBeenCalled();
-  });
-
-  it("validates every delivery-note item before updating any quantity", async () => {
-    const result = await recordMektekLogisticsPurchaseOrderReceipt({
-      purchaseOrderId: "po-1",
-      picId: "pic-1",
-      deliveryNoteNumber: "SJ-GROUP-002",
-      receivedAt: "2026-07-10",
+  it("rejects duplicate Catalog lines before mutating stock", async () => {
+    const result = await createMektekOutboundPurchaseOrder({
+      poNumber: "PO-DUP",
+      userName: "PT User",
+      projectName: "Project A",
+      inputDate: "2026-07-10",
+      dueDate: "2026-07-20",
+      poType: "Normal",
       items: [
-        { purchaseOrderItemId: "item-1", quantity: 10 },
-        { purchaseOrderItemId: "item-2", quantity: 6 },
+        { catalogItemId: "catalog-1", orderedQuantity: 1 },
+        { catalogItemId: "catalog-1", orderedQuantity: 1 },
       ],
     });
 
     expect(result).toEqual({
-      error: "QTY Masuk melebihi QTY Sisa (5) untuk item PO",
+      error: "Item Catalog tidak boleh dipilih lebih dari satu kali",
     });
-    expect(purchaseOrderItemUpdateMany).not.toHaveBeenCalled();
-    expect(receiptCreate).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
+    expect(applyCatalogStockMovement).not.toHaveBeenCalled();
   });
 
-  it("records a partial receipt with an atomic remaining-quantity guard", async () => {
-    const result = await recordMektekLogisticsReceipt({
-      purchaseOrderItemId: "item-1",
+  it("creates an outbound PO with a manual item snapshot without changing Catalog stock", async () => {
+    const result = await createMektekOutboundPurchaseOrder({
+      poNumber: "PO-MANUAL-001",
+      userName: "PT User",
+      projectName: "Project A",
+      inputDate: "2026-07-10",
+      dueDate: "2026-07-20",
+      poType: "Normal",
+      items: [
+        {
+          source: "MANUAL",
+          partName: "Bracket Custom",
+          partNumber: "BR-CUSTOM-01",
+          orderedQuantity: 2,
+          note: "Pesanan non-Catalog",
+        },
+      ],
+    });
+
+    expect(result).toEqual(expect.objectContaining({ data: expect.any(Object) }));
+    expect(purchaseOrderItemCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        source: "MANUAL",
+        catalogItemId: null,
+        warehouse: null,
+        partName: "Bracket Custom",
+        partNumber: "BR-CUSTOM-01",
+        orderedQuantity: 2,
+      }),
+    });
+    expect(applyCatalogStockMovement).not.toHaveBeenCalled();
+  });
+
+  it("records a partial outbound batch and only subtracts the dispatched quantity", async () => {
+    purchaseOrderFindUnique.mockResolvedValue({
+      id: "outbound-1",
+      poNumber: "PO-OUT-001",
+      flow: "OUTBOUND",
+      inputDate: new Date("2026-07-01T00:00:00.000Z"),
+      items: [
+        {
+          id: "outbound-item-1",
+          catalogItemId: "catalog-1",
+          source: "CATALOG",
+          orderedQuantity: 10,
+          receivedQuantity: 0,
+          status: "OPEN",
+        },
+      ],
+    });
+
+    const result = await recordMektekOutboundPurchaseOrderDispatch({
+      purchaseOrderId: "outbound-1",
       picId: "pic-1",
-      deliveryNoteNumber: "sj-001",
-      quantity: 5,
-      receivedAt: "2026-07-10",
+      dispatchedAt: "2026-07-12",
+      items: [
+        {
+          purchaseOrderItemId: "outbound-item-1",
+          quantity: 5,
+          warehouse: "REAR",
+          note: "Dikirim sebagian",
+        },
+      ],
     });
 
     expect(result).toEqual(
       expect.objectContaining({
         data: expect.objectContaining({
           purchaseOrderStatus: "OPEN",
-          itemProgress: expect.objectContaining({
-            receivedQuantity: 5,
-            remainingQuantity: 5,
-            status: "OPEN",
-          }),
+          dispatchReference: expect.stringMatching(/^OUT-PO-OUT-001-/),
+          itemProgresses: [
+            expect.objectContaining({
+              orderedQuantity: 10,
+              receivedQuantity: 5,
+              remainingQuantity: 5,
+            }),
+          ],
         }),
       }),
     );
-    expect(purchaseOrderItemUpdateMany).toHaveBeenCalledWith(
+    expect(receiptCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        receivingReference: expect.stringMatching(/^OUT-PO-OUT-001-/),
+        quantity: 5,
+        warehouse: "REAR",
+        note: "Dikirim sebagian",
+      }),
+    });
+    expect(applyCatalogStockMovement).toHaveBeenCalledWith(
+      transactionClient,
       expect.objectContaining({
-        where: expect.objectContaining({
-          id: "item-1",
-          status: "OPEN",
-          receivedQuantity: { lte: 5 },
-        }),
-        data: {
-          receivedQuantity: { increment: 5 },
-          status: "OPEN",
-        },
-      }),
-    );
-    expect(receiptCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          deliveryNoteNumber: "SJ-001",
-          picId: "pic-1",
-        }),
+        catalogItemId: "catalog-1",
+        warehouse: "REAR",
+        direction: "OUT",
+        quantity: 5,
+        source: "OUTBOUND_PO",
+        sourceId: "receipt-1",
+        preventNegativeStock: true,
       }),
     );
   });
 
-  it("rejects a receipt when its PIC is missing or inactive", async () => {
-    logisticsPicFindFirst.mockResolvedValueOnce(null);
-
-    const result = await recordMektekLogisticsReceipt({
-      purchaseOrderItemId: "item-1",
-      picId: "inactive-pic",
-      deliveryNoteNumber: "SJ-002",
-      quantity: 1,
-      receivedAt: "2026-07-10",
-    });
-
-    expect(result).toEqual({ error: "PIC tidak aktif atau tidak ditemukan" });
-    expect(purchaseOrderItemUpdateMany).not.toHaveBeenCalled();
-    expect(receiptCreate).not.toHaveBeenCalled();
-  });
-
-  it("rejects over-receipt before changing any quantity", async () => {
-    purchaseOrderItemFindUnique.mockResolvedValueOnce({
-      id: "item-1",
-      orderedQuantity: 10,
-      receivedQuantity: 5,
-      status: "OPEN",
-      purchaseOrder: {
-        id: "po-1",
-        poNumber: "PO-001",
-        inputDate: new Date("2026-07-01T00:00:00.000Z"),
-      },
-    });
-
-    const result = await recordMektekLogisticsReceipt({
-      purchaseOrderItemId: "item-1",
-      picId: "pic-1",
-      deliveryNoteNumber: "SJ-002",
-      quantity: 6,
-      receivedAt: "2026-07-10",
-    });
-
-    expect(result).toEqual({ error: "QTY Masuk melebihi QTY Sisa (5)" });
-    expect(purchaseOrderItemUpdateMany).not.toHaveBeenCalled();
-    expect(receiptCreate).not.toHaveBeenCalled();
-  });
-
-  it("closes the parent PO after the final open item is fully received", async () => {
-    purchaseOrderItemCount.mockResolvedValueOnce(0);
-
-    const result = await recordMektekLogisticsReceipt({
-      purchaseOrderItemId: "item-1",
-      picId: "pic-1",
-      deliveryNoteNumber: "SJ-003",
-      quantity: 10,
-      receivedAt: "2026-07-10",
-    });
-
-    expect(result).toEqual(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          purchaseOrderStatus: "CLOSED",
-          itemProgress: expect.objectContaining({ status: "CLOSED" }),
-        }),
-      }),
-    );
-    expect(purchaseOrderUpdate).toHaveBeenLastCalledWith({
-      where: { id: "po-1" },
-      data: { status: "CLOSED" },
-    });
-  });
-
-  it("returns a clear error when the same delivery note is entered twice", async () => {
-    receiptCreate.mockRejectedValueOnce({ code: "P2002" });
-
-    const result = await recordMektekLogisticsReceipt({
-      purchaseOrderItemId: "item-1",
-      picId: "pic-1",
-      deliveryNoteNumber: "sj-004",
-      quantity: 5,
-      receivedAt: "2026-07-10",
-    });
-
-    expect(result).toEqual({
-      error: "Surat Jalan SJ-004 sudah pernah diinput untuk item ini",
-    });
-  });
-
-  it("normalizes and rejects a duplicate PO number", async () => {
-    purchaseOrderCreate.mockRejectedValueOnce({ code: "P2002" });
-
-    const result = await createMektekLogisticsPurchaseOrder({
-      poNumber: " po-001 ",
-      supplierName: "Supplier A",
-      userName: "PT XXX",
-      projectName: "Project X",
-      inputDate: "2026-07-01",
-      dueDate: "2026-07-10",
-      poType: "Normal",
-      items: [{ partName: "Compressor", orderedQuantity: 10 }],
-    });
-
-    expect(result).toEqual({ error: "PO No. PO-001 sudah terdaftar" });
-  });
-
-  it("rejects a PO type outside Normal and Consignment", async () => {
-    const result = await createMektekLogisticsPurchaseOrder({
-      poNumber: "PO-INVALID-TYPE",
-      supplierName: "Supplier A",
-      userName: "PT XXX",
-      projectName: "Project X",
-      inputDate: "2026-07-01",
-      dueDate: "2026-07-10",
-      poType: "Urgent",
-      items: [{ partName: "Compressor", orderedQuantity: 10 }],
-    });
-
-    expect(result).toEqual({ error: "PO Type harus Normal atau Consignment" });
-    expect(purchaseOrderCreate).not.toHaveBeenCalled();
-  });
-
-  it("creates every ordered Part even when nothing has arrived yet", async () => {
+  it("creates a Receiving PO from Catalog snapshots without changing stock", async () => {
     purchaseOrderCreate.mockResolvedValueOnce({
-      id: "po-2",
-      poNumber: "PO-002",
+      id: "receiving-1",
+      poNumber: "RCV-PO-001",
       items: [],
     });
-
-    await createMektekLogisticsPurchaseOrder({
-      poNumber: "PO-002",
+    const result = await createMektekReceivingPurchaseOrder({
+      poNumber: "RCV-PO-001",
       supplierName: "Supplier A",
-      userName: "PT XXX",
-      projectName: "Project X",
-      inputDate: "2026-07-01",
-      dueDate: "2026-07-10",
+      projectName: "Workshop",
+      inputDate: "2026-07-10",
+      dueDate: "2026-07-20",
       poType: "Normal",
-      items: [
-        { partName: "Compressor", orderedQuantity: 10 },
-        { partName: "Aki", orderedQuantity: 10 },
-        { partName: "Baterai", orderedQuantity: 10 },
-      ],
+      items: [{ catalogItemId: "catalog-1", orderedQuantity: 5 }],
     });
 
+    expect(result).toEqual(expect.objectContaining({ data: expect.any(Object) }));
     expect(purchaseOrderCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
+          flow: "RECEIVING",
+          userName: "PT. Mektek Tanjung Lestari",
           items: {
             create: [
-              expect.objectContaining({ position: 1, partName: "Compressor" }),
-              expect.objectContaining({ position: 2, partName: "Aki" }),
-              expect.objectContaining({ position: 3, partName: "Baterai" }),
+              expect.objectContaining({
+                catalogItemId: "catalog-1",
+                partName: "Compressor",
+                partNumber: "CMP-001",
+              }),
             ],
           },
         }),
       }),
     );
+    expect(applyCatalogStockMovement).not.toHaveBeenCalled();
+  });
+
+  it("creates a Receiving PO with a manual item snapshot when Catalog has no match", async () => {
+    purchaseOrderCreate.mockResolvedValueOnce({
+      id: "receiving-manual-1",
+      poNumber: "RCV-MANUAL-001",
+      items: [],
+    });
+
+    const result = await createMektekReceivingPurchaseOrder({
+      poNumber: "RCV-MANUAL-001",
+      supplierName: "Supplier A",
+      projectName: "Workshop",
+      inputDate: "2026-07-10",
+      dueDate: "2026-07-20",
+      poType: "Normal",
+      items: [
+        {
+          source: "MANUAL",
+          partName: "Seal Kit Custom",
+          partNumber: "SK-CUSTOM-01",
+          orderedQuantity: 3,
+        },
+      ],
+    });
+
+    expect(result).toEqual(expect.objectContaining({ data: expect.any(Object) }));
+    expect(purchaseOrderCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          flow: "RECEIVING",
+          items: {
+            create: [
+              expect.objectContaining({
+                source: "MANUAL",
+                catalogItemId: null,
+                partName: "Seal Kit Custom",
+                partNumber: "SK-CUSTOM-01",
+                orderedQuantity: 3,
+              }),
+            ],
+          },
+        }),
+      }),
+    );
+    expect(applyCatalogStockMovement).not.toHaveBeenCalled();
+  });
+
+  it("requires item name and part number for manual Receiving rows", async () => {
+    const result = await createMektekReceivingPurchaseOrder({
+      poNumber: "RCV-MANUAL-INVALID",
+      supplierName: "Supplier A",
+      projectName: "Workshop",
+      inputDate: "2026-07-10",
+      dueDate: "2026-07-20",
+      poType: "Normal",
+      items: [
+        {
+          source: "MANUAL",
+          partName: "Seal Kit Custom",
+          partNumber: "",
+          orderedQuantity: 3,
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      error: "Part Number manual baris 1 wajib diisi",
+    });
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("records Receiving without a delivery-note input and adds stock per item", async () => {
+    purchaseOrderFindUnique.mockResolvedValue({
+      id: "receiving-1",
+      poNumber: "RCV-PO-001",
+      flow: "RECEIVING",
+      inputDate: new Date("2026-07-01T00:00:00.000Z"),
+      items: [
+        {
+          id: "receiving-item-1",
+          catalogItemId: "catalog-1",
+          orderedQuantity: 5,
+          receivedQuantity: 0,
+          status: "OPEN",
+        },
+      ],
+    });
+    purchaseOrderItemCount.mockResolvedValueOnce(0);
+
+    const result = await recordMektekReceivingPurchaseOrderReceipt({
+      purchaseOrderId: "receiving-1",
+      picId: "pic-1",
+      receivedAt: "2026-07-12",
+      items: [
+        {
+          purchaseOrderItemId: "receiving-item-1",
+          quantity: 5,
+          warehouse: "FRONT",
+          note: "Kondisi baik",
+        },
+      ],
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({ purchaseOrderStatus: "CLOSED" }),
+      }),
+    );
+    expect(receiptCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        receivingReference: expect.stringMatching(/^RCV-RCV-PO-001-/),
+        warehouse: "FRONT",
+        note: "Kondisi baik",
+      }),
+    });
+    expect(applyCatalogStockMovement).toHaveBeenCalledWith(
+      transactionClient,
+      expect.objectContaining({
+        catalogItemId: "catalog-1",
+        direction: "IN",
+        source: "RECEIVING",
+        sourceId: "receipt-1",
+        warehouse: "FRONT",
+      }),
+    );
+  });
+
+  it("completes a manual Receiving item without mutating Catalog stock", async () => {
+    purchaseOrderFindUnique.mockResolvedValue({
+      id: "receiving-manual-1",
+      poNumber: "RCV-MANUAL-001",
+      flow: "RECEIVING",
+      inputDate: new Date("2026-07-01T00:00:00.000Z"),
+      items: [
+        {
+          id: "receiving-manual-item-1",
+          source: "MANUAL",
+          catalogItemId: null,
+          orderedQuantity: 3,
+          receivedQuantity: 0,
+          status: "OPEN",
+        },
+      ],
+    });
+    purchaseOrderItemCount.mockResolvedValueOnce(0);
+
+    const result = await recordMektekReceivingPurchaseOrderReceipt({
+      purchaseOrderId: "receiving-manual-1",
+      picId: "pic-1",
+      receivedAt: "2026-07-12",
+      items: [
+        {
+          purchaseOrderItemId: "receiving-manual-item-1",
+          quantity: 3,
+          warehouse: "REAR",
+          note: "Barang manual diterima",
+        },
+      ],
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({ purchaseOrderStatus: "CLOSED" }),
+      }),
+    );
+    expect(receiptCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        purchaseOrderItemId: "receiving-manual-item-1",
+        note: "Barang manual diterima",
+      }),
+    });
+    expect(applyCatalogStockMovement).not.toHaveBeenCalled();
+  });
+
+  it("does not accept an outbound PO in the Receiving mutation", async () => {
+    purchaseOrderFindUnique.mockResolvedValueOnce({
+      id: "po-1",
+      flow: "OUTBOUND",
+      items: [],
+    });
+    const result = await recordMektekReceivingPurchaseOrderReceipt({
+      purchaseOrderId: "po-1",
+      picId: "pic-1",
+      receivedAt: "2026-07-12",
+      items: [
+        {
+          purchaseOrderItemId: "item-1",
+          quantity: 1,
+          warehouse: "REAR",
+        },
+      ],
+    });
+    expect(result).toEqual({ error: "Purchase Order Receiving tidak ditemukan" });
+    expect(receiptCreate).not.toHaveBeenCalled();
+  });
+
+  it("builds a normalized automatic delivery-note number", () => {
+    expect(buildAutomaticDeliveryNoteNumber(" po / 99 ")).toBe("SJ-PO / 99");
   });
 });

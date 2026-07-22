@@ -11,7 +11,6 @@ import {
 export type MektekPurchaseOrderPdfData = {
   poNumber: string;
   supplierName: string;
-  userName: string;
   projectName: string;
   inputDate: Date;
   dueDate: Date;
@@ -33,6 +32,7 @@ const styles = StyleSheet.create({
   number: { marginTop: 3, color: "#475569", textAlign: "right" },
   info: { flexDirection: "row", flexWrap: "wrap", borderWidth: 1, borderColor: "#cbd5e1", marginBottom: 14 },
   infoCell: { width: "50%", padding: 7, borderBottomWidth: 0.5, borderBottomColor: "#e2e8f0" },
+  infoCellFull: { width: "100%" },
   label: { fontSize: 7, color: "#64748b", marginBottom: 2 },
   value: { fontFamily: "Helvetica-Bold" },
   table: { borderWidth: 1, borderColor: "#94a3b8" },
@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   cQty: { width: "15%", textAlign: "right" },
   notes: { marginTop: 14, borderWidth: 1, borderColor: "#cbd5e1", padding: 8 },
   signatureRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 30 },
-  signature: { width: "35%", textAlign: "center" },
+  signature: { width: "30%", textAlign: "center" },
   signatureLine: { marginTop: 46, borderTopWidth: 1, borderTopColor: "#111827", paddingTop: 4 },
   footer: { position: "absolute", left: 32, right: 32, bottom: 18, flexDirection: "row", justifyContent: "space-between", fontSize: 7, color: "#64748b" },
 });
@@ -67,8 +67,7 @@ function PurchaseOrderDocument({ data }: { data: MektekPurchaseOrderPdfData }) {
           <View><Text style={styles.title}>PURCHASE ORDER</Text><Text style={styles.number}>{data.poNumber}</Text></View>
         </View>
         <View style={styles.info}>
-          <View style={styles.infoCell}><Text style={styles.label}>Supplier</Text><Text style={styles.value}>{data.supplierName}</Text></View>
-          <View style={styles.infoCell}><Text style={styles.label}>User / PT</Text><Text style={styles.value}>{data.userName}</Text></View>
+          <View style={[styles.infoCell, styles.infoCellFull]}><Text style={styles.label}>Supplier</Text><Text style={styles.value}>{data.supplierName}</Text></View>
           <View style={styles.infoCell}><Text style={styles.label}>Job Site / Project</Text><Text style={styles.value}>{data.projectName}</Text></View>
           <View style={styles.infoCell}><Text style={styles.label}>Jenis PO</Text><Text style={styles.value}>{data.poType}</Text></View>
           <View style={styles.infoCell}><Text style={styles.label}>Tanggal Input</Text><Text style={styles.value}>{date(data.inputDate)}</Text></View>
@@ -92,8 +91,9 @@ function PurchaseOrderDocument({ data }: { data: MektekPurchaseOrderPdfData }) {
         </View>
         {data.notes && <View style={styles.notes}><Text style={styles.label}>Catatan</Text><Text>{data.notes}</Text></View>}
         <View style={styles.signatureRow} wrap={false}>
-          <View style={styles.signature}><Text>Dibuat oleh</Text><Text style={styles.signatureLine}>Logistics</Text></View>
-          <View style={styles.signature}><Text>Disetujui oleh</Text><Text style={styles.signatureLine}>Authorized Signature</Text></View>
+          <View style={styles.signature}><Text>Mengetahui</Text><Text style={styles.signatureLine}>Finance Accounting</Text></View>
+          <View style={styles.signature}><Text>Disetujui</Text><Text style={styles.signatureLine}>Department Purchasing</Text></View>
+          <View style={styles.signature}><Text>Dibuat / Order oleh</Text><Text style={styles.signatureLine}>Purchasing Admin</Text></View>
         </View>
         <View style={styles.footer} fixed>
           <Text>Dokumen Purchase Order MekTek</Text>

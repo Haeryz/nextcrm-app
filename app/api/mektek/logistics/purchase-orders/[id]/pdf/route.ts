@@ -22,8 +22,8 @@ export async function GET(
   );
   if (!limit.ok) return new Response("Terlalu banyak Request", { status: 429 });
 
-  const purchaseOrder = await prismadb.logisticsPurchaseOrder.findUnique({
-    where: { id },
+  const purchaseOrder = await prismadb.logisticsPurchaseOrder.findFirst({
+    where: { id, flow: "RECEIVING" },
     include: { items: { orderBy: { position: "asc" } } },
   });
   if (!purchaseOrder) return new Response("Purchase Order tidak ditemukan", { status: 404 });

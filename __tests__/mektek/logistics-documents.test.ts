@@ -1,94 +1,70 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-describe("MekTek Logistics receipt documents", () => {
-  const schema = readFileSync(resolve(process.cwd(), "prisma/schema.prisma"), "utf8");
-  const managerSource = readFileSync(
-    resolve(
-      process.cwd(),
-      "app/[locale]/(routes)/mektek/logistics/_components/LogisticsManager.tsx",
-    ),
-    "utf8",
+const readSource = (path: string) =>
+  readFileSync(resolve(process.cwd(), path), "utf8");
+
+describe("MekTek Logistics documents", () => {
+  const schema = readSource("prisma/schema.prisma");
+  const outboundManager = readSource(
+    "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
   );
-  const spreadsheetPageSource = readFileSync(
-    resolve(
-      process.cwd(),
-      "app/[locale]/(routes)/mektek/logistics/spreadsheet/page.tsx",
-    ),
-    "utf8",
+  const receivingManager = readSource(
+    "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
   );
-  const imageRouteSource = readFileSync(
-    resolve(
-      process.cwd(),
-      "app/api/mektek/logistics/receipts/[id]/image/route.ts",
-    ),
-    "utf8",
+  const imageRoute = readSource(
+    "app/api/mektek/logistics/receipts/[id]/image/route.ts",
   );
-  const pdfRouteSource = readFileSync(
-    resolve(
-      process.cwd(),
-      "app/api/mektek/logistics/receipts/[id]/delivery-note/route.ts",
-    ),
-    "utf8",
+  const deliveryNoteRoute = readSource(
+    "app/api/mektek/logistics/purchase-orders/[id]/delivery-note/route.ts",
   );
-  const pdfSource = readFileSync(
-    resolve(process.cwd(), "actions/mektek/logistics-delivery-note-pdf.ts"),
-    "utf8",
+  const deliveryNotePdf = readSource(
+    "actions/mektek/logistics-delivery-note-pdf.ts",
   );
-  const purchaseOrderPdfRoute = readFileSync(
-    resolve(
-      process.cwd(),
-      "app/api/mektek/logistics/purchase-orders/[id]/pdf/route.ts",
-    ),
-    "utf8",
+  const purchaseOrderPdfRoute = readSource(
+    "app/api/mektek/logistics/purchase-orders/[id]/pdf/route.ts",
   );
-  const whatsappSource = readFileSync(
-    resolve(process.cwd(), "actions/mektek/logistics-document-whatsapp.ts"),
-    "utf8",
+  const purchaseOrderPdf = readSource(
+    "actions/mektek/logistics-purchase-order-pdf.tsx",
+  );
+  const whatsappSource = readSource(
+    "actions/mektek/logistics-document-whatsapp.ts",
   );
 
-  it("stores item-condition photos without including the binary in Logistics lists", () => {
+  it("keeps item-condition photos on Receiving records", () => {
     expect(schema).toMatch(/imageData\s+Bytes\?/);
     expect(schema).toMatch(/imageMimeType\s+String\?/);
-    expect(imageRouteSource).toContain("validateLogisticsReceiptImageUpload");
-    expect(imageRouteSource).toContain("requireMektekLogisticsApiSession");
+    expect(imageRoute).toContain("validateLogisticsReceiptImageUpload");
+    expect(imageRoute).toContain("requireMektekLogisticsApiSession");
+    expect(receivingManager).toContain("Foto Kondisi Barang");
+    expect(receivingManager).toContain('capture="environment"');
   });
 
-  it("adds item-condition photo input and protected document actions to receipt history", () => {
-    expect(managerSource).toContain('type="file"');
-    expect(managerSource).toContain("Foto Kondisi Barang");
-    expect(managerSource).not.toContain("Foto Surat Jalan");
-    expect(managerSource).toContain("Ambil Foto");
-    expect(managerSource).toContain("Pilih dari Galeri");
-    expect(managerSource).toContain('capture="environment"');
-    expect(managerSource).toContain("Cetak PDF Surat Jalan");
-    expect(managerSource).toContain("/api/mektek/logistics/receipts/");
-    expect(pdfRouteSource).toContain("requireMektekLogisticsApiSession");
-    expect(pdfRouteSource).toContain('"Content-Type": "application/pdf"');
+  it("serves outbound delivery notes for every Monitoring PO status", () => {
+    expect(deliveryNoteRoute).toContain("requireMektekLogisticsApiSession");
+    expect(deliveryNoteRoute).toContain('flow: "OUTBOUND"');
+    expect(deliveryNoteRoute).not.toContain('status: "CLOSED"');
+    expect(deliveryNoteRoute).toContain('"Content-Type": "application/pdf"');
+    expect(outboundManager).toContain("PDF Surat Jalan");
   });
 
-  it("renders a MekTek delivery-note layout based on the supplied example", () => {
-    expect(pdfSource).toContain("PT. MEKTEK TANJUNG LESTARI");
-    expect(pdfSource).toContain("SURAT JALAN");
-    expect(pdfSource).toContain("DESCRIPTION");
-    expect(pdfSource).toContain("PART NUMBER");
-    expect(pdfSource).toContain("QTY");
+  it("uses the MekTek delivery-note layout", () => {
+    expect(deliveryNotePdf).toContain("PT. MEKTEK TANJUNG LESTARI");
+    expect(deliveryNotePdf).toContain("SURAT JALAN");
+    expect(deliveryNotePdf).toContain("DESCRIPTION");
+    expect(deliveryNotePdf).toContain("PART NUMBER");
+    expect(deliveryNotePdf).toContain("QTY");
   });
 
-  it("downloads and sends PO and DO PDFs through WhatsApp", () => {
-    expect(managerSource).toContain("PDF PO");
-    expect(managerSource).toContain("WhatsApp PO");
-    expect(managerSource).toContain("WhatsApp DO");
-    expect(managerSource).toContain("sendMektekLogisticsDocumentWhatsApp");
-    expect(purchaseOrderPdfRoute).toContain("renderMektekPurchaseOrderPdf");
-    expect(whatsappSource).toContain('documentType: "PO" | "DO"');
-    expect(whatsappSource).toContain('mimeType: "application/pdf"');
-    expect(whatsappSource).toContain("renderMektekDeliveryNotePdf");
-  });
-
-  it("makes the return-to-Logistics action visibly bordered", () => {
-    expect(spreadsheetPageSource).toMatch(
-      /Kembali ke Logistics[\s\S]*variant="outline"|variant="outline"[\s\S]*Kembali ke Logistics/,
-    );
+  it("limits Receiving documents to its PO PDF and required signatures", () => {
+    expect(receivingManager).toContain("PDF PO");
+    expect(receivingManager).toContain("WhatsApp PO");
+    expect(receivingManager).not.toContain("WhatsApp DO");
+    expect(purchaseOrderPdfRoute).toContain('flow: "RECEIVING"');
+    expect(whatsappSource).toContain('documentType: "PO"');
+    expect(whatsappSource).not.toContain('documentType: "PO" | "DO"');
+    expect(purchaseOrderPdf).toContain("Finance Accounting");
+    expect(purchaseOrderPdf).toContain("Department Purchasing");
+    expect(purchaseOrderPdf).toContain("Purchasing Admin");
   });
 });

@@ -1,5 +1,8 @@
+import { boundedText } from "@/lib/mektek/sanitize";
+
 export const LOGISTICS_PURCHASE_ORDER_STATUSES = ["OPEN", "CLOSED"] as const;
 export const LOGISTICS_PURCHASE_ORDER_TYPES = ["Normal", "Consignment"] as const;
+const MAX_DELIVERY_NOTE_NUMBER_LENGTH = 100;
 
 export type LogisticsPurchaseOrderStatus =
   (typeof LOGISTICS_PURCHASE_ORDER_STATUSES)[number];
@@ -23,6 +26,12 @@ export function normalizeLogisticsReference(value: unknown) {
     .replace(/\s+/g, " ")
     .trim()
     .toUpperCase();
+}
+
+export function buildAutomaticDeliveryNoteNumber(poNumber: string) {
+  return normalizeLogisticsReference(
+    boundedText(`SJ-${poNumber.trim()}`, MAX_DELIVERY_NOTE_NUMBER_LENGTH),
+  );
 }
 
 export function getLogisticsItemProgress({
