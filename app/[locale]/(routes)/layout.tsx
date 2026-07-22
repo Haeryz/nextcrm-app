@@ -93,7 +93,7 @@ export default async function AppLayout({
         <div className="flex flex-col flex-grow overflow-y-auto h-full w-full min-w-0">
           <div className="flex-grow py-5 w-full min-w-0">
             <div className="w-full px-4 min-w-0">
-              {children}
+              {children} 
             </div>
           </div>
         </div>

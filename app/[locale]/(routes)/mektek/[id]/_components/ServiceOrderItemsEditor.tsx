@@ -17,18 +17,12 @@ interface ServiceOrderItemsEditorProps {
   serviceOrderId: string;
 }
 
-const blankItem = (): DamageItem => ({
-  description: "",
-  estimatedCost: "",
-  quantity: 1,
-});
-
 export default function ServiceOrderItemsEditor({
   serviceOrderId,
 }: ServiceOrderItemsEditorProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [serviceItems, setServiceItems] = useState<DamageItem[]>([blankItem()]);
+  const [serviceItems, setServiceItems] = useState<DamageItem[]>([]);
   const [sparepartItems, setSparepartItems] = useState<DamageItem[]>([]);
 
   const submit = () => {
@@ -62,7 +56,7 @@ export default function ServiceOrderItemsEditor({
         return;
       }
 
-      setServiceItems([blankItem()]);
+      setServiceItems([]);
       setSparepartItems([]);
       toast.success("Item pesanan dan total pembayaran diperbarui");
       router.refresh();
@@ -87,6 +81,7 @@ export default function ServiceOrderItemsEditor({
           addLabel="Tambah deskripsi servis"
           emptyMessage="Belum ada deskripsi servis tambahan."
           descriptionPlaceholder={(index) => `Deskripsi servis ${index + 1}`}
+          minimumItems={0}
           disabled={isPending}
         />
         <DamageItemsInput
