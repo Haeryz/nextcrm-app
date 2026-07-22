@@ -34,4 +34,20 @@ describe("Mektek sidebar menu", () => {
     expect(titles).not.toContain("Technician");
     expect(titles).not.toContain("Sub-admin");
   });
+
+  it.each([
+    ["MONITORING_PO", ["Catalog / Item", "Monitoring PO"]],
+    ["RECEIVING", ["Catalog / Item", "Receiving"]],
+  ] as const)("shows only Catalog and %s to scoped Logistics staff", (area, expected) => {
+    const menu = getMektekMenuItems({
+      isAdmin: false,
+      staffDivision: "LOGISTICS",
+      logisticsStaffArea: area,
+      userStatus: "ACTIVE",
+    });
+    const logistics = menu.find((item) => item.title === "Logistics");
+
+    expect(menu.map((item) => item.title)).toEqual(["Logistics"]);
+    expect(logistics?.items?.map((item) => item.title)).toEqual(expected);
+  });
 });

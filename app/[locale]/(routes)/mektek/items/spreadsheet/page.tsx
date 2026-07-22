@@ -9,7 +9,7 @@ import {
   getCatalogInventoryMonthKey,
   getCatalogInventoryMonthRange,
 } from "@/lib/mektek/catalog-inventory";
-import { canCreateMektekOrders } from "@/lib/mektek/permissions";
+import { canManageMektekCatalog } from "@/lib/mektek/permissions";
 import { getServerSession } from "@/lib/session";
 import CatalogInventoryPanel from "../_components/CatalogInventoryPanel";
 
@@ -33,7 +33,7 @@ export default async function MektekCatalogInventorySpreadsheetPage({
   const { locale = "id" } = params ? await params : { locale: "id" };
   const session = await getServerSession(authOptions);
 
-  if (!canCreateMektekOrders(session?.user)) {
+  if (!canManageMektekCatalog(session?.user)) {
     return (
       <Container
         title="Spreadsheet Inventory"

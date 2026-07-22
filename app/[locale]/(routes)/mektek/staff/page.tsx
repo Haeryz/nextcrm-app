@@ -5,12 +5,9 @@ import {
 } from "@/actions/auth/sub-admins";
 import { Input } from "@/components/ui/input";
 import { requireAdmin } from "@/lib/auth-guards";
-import {
-  STAFF_DIVISIONS,
-  STAFF_DIVISION_LABELS,
-} from "@/lib/auth/staff-divisions";
 import { prismadb } from "@/lib/prisma";
 import StaffActionForm from "./_components/StaffActionForm";
+import StaffDivisionFields from "./_components/StaffDivisionFields";
 import StaffSubmitButton from "./_components/StaffSubmitButton";
 
 const selectClass =
@@ -26,6 +23,7 @@ export default async function StaffManagementPage() {
       name: true,
       email: true,
       staffDivision: true,
+      logisticsStaffArea: true,
       userStatus: true,
       lastLoginAt: true,
     },
@@ -37,7 +35,8 @@ export default async function StaffManagementPage() {
         <h1 className="text-2xl font-semibold">Sub-admin &amp; Divisi</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Hanya main admin yang dapat membuat dan mengelola account ini.
-          Pembatasan halaman per divisi belum diaktifkan.
+          Akses Logistics dibatasi ke Catalog dan bagian yang ditetapkan; matriks
+          pembatasan divisi lain masih dalam tahap penyusunan.
         </p>
       </header>
 
@@ -47,7 +46,7 @@ export default async function StaffManagementPage() {
           action={createSubAdmin}
           successMessage="Sub-admin berhasil dibuat."
           resetOnSuccess
-          className="grid gap-3 md:grid-cols-2 lg:grid-cols-5"
+          className="grid gap-3 md:grid-cols-2 lg:grid-cols-6"
         >
           <Input name="name" placeholder="Nama" required maxLength={120} />
           <Input name="email" type="email" placeholder="Email" required />
@@ -59,14 +58,7 @@ export default async function StaffManagementPage() {
             minLength={12}
             maxLength={50}
           />
-          <select name="staffDivision" className={selectClass} required defaultValue="">
-            <option value="" disabled>Pilih divisi</option>
-            {STAFF_DIVISIONS.map((division) => (
-              <option key={division} value={division}>
-                {STAFF_DIVISION_LABELS[division]}
-              </option>
-            ))}
-          </select>
+          <StaffDivisionFields />
           <StaffSubmitButton
             idleLabel="Buat sub-admin"
             pendingLabel="Membuat..."
@@ -85,23 +77,15 @@ export default async function StaffManagementPage() {
               <StaffActionForm
                 action={updateSubAdmin}
                 successMessage="Perubahan sub-admin berhasil disimpan."
-                className="grid gap-3 md:grid-cols-2 lg:grid-cols-5"
+                className="grid gap-3 md:grid-cols-2 lg:grid-cols-6"
               >
                 <input type="hidden" name="id" value={member.id} />
                 <Input name="name" defaultValue={member.name ?? ""} required />
                 <Input name="email" type="email" defaultValue={member.email} required />
-                <select
-                  name="staffDivision"
-                  className={selectClass}
-                  defaultValue={member.staffDivision ?? ""}
-                  required
-                >
-                  {STAFF_DIVISIONS.map((division) => (
-                    <option key={division} value={division}>
-                      {STAFF_DIVISION_LABELS[division]}
-                    </option>
-                  ))}
-                </select>
+                <StaffDivisionFields
+                  defaultDivision={member.staffDivision}
+                  defaultLogisticsArea={member.logisticsStaffArea}
+                />
                 <select
                   name="userStatus"
                   className={selectClass}

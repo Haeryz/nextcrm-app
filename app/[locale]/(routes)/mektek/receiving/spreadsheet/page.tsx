@@ -39,7 +39,7 @@ export default async function MektekReceivingSpreadsheetPage({
   const { locale = "id" } = params ? await params : { locale: "id" };
   const session = await getServerSession(authOptions);
 
-  if (!canManageMektekLogistics(session?.user)) {
+  if (!canManageMektekLogistics(session?.user, "RECEIVING")) {
     return (
       <Container
         title="Spreadsheet Receiving"

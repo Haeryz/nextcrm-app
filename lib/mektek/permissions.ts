@@ -1,9 +1,11 @@
 import type { StaffDivision } from "@/lib/auth/staff-divisions";
+import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 
 type MektekSessionUser = {
   isAdmin?: boolean | null;
   mektekRole?: "CS" | "TECHNICIAN" | null;
   staffDivision?: StaffDivision | null;
+  logisticsStaffArea?: LogisticsStaffArea | null;
   userStatus?: string | null;
 };
 
@@ -17,18 +19,21 @@ function isActive(user?: MektekSessionUser | null) {
   return user?.userStatus === "ACTIVE";
 }
 
-// Transitional foundation: division roles are persisted and available in the
-// session, but their page/data policy is intentionally not enforced yet. Until
-// that later phase, every active division staff account receives the same broad
-// capability result. The owner/admin master key remains independently represented
-// by isAdmin and must always bypass future division checks.
 function isDivisionStaff(user?: MektekSessionUser | null) {
   return isActive(user) && !!user?.staffDivision;
 }
 
+function isBroadDivisionStaff(user?: MektekSessionUser | null) {
+  return isDivisionStaff(user) && user?.staffDivision !== "LOGISTICS";
+}
+
+function isLogisticsStaff(user?: MektekSessionUser | null) {
+  return isActive(user) && user?.staffDivision === "LOGISTICS";
+}
+
 export function canCreateMektekOrders(user?: MektekSessionUser | null) {
   return isActive(user) &&
-    (!!user?.isAdmin || isDivisionStaff(user) || user?.mektekRole === "CS");
+    (!!user?.isAdmin || isBroadDivisionStaff(user) || user?.mektekRole === "CS");
 }
 
 export function canAccessMektekStaffArea(user?: MektekSessionUser | null) {
@@ -39,35 +44,58 @@ export function canAccessMektekStaffArea(user?: MektekSessionUser | null) {
 }
 
 export function canViewMektekDashboard(user?: MektekSessionUser | null) {
-  return isActive(user) && (!!user?.isAdmin || isDivisionStaff(user));
+  return isActive(user) && (!!user?.isAdmin || isBroadDivisionStaff(user));
 }
 
 export function canUseMektekCustomerTools(user?: MektekSessionUser | null) {
   return isActive(user) &&
-    (!!user?.isAdmin || isDivisionStaff(user) || user?.mektekRole === "CS");
+    (!!user?.isAdmin || isBroadDivisionStaff(user) || user?.mektekRole === "CS");
 }
 
 export function canUpdateMektekProgress(user?: MektekSessionUser | null) {
   return isActive(user) &&
-    (!!user?.isAdmin || isDivisionStaff(user) || user?.mektekRole === "TECHNICIAN");
+    (!!user?.isAdmin || isBroadDivisionStaff(user) || user?.mektekRole === "TECHNICIAN");
 }
 
 export function canManageMektekPayments(user?: MektekSessionUser | null) {
-  return isActive(user) && (!!user?.isAdmin || isDivisionStaff(user));
+  return isActive(user) && (!!user?.isAdmin || isBroadDivisionStaff(user));
 }
 
-export function canManageMektekLogistics(user?: MektekSessionUser | null) {
-  return isActive(user) && (!!user?.isAdmin || isDivisionStaff(user));
+export function canViewMektekOrders(user?: MektekSessionUser | null) {
+  return (
+    isActive(user) &&
+    (!!user?.isAdmin ||
+      isBroadDivisionStaff(user) ||
+      user?.mektekRole === "CS" ||
+      user?.mektekRole === "TECHNICIAN")
+  );
+}
+
+export function canManageMektekCatalog(user?: MektekSessionUser | null) {
+  return canCreateMektekOrders(user) || isLogisticsStaff(user);
+}
+
+export function canManageMektekLogistics(
+  user?: MektekSessionUser | null,
+  area?: LogisticsStaffArea,
+) {
+  if (!isActive(user)) return false;
+  if (user?.isAdmin) return true;
+  if (!isLogisticsStaff(user)) return false;
+  return area
+    ? user?.logisticsStaffArea === area
+    : user?.logisticsStaffArea === "MONITORING_PO" ||
+        user?.logisticsStaffArea === "RECEIVING";
 }
 
 export function canManageMektekSchedule(user?: MektekSessionUser | null) {
-  return isActive(user) && (!!user?.isAdmin || isDivisionStaff(user));
+  return isActive(user) && (!!user?.isAdmin || isBroadDivisionStaff(user));
 }
 
 export function canManageMektekCustomers(user?: MektekSessionUser | null) {
-  return isActive(user) && (!!user?.isAdmin || isDivisionStaff(user));
+  return isActive(user) && (!!user?.isAdmin || isBroadDivisionStaff(user));
 }
 
 export function canManageMektekVouchers(user?: MektekSessionUser | null) {
-  return isActive(user) && (!!user?.isAdmin || isDivisionStaff(user));
+  return isActive(user) && (!!user?.isAdmin || isBroadDivisionStaff(user));
 }

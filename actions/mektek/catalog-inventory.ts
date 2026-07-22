@@ -22,7 +22,7 @@ import {
   applyCatalogStockMovement,
   recomputeCatalogInventoryFromMonth,
 } from "@/lib/mektek/catalog-stock-ledger";
-import { canCreateMektekOrders } from "@/lib/mektek/permissions";
+import { canManageMektekCatalog } from "@/lib/mektek/permissions";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -96,10 +96,10 @@ function catalogWhere(input?: {
 async function ensureCatalogManager() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized: silakan Login" } as const;
-  if (!canCreateMektekOrders(session.user)) {
+  if (!canManageMektekCatalog(session.user)) {
     return {
       error:
-        "Forbidden: hanya Admin atau CS MekTek yang dapat mengelola Inventory Catalogue",
+        "Forbidden: akses Catalog / Item diperlukan",
     } as const;
   }
   return { session } as const;

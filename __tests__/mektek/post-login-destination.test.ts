@@ -25,13 +25,13 @@ describe("getPostLoginDestination", () => {
     },
   );
 
-  it("sends division staff to the dashboard during the foundation phase", () => {
+  it("sends Logistics division staff to the general Catalog page", () => {
     expect(
       getPostLoginDestination("en", {
         staffDivision: "LOGISTICS",
         userStatus: "ACTIVE",
       }),
-    ).toBe("/en/mektek/dashboard");
+    ).toBe("/en/mektek/items");
     expect(
       shouldRedirectFromStaffLogin({
         staffDivision: "LOGISTICS",

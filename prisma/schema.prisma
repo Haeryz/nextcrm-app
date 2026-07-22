@@ -39,6 +39,11 @@ enum StaffDivision {
   HUMAN_RESOURCES
 }
 
+enum LogisticsStaffArea {
+  MONITORING_PO
+  RECEIVING
+}
+
 enum CatalogServiceLinkSource {
   ADMIN_ASSIGN
   SELF_SERVICE
@@ -114,6 +119,7 @@ model Users {
   is_admin         Boolean          @default(false)
   mektekRole       MektekStaffRole?
   staffDivision    StaffDivision?
+  logisticsStaffArea LogisticsStaffArea?
   created_on       DateTime         @default(now())
   lastLoginAt      DateTime?
   name             String?
@@ -139,6 +145,7 @@ model Users {
   @@index([is_account_admin])
   @@index([mektekRole])
   @@index([staffDivision])
+  @@index([logisticsStaffArea])
   @@index([created_on])
   @@index([lastLoginAt])
 }

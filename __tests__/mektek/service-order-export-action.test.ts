@@ -1,7 +1,7 @@
 jest.mock("@/lib/session", () => ({ getServerSession: jest.fn() }));
 jest.mock("@/lib/auth", () => ({ authOptions: {} }));
 jest.mock("@/lib/mektek/permissions", () => ({
-  canAccessMektekStaffArea: jest.fn(() => true),
+  canViewMektekOrders: jest.fn(() => true),
 }));
 
 const findMany = jest.fn();

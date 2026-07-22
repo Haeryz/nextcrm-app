@@ -38,7 +38,7 @@ export default async function MektekLogisticsSpreadsheetPage({
 }: SpreadsheetPageProps) {
   const { locale = "id" } = params ? await params : { locale: "id" };
   const session = await getServerSession(authOptions);
-  if (!canManageMektekLogistics(session?.user)) {
+  if (!canManageMektekLogistics(session?.user, "MONITORING_PO")) {
     return (
       <Container title="Spreadsheet Monitoring PO" description="Data pengiriman MekTek">
         <Card>

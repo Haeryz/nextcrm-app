@@ -6,13 +6,13 @@ import {
   getMektekServiceOrderExportMonthRange,
 } from "@/lib/mektek/service-order-export";
 import { mektekOrderWhere, mektekPaymentSelect } from "@/lib/mektek/orders";
-import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
+import { canViewMektekOrders } from "@/lib/mektek/permissions";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
 export async function getMektekServiceOrderExportData(month?: string) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id || !canAccessMektekStaffArea(session.user)) {
+  if (!session?.user?.id || !canViewMektekOrders(session.user)) {
     throw new Error("Forbidden");
   }
 

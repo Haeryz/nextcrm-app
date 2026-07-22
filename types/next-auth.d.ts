@@ -1,6 +1,7 @@
 import type { Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import type { StaffDivision } from "@/lib/auth/staff-divisions";
+import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 
 type UserId = string;
 
@@ -10,6 +11,7 @@ declare module "next-auth/jwt" {
     isAdmin: boolean;
     mektekRole?: "CS" | "TECHNICIAN" | null;
     staffDivision?: StaffDivision | null;
+    logisticsStaffArea?: LogisticsStaffArea | null;
     phone?: string | null;
     phoneNormalized?: string | null;
     authVersion?: number;
@@ -25,6 +27,7 @@ declare module "next-auth" {
       isAdmin: boolean;
       mektekRole?: "CS" | "TECHNICIAN" | null;
       staffDivision?: StaffDivision | null;
+      logisticsStaffArea?: LogisticsStaffArea | null;
       phone?: string | null;
       phoneNormalized?: string | null;
       userLanguage: string;

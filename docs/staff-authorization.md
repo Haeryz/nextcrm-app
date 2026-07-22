@@ -1,8 +1,9 @@
 # Staff Divisions and Deferred Authorization
 
-> **Mandatory status:** the role foundation and owner CRUD are implemented, but
-> division-specific authorization is intentionally **not enforced yet**. Read this
-> document before changing authentication, staff pages, middleware, or permissions.
+> **Mandatory status:** the role foundation and owner CRUD are implemented.
+> Logistics-specific authorization is enforced; the other division matrices remain
+> deferred. Read this document before changing authentication, staff pages,
+> middleware, or permissions.
 
 ## Current contract
 
@@ -11,6 +12,8 @@
 - `Users.staffDivision` identifies a sub-admin's business division. Initial values
   are `OPERATIONS`, `CUSTOMER_SERVICE`, `TECHNICAL`, `LOGISTICS`, `FINANCE`, and
   `HUMAN_RESOURCES`.
+- `Users.logisticsStaffArea` narrows Logistics sub-admins to `MONITORING_PO` or
+  `RECEIVING`. Both areas can access Catalog / Item. Main admins bypass this scope.
 - `Users.mektekRole` (`CS` / `TECHNICIAN`) is the older task-level operational role
   and remains in place for compatibility. Do not silently merge it into the new
   division field during unrelated work.
@@ -29,14 +32,15 @@
 
 ## Deliberately temporary behavior
 
-`lib/mektek/permissions.ts` currently treats every active `staffDivision` account
-as broadly authorized. This is deliberate scaffolding requested before the final
-application authorization pass. **Do not interpret it as a finished security
-model, and do not onboard real limited-access staff while this behavior remains.**
+`lib/mektek/permissions.ts` enforces the approved Logistics subset: Logistics staff
+can access Catalog / Item plus exactly one assigned area (`MONITORING_PO` or
+`RECEIVING`). The restriction covers navigation, pages, server actions, route
+handlers, exports, documents, receipt images, and service-order reads.
 
-No page, server action, route handler, API response, export, search result, or
-database query is currently restricted according to the new divisions. Hiding a
-sidebar link alone is never authorization.
+Other divisions still use the deliberate broad-access scaffolding. **Do not
+interpret those remaining policies as finished or onboard other limited-access
+divisions yet.** Hiding a sidebar link alone is never authorization; every new
+division policy must follow the server-side pattern established for Logistics.
 
 ## Required final authorization phase
 
@@ -73,8 +77,10 @@ Implement this only when the owner approves the final route/data matrix:
 
 ## Key files
 
-- `prisma/schema.prisma` and migration `20260720120000_staff_division_foundation`
+- `prisma/schema.prisma`, migration `20260720120000_staff_division_foundation`,
+  and migration `20260722200000_logistics_staff_area`
 - `lib/auth/staff-divisions.ts` — canonical values and labels
+- `lib/auth/logistics-staff-areas.ts` — Logistics scope values and labels
 - `lib/auth.ts`, `lib/session.ts`, `lib/request-session.ts` — session propagation
 - `lib/mektek/staff-auth.ts`, `lib/mektek/post-login-destination.ts` — staff sign-in
 - `lib/mektek/permissions.ts` — future central enforcement seam

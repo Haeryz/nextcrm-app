@@ -10,6 +10,7 @@ import type {
 import { revalidatePath } from "next/cache";
 
 import { authOptions } from "@/lib/auth";
+import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 import { getCatalogInventoryLocalDateKey } from "@/lib/mektek/catalog-inventory";
 import { applyCatalogStockMovement } from "@/lib/mektek/catalog-stock-ledger";
 import {
@@ -123,12 +124,12 @@ export type MektekOutboundDispatchInput = {
 
 class LogisticsActionError extends Error {}
 
-async function ensureLogisticsManager() {
+async function ensureLogisticsManager(area: LogisticsStaffArea) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized: silakan Login" } as const;
-  if (!canManageMektekLogistics(session.user)) {
+  if (!canManageMektekLogistics(session.user, area)) {
     return {
-      error: "Forbidden: hanya staf Logistics atau Admin yang dapat mengelola PO",
+      error: `Forbidden: akses Logistics ${area === "RECEIVING" ? "Receiving" : "Monitoring PO"} diperlukan`,
     } as const;
   }
   return { session } as const;
@@ -378,7 +379,9 @@ async function listPurchaseOrders(
   flow: LogisticsPurchaseOrderFlow,
   input?: { query?: string; status?: string; page?: number; pageSize?: number },
 ) {
-  const access = await ensureLogisticsManager();
+  const access = await ensureLogisticsManager(
+    flow === "RECEIVING" ? "RECEIVING" : "MONITORING_PO",
+  );
   if ("error" in access) return { error: access.error };
   const pageSize = Math.min(
     Math.max(Number(input?.pageSize) || DEFAULT_PAGE_SIZE, 1),
@@ -500,7 +503,7 @@ export async function listMektekOutboundPurchaseOrders(input?: {
 export async function createMektekReceivingPurchaseOrder(
   input: MektekReceivingPurchaseOrderInput,
 ) {
-  const access = await ensureLogisticsManager();
+  const access = await ensureLogisticsManager("RECEIVING");
   if ("error" in access) return { error: access.error };
   const header = normalizeHeader(
     { ...input, userName: MEKTEK_COMPANY_NAME },
@@ -565,7 +568,7 @@ export async function createMektekReceivingPurchaseOrder(
 export async function createMektekOutboundPurchaseOrder(
   input: MektekOutboundPurchaseOrderInput,
 ) {
-  const access = await ensureLogisticsManager();
+  const access = await ensureLogisticsManager("MONITORING_PO");
   if ("error" in access) return { error: access.error };
   const header = normalizeHeader(input, MEKTEK_COMPANY_NAME);
   if ("error" in header) return { error: header.error };
@@ -656,7 +659,7 @@ function buildOutboundDispatchReference(poNumber: string) {
 export async function recordMektekOutboundPurchaseOrderDispatch(
   input: MektekOutboundDispatchInput,
 ) {
-  const access = await ensureLogisticsManager();
+  const access = await ensureLogisticsManager("MONITORING_PO");
   if ("error" in access) return { error: access.error };
   const purchaseOrderId = compactText(input?.purchaseOrderId);
   const picId = compactText(input?.picId);
@@ -864,7 +867,7 @@ function buildReceivingReference(poNumber: string) {
 export async function recordMektekReceivingPurchaseOrderReceipt(
   input: MektekReceivingReceiptInput,
 ) {
-  const access = await ensureLogisticsManager();
+  const access = await ensureLogisticsManager("RECEIVING");
   if ("error" in access) return { error: access.error };
   const purchaseOrderId = compactText(input?.purchaseOrderId);
   const picId = compactText(input?.picId);

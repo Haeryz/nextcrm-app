@@ -12,7 +12,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const access = await requireMektekLogisticsApiSession();
+  const access = await requireMektekLogisticsApiSession("MONITORING_PO");
   if (access.response) return access.response;
   const { id } = await params;
   const reference = request.nextUrl.searchParams.get("reference")?.trim() || null;

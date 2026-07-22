@@ -1,7 +1,7 @@
 jest.mock("@/lib/session", () => ({ getServerSession: jest.fn() }));
 jest.mock("@/lib/auth", () => ({ authOptions: {} }));
 jest.mock("@/lib/mektek/permissions", () => ({
-  canCreateMektekOrders: jest.fn(() => true),
+  canManageMektekCatalog: jest.fn(() => true),
 }));
 
 const catalogItemFindMany = jest.fn();

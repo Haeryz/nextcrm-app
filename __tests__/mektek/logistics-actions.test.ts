@@ -57,6 +57,7 @@ import {
 } from "@/actions/mektek/logistics";
 import { applyCatalogStockMovement } from "@/lib/mektek/catalog-stock-ledger";
 import { buildAutomaticDeliveryNoteNumber } from "@/lib/mektek/logistics";
+import { canManageMektekLogistics } from "@/lib/mektek/permissions";
 import { getServerSession } from "@/lib/session";
 
 const catalogRows = [
@@ -81,6 +82,7 @@ const catalogRows = [
 describe("MekTek Logistics and Receiving actions", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    (canManageMektekLogistics as jest.Mock).mockReturnValue(true);
     purchaseOrderItemCreate.mockReset();
     receiptCreate.mockReset();
     (getServerSession as jest.Mock).mockResolvedValue({
@@ -103,6 +105,53 @@ describe("MekTek Logistics and Receiving actions", () => {
     receiptCreate
       .mockResolvedValueOnce({ id: "receipt-1" })
       .mockResolvedValueOnce({ id: "receipt-2" });
+  });
+
+  it("checks the assigned Logistics area before mutating either PO flow", async () => {
+    (canManageMektekLogistics as jest.Mock).mockImplementation(
+      (_user, area) => area === "MONITORING_PO",
+    );
+    const receivingResult = await createMektekReceivingPurchaseOrder({
+      poNumber: "PO-RCV-DENIED",
+      supplierName: "Supplier",
+      projectName: "Project",
+      inputDate: "2026-07-10",
+      dueDate: "2026-07-20",
+      poType: "Normal",
+      items: [{ catalogItemId: "catalog-1", orderedQuantity: 1 }],
+    });
+
+    expect(receivingResult).toEqual({
+      error: "Forbidden: akses Logistics Receiving diperlukan",
+    });
+    expect(canManageMektekLogistics).toHaveBeenCalledWith(
+      expect.any(Object),
+      "RECEIVING",
+    );
+    expect(transaction).not.toHaveBeenCalled();
+
+    jest.clearAllMocks();
+    (canManageMektekLogistics as jest.Mock).mockImplementation(
+      (_user, area) => area === "RECEIVING",
+    );
+    const outboundResult = await createMektekOutboundPurchaseOrder({
+      poNumber: "PO-OUT-DENIED",
+      userName: "User",
+      projectName: "Project",
+      inputDate: "2026-07-10",
+      dueDate: "2026-07-20",
+      poType: "Normal",
+      items: [{ catalogItemId: "catalog-1", orderedQuantity: 1 }],
+    });
+
+    expect(outboundResult).toEqual({
+      error: "Forbidden: akses Logistics Monitoring PO diperlukan",
+    });
+    expect(canManageMektekLogistics).toHaveBeenCalledWith(
+      expect.any(Object),
+      "MONITORING_PO",
+    );
+    expect(transaction).not.toHaveBeenCalled();
   });
 
   it("creates an outbound PO without dispatching stock before Barang Keluar", async () => {

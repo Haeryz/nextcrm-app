@@ -7,6 +7,10 @@ import {
   isStaffDivision,
   type StaffDivision,
 } from "@/lib/auth/staff-divisions";
+import {
+  isLogisticsStaffArea,
+  type LogisticsStaffArea,
+} from "@/lib/auth/logistics-staff-areas";
 import { hashPassword } from "@/lib/password";
 import { prismadb } from "@/lib/prisma";
 
@@ -20,6 +24,7 @@ function parseIdentity(formData: FormData) {
   const name = text(formData, "name").slice(0, 120);
   const email = text(formData, "email").toLowerCase();
   const rawDivision = text(formData, "staffDivision");
+  const rawLogisticsArea = text(formData, "logisticsStaffArea");
 
   if (!name) throw new Error("Nama wajib diisi.");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -29,7 +34,20 @@ function parseIdentity(formData: FormData) {
     throw new Error("Divisi staff tidak valid.");
   }
 
-  return { name, email, staffDivision: rawDivision as StaffDivision };
+  const logisticsStaffArea =
+    rawDivision === "LOGISTICS" && isLogisticsStaffArea(rawLogisticsArea)
+      ? (rawLogisticsArea as LogisticsStaffArea)
+      : null;
+  if (rawDivision === "LOGISTICS" && !logisticsStaffArea) {
+    throw new Error("Bagian Logistics wajib dipilih.");
+  }
+
+  return {
+    name,
+    email,
+    staffDivision: rawDivision as StaffDivision,
+    logisticsStaffArea,
+  };
 }
 
 export async function createSubAdmin(formData: FormData) {

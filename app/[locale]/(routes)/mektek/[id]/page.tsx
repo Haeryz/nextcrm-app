@@ -23,12 +23,12 @@ import { buildMektekInvoiceData } from "@/actions/mektek/invoice-pdf";
 import { normalizeMektekLineItems } from "@/lib/mektek/items";
 import VisitDiscountCard from "../_components/VisitDiscountCard";
 import {
-  canAccessMektekStaffArea,
   canCreateMektekOrders,
   canManageMektekPayments,
   canManageMektekSchedule,
   canUpdateMektekProgress,
   canUseMektekCustomerTools,
+  canViewMektekOrders,
 } from "@/lib/mektek/permissions";
 import {
   canEditMektekOrderItems,
@@ -55,7 +55,7 @@ function valueOrDash(value?: string | null) {
 export default async function MektekDetailPage({ params }: Props) {
   const { id, locale } = await params;
   const session = await getServerSession(authOptions);
-  const canAccess = canAccessMektekStaffArea(session?.user);
+  const canAccess = canViewMektekOrders(session?.user);
   const canUpdateProgress = canUpdateMektekProgress(session?.user);
   const canUseCustomerTools = canUseMektekCustomerTools(session?.user);
   const canManagePayment = canManageMektekPayments(session?.user);

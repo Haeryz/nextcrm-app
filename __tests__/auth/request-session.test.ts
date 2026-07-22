@@ -45,6 +45,7 @@ describe("getRequestSessionUser", () => {
       is_admin: true,
       mektekRole: null,
       staffDivision: "OPERATIONS",
+      logisticsStaffArea: null,
       userLanguage: "en",
       userStatus: "ACTIVE",
       lastLoginAt: null,
@@ -68,6 +69,7 @@ describe("getRequestSessionUser", () => {
         id: "admin-id",
         isAdmin: true,
         staffDivision: "OPERATIONS",
+        logisticsStaffArea: null,
       }),
     );
   });

@@ -9,13 +9,15 @@ import {
   Wrench,
 } from "lucide-react";
 import type { StaffDivision } from "@/lib/auth/staff-divisions";
+import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 import {
-  canCreateMektekOrders,
+  canManageMektekCatalog,
   canManageMektekCustomers,
   canManageMektekLogistics,
   canManageMektekVouchers,
   canUseMektekCustomerTools,
   canViewMektekDashboard,
+  canViewMektekOrders,
 } from "@/lib/mektek/permissions";
 import { NavItem } from "../nav-main";
 
@@ -23,6 +25,7 @@ type MektekMenuUser = {
   isAdmin?: boolean | null;
   mektekRole?: "CS" | "TECHNICIAN" | null;
   staffDivision?: StaffDivision | null;
+  logisticsStaffArea?: LogisticsStaffArea | null;
   userStatus?: string | null;
 };
 
@@ -37,16 +40,19 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
     });
   }
 
-  items.push({
-    title: "Pesanan",
-    url: "/mektek",
-    exact: true,
-    icon: ClipboardList,
-  });
+  if (canViewMektekOrders(user)) {
+    items.push({
+      title: "Pesanan",
+      url: "/mektek",
+      exact: true,
+      icon: ClipboardList,
+    });
+  }
 
-  const canUseCatalog = canCreateMektekOrders(user);
-  const canUseLogistics = canManageMektekLogistics(user);
-  if (canUseCatalog || canUseLogistics) {
+  const canUseCatalog = canManageMektekCatalog(user);
+  const canUseMonitoring = canManageMektekLogistics(user, "MONITORING_PO");
+  const canUseReceiving = canManageMektekLogistics(user, "RECEIVING");
+  if (canUseCatalog || canUseMonitoring || canUseReceiving) {
     items.push({
       title: "Logistics",
       icon: Truck,
@@ -54,11 +60,11 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
         ...(canUseCatalog
           ? [{ title: "Catalog / Item", url: "/mektek/items" }]
           : []),
-        ...(canUseLogistics
-          ? [
-              { title: "Monitoring PO", url: "/mektek/logistics" },
-              { title: "Receiving", url: "/mektek/receiving" },
-            ]
+        ...(canUseMonitoring
+          ? [{ title: "Monitoring PO", url: "/mektek/logistics" }]
+          : []),
+        ...(canUseReceiving
+          ? [{ title: "Receiving", url: "/mektek/receiving" }]
           : []),
       ],
     });

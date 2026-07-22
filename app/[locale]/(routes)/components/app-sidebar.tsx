@@ -17,6 +17,7 @@ import { AdminThemeSwitch } from "./admin-theme-switch";
 import getMektekMenuItems from "./menu-items/Mektek";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
 import type { StaffDivision } from "@/lib/auth/staff-divisions";
+import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 
 /**
  * AppSidebar Component - Task Groups 1.2, 2.2-2.7, 3.1, 5.3, 5.4
@@ -54,6 +55,7 @@ interface User {
   isAdmin?: boolean;
   mektekRole?: "CS" | "TECHNICIAN" | null;
   staffDivision?: StaffDivision | null;
+  logisticsStaffArea?: LogisticsStaffArea | null;
   userStatus?: string;
   userLanguage?: string;
   lastLoginAt?: Date;

@@ -19,7 +19,7 @@ export async function sendMektekLogisticsDocumentWhatsApp(
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
-  if (!canManageMektekLogistics(session.user)) {
+  if (!canManageMektekLogistics(session.user, "RECEIVING")) {
     return { error: "Forbidden: hanya staf Logistics atau Admin" };
   }
   const phone = normalizePhoneNumber(input.phone);

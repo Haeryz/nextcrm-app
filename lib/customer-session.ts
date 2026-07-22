@@ -191,6 +191,7 @@ export async function getCustomerServerSession(): Promise<Session | null> {
       isAdmin: false,
       mektekRole: null,
       staffDivision: null,
+      logisticsStaffArea: null,
       userLanguage: String(record.user.userLanguage),
       userStatus: String(record.user.userStatus),
     },

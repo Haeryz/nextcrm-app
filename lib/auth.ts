@@ -114,6 +114,7 @@ export const authOptions: NextAuthOptions = {
         token.isAdmin = user.is_admin ?? false;
         token.mektekRole = user.mektekRole ?? null;
         token.staffDivision = user.staffDivision ?? null;
+        token.logisticsStaffArea = user.logisticsStaffArea ?? null;
         token.phone = user.phone ?? null;
         token.phoneNormalized = user.phoneNormalized ?? null;
         token.authVersion = user.authVersion ?? 0;
@@ -134,6 +135,7 @@ export const authOptions: NextAuthOptions = {
         session.user.isAdmin = false;
         session.user.mektekRole = null;
         session.user.staffDivision = null;
+        session.user.logisticsStaffArea = null;
         session.user.userStatus = "INACTIVE";
         return session;
       }
@@ -158,6 +160,7 @@ export const authOptions: NextAuthOptions = {
       session.user.isAdmin = user.is_admin;
       session.user.mektekRole = user.mektekRole;
       session.user.staffDivision = user.staffDivision;
+      session.user.logisticsStaffArea = user.logisticsStaffArea;
       session.user.phone = user.phone;
       session.user.phoneNormalized = user.phoneNormalized;
       session.user.userLanguage = user.userLanguage;

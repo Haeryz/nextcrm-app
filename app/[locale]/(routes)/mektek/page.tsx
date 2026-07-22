@@ -5,7 +5,7 @@ import {
   getMektekTechnicians,
 } from "@/actions/mektek/service-orders";
 import { authOptions } from "@/lib/auth";
-import { canAccessMektekStaffArea, canCreateMektekOrders } from "@/lib/mektek/permissions";
+import { canCreateMektekOrders, canViewMektekOrders } from "@/lib/mektek/permissions";
 import { getMektekTodayDateInput } from "@/lib/mektek/schedule";
 import { getMektekServiceOrderExportMonthKey } from "@/lib/mektek/service-order-export";
 import { getServerSession } from "@/lib/session";
@@ -33,7 +33,7 @@ function readSearchParam(
 export default async function MektekPage({ params, searchParams }: MektekPageProps) {
   const { locale = "id" } = params ? await params : { locale: "id" };
   const session = await getServerSession(authOptions);
-  const canAccess = canAccessMektekStaffArea(session?.user);
+  const canAccess = canViewMektekOrders(session?.user);
   const canCreate = canCreateMektekOrders(session?.user);
 
   if (!canAccess) {

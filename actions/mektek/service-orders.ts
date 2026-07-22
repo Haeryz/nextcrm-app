@@ -22,12 +22,12 @@ import {
 } from "@/lib/mektek/items";
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
 import {
-  canAccessMektekStaffArea,
   canCreateMektekOrders,
   canManageMektekPayments,
   canManageMektekSchedule,
   canUpdateMektekProgress,
   canUseMektekCustomerTools,
+  canViewMektekOrders,
 } from "@/lib/mektek/permissions";
 import { calculateMektekDiscountAmount } from "@/lib/mektek/loyalty";
 import { parseMoney } from "@/lib/mektek/items";
@@ -899,7 +899,7 @@ export const getMektekServiceOrders = async (input?: {
   // orders incl. access tokens, so throw rather than leak. Throwing keeps the return
   // type a plain result object (no error union) so the page's destructure + tsc pass.
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id || !canAccessMektekStaffArea(session.user)) {
+  if (!session?.user?.id || !canViewMektekOrders(session.user)) {
     throw new Error("Forbidden");
   }
 
@@ -964,7 +964,7 @@ export const getMektekServiceOrderById = async (id: string) => {
   // invoice/receipt routes and the detail page rely on stays intact. Anonymous
   // customer PDF access does NOT go through here — it uses getPublicMektekServiceOrder*.
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id || !canAccessMektekStaffArea(session.user)) {
+  if (!session?.user?.id || !canViewMektekOrders(session.user)) {
     return null;
   }
 

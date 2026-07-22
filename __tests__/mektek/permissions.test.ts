@@ -1,6 +1,7 @@
 import {
   canAccessMektekStaffArea,
   canCreateMektekOrders,
+  canManageMektekCatalog,
   canManageMektekLogistics,
   canManageMektekVouchers,
   canManageMektekPayments,
@@ -8,6 +9,7 @@ import {
   canUpdateMektekProgress,
   canUseMektekCustomerTools,
   canViewMektekDashboard,
+  canViewMektekOrders,
 } from "@/lib/mektek/permissions";
 
 describe("MekTek permissions", () => {
@@ -19,12 +21,14 @@ describe("MekTek permissions", () => {
     expect(canUpdateMektekProgress(admin)).toBe(true);
     expect(canManageMektekPayments(admin)).toBe(true);
     expect(canManageMektekLogistics(admin)).toBe(true);
+    expect(canManageMektekCatalog(admin)).toBe(true);
+    expect(canViewMektekOrders(admin)).toBe(true);
     expect(canManageMektekVouchers(admin)).toBe(true);
     expect(canManageMektekSchedule(admin)).toBe(true);
     expect(canViewMektekDashboard(admin)).toBe(true);
   });
 
-  it("keeps division staff access broad until the authorization phase", () => {
+  it("keeps non-logistics division scaffolding broad outside Logistics", () => {
     const finance = {
       isAdmin: false,
       mektekRole: null,
@@ -37,10 +41,38 @@ describe("MekTek permissions", () => {
     expect(canUseMektekCustomerTools(finance)).toBe(true);
     expect(canUpdateMektekProgress(finance)).toBe(true);
     expect(canManageMektekPayments(finance)).toBe(true);
-    expect(canManageMektekLogistics(finance)).toBe(true);
+    expect(canManageMektekLogistics(finance)).toBe(false);
     expect(canManageMektekVouchers(finance)).toBe(true);
     expect(canManageMektekSchedule(finance)).toBe(true);
     expect(canViewMektekDashboard(finance)).toBe(true);
+  });
+
+  it("limits Logistics staff to Catalog and their assigned Logistics area", () => {
+    const monitoring = {
+      isAdmin: false,
+      staffDivision: "LOGISTICS" as const,
+      logisticsStaffArea: "MONITORING_PO" as const,
+      userStatus: "ACTIVE",
+    };
+    const receiving = {
+      ...monitoring,
+      logisticsStaffArea: "RECEIVING" as const,
+    };
+    const unassigned = { ...monitoring, logisticsStaffArea: null };
+
+    for (const user of [monitoring, receiving, unassigned]) {
+      expect(canAccessMektekStaffArea(user)).toBe(true);
+      expect(canManageMektekCatalog(user)).toBe(true);
+      expect(canViewMektekOrders(user)).toBe(false);
+      expect(canViewMektekDashboard(user)).toBe(false);
+      expect(canUseMektekCustomerTools(user)).toBe(false);
+      expect(canManageMektekPayments(user)).toBe(false);
+    }
+    expect(canManageMektekLogistics(monitoring, "MONITORING_PO")).toBe(true);
+    expect(canManageMektekLogistics(monitoring, "RECEIVING")).toBe(false);
+    expect(canManageMektekLogistics(receiving, "MONITORING_PO")).toBe(false);
+    expect(canManageMektekLogistics(receiving, "RECEIVING")).toBe(true);
+    expect(canManageMektekLogistics(unassigned)).toBe(false);
   });
 
   it("splits CS and technician capabilities", () => {

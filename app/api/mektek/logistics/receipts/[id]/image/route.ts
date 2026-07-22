@@ -6,6 +6,7 @@ import {
   MAX_LOGISTICS_RECEIPT_IMAGE_BYTES,
   validateLogisticsReceiptImageUpload,
 } from "@/lib/mektek/logistics-receipt-image";
+import { canManageMektekLogistics } from "@/lib/mektek/permissions";
 import { prismadb } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -22,6 +23,16 @@ function revalidateLogistics() {
   revalidatePath("/[locale]/(routes)/mektek/receiving/spreadsheet", "page");
 }
 
+function canAccessReceiptFlow(
+  user: Parameters<typeof canManageMektekLogistics>[0],
+  flow: "OUTBOUND" | "RECEIVING",
+) {
+  return canManageMektekLogistics(
+    user,
+    flow === "RECEIVING" ? "RECEIVING" : "MONITORING_PO",
+  );
+}
+
 export async function GET(_request: Request, { params }: RouteContext) {
   const access = await requireMektekLogisticsApiSession();
   if (access.response) return access.response;
@@ -33,8 +44,20 @@ export async function GET(_request: Request, { params }: RouteContext) {
       imageData: true,
       imageMimeType: true,
       imageUpdatedAt: true,
+      purchaseOrderItem: {
+        select: { purchaseOrder: { select: { flow: true } } },
+      },
     },
   });
+  if (
+    receipt &&
+    !canAccessReceiptFlow(
+      access.session.user,
+      receipt.purchaseOrderItem.purchaseOrder.flow,
+    )
+  ) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   if (!receipt?.imageData || !receipt.imageMimeType) {
     return new NextResponse(null, {
       status: 404,
@@ -58,6 +81,30 @@ export async function PUT(request: Request, { params }: RouteContext) {
   const access = await requireMektekLogisticsApiSession();
   if (access.response) return access.response;
 
+  const { id } = await params;
+  const receipt = await prismadb.logisticsReceipt.findUnique({
+    where: { id },
+    select: {
+      purchaseOrderItem: {
+        select: { purchaseOrder: { select: { flow: true } } },
+      },
+    },
+  });
+  if (!receipt) {
+    return NextResponse.json(
+      { error: "Riwayat penerimaan tidak ditemukan" },
+      { status: 404 },
+    );
+  }
+  if (
+    !canAccessReceiptFlow(
+      access.session.user,
+      receipt.purchaseOrderItem.purchaseOrder.flow,
+    )
+  ) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const declaredLength = Number(request.headers.get("content-length"));
   if (
     Number.isFinite(declaredLength) &&
@@ -78,7 +125,6 @@ export async function PUT(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: validation.error }, { status: 400 });
   }
 
-  const { id } = await params;
   const updated = await prismadb.logisticsReceipt.updateMany({
     where: { id },
     data: {

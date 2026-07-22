@@ -6,7 +6,7 @@ import type { CatalogProductionChannel, Prisma } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
-import { canCreateMektekOrders } from "@/lib/mektek/permissions";
+import { canManageMektekCatalog } from "@/lib/mektek/permissions";
 import { getServerSession } from "@/lib/session";
 import { getCatalogImageSource } from "@/lib/catalog-images";
 import { buildMektekDashboardAnalytics } from "@/lib/mektek/dashboard-analytics";
@@ -77,8 +77,8 @@ function buildSearchText(input: {
 async function ensureCatalogManager() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
-  if (!canCreateMektekOrders(session.user)) {
-    return { error: "Forbidden: hanya Admin atau CS MekTek yang dapat mengelola Catalogue Items" };
+  if (!canManageMektekCatalog(session.user)) {
+    return { error: "Forbidden: akses Catalog / Item diperlukan" };
   }
   return { session };
 }

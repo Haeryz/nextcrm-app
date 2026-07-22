@@ -11,7 +11,7 @@ import { prismadb } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const access = await requireMektekLogisticsApiSession();
+  const access = await requireMektekLogisticsApiSession("MONITORING_PO");
   if (access.response) return access.response;
   const searchParams = new URL(request.url).searchParams;
   const fromMonth = searchParams.get("fromMonth") ?? "";

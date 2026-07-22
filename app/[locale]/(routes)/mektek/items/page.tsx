@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { listMektekCatalogInventoryItems } from "@/actions/mektek/catalog-inventory";
 import { authOptions } from "@/lib/auth";
-import { canCreateMektekOrders } from "@/lib/mektek/permissions";
+import { canManageMektekCatalog } from "@/lib/mektek/permissions";
 import { getServerSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,7 +39,7 @@ export default async function MektekCatalogItemsPage({
   const { locale = "id" } = params ? await params : { locale: "id" };
   const session = await getServerSession(authOptions);
 
-  if (!canCreateMektekOrders(session?.user)) {
+  if (!canManageMektekCatalog(session?.user)) {
     return (
       <Container title="Catalogue Items" description="Kelola item MekTek">
         <Card>
