@@ -6,22 +6,27 @@ jest.mock("@/lib/mektek/permissions", () => ({
 }));
 
 const purchaseOrderCreate = jest.fn();
+const purchaseOrderFindUnique = jest.fn();
 const purchaseOrderUpdate = jest.fn();
 const purchaseOrderItemFindUnique = jest.fn();
 const purchaseOrderItemUpdateMany = jest.fn();
 const purchaseOrderItemCount = jest.fn();
 const receiptCreate = jest.fn();
+const receiptFindFirst = jest.fn();
 const logisticsPicFindFirst = jest.fn();
 const transaction = jest.fn();
 
 const transactionClient = {
-  logisticsPurchaseOrder: { update: purchaseOrderUpdate },
+  logisticsPurchaseOrder: {
+    findUnique: purchaseOrderFindUnique,
+    update: purchaseOrderUpdate,
+  },
   logisticsPurchaseOrderItem: {
     findUnique: purchaseOrderItemFindUnique,
     updateMany: purchaseOrderItemUpdateMany,
     count: purchaseOrderItemCount,
   },
-  logisticsReceipt: { create: receiptCreate },
+  logisticsReceipt: { create: receiptCreate, findFirst: receiptFindFirst },
   logisticsPic: { findFirst: logisticsPicFindFirst },
 };
 
@@ -36,6 +41,7 @@ jest.mock("@/lib/prisma", () => ({
 
 import {
   createMektekLogisticsPurchaseOrder,
+  recordMektekLogisticsPurchaseOrderReceipt,
   recordMektekLogisticsReceipt,
 } from "@/actions/mektek/logistics";
 import { getServerSession } from "@/lib/session";
@@ -59,10 +65,114 @@ describe("MekTek Logistics actions", () => {
       },
     });
     purchaseOrderUpdate.mockResolvedValue({ id: "po-1" });
+    purchaseOrderFindUnique.mockResolvedValue({
+      id: "po-1",
+      poNumber: "PO-001",
+      inputDate: new Date("2026-07-01T00:00:00.000Z"),
+      items: [
+        {
+          id: "item-1",
+          orderedQuantity: 10,
+          receivedQuantity: 0,
+          status: "OPEN",
+        },
+        {
+          id: "item-2",
+          orderedQuantity: 5,
+          receivedQuantity: 0,
+          status: "OPEN",
+        },
+      ],
+    });
     purchaseOrderItemUpdateMany.mockResolvedValue({ count: 1 });
     purchaseOrderItemCount.mockResolvedValue(1);
     receiptCreate.mockResolvedValue({ id: "receipt-1" });
+    receiptFindFirst.mockResolvedValue(null);
     logisticsPicFindFirst.mockResolvedValue({ id: "pic-1", name: "PIC 1" });
+  });
+
+  it("records multiple PO items under one delivery-note number atomically", async () => {
+    purchaseOrderItemCount.mockResolvedValueOnce(0);
+    receiptCreate
+      .mockResolvedValueOnce({ id: "receipt-1" })
+      .mockResolvedValueOnce({ id: "receipt-2" });
+
+    const result = await recordMektekLogisticsPurchaseOrderReceipt({
+      purchaseOrderId: "po-1",
+      picId: "pic-1",
+      deliveryNoteNumber: "sj-group-001",
+      receivedAt: "2026-07-10",
+      items: [
+        { purchaseOrderItemId: "item-1", quantity: 10 },
+        { purchaseOrderItemId: "item-2", quantity: 5 },
+      ],
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          purchaseOrderStatus: "CLOSED",
+          receipts: [{ id: "receipt-1" }, { id: "receipt-2" }],
+        }),
+      }),
+    );
+    expect(purchaseOrderItemUpdateMany).toHaveBeenCalledTimes(2);
+    expect(receiptCreate).toHaveBeenCalledTimes(2);
+    expect(receiptCreate).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          purchaseOrderItemId: "item-1",
+          deliveryNoteNumber: "SJ-GROUP-001",
+        }),
+      }),
+    );
+    expect(receiptCreate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          purchaseOrderItemId: "item-2",
+          deliveryNoteNumber: "SJ-GROUP-001",
+        }),
+      }),
+    );
+  });
+
+  it("rejects a duplicate delivery-note number for the same PO", async () => {
+    receiptFindFirst.mockResolvedValueOnce({ id: "existing-receipt" });
+
+    const result = await recordMektekLogisticsPurchaseOrderReceipt({
+      purchaseOrderId: "po-1",
+      picId: "pic-1",
+      deliveryNoteNumber: "SJ-GROUP-001",
+      receivedAt: "2026-07-10",
+      items: [{ purchaseOrderItemId: "item-1", quantity: 10 }],
+    });
+
+    expect(result).toEqual({
+      error: "Surat Jalan SJ-GROUP-001 sudah pernah diinput untuk PO ini",
+    });
+    expect(purchaseOrderItemUpdateMany).not.toHaveBeenCalled();
+    expect(receiptCreate).not.toHaveBeenCalled();
+  });
+
+  it("validates every delivery-note item before updating any quantity", async () => {
+    const result = await recordMektekLogisticsPurchaseOrderReceipt({
+      purchaseOrderId: "po-1",
+      picId: "pic-1",
+      deliveryNoteNumber: "SJ-GROUP-002",
+      receivedAt: "2026-07-10",
+      items: [
+        { purchaseOrderItemId: "item-1", quantity: 10 },
+        { purchaseOrderItemId: "item-2", quantity: 6 },
+      ],
+    });
+
+    expect(result).toEqual({
+      error: "QTY Masuk melebihi QTY Sisa (5) untuk item PO",
+    });
+    expect(purchaseOrderItemUpdateMany).not.toHaveBeenCalled();
+    expect(receiptCreate).not.toHaveBeenCalled();
   });
 
   it("records a partial receipt with an atomic remaining-quantity guard", async () => {

@@ -23,7 +23,7 @@ import { toast } from "sonner";
 
 import {
   createMektekLogisticsPurchaseOrder,
-  recordMektekLogisticsReceipt,
+  recordMektekLogisticsPurchaseOrderReceipt,
   type LogisticsPurchaseOrderInput,
 } from "@/actions/mektek/logistics";
 import { Badge } from "@/components/ui/badge";
@@ -128,9 +128,16 @@ type PurchaseOrderDraft = Omit<LogisticsPurchaseOrderInput, "items"> & {
   items: PurchaseOrderItemDraft[];
 };
 
-type ActiveReceiptItem = {
-  purchaseOrder: LogisticsPurchaseOrderRow;
-  item: LogisticsPurchaseOrderItemRow;
+type LogisticsDeliveryNoteGroup = {
+  deliveryNoteNumber: string;
+  receivedAt: string;
+  createdAt: string;
+  pic: { id: string; name: string };
+  note: string | null;
+  lines: Array<{
+    item: LogisticsPurchaseOrderItemRow;
+    receipt: LogisticsReceiptRow;
+  }>;
 };
 
 function blankPurchaseOrder(): PurchaseOrderDraft {
@@ -200,27 +207,22 @@ export default function LogisticsManager({
   const [createValue, setCreateValue] = useState<PurchaseOrderDraft>(() =>
     blankPurchaseOrder(),
   );
-  const [activeReceiptItem, setActiveReceiptItem] =
-    useState<ActiveReceiptItem | null>(null);
+  const [activeReceiptPurchaseOrder, setActiveReceiptPurchaseOrder] =
+    useState<LogisticsPurchaseOrderRow | null>(null);
   const [activePurchaseOrder, setActivePurchaseOrder] =
     useState<LogisticsPurchaseOrderRow | null>(null);
   const [receiptDraft, setReceiptDraft] = useState({
     picId: pics[0]?.id ?? "",
     deliveryNoteNumber: "",
-    quantity: "",
     receivedAt: getCatalogInventoryLocalDateKey(),
     note: "",
   });
+  const [receiptQuantities, setReceiptQuantities] = useState<
+    Record<string, string>
+  >({});
   const [receiptImage, setReceiptImage] = useState<File | null>(null);
   const [receiptImageError, setReceiptImageError] = useState<string | null>(null);
 
-  const rows = useMemo(
-    () =>
-      purchaseOrders.flatMap((purchaseOrder) =>
-        purchaseOrder.items.map((item) => ({ purchaseOrder, item })),
-      ),
-    [purchaseOrders],
-  );
   const today = getCatalogInventoryLocalDateKey();
 
   const updateCreateValue = <K extends keyof PurchaseOrderDraft>(
@@ -280,18 +282,25 @@ export default function LogisticsManager({
     });
   };
 
-  const openReceipt = (
-    purchaseOrder: LogisticsPurchaseOrderRow,
-    item: LogisticsPurchaseOrderItemRow,
-  ) => {
-    setActiveReceiptItem({ purchaseOrder, item });
+  const openReceipt = (purchaseOrder: LogisticsPurchaseOrderRow) => {
+    setActiveReceiptPurchaseOrder(purchaseOrder);
     setReceiptDraft({
       picId: pics[0]?.id ?? "",
       deliveryNoteNumber: "",
-      quantity: "",
       receivedAt: getCatalogInventoryLocalDateKey(),
       note: "",
     });
+    setReceiptQuantities(
+      Object.fromEntries(
+        purchaseOrder.items.map((item) => {
+          const progress = getLogisticsItemProgress(item);
+          return [
+            item.id,
+            progress.status === "OPEN" ? String(progress.remainingQuantity) : "",
+          ];
+        }),
+      ),
+    );
     setReceiptImage(null);
     setReceiptImageError(null);
   };
@@ -317,44 +326,87 @@ export default function LogisticsManager({
   };
 
   const submitReceipt = () => {
-    if (!activeReceiptItem) return;
+    if (!activeReceiptPurchaseOrder) return;
+    const receiptItems = activeReceiptPurchaseOrder.items
+      .map((item) => ({
+        purchaseOrderItemId: item.id,
+        quantity: receiptQuantities[item.id] ?? "",
+      }))
+      .filter((item) => Number(item.quantity) > 0);
     startTransition(async () => {
-      const result = await recordMektekLogisticsReceipt({
-        purchaseOrderItemId: activeReceiptItem.item.id,
+      const result = await recordMektekLogisticsPurchaseOrderReceipt({
+        purchaseOrderId: activeReceiptPurchaseOrder.id,
         ...receiptDraft,
+        items: receiptItems,
       });
       if (!result || "error" in result) {
-        toast.error(result?.error || "Gagal mencatat barang masuk");
+        toast.error(result?.error || "Gagal mencatat Surat Jalan");
         return;
       }
       let imageUploadError: string | null = null;
-      if (receiptImage) {
+      const primaryReceipt = result.data.receipts[0];
+      if (receiptImage && primaryReceipt) {
         try {
-          await uploadLogisticsReceiptImage(result.data.receipt.id, receiptImage);
+          await uploadLogisticsReceiptImage(primaryReceipt.id, receiptImage);
         } catch (error) {
           imageUploadError =
             error instanceof Error ? error.message : "Gagal mengunggah foto kondisi barang";
         }
       }
-      const closed = result.data.itemProgress.status === "CLOSED";
+      const closed = result.data.purchaseOrderStatus === "CLOSED";
       if (imageUploadError) {
-        toast.warning(`Barang masuk tersimpan, tetapi ${imageUploadError}`);
+        toast.warning(`Surat Jalan tersimpan, tetapi ${imageUploadError}`);
       } else {
         toast.success(
           closed
-            ? "Barang masuk tercatat dan item PO otomatis Closed"
-            : `Barang masuk tercatat. QTY Sisa ${result.data.itemProgress.remainingQuantity}`,
+            ? "Surat Jalan tersimpan dan Purchase Order otomatis Closed"
+            : `Surat Jalan tersimpan untuk ${result.data.receipts.length} item`,
         );
       }
-      setActiveReceiptItem(null);
+      setActiveReceiptPurchaseOrder(null);
       router.refresh();
     });
   };
 
-  const activeProgress = activeReceiptItem
-    ? getLogisticsItemProgress(activeReceiptItem.item)
+  const activeProgress = activeReceiptPurchaseOrder
+    ? activeReceiptPurchaseOrder.items.reduce(
+        (totals, item) => {
+          const progress = getLogisticsItemProgress(item);
+          return {
+            orderedQuantity: totals.orderedQuantity + progress.orderedQuantity,
+            receivedQuantity: totals.receivedQuantity + progress.receivedQuantity,
+            remainingQuantity: totals.remainingQuantity + progress.remainingQuantity,
+          };
+        },
+        { orderedQuantity: 0, receivedQuantity: 0, remainingQuantity: 0 },
+      )
     : null;
-  const latestReceipt = activeReceiptItem?.item.receipts[0] ?? null;
+  const activeDeliveryNotes = useMemo(() => {
+    if (!activeReceiptPurchaseOrder) return [];
+    const receiptLines = activeReceiptPurchaseOrder.items
+      .flatMap((item) => item.receipts.map((receipt) => ({ item, receipt })))
+      .sort((left, right) =>
+        right.receipt.createdAt.localeCompare(left.receipt.createdAt),
+      );
+    const groups = new Map<string, LogisticsDeliveryNoteGroup>();
+    for (const line of receiptLines) {
+      const current = groups.get(line.receipt.deliveryNoteNumber);
+      if (current) {
+        current.lines.push(line);
+        if (!current.note && line.receipt.note) current.note = line.receipt.note;
+        continue;
+      }
+      groups.set(line.receipt.deliveryNoteNumber, {
+        deliveryNoteNumber: line.receipt.deliveryNoteNumber,
+        receivedAt: line.receipt.receivedAt,
+        createdAt: line.receipt.createdAt,
+        pic: line.receipt.pic,
+        note: line.receipt.note,
+        lines: [line],
+      });
+    }
+    return Array.from(groups.values());
+  }, [activeReceiptPurchaseOrder]);
 
   return (
     <div className="space-y-6">
@@ -891,8 +943,11 @@ export default function LogisticsManager({
           <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            Spreadsheet PO · {rows.length} item pada halaman ini
+            Spreadsheet PO · {purchaseOrders.length} Purchase Order pada halaman ini
           </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Setiap PO tampil satu kali. Buka detail untuk melihat seluruh part dan Surat Jalan.
+          </p>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -916,7 +971,9 @@ export default function LogisticsManager({
                   </th>
                   <th className="min-w-28 border-b border-e px-3 py-3 text-left">PO Type</th>
                   <th className="min-w-40 border-b border-e px-3 py-3 text-left">Supplier</th>
-                  <th className="min-w-48 border-b border-e px-3 py-3 text-left">Part</th>
+                  <th className="min-w-52 border-b border-e px-3 py-3 text-left">
+                    Ringkasan Part
+                  </th>
                   <th className="min-w-24 border-b border-e px-3 py-3 text-left">Status</th>
                   <th className="min-w-24 border-b border-e px-3 py-3 text-right">
                     QTY Masuk
@@ -931,13 +988,33 @@ export default function LogisticsManager({
                 </tr>
               </thead>
               <tbody>
-                {rows.map(({ purchaseOrder, item }, index) => {
-                  const progress = getLogisticsItemProgress(item);
+                {purchaseOrders.map((purchaseOrder, index) => {
+                  const progress = purchaseOrder.items.reduce(
+                    (totals, item) => {
+                      const itemProgress = getLogisticsItemProgress(item);
+                      return {
+                        orderedQuantity:
+                          totals.orderedQuantity + itemProgress.orderedQuantity,
+                        receivedQuantity:
+                          totals.receivedQuantity + itemProgress.receivedQuantity,
+                        remainingQuantity:
+                          totals.remainingQuantity + itemProgress.remainingQuantity,
+                      };
+                    },
+                    {
+                      orderedQuantity: 0,
+                      receivedQuantity: 0,
+                      remainingQuantity: 0,
+                    },
+                  );
                   const isOverdue =
-                    progress.status === "OPEN" &&
+                    purchaseOrder.status === "OPEN" &&
                     purchaseOrder.dueDate.slice(0, 10) < today;
                   return (
-                    <tr key={item.id} className="border-b last:border-b-0 hover:bg-muted/20">
+                    <tr
+                      key={purchaseOrder.id}
+                      className="border-b last:border-b-0 hover:bg-muted/20"
+                    >
                       <td className="border-e px-3 py-3 text-center font-mono tabular-nums">
                         {index + 1}
                       </td>
@@ -958,14 +1035,24 @@ export default function LogisticsManager({
                       <td className="border-e px-3 py-3">{purchaseOrder.poType}</td>
                       <td className="border-e px-3 py-3">{purchaseOrder.supplierName}</td>
                       <td className="border-e px-3 py-3">
-                        <p className="font-medium">{item.partName}</p>
+                        <p className="font-medium">
+                          {purchaseOrder.items.length} part
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          {item.partNumber || "Tanpa Part Number"}
+                          {purchaseOrder.items
+                            .slice(0, 2)
+                            .map((item) => item.partName)
+                            .join(", ")}
+                          {purchaseOrder.items.length > 2 ? ", …" : ""}
                         </p>
                       </td>
                       <td className="border-e px-3 py-3">
-                        <Badge variant={progress.status === "CLOSED" ? "secondary" : "outline"}>
-                          {getLogisticsStatusLabel(progress.status)}
+                        <Badge
+                          variant={
+                            purchaseOrder.status === "CLOSED" ? "secondary" : "outline"
+                          }
+                        >
+                          {getLogisticsStatusLabel(purchaseOrder.status)}
                         </Badge>
                       </td>
                       <td className="border-e px-3 py-3 text-right font-mono font-semibold tabular-nums">
@@ -981,17 +1068,20 @@ export default function LogisticsManager({
                         <Button
                           type="button"
                           size="sm"
-                          variant={progress.status === "OPEN" ? "default" : "outline"}
-                          onClick={() => openReceipt(purchaseOrder, item)}
+                          variant={
+                            purchaseOrder.status === "OPEN" ? "default" : "outline"
+                          }
+                          onClick={() => openReceipt(purchaseOrder)}
+                          aria-label={`Buka detail Purchase Order ${purchaseOrder.poNumber}`}
                         >
                           <ReceiptText data-icon="inline-start" />
-                          {progress.status === "OPEN" ? "Terima" : "Riwayat"}
+                          Buka detail
                         </Button>
                       </td>
                     </tr>
                   );
                 })}
-                {rows.length === 0 && (
+                {purchaseOrders.length === 0 && (
                   <tr>
                     <td colSpan={14} className="px-4 py-12 text-center text-muted-foreground">
                       Belum ada Purchase Order Logistics yang cocok dengan filter ini.
@@ -1005,38 +1095,55 @@ export default function LogisticsManager({
       </Card>
 
       <Dialog
-        open={!!activeReceiptItem}
-        onOpenChange={(open) => !open && setActiveReceiptItem(null)}
+        open={!!activeReceiptPurchaseOrder}
+        onOpenChange={(open) => !open && setActiveReceiptPurchaseOrder(null)}
       >
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader className="gap-3 sm:flex sm:flex-row sm:items-start sm:justify-between sm:text-left">
-            <div className="space-y-1.5">
-              <DialogTitle>
-                {activeProgress?.status === "OPEN"
-                  ? "Input Barang Masuk"
-                  : "Riwayat Barang Masuk"}
-              </DialogTitle>
-              <DialogDescription>
-                {activeReceiptItem?.purchaseOrder.poNumber} · {activeReceiptItem?.item.partName}
-              </DialogDescription>
-            </div>
-            {activeProgress?.status === "CLOSED" && latestReceipt && (
-              <Button asChild type="button" variant="outline" className="shrink-0">
-                <a
-                  href={`/api/mektek/logistics/receipts/${encodeURIComponent(latestReceipt.id)}/delivery-note`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Printer data-icon="inline-start" />
-                  Cetak PDF Surat Jalan
-                </a>
-              </Button>
-            )}
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Detail Purchase Order & Surat Jalan</DialogTitle>
+            <DialogDescription>
+              {activeReceiptPurchaseOrder?.poNumber} ·{" "}
+              {activeReceiptPurchaseOrder?.supplierName}
+            </DialogDescription>
           </DialogHeader>
 
-          {activeReceiptItem && activeProgress && (
+          {activeReceiptPurchaseOrder && activeProgress && (
             <div className="space-y-5">
-              <div className="grid grid-cols-3 gap-3 rounded-lg bg-muted/50 p-4 text-center">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs text-muted-foreground">User / PT</p>
+                  <p className="mt-1 font-medium">
+                    {activeReceiptPurchaseOrder.userName}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs text-muted-foreground">Project</p>
+                  <p className="mt-1 font-medium">
+                    {activeReceiptPurchaseOrder.projectName}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs text-muted-foreground">Status</p>
+                  <Badge
+                    className="mt-1"
+                    variant={
+                      activeReceiptPurchaseOrder.status === "CLOSED"
+                        ? "secondary"
+                        : "outline"
+                    }
+                  >
+                    {getLogisticsStatusLabel(activeReceiptPurchaseOrder.status)}
+                  </Badge>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs text-muted-foreground">Supplier</p>
+                  <p className="mt-1 font-medium">
+                    {activeReceiptPurchaseOrder.supplierName}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/50 p-3 text-center sm:gap-3 sm:p-4">
                 <div>
                   <p className="text-xs text-muted-foreground">QTY Order</p>
                   <p className="font-mono text-lg font-semibold tabular-nums">
@@ -1057,14 +1164,60 @@ export default function LogisticsManager({
                 </div>
               </div>
 
-              {activeProgress.status === "OPEN" && (
+              <div className="space-y-3">
+                <h3 className="font-medium">Detail Part</h3>
+                <div className="divide-y rounded-lg border">
+                  {activeReceiptPurchaseOrder.items.map((item) => {
+                    const progress = getLogisticsItemProgress(item);
+                    return (
+                      <div
+                        key={item.id}
+                        className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                      >
+                        <div className="min-w-0">
+                          <p className="break-words font-medium">{item.partName}</p>
+                          <p className="break-words text-xs text-muted-foreground">
+                            {item.partNumber || "Tanpa Part Number"}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                          <span>
+                            Order <strong>{progress.orderedQuantity}</strong>
+                          </span>
+                          <span>
+                            Masuk <strong>{progress.receivedQuantity}</strong>
+                          </span>
+                          <span>
+                            Sisa <strong>{progress.remainingQuantity}</strong>
+                          </span>
+                          <Badge
+                            variant={
+                              progress.status === "CLOSED" ? "secondary" : "outline"
+                            }
+                          >
+                            {getLogisticsStatusLabel(progress.status)}
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {activeReceiptPurchaseOrder.status === "OPEN" && (
                 <form
-                  className="space-y-4"
+                  className="space-y-4 rounded-lg border p-3 sm:p-4"
                   onSubmit={(event) => {
                     event.preventDefault();
                     submitReceipt();
                   }}
                 >
+                  <div>
+                    <h3 className="font-medium">Input Surat Jalan</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Satu nomor Surat Jalan dapat memuat beberapa item PO sekaligus.
+                    </p>
+                  </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label htmlFor="logistics-delivery-note">Nomor Surat Jalan</Label>
@@ -1077,7 +1230,7 @@ export default function LogisticsManager({
                             deliveryNoteNumber: event.target.value,
                           }))
                         }
-                        placeholder="Wajib, untuk mencegah input double"
+                        placeholder="Contoh: SJ-001"
                         disabled={isPending}
                         required
                       />
@@ -1087,7 +1240,7 @@ export default function LogisticsManager({
                       <Input
                         id="logistics-received-date"
                         type="date"
-                        min={activeReceiptItem.purchaseOrder.inputDate.slice(0, 10)}
+                        min={activeReceiptPurchaseOrder.inputDate.slice(0, 10)}
                         max={today}
                         value={receiptDraft.receivedAt}
                         onChange={(event) =>
@@ -1127,28 +1280,59 @@ export default function LogisticsManager({
                         </p>
                       )}
                     </div>
-                    <div className="space-y-1.5 sm:col-span-2">
-                      <Label htmlFor="logistics-received-quantity">QTY Masuk</Label>
-                      <Input
-                        id="logistics-received-quantity"
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        max={activeProgress.remainingQuantity}
-                        step={1}
-                        value={receiptDraft.quantity}
-                        onChange={(event) =>
-                          setReceiptDraft((current) => ({
-                            ...current,
-                            quantity: event.target.value,
-                          }))
-                        }
-                        placeholder={`Maksimal ${activeProgress.remainingQuantity}`}
-                        disabled={isPending}
-                        required
-                      />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div>
+                      <h4 className="text-sm font-medium">Item dalam Surat Jalan</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Isi 0 atau kosongkan item yang belum diterima.
+                      </p>
+                    </div>
+                    <div className="divide-y rounded-lg border">
+                      {activeReceiptPurchaseOrder.items.map((item) => {
+                        const progress = getLogisticsItemProgress(item);
+                        return (
+                          <div
+                            key={item.id}
+                            className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_140px] sm:items-end"
+                          >
+                            <div className="min-w-0">
+                              <p className="break-words text-sm font-medium">
+                                {item.partName}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {item.partNumber || "Tanpa Part Number"} · Sisa {progress.remainingQuantity}
+                              </p>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor={`logistics-received-quantity-${item.id}`}>
+                                QTY Masuk
+                              </Label>
+                              <Input
+                                id={`logistics-received-quantity-${item.id}`}
+                                type="number"
+                                inputMode="numeric"
+                                min={0}
+                                max={progress.remainingQuantity}
+                                step={1}
+                                value={receiptQuantities[item.id] ?? ""}
+                                onChange={(event) =>
+                                  setReceiptQuantities((current) => ({
+                                    ...current,
+                                    [item.id]: event.target.value,
+                                  }))
+                                }
+                                placeholder="0"
+                                disabled={isPending || progress.status === "CLOSED"}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
+
                   <div className="space-y-1.5">
                     <Label htmlFor="logistics-receipt-note">Catatan Penerimaan</Label>
                     <Textarea
@@ -1164,6 +1348,7 @@ export default function LogisticsManager({
                       disabled={isPending}
                     />
                   </div>
+
                   <div className="space-y-1.5">
                     <Label id="logistics-condition-photo-label">Foto Kondisi Barang</Label>
                     <div className="rounded-lg border bg-muted/20 p-3">
@@ -1245,6 +1430,7 @@ export default function LogisticsManager({
                       )}
                     </div>
                   </div>
+
                   <div className="flex justify-end">
                     <Button
                       type="submit"
@@ -1253,7 +1439,7 @@ export default function LogisticsManager({
                       {isPending && (
                         <Loader2 data-icon="inline-start" className="animate-spin" />
                       )}
-                      Simpan Barang Masuk
+                      Simpan Surat Jalan
                     </Button>
                   </div>
                 </form>
@@ -1262,71 +1448,104 @@ export default function LogisticsManager({
               <Separator />
               <div className="space-y-3">
                 <div>
-                  <h3 className="font-medium">Riwayat penerimaan</h3>
+                  <h3 className="font-medium">Riwayat Surat Jalan</h3>
                   <p className="text-xs text-muted-foreground">
-                    Nomor Surat Jalan yang sama tidak dapat diinput dua kali untuk item ini.
+                    Setiap nomor tampil satu kali bersama seluruh item yang diterima.
                   </p>
                 </div>
-                {activeReceiptItem.item.receipts.length > 0 ? (
-                  <div className="divide-y rounded-lg border">
-                    {activeReceiptItem.item.receipts.map((receipt) => (
-                      <div
-                        key={receipt.id}
-                        className="grid gap-2 p-3 text-sm sm:grid-cols-[130px_1fr_70px_auto] sm:items-center"
-                      >
-                        <span>{formatDate(receipt.receivedAt)}</span>
-                        <div>
-                          <p className="font-mono font-medium">
-                            {receipt.deliveryNoteNumber}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            PIC: {receipt.pic.name}
-                          </p>
-                          {receipt.note && (
-                            <p className="text-xs text-muted-foreground">{receipt.note}</p>
+                {activeDeliveryNotes.length > 0 ? (
+                  <div className="space-y-3">
+                    {activeDeliveryNotes.map((deliveryNote) => {
+                      const imageReceipt = deliveryNote.lines.find(
+                        ({ receipt }) => receipt.imageMimeType,
+                      )?.receipt;
+                      const sourceReceipt = deliveryNote.lines[0]?.receipt;
+                      return (
+                        <div
+                          key={deliveryNote.deliveryNoteNumber}
+                          className="rounded-lg border p-3 sm:p-4"
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div>
+                              <p className="font-mono font-semibold">
+                                {deliveryNote.deliveryNoteNumber}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatDate(deliveryNote.receivedAt)} · PIC {deliveryNote.pic.name}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {imageReceipt && (
+                                <Button asChild type="button" variant="outline" size="sm">
+                                  <a
+                                    href={`/api/mektek/logistics/receipts/${encodeURIComponent(imageReceipt.id)}/image`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Foto Kondisi
+                                  </a>
+                                </Button>
+                              )}
+                              {activeReceiptPurchaseOrder.status === "CLOSED" &&
+                                sourceReceipt && (
+                                  <Button
+                                    asChild
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                  >
+                                    <a
+                                      href={`/api/mektek/logistics/receipts/${encodeURIComponent(sourceReceipt.id)}/delivery-note`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      aria-label={`Cetak PDF Surat Jalan ${deliveryNote.deliveryNoteNumber}`}
+                                    >
+                                      <Printer data-icon="inline-start" />
+                                      PDF Surat Jalan
+                                    </a>
+                                  </Button>
+                                )}
+                            </div>
+                          </div>
+                          <div className="mt-3 divide-y rounded-md border">
+                            {[...deliveryNote.lines]
+                              .sort((left, right) => left.item.position - right.item.position)
+                              .map(({ item, receipt }) => (
+                                <div
+                                  key={receipt.id}
+                                  className="flex flex-col gap-1 p-3 text-sm min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="break-words font-medium">{item.partName}</p>
+                                    <p className="break-words text-xs text-muted-foreground">
+                                      {item.partNumber || "Tanpa Part Number"}
+                                    </p>
+                                  </div>
+                                  <span className="font-mono font-semibold tabular-nums">
+                                    +{receipt.quantity}
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                          {deliveryNote.note && (
+                            <p className="mt-3 text-xs text-muted-foreground">
+                              {deliveryNote.note}
+                            </p>
                           )}
                         </div>
-                        <span className="text-right font-mono font-semibold tabular-nums">
-                          +{receipt.quantity}
-                        </span>
-                        <div className="flex flex-wrap justify-end gap-2">
-                          {receipt.imageMimeType && (
-                            <Button asChild type="button" variant="outline" size="sm">
-                              <a
-                                href={`/api/mektek/logistics/receipts/${encodeURIComponent(receipt.id)}/image`}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                Foto Kondisi
-                              </a>
-                            </Button>
-                          )}
-                          {activeProgress.status === "CLOSED" && (
-                            <Button asChild type="button" variant="outline" size="sm">
-                              <a
-                                href={`/api/mektek/logistics/receipts/${encodeURIComponent(receipt.id)}/delivery-note`}
-                                target="_blank"
-                                rel="noreferrer"
-                                aria-label={`Cetak PDF Surat Jalan ${receipt.deliveryNoteNumber}`}
-                              >
-                                PDF
-                              </a>
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                    Belum ada barang yang diterima untuk item ini.
+                    Belum ada Surat Jalan untuk Purchase Order ini.
                   </p>
                 )}
               </div>
             </div>
           )}
         </DialogContent>
-          </Dialog>
+      </Dialog>
         </>
       )}
     </div>

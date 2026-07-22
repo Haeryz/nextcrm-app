@@ -52,6 +52,18 @@ export type LogisticsReceiptInput = {
   note?: string;
 };
 
+export type LogisticsPurchaseOrderReceiptInput = {
+  purchaseOrderId: string;
+  picId: string;
+  deliveryNoteNumber: string;
+  receivedAt: string;
+  note?: string;
+  items: Array<{
+    purchaseOrderItemId: string;
+    quantity: string | number;
+  }>;
+};
+
 class LogisticsActionError extends Error {}
 
 async function ensureLogisticsManager() {
@@ -360,6 +372,195 @@ export async function createMektekLogisticsPurchaseOrder(
       return { error: `PO No. ${normalized.data.poNumber} sudah terdaftar` };
     }
     return { error: "Gagal membuat Purchase Order Logistics" };
+  }
+}
+
+export async function recordMektekLogisticsPurchaseOrderReceipt(
+  input: LogisticsPurchaseOrderReceiptInput,
+) {
+  const access = await ensureLogisticsManager();
+  if ("error" in access) return { error: access.error };
+
+  const purchaseOrderId = compactText(input?.purchaseOrderId);
+  const picId = compactText(input?.picId);
+  const deliveryNoteNumber = normalizeLogisticsReference(
+    boundedText(input?.deliveryNoteNumber, MAX_DELIVERY_NOTE_LEN),
+  );
+  const receivedAt = parseDateOnly(input?.receivedAt);
+  const note = boundedText(input?.note, MAX_NOTE_LEN);
+  const rawItems = Array.isArray(input?.items) ? input.items : [];
+  const items = rawItems.map((item) => ({
+    purchaseOrderItemId: compactText(item?.purchaseOrderItemId),
+    quantity: parsePositiveInteger(item?.quantity),
+  }));
+
+  if (!purchaseOrderId) return { error: "Purchase Order wajib dipilih" };
+  if (!picId) return { error: "PIC wajib dipilih" };
+  if (!deliveryNoteNumber) return { error: "Nomor Surat Jalan wajib diisi" };
+  if (!receivedAt) return { error: "Tanggal Masuk tidak valid" };
+  if (items.length === 0) {
+    return { error: "Pilih minimal satu item yang diterima" };
+  }
+  if (items.some((item) => !item.purchaseOrderItemId || !item.quantity)) {
+    return { error: "QTY Masuk setiap item harus berupa angka bulat lebih dari 0" };
+  }
+  if (new Set(items.map((item) => item.purchaseOrderItemId)).size !== items.length) {
+    return { error: "Item Surat Jalan tidak boleh duplikat" };
+  }
+  const today = parseDateOnly(getCatalogInventoryLocalDateKey());
+  if (today && receivedAt > today) {
+    return { error: "Tanggal Masuk tidak boleh melebihi hari ini" };
+  }
+
+  try {
+    const result = await prismadb.$transaction(async (tx) => {
+      const pic = await tx.logisticsPic.findFirst({
+        where: { id: picId, isActive: true },
+        select: { id: true, name: true },
+      });
+      if (!pic) {
+        throw new LogisticsActionError("PIC tidak aktif atau tidak ditemukan");
+      }
+
+      const purchaseOrder = await tx.logisticsPurchaseOrder.findUnique({
+        where: { id: purchaseOrderId },
+        select: {
+          id: true,
+          poNumber: true,
+          inputDate: true,
+          items: {
+            orderBy: { position: "asc" },
+            select: {
+              id: true,
+              orderedQuantity: true,
+              receivedQuantity: true,
+              status: true,
+            },
+          },
+        },
+      });
+      if (!purchaseOrder) {
+        throw new LogisticsActionError("Purchase Order tidak ditemukan");
+      }
+      if (receivedAt < purchaseOrder.inputDate) {
+        throw new LogisticsActionError(
+          "Tanggal Masuk tidak boleh sebelum Tanggal Input PO",
+        );
+      }
+
+      const purchaseOrderItems = new Map(
+        purchaseOrder.items.map((item) => [item.id, item]),
+      );
+      const validatedItems = items.map((inputItem) => {
+        const item = purchaseOrderItems.get(inputItem.purchaseOrderItemId);
+        if (!item) {
+          throw new LogisticsActionError(
+            "Terdapat item yang bukan bagian dari Purchase Order ini",
+          );
+        }
+        const validation = validateLogisticsReceipt({
+          orderedQuantity: item.orderedQuantity,
+          receivedQuantity: item.receivedQuantity,
+          incomingQuantity: inputItem.quantity!,
+        });
+        if ("error" in validation) {
+          throw new LogisticsActionError(`${validation.error} untuk item PO`);
+        }
+        return {
+          item,
+          quantity: inputItem.quantity!,
+          progress: validation.data,
+        };
+      });
+
+      // Lock the PO header so duplicate delivery-note checks and all item
+      // increments for this PO are serialized as one atomic receipt.
+      await tx.logisticsPurchaseOrder.update({
+        where: { id: purchaseOrder.id },
+        data: { updatedAt: new Date() },
+      });
+
+      const duplicateReceipt = await tx.logisticsReceipt.findFirst({
+        where: {
+          deliveryNoteNumber,
+          purchaseOrderItem: { purchaseOrderId: purchaseOrder.id },
+        },
+        select: { id: true },
+      });
+      if (duplicateReceipt) {
+        throw new LogisticsActionError(
+          `Surat Jalan ${deliveryNoteNumber} sudah pernah diinput untuk PO ini`,
+        );
+      }
+
+      const receipts = [];
+      for (const validatedItem of validatedItems) {
+        const updated = await tx.logisticsPurchaseOrderItem.updateMany({
+          where: {
+            id: validatedItem.item.id,
+            purchaseOrderId: purchaseOrder.id,
+            status: "OPEN",
+            receivedQuantity: {
+              lte: validatedItem.item.orderedQuantity - validatedItem.quantity,
+            },
+          },
+          data: {
+            receivedQuantity: { increment: validatedItem.quantity },
+            status: validatedItem.progress.status,
+          },
+        });
+        if (updated.count !== 1) {
+          throw new LogisticsActionError(
+            "QTY item telah berubah. Muat ulang halaman sebelum input kembali.",
+          );
+        }
+
+        const receipt = await tx.logisticsReceipt.create({
+          data: {
+            purchaseOrderItemId: validatedItem.item.id,
+            picId: pic.id,
+            deliveryNoteNumber,
+            quantity: validatedItem.quantity,
+            receivedAt,
+            note: note || null,
+            createdBy: access.session.user.id,
+          },
+        });
+        receipts.push(receipt);
+      }
+
+      const openItems = await tx.logisticsPurchaseOrderItem.count({
+        where: { purchaseOrderId: purchaseOrder.id, status: "OPEN" },
+      });
+      const purchaseOrderStatus = openItems === 0 ? "CLOSED" : "OPEN";
+      await tx.logisticsPurchaseOrder.update({
+        where: { id: purchaseOrder.id },
+        data: { status: purchaseOrderStatus },
+      });
+
+      return {
+        receipts,
+        purchaseOrderId: purchaseOrder.id,
+        purchaseOrderStatus,
+        itemProgresses: validatedItems.map(({ item, progress }) => ({
+          purchaseOrderItemId: item.id,
+          ...progress,
+        })),
+      };
+    });
+
+    revalidatePath("/[locale]/(routes)/mektek/logistics", "page");
+    revalidatePath("/[locale]/(routes)/mektek/logistics/spreadsheet", "page");
+    return { data: result };
+  } catch (error) {
+    console.log("[RECORD_MEKTEK_LOGISTICS_PO_RECEIPT]", error);
+    if (error instanceof LogisticsActionError) return { error: error.message };
+    if (isPrismaUniqueError(error)) {
+      return {
+        error: `Surat Jalan ${deliveryNoteNumber} sudah pernah diinput untuk PO ini`,
+      };
+    }
+    return { error: "Gagal mencatat Surat Jalan Logistics" };
   }
 }
 
