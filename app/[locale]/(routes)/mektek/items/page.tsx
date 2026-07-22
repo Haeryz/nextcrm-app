@@ -122,15 +122,8 @@ export default async function MektekCatalogItemsPage({
           </CardContent>
         </Card>
 
-        <div className="flex justify-end">
-          <Button asChild variant="outline" className="w-full sm:w-auto">
-            <Link href={`/${locale}/mektek/items/spreadsheet`}>
-              Buka Spreadsheet Inventory
-            </Link>
-          </Button>
-        </div>
-
         <CatalogItemManager
+          spreadsheetHref={`/${locale}/mektek/items/spreadsheet`}
           items={catalog.items.map((item) => ({
             ...item,
             imagePath: getExistingCatalogImagePath(item.imagePath),

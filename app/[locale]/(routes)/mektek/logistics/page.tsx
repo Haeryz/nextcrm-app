@@ -82,13 +82,6 @@ export default async function MektekLogisticsPage({
       description="Kelola Purchase Order dan lihat riwayat penerimaan barang supplier"
     >
       <div className="flex flex-col gap-6">
-        {!!session?.user?.isAdmin && (
-          <div className="flex justify-end">
-            <Button asChild variant="outline">
-              <Link href={`/${locale}/mektek/logistics/pics`}>Kelola PIC</Link>
-            </Button>
-          </div>
-        )}
         <LogisticsManager
           pics={pics}
           purchaseOrders={items.map((purchaseOrder) => ({
@@ -111,6 +104,11 @@ export default async function MektekLogisticsPage({
           stats={stats}
           mode="overview"
           spreadsheetHref={`/${locale}/mektek/logistics/spreadsheet`}
+          managePicsHref={
+            session?.user?.isAdmin
+              ? `/${locale}/mektek/logistics/pics`
+              : undefined
+          }
         />
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

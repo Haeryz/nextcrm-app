@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  FileSpreadsheet,
   ImagePlus,
   Loader2,
   PackageCheck,
@@ -14,6 +15,7 @@ import {
   Printer,
   ReceiptText,
   Trash2,
+  UsersRound,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -112,6 +114,7 @@ type LogisticsManagerProps = {
   stats: LogisticsStats;
   mode: "overview" | "spreadsheet";
   spreadsheetHref?: string;
+  managePicsHref?: string;
 };
 
 type PurchaseOrderItemDraft = {
@@ -186,6 +189,7 @@ export default function LogisticsManager({
   stats,
   mode,
   spreadsheetHref,
+  managePicsHref,
 }: LogisticsManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -410,12 +414,13 @@ export default function LogisticsManager({
                 Buat PO baru atau buka spreadsheet untuk mencatat barang masuk.
               </p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex flex-wrap items-center gap-2">
               <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto">
+            <Button className="min-w-0 flex-1 px-2 sm:flex-none sm:px-4">
               <Plus data-icon="inline-start" />
-              Buat Purchase Order
+              <span className="sm:hidden">Buat PO</span>
+              <span className="hidden sm:inline">Buat Purchase Order</span>
             </Button>
           </DialogTrigger>
            <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl md:flex md:flex-col md:overflow-hidden">
@@ -638,8 +643,28 @@ export default function LogisticsManager({
           </DialogContent>
               </Dialog>
               {spreadsheetHref && (
-                <Button asChild variant="outline" className="w-full sm:w-auto">
-                  <Link href={spreadsheetHref}>Buka Spreadsheet PO</Link>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="min-w-0 flex-1 px-2 sm:flex-none sm:px-4"
+                >
+                  <Link href={spreadsheetHref}>
+                    <FileSpreadsheet data-icon="inline-start" />
+                    <span className="sm:hidden">Spreadsheet</span>
+                    <span className="hidden sm:inline">Buka Spreadsheet PO</span>
+                  </Link>
+                </Button>
+              )}
+              {managePicsHref && (
+                <Button
+                  asChild
+                  variant="outline"
+                  className="min-w-0 flex-1 px-2 sm:flex-none sm:px-4"
+                >
+                  <Link href={managePicsHref}>
+                    <UsersRound data-icon="inline-start" />
+                    Kelola PIC
+                  </Link>
                 </Button>
               )}
             </div>

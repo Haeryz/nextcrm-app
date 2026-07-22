@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Edit, ImagePlus, Loader2, Plus, Trash2, X } from "lucide-react";
+import { Edit, FileSpreadsheet, ImagePlus, Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -51,6 +52,7 @@ type CatalogItemRow = {
 
 type CatalogItemManagerProps = {
   items: CatalogItemRow[];
+  spreadsheetHref: string;
 };
 
 const blankItem: CatalogItemInput = {
@@ -378,7 +380,10 @@ function CatalogItemForm({
   );
 }
 
-export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
+export default function CatalogItemManager({
+  items,
+  spreadsheetHref,
+}: CatalogItemManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [createOpen, setCreateOpen] = useState(false);
@@ -467,13 +472,22 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">{itemCountLabel}</p>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button className="w-full sm:w-auto">
-              <Plus data-icon="inline-start" />
-              Tambah Spare Part
-            </Button>
-          </DialogTrigger>
+        <div className="flex w-full gap-2 sm:w-auto">
+          <Button asChild variant="outline" className="min-w-0 flex-1 sm:flex-none">
+            <Link href={spreadsheetHref}>
+              <FileSpreadsheet data-icon="inline-start" />
+              <span className="sm:hidden">Spreadsheet</span>
+              <span className="hidden sm:inline">Buka Spreadsheet Inventory</span>
+            </Link>
+          </Button>
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button className="min-w-0 flex-1 sm:flex-none">
+                <Plus data-icon="inline-start" />
+                <span className="sm:hidden">Tambah Item</span>
+                <span className="hidden sm:inline">Tambah Spare Part</span>
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
             <DialogHeader>
               <DialogTitle>Tambah Spare Part</DialogTitle>
@@ -493,7 +507,8 @@ export default function CatalogItemManager({ items }: CatalogItemManagerProps) {
               showInitialStock
             />
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-lg border">
