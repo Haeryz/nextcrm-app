@@ -13,6 +13,7 @@ import { authOptions } from "@/lib/auth";
 import { getCatalogInventoryLocalDateKey } from "@/lib/mektek/catalog-inventory";
 import { applyCatalogStockMovement } from "@/lib/mektek/catalog-stock-ledger";
 import {
+  buildAutomaticDeliveryNoteNumber,
   isLogisticsPurchaseOrderType,
   normalizeLogisticsReference,
   validateLogisticsReceipt,
@@ -584,7 +585,9 @@ export async function createMektekOutboundPurchaseOrder(
         data: {
           ...header.data,
           flow: "OUTBOUND",
-          deliveryNoteNumber: null,
+          deliveryNoteNumber: buildAutomaticDeliveryNoteNumber(
+            header.data.poNumber,
+          ),
           deliveryDate: null,
           createdBy: access.session.user.id,
         },

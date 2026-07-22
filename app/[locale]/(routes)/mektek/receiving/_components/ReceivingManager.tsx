@@ -725,18 +725,23 @@ export default function ReceivingManager({
                 </div>
               </div>
 
-              <fieldset className="space-y-3 rounded-lg border p-4">
+              <fieldset className="space-y-4 rounded-xl border bg-muted/15 p-4 sm:p-5">
                 <legend className="sr-only">Item yang dipesan</legend>
-                <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="font-medium">Item yang dipesan</p>
-                    <p className="text-xs text-muted-foreground">
-                      Cari seluruh Catalog / Item atau gunakan input manual jika barang
-                      belum terdaftar.
-                    </p>
+                <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-semibold text-primary">
+                      {createValue.items.length}
+                    </span>
+                    <div>
+                      <p className="font-semibold">Item yang dipesan</p>
+                      <p className="text-xs text-muted-foreground">
+                        Cari seluruh Catalog / Item atau gunakan input manual jika
+                        barang belum terdaftar.
+                      </p>
+                    </div>
                   </div>
                   <Button
-                    type="button"
+            type="button"
                     variant="outline"
                     size="sm"
                     onClick={addItem}
@@ -746,19 +751,29 @@ export default function ReceivingManager({
                     Tambah Item
                   </Button>
                 </div>
-                <div className="max-h-[24rem] space-y-3 overflow-y-auto overscroll-contain pe-2">
+                <div className="space-y-4">
                   {createValue.items.map((item, index) => {
                     return (
-                      <div
+                      <fieldset
                         key={item.clientId}
-                        className="space-y-3 rounded-md bg-muted/40 p-3"
+                        className="overflow-visible rounded-xl border bg-background shadow-sm"
                       >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-medium">Item {index + 1}</p>
+                        <legend className="sr-only">Item {index + 1}</legend>
+                        <div className="flex items-center justify-between gap-3 rounded-t-xl border-b bg-muted/25 px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="flex size-7 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
+                              {index + 1}
+                            </span>
+                            <p className="text-sm font-semibold">Detail Item</p>
+                            {item.source === "MANUAL" && (
+                              <Badge variant="secondary">Manual</Badge>
+                            )}
+                          </div>
                           <Button
                             type="button"
                             variant="ghost"
                             size="icon"
+                            className="text-muted-foreground hover:text-destructive"
                             onClick={() => removeItem(item.clientId)}
                             disabled={isPending || createValue.items.length === 1}
                             aria-label={`Hapus Item ${index + 1}`}
@@ -767,7 +782,7 @@ export default function ReceivingManager({
                           </Button>
                         </div>
 
-                        <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_140px] md:items-end">
+                        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_10rem] lg:items-start">
                           <CatalogOrManualItemPicker
                             idPrefix={`receiving-${item.clientId}`}
                             itemNumber={index + 1}
@@ -798,12 +813,13 @@ export default function ReceivingManager({
                             }
                           />
 
-                          <div className="space-y-1.5">
+                          <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
                             <Label htmlFor={`logistics-qty-${item.clientId}`}>
                               QTY Order
                             </Label>
                             <Input
                               id={`logistics-qty-${item.clientId}`}
+                              className="h-11 bg-background font-mono text-base"
                               type="number"
                               inputMode="numeric"
                               min={1}
@@ -819,9 +835,12 @@ export default function ReceivingManager({
                               disabled={isPending}
                               required
                             />
+                            <p className="text-xs text-muted-foreground">
+                              Jumlah yang dipesan.
+                            </p>
                           </div>
                         </div>
-                      </div>
+                      </fieldset>
                     );
                   })}
                 </div>
@@ -837,7 +856,7 @@ export default function ReceivingManager({
                   disabled={isPending}
                 />
               </div>
-               <div className="flex shrink-0 justify-end">
+              <div className="flex shrink-0 justify-end">
                 <Button
                   type="submit"
                   disabled={isPending || hasInvalidCreateItems}
@@ -1360,7 +1379,7 @@ export default function ReceivingManager({
                 <div className="divide-y rounded-lg border">
                   {activeReceiptPurchaseOrder.items.map((item) => {
                     const progress = getLogisticsItemProgress(item);
-                    return (
+           return (
                       <div
                         key={item.id}
                         className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"

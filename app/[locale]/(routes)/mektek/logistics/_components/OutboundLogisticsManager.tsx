@@ -15,7 +15,6 @@ import {
   Trash2,
   Truck,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
@@ -135,7 +134,6 @@ type OutboundLogisticsManagerProps = {
   catalogItems: CatalogOption[];
   stats: OutboundStats;
   mode: "overview" | "spreadsheet";
-  spreadsheetHref?: string;
 };
 
 type DispatchItemDraft = {
@@ -236,7 +234,6 @@ export default function OutboundLogisticsManager({
   catalogItems,
   stats,
   mode,
-  spreadsheetHref,
 }: OutboundLogisticsManagerProps) {
   const router = useRouter();
   const nextItemId = useRef(2);
@@ -573,14 +570,62 @@ export default function OutboundLogisticsManager({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {spreadsheetHref && (
-                <Button asChild variant="outline">
-                  <Link href={spreadsheetHref}>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button type="button" variant="outline">
                     <FileSpreadsheet data-icon="inline-start" />
-                    Spreadsheet PO
-                  </Link>
-                </Button>
-              )}
+                    Export Excel
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>Export Excel Monitoring PO</DialogTitle>
+                    <DialogDescription>
+                      Pilih rentang bulan PO yang ingin dimasukkan ke file Excel.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="po-export-from-month">Dari bulan</Label>
+                      <Input
+                        id="po-export-from-month"
+                        type="month"
+                        max={currentMonth}
+                        value={fromMonth}
+                        onChange={(event) => setFromMonth(event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="po-export-to-month">Sampai bulan</Label>
+                      <Input
+                        id="po-export-to-month"
+                        type="month"
+                        min={fromMonth}
+                        max={currentMonth}
+                        value={toMonth}
+                        onChange={(event) => setToMonth(event.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {exportRangeError ??
+                      "File berisi satu baris per item PO pada rentang bulan terpilih."}
+                  </p>
+                  <div className="flex justify-end">
+                    {exportRangeError ? (
+                      <Button type="button" disabled>
+                        <Download data-icon="inline-start" /> Download Excel
+                      </Button>
+                    ) : (
+                      <Button asChild type="button">
+                        <a href={exportHref}>
+                          <Download data-icon="inline-start" /> Download Excel
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
               <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogTrigger asChild>
                   <Button>
@@ -679,15 +724,20 @@ export default function OutboundLogisticsManager({
                       </div>
                     </div>
 
-                    <fieldset className="space-y-3 rounded-lg border p-4">
+                    <fieldset className="space-y-4 rounded-xl border bg-muted/15 p-4 sm:p-5">
                       <legend className="sr-only">Item yang dikirim</legend>
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="font-medium">Item yang dikirim</p>
-                          <p className="text-xs text-muted-foreground">
-                            Stok belum berubah saat PO dibuat. Pengurangan dilakukan
-                            sesuai QTY Keluar pada setiap batch pengiriman.
-                          </p>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-semibold text-primary">
+                            {draft.items.length}
+                          </span>
+                          <div>
+                            <p className="font-semibold">Item yang dikirim</p>
+                            <p className="text-xs text-muted-foreground">
+                              Stok belum berubah saat PO dibuat. Pengurangan dilakukan
+                              sesuai QTY Keluar pada setiap batch pengiriman.
+                            </p>
+                          </div>
                         </div>
                         <Button
                           type="button"
@@ -700,18 +750,20 @@ export default function OutboundLogisticsManager({
                           Tambah Item
                         </Button>
                       </div>
-                      <div className="max-h-[22rem] space-y-3 overflow-y-auto overscroll-contain pe-1">
+                      <div className="space-y-4">
                         {draft.items.map((item, index) => {
                           return (
-                            <div
+                            <fieldset
                               key={item.clientId}
-                              className="space-y-3 rounded-md bg-muted/40 p-3"
+                              className="overflow-visible rounded-xl border bg-background shadow-sm"
                             >
-                              <div className="flex items-center justify-between gap-3">
+                              <legend className="sr-only">Item {index + 1}</legend>
+                              <div className="flex items-center justify-between gap-3 rounded-t-xl border-b bg-muted/25 px-4 py-3">
                                 <div className="flex items-center gap-2">
-                                  <p className="text-sm font-medium">
-                                    Item {index + 1}
-                                  </p>
+                                  <span className="flex size-7 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
+                                    {index + 1}
+                                  </span>
+                                  <p className="text-sm font-semibold">Detail Item</p>
                                   {item.source === "MANUAL" && (
                                     <Badge variant="secondary">Manual</Badge>
                                   )}
@@ -720,6 +772,7 @@ export default function OutboundLogisticsManager({
                                   type="button"
                                   variant="ghost"
                                   size="icon"
+                                  className="text-muted-foreground hover:text-destructive"
                                   onClick={() =>
                                     setDraft((current) => ({
                                       ...current,
@@ -735,83 +788,91 @@ export default function OutboundLogisticsManager({
                                 </Button>
                               </div>
 
-                              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_140px] lg:items-end">
-                                <CatalogOrManualItemPicker
-                                  idPrefix={`outbound-${item.clientId}`}
-                                  itemNumber={index + 1}
-                                  source={item.source}
-                                  catalogItemId={item.catalogItemId}
-                                  catalogQuery={item.catalogQuery}
-                                  partName={item.partName}
-                                  partNumber={item.partNumber}
-                                  catalogItems={catalogItems}
-                                  excludedCatalogItemIds={selectedCatalogItemIds}
-                                  disabled={isPending}
-                                  catalogStockMessage="Terhubung ke Catalog / Item. Stok berkurang saat Barang Keluar dicatat."
-                                  manualStockMessage="Item manual tetap dapat dikirim tanpa mengubah stok Catalog."
-                                  onSourceChange={(source) =>
-                                    switchItemSource(item.clientId, source)
-                                  }
-                                  onCatalogQueryChange={(query) =>
-                                    updateCatalogQuery(item.clientId, query)
-                                  }
-                                  onCatalogItemSelect={(catalogItem) =>
-                                    selectCatalogItem(item.clientId, catalogItem)
-                                  }
-                                  onPartNameChange={(value) =>
-                                    updateItem(item.clientId, "partName", value)
-                                  }
-                                  onPartNumberChange={(value) =>
-                                    updateItem(item.clientId, "partNumber", value)
-                                  }
-                                />
+                              <div className="space-y-4 p-4">
+                                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_10rem] lg:items-start">
+                                  <CatalogOrManualItemPicker
+                                    idPrefix={`outbound-${item.clientId}`}
+                                    itemNumber={index + 1}
+                                    source={item.source}
+                                    catalogItemId={item.catalogItemId}
+                                    catalogQuery={item.catalogQuery}
+                                    partName={item.partName}
+                                    partNumber={item.partNumber}
+                                    catalogItems={catalogItems}
+                                    excludedCatalogItemIds={selectedCatalogItemIds}
+                                    disabled={isPending}
+                                    catalogStockMessage="Terhubung ke Catalog / Item. Stok berkurang saat Barang Keluar dicatat."
+                                    manualStockMessage="Item manual tetap dapat dikirim tanpa mengubah stok Catalog."
+                                    onSourceChange={(source) =>
+                                      switchItemSource(item.clientId, source)
+                                    }
+                                    onCatalogQueryChange={(query) =>
+                                      updateCatalogQuery(item.clientId, query)
+                                    }
+                                    onCatalogItemSelect={(catalogItem) =>
+                                      selectCatalogItem(item.clientId, catalogItem)
+                                    }
+                                    onPartNameChange={(value) =>
+                                      updateItem(item.clientId, "partName", value)
+                                    }
+                                    onPartNumberChange={(value) =>
+                                      updateItem(item.clientId, "partNumber", value)
+                                    }
+                                  />
+
+                                  <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                                    <Label htmlFor={`outbound-qty-${item.clientId}`}>
+                                      QTY Order
+                                    </Label>
+                                    <Input
+                                      id={`outbound-qty-${item.clientId}`}
+                                      className="h-11 bg-background font-mono text-base"
+                                      type="number"
+                                      inputMode="numeric"
+                                      min={1}
+                                      value={item.orderedQuantity}
+                                      onChange={(event) =>
+                                        updateItem(
+                                          item.clientId,
+                                          "orderedQuantity",
+                                          event.target.value,
+                                        )
+                                      }
+                                      disabled={isPending}
+                                      required
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      Total kebutuhan User.
+                                    </p>
+                                  </div>
+                                </div>
 
                                 <div className="space-y-1.5">
-                                  <Label htmlFor={`outbound-qty-${item.clientId}`}>
-                                    QTY Order
+                                  <Label htmlFor={`outbound-note-${item.clientId}`}>
+                                    Keterangan Item{" "}
+                                    <span className="font-normal text-muted-foreground">
+                                      (opsional)
+                                    </span>
                                   </Label>
-                                  <Input
-                                    id={`outbound-qty-${item.clientId}`}
-                                    type="number"
-                                    inputMode="numeric"
-                                    min={1}
-                                    value={item.orderedQuantity}
+                                  <Textarea
+                                    id={`outbound-note-${item.clientId}`}
+                                    className="min-h-20 resize-y"
+                                    rows={2}
+                                    value={item.note}
+                                    maxLength={500}
                                     onChange={(event) =>
                                       updateItem(
                                         item.clientId,
-                                        "orderedQuantity",
+                                        "note",
                                         event.target.value,
                                       )
                                     }
+                                    placeholder="Keterangan khusus item pada Surat Jalan"
                                     disabled={isPending}
-                                    required
                                   />
                                 </div>
                               </div>
-
-                              <div className="space-y-1.5">
-                                <Label htmlFor={`outbound-note-${item.clientId}`}>
-                                  Keterangan Item{" "}
-                                  <span className="font-normal text-muted-foreground">
-                                    (opsional)
-                                  </span>
-                                </Label>
-                                <Input
-                                  id={`outbound-note-${item.clientId}`}
-                                  value={item.note}
-                                  maxLength={500}
-                                  onChange={(event) =>
-                                    updateItem(
-                                      item.clientId,
-                                      "note",
-                                      event.target.value,
-                                    )
-                                  }
-                                  placeholder="Keterangan khusus item pada Surat Jalan"
-                                  disabled={isPending}
-                                />
-                              </div>
-                            </div>
+                            </fieldset>
                           );
                         })}
                       </div>
@@ -841,52 +902,6 @@ export default function OutboundLogisticsManager({
             </div>
           </div>
         </>
-      )}
-
-      {mode === "spreadsheet" && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Export Spreadsheet PO</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[180px_180px_auto_minmax(0,1fr)] lg:items-end">
-            <div className="space-y-1.5">
-              <Label htmlFor="po-export-from-month">Dari bulan</Label>
-              <Input
-                id="po-export-from-month"
-                type="month"
-                max={currentMonth}
-                value={fromMonth}
-                onChange={(event) => setFromMonth(event.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="po-export-to-month">Sampai bulan</Label>
-              <Input
-                id="po-export-to-month"
-                type="month"
-                min={fromMonth}
-                max={currentMonth}
-                value={toMonth}
-                onChange={(event) => setToMonth(event.target.value)}
-              />
-            </div>
-            {exportRangeError ? (
-              <Button type="button" variant="outline" disabled>
-                <Download data-icon="inline-start" /> Export Excel
-              </Button>
-            ) : (
-              <Button asChild type="button" variant="outline">
-                <a href={exportHref}>
-                  <Download data-icon="inline-start" /> Export Excel
-                </a>
-              </Button>
-            )}
-            <p className="text-xs text-muted-foreground lg:pb-2">
-              {exportRangeError ??
-                "File berisi satu baris per item PO pada rentang bulan terpilih."}
-            </p>
-          </CardContent>
-        </Card>
       )}
 
       <Card>
@@ -975,7 +990,7 @@ export default function OutboundLogisticsManager({
                               target="_blank"
                               rel="noreferrer"
                             >
-                              <Printer data-icon="inline-start" /> PDF Legacy
+                              <Printer data-icon="inline-start" /> PDF Surat Jalan
                             </a>
                           </Button>
                         )}

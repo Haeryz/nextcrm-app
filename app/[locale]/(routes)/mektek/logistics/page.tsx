@@ -4,6 +4,14 @@ import { listMektekOutboundPurchaseOrders } from "@/actions/mektek/logistics";
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { authOptions } from "@/lib/auth";
 import { canManageMektekLogistics } from "@/lib/mektek/permissions";
 import { getPaginationItems } from "@/lib/pagination";
@@ -16,9 +24,12 @@ interface MektekLogisticsPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function readPage(searchParams: Record<string, string | string[] | undefined>) {
-  const value = searchParams.page;
-  return Math.max(Number(Array.isArray(value) ? value[0] : value) || 1, 1);
+function param(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string,
+) {
+  const value = searchParams[key];
+  return String(Array.isArray(value) ? value[0] : value || "").trim();
 }
 
 export default async function MektekLogisticsPage({
@@ -43,9 +54,15 @@ export default async function MektekLogisticsPage({
   }
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
+  const query = param(resolvedSearchParams, "q");
+  const rawStatus = param(resolvedSearchParams, "status").toUpperCase();
+  const status = rawStatus === "OPEN" || rawStatus === "CLOSED" ? rawStatus : "";
+  const page = Math.max(Number(param(resolvedSearchParams, "page")) || 1, 1);
   const [result, catalogItems, pics] = await Promise.all([
     listMektekOutboundPurchaseOrders({
-      page: readPage(resolvedSearchParams),
+      query,
+      status,
+      page,
       pageSize: 10,
     }),
     prismadb.catalogItem.findMany({
@@ -78,7 +95,14 @@ export default async function MektekLogisticsPage({
   }
 
   const paginationItems = getPaginationItems(result.data.page, result.data.totalPages);
-  const pageHref = (page: number) => `/${locale}/mektek/logistics?page=${page}`;
+  const baseParams = new URLSearchParams();
+  if (query) baseParams.set("q", query);
+  if (status) baseParams.set("status", status);
+  const pageHref = (targetPage: number) => {
+    const next = new URLSearchParams(baseParams);
+    next.set("page", String(targetPage));
+    return `/${locale}/mektek/logistics?${next.toString()}`;
+  };
   const purchaseOrders = result.data.items.map(
     ({ inputDate, dueDate, deliveryDate, createdAt, updatedAt, items, ...order }) => ({
       ...order,
@@ -105,6 +129,40 @@ export default async function MektekLogisticsPage({
       description="Kelola PO pengiriman MekTek ke User, stok keluar, dan Surat Jalan"
     >
       <div className="flex flex-col gap-6">
+        <Card>
+          <CardContent className="p-4">
+            <form
+              action={`/${locale}/mektek/logistics`}
+              className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_180px_auto_auto]"
+            >
+              <Input
+                name="q"
+                type="search"
+                defaultValue={query}
+                placeholder="Cari PO, Surat Jalan, User, project, atau item"
+                aria-label="Cari Monitoring PO"
+              />
+              <Select name="status" defaultValue={status || "ALL"}>
+                <SelectTrigger aria-label="Filter status Monitoring PO">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Semua status</SelectItem>
+                  <SelectItem value="OPEN">Open</SelectItem>
+                  <SelectItem value="CLOSED">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button type="submit" variant="outline">
+                Filter
+              </Button>
+              {(query || status) && (
+                <Button asChild type="button" variant="ghost">
+                  <Link href={`/${locale}/mektek/logistics`}>Reset Filter</Link>
+                </Button>
+              )}
+            </form>
+          </CardContent>
+        </Card>
         <OutboundLogisticsManager
           pics={pics}
           purchaseOrders={purchaseOrders}
@@ -114,7 +172,6 @@ export default async function MektekLogisticsPage({
           }))}
           stats={result.data.stats}
           mode="overview"
-          spreadsheetHref={`/${locale}/mektek/logistics/spreadsheet`}
         />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">

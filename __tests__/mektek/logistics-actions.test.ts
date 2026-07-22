@@ -132,7 +132,7 @@ describe("MekTek Logistics and Receiving actions", () => {
         data: expect.objectContaining({
           flow: "OUTBOUND",
           poNumber: "PO-001",
-          deliveryNoteNumber: null,
+          deliveryNoteNumber: "SJ-PO-001",
           supplierName: "PT. Mektek Tanjung Lestari",
         }),
       }),

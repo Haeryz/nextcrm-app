@@ -16,6 +16,9 @@ describe("22 July Logistics revision contract", () => {
   const outboundManager = source(
     "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
   );
+  const logisticsPage = source(
+    "app/[locale]/(routes)/mektek/logistics/page.tsx",
+  );
   const itemPicker = source(
     "app/[locale]/(routes)/mektek/_components/CatalogOrManualItemPicker.tsx",
   );
@@ -54,10 +57,19 @@ describe("22 July Logistics revision contract", () => {
     expect(itemPicker).toContain('role="combobox"');
     expect(itemPicker).toContain("Cari Catalog");
     expect(itemPicker).toContain("Input Manual");
-    expect(itemPicker).toContain("Ketik nama item atau part number");
+    expect(itemPicker).toContain("Contoh: Aki atau 992");
     expect(itemPicker).toContain(
       "Item manual tidak mengubah stok Catalog",
     );
+  });
+
+  it("keeps both item-entry dialogs comfortable and avoids nested scrolling", () => {
+    expect(itemPicker).toContain("Item Catalog terpilih");
+    expect(itemPicker).toContain("Ganti item");
+    expect(itemPicker).toContain("Gunakan Input Manual");
+    expect(itemPicker).toContain("Cari berdasarkan nama atau part number");
+    expect(receivingManager).not.toContain('max-h-[24rem]');
+    expect(outboundManager).not.toContain('max-h-[22rem]');
   });
 
   it("removes USER/PT from Receiving creation while retaining it in Monitoring PO", () => {
@@ -84,6 +96,12 @@ describe("22 July Logistics revision contract", () => {
     expect(receivingManager).not.toContain("Surat Jalan");
   });
 
+  it("creates the initial delivery note without opening it after saving Monitoring PO", () => {
+    expect(logisticsActions).toContain("buildAutomaticDeliveryNoteNumber");
+    expect(outboundManager).not.toContain('window.open("about:blank", "_blank")');
+    expect(outboundManager).not.toContain("deliveryNoteWindow");
+  });
+
   it("uses the requested three approval roles on Receiving purchase orders", () => {
     expect(purchaseOrderPdf).toContain("Finance Accounting");
     expect(purchaseOrderPdf).toContain("Department Purchasing");
@@ -106,6 +124,16 @@ describe("22 July Logistics revision contract", () => {
     expect(exportRoute).toContain('searchParams.get("toMonth")');
     expect(exportRoute).toContain("application/vnd.openxmlformats");
     expect(outboundManager).toContain("Export Excel");
+  });
+
+  it("moves export and created-PO filters into the Monitoring PO page", () => {
+    expect(logisticsPage).toContain('name="q"');
+    expect(logisticsPage).toContain('name="status"');
+    expect(logisticsPage).toContain("Reset Filter");
+    expect(logisticsPage).toContain("query,");
+    expect(logisticsPage).toContain("status,");
+    expect(outboundManager).toContain("Export Excel Monitoring PO");
+    expect(outboundManager).not.toContain("spreadsheetHref");
   });
 
   it("tracks partial outbound fulfillment like Receiving", () => {

@@ -8,7 +8,7 @@ These low-fidelity wireframes document the implemented MekTek MVP screens.
 +---------------------------------------------------------------+
 | MEKTEK Dashboard                                              |
 +---------------+---------------+---------------+---------------+
-| Open orders   | Due Dateday     | Overdue       | Completed     |
+| Open orders   | Due today     | Overdue       | Completed     |
 +---------------+---------------+---------------+---------------+
 | Unpaid balance                                                |
 +---------------------------------------------------------------+
