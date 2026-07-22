@@ -609,7 +609,7 @@ export default function OutboundLogisticsManager({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {exportRangeError ??
-                      "File berisi satu baris per item PO pada rentang bulan terpilih."}
+                      "File berisi satu baris Riwayat Monitoring untuk setiap PO pada rentang bulan terpilih."}
                   </p>
                   <div className="flex justify-end">
                     {exportRangeError ? (

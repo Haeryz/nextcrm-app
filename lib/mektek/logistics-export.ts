@@ -1,20 +1,12 @@
 export const LOGISTICS_PO_EXPORT_HEADERS = [
-  "PO No.",
-  "Surat Jalan",
-  "Status",
-  "User / PT",
-  "Project",
-  "Tanggal Pengiriman",
-  "Due Date",
-  "PO Type",
+  "PO / Batch",
+  "User / Project",
+  "Tanggal",
   "Item",
-  "Part Number",
-  "Gudang",
   "QTY Order",
   "QTY Keluar",
   "QTY Sisa",
-  "Keterangan Item",
-  "Catatan PO",
+  "Status",
 ] as const;
 
 function parseMonth(value: string, label: string) {
@@ -47,53 +39,44 @@ export function getLogisticsPoExportRange(fromMonth: string, toMonth: string) {
 
 type ExportPurchaseOrder = {
   poNumber: string;
-  deliveryNoteNumber: string | null;
   status: string;
   userName: string;
   projectName: string;
   inputDate: Date;
-  dueDate: Date;
-  poType: string;
-  notes: string | null;
+  deliveryDate: Date | null;
   items: Array<{
-    position: number;
-    partName: string;
-    partNumber: string | null;
-    warehouse: string | null;
     orderedQuantity: number;
     receivedQuantity: number;
-    note: string | null;
+    receipts: Array<{ receivingReference: string }>;
   }>;
 };
 
 const dateKey = (value: Date) => value.toISOString().slice(0, 10);
 
 export function buildLogisticsPoExportRows(orders: ExportPurchaseOrder[]) {
-  return orders.flatMap((order) =>
-    [...order.items]
-      .sort((left, right) => left.position - right.position)
-      .map((item) => ({
-        "PO No.": order.poNumber,
-        "Surat Jalan": order.deliveryNoteNumber || "-",
-        Status: order.status === "CLOSED" ? "Closed" : "Open",
-        "User / PT": order.userName,
-        Project: order.projectName,
-        "Tanggal Pengiriman": dateKey(order.inputDate),
-        "Due Date": dateKey(order.dueDate),
-        "PO Type": order.poType,
-        Item: item.partName,
-        "Part Number": item.partNumber || "-",
-        Gudang:
-          item.warehouse === "FRONT"
-            ? "Gudang Depan"
-            : item.warehouse === "REAR"
-              ? "Gudang Belakang"
-              : "-",
-        "QTY Order": item.orderedQuantity,
-        "QTY Keluar": item.receivedQuantity,
-        "QTY Sisa": Math.max(item.orderedQuantity - item.receivedQuantity, 0),
-        "Keterangan Item": item.note || "",
-        "Catatan PO": order.notes || "",
-      })),
-  );
+  return orders.map((order) => {
+    const batches = new Set(
+      order.items.flatMap((item) =>
+        item.receipts.map((receipt) => receipt.receivingReference),
+      ),
+    );
+    const quantities = order.items.reduce(
+      (total, item) => ({
+        ordered: total.ordered + item.orderedQuantity,
+        dispatched: total.dispatched + item.receivedQuantity,
+      }),
+      { ordered: 0, dispatched: 0 },
+    );
+
+    return {
+      "PO / Batch": `${order.poNumber} / ${batches.size} batch Barang Keluar`,
+      "User / Project": `${order.userName} / ${order.projectName}`,
+      Tanggal: dateKey(order.deliveryDate || order.inputDate),
+      Item: order.items.length,
+      "QTY Order": quantities.ordered,
+      "QTY Keluar": quantities.dispatched,
+      "QTY Sisa": Math.max(quantities.ordered - quantities.dispatched, 0),
+      Status: order.status === "CLOSED" ? "Closed" : "Open",
+    };
+  });
 }

@@ -1,6 +1,7 @@
 import {
   buildLogisticsPoExportRows,
   getLogisticsPoExportRange,
+  LOGISTICS_PO_EXPORT_HEADERS,
 } from "@/lib/mektek/logistics-export";
 
 describe("Monitoring PO monthly export", () => {
@@ -21,68 +22,60 @@ describe("Monitoring PO monthly export", () => {
     expect(() => getLogisticsPoExportRange(fromMonth, toMonth)).toThrow(message);
   });
 
-  it("exports one ordered row per outbound item with its own note", () => {
+  it("exports one Riwayat Monitoring PO row per created PO", () => {
+    expect(LOGISTICS_PO_EXPORT_HEADERS).toEqual([
+      "PO / Batch",
+      "User / Project",
+      "Tanggal",
+      "Item",
+      "QTY Order",
+      "QTY Keluar",
+      "QTY Sisa",
+      "Status",
+    ]);
+
     const rows = buildLogisticsPoExportRows([
       {
         poNumber: "PO-10",
-        deliveryNoteNumber: "SJ-PO-10",
         status: "OPEN",
         userName: "PT User",
         projectName: "Site A",
         inputDate: new Date("2026-07-12T00:00:00.000Z"),
-        dueDate: new Date("2026-07-20T00:00:00.000Z"),
-        poType: "Normal",
-        notes: "Catatan header",
+        deliveryDate: null,
         items: [
           {
-            position: 2,
-            partName: "Item B",
-            partNumber: null,
-            warehouse: "FRONT",
             orderedQuantity: 2,
             receivedQuantity: 1,
-            note: "Keterangan B",
+            receipts: [
+              { receivingReference: "OUT-1" },
+              { receivingReference: "OUT-2" },
+            ],
           },
           {
-            position: 1,
-            partName: "Item A",
-            partNumber: "A-1",
-            warehouse: "REAR",
             orderedQuantity: 1,
             receivedQuantity: 1,
-            note: "Keterangan A",
+            receipts: [{ receivingReference: "OUT-1" }],
           },
           {
-            position: 3,
-            partName: "Item Manual",
-            partNumber: "MAN-01",
-            warehouse: null,
             orderedQuantity: 4,
             receivedQuantity: 0,
-            note: "Tidak terhubung Catalog",
+            receipts: [],
           },
         ],
       },
     ]);
 
-    expect(rows).toHaveLength(3);
-    expect(rows.map((row) => row.Item)).toEqual([
-      "Item A",
-      "Item B",
-      "Item Manual",
+    expect(rows).toEqual([
+      {
+        "PO / Batch": "PO-10 / 2 batch Barang Keluar",
+        "User / Project": "PT User / Site A",
+        Tanggal: "2026-07-12",
+        Item: 3,
+        "QTY Order": 7,
+        "QTY Keluar": 2,
+        "QTY Sisa": 5,
+        Status: "Open",
+      },
     ]);
-    expect(rows.map((row) => row["Keterangan Item"])).toEqual([
-      "Keterangan A",
-      "Keterangan B",
-      "Tidak terhubung Catalog",
-    ]);
-    expect(rows[1]).toMatchObject({
-      Gudang: "Gudang Depan",
-      "Part Number": "-",
-      "QTY Order": 2,
-      "QTY Keluar": 1,
-      "QTY Sisa": 1,
-    });
-    expect(rows[2]).toMatchObject({ Gudang: "-", "Part Number": "MAN-01" });
   });
 });

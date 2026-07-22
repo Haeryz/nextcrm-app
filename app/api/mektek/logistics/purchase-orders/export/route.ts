@@ -27,24 +27,17 @@ export async function GET(request: Request) {
       orderBy: [{ inputDate: "asc" }, { poNumber: "asc" }],
       select: {
         poNumber: true,
-        deliveryNoteNumber: true,
         status: true,
         userName: true,
         projectName: true,
         inputDate: true,
-        dueDate: true,
-        poType: true,
-        notes: true,
+        deliveryDate: true,
         items: {
           orderBy: { position: "asc" },
           select: {
-            position: true,
-            partName: true,
-            partNumber: true,
-            warehouse: true,
             orderedQuantity: true,
             receivedQuantity: true,
-            note: true,
+            receipts: { select: { receivingReference: true } },
           },
         },
       },
@@ -53,13 +46,20 @@ export async function GET(request: Request) {
     const worksheet = XLSX.utils.json_to_sheet(rows, {
       header: [...LOGISTICS_PO_EXPORT_HEADERS],
     });
-    worksheet["!cols"] = LOGISTICS_PO_EXPORT_HEADERS.map((header) => ({
-      wch: Math.max(14, Math.min(34, header.length + 8)),
-    }));
+    worksheet["!cols"] = [
+      { wch: 34 },
+      { wch: 34 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 12 },
+    ];
     const summary = XLSX.utils.json_to_sheet([
       { Ringkasan: "Periode", Nilai: `${range.fromMonth} s.d. ${range.toMonth}` },
       { Ringkasan: "Jumlah PO", Nilai: orders.length },
-      { Ringkasan: "Jumlah baris item", Nilai: rows.length },
+      { Ringkasan: "Jumlah baris PO", Nilai: rows.length },
       {
         Ringkasan: "Total QTY Order",
         Nilai: rows.reduce((sum, row) => sum + Number(row["QTY Order"] || 0), 0),
@@ -75,8 +75,8 @@ export async function GET(request: Request) {
     ]);
     summary["!cols"] = [{ wch: 24 }, { wch: 24 }];
     const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Riwayat Monitoring PO");
     XLSX.utils.book_append_sheet(workbook, summary, "Ringkasan");
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Monitoring PO");
     const file = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
     return new Response(new Uint8Array(file), {
       headers: {
