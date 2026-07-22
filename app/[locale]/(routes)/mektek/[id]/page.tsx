@@ -178,9 +178,9 @@ export default async function MektekDetailPage({ params }: Props) {
         order.serviceNumber ?? order.id.slice(0, 8)
       }`}
     >
-      <div className="space-y-6">
+      <div className="min-w-0 space-y-4 sm:space-y-6">
         <Card className="border shadow-sm">
-          <CardContent className="p-5 md:p-6">
+          <CardContent className="p-4 sm:p-5 md:p-6">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
@@ -190,10 +190,10 @@ export default async function MektekDetailPage({ params }: Props) {
                   </span>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+                  <h2 className="break-words text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                     {customerName}
                   </h2>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="break-words text-sm text-muted-foreground">
                     {vehicle}
                     {vehiclePlateNumber ? ` · ${vehiclePlateNumber}` : ""}
                     {vehicleFleetNumber ? ` · Lambung ${vehicleFleetNumber}` : ""}
@@ -204,11 +204,11 @@ export default async function MektekDetailPage({ params }: Props) {
                 </div>
               </div>
 
-              <div className="w-full max-w-sm rounded-lg border bg-muted/20 p-4 lg:shrink-0">
+              <div className="w-full max-w-none rounded-lg border bg-muted/20 p-3 sm:max-w-sm sm:p-4 lg:shrink-0">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Status saat ini
                 </p>
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+                <div className="mt-2 flex flex-col items-start gap-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
                   <Badge
                     variant={statusMeta.badgeVariant}
                     className="px-3 py-1.5 text-xs font-bold uppercase tracking-wide"
@@ -224,23 +224,23 @@ export default async function MektekDetailPage({ params }: Props) {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="space-y-6">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="min-w-0 space-y-4 sm:space-y-6">
             <Card className="border shadow-sm">
-              <CardHeader className="pb-3">
+              <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
                 <CardTitle className="text-base">Pelanggan & Servis</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">ID Pelanggan</p>
-                    <p className="font-mono text-sm font-medium text-foreground">
+                    <p className="break-all font-mono text-sm font-medium text-foreground">
                       {customerId}
                     </p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">ETA</p>
-                    <p className="text-sm font-medium text-foreground">
+                    <p className="break-words text-sm font-medium text-foreground">
                       {order.dueDateAt?.toLocaleString("id-ID", {
                         dateStyle: "medium",
                         timeStyle: "short",
@@ -248,21 +248,21 @@ export default async function MektekDetailPage({ params }: Props) {
                       }) ?? "Belum diatur"}
                     </p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Teknisi</p>
-                    <p className="text-sm font-medium text-foreground">
+                    <p className="break-words text-sm font-medium text-foreground">
                       {technicianName}
                     </p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">Telepon</p>
-                    <p className="text-sm font-medium text-foreground">
+                    <p className="break-all text-sm font-medium text-foreground">
                       {valueOrDash(phone)}
                     </p>
                   </div>
-                  <div>
+                  <div className="min-w-0 md:col-span-2">
                     <p className="text-xs text-muted-foreground">Alamat</p>
-                    <p className="text-sm font-medium text-foreground">
+                    <p className="break-words text-sm font-medium text-foreground">
                       {valueOrDash(address)}
                     </p>
                   </div>
@@ -270,7 +270,7 @@ export default async function MektekDetailPage({ params }: Props) {
                 <Separator />
                 <div>
                   <p className="text-xs text-muted-foreground">Catatan Servis</p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">
+                  <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
                     {order.content || "Belum ada catatan servis."}
                   </p>
                 </div>
@@ -278,12 +278,12 @@ export default async function MektekDetailPage({ params }: Props) {
             </Card>
 
             <Card className="border shadow-sm">
-              <CardHeader className="pb-3">
+              <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
                 <CardTitle className="text-base">Servis & Sparepart</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="rounded-lg border p-4">
+                  <div className="min-w-0 rounded-lg border p-3 sm:p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold">Deskripsi Servis</p>
                       <Badge variant="secondary">
@@ -295,21 +295,21 @@ export default async function MektekDetailPage({ params }: Props) {
                         <p className="text-sm text-muted-foreground">Belum ada item servis.</p>
                       ) : (
                         normalizedItems.serviceItems.map((item, index) => (
-                          <div key={`${item.name}-${index}`} className="text-sm">
-                            <p className="font-medium">{item.name}</p>
-                            <p className="text-xs text-muted-foreground">
+                          <div key={`${item.name}-${index}`} className="min-w-0 text-sm">
+                            <p className="break-words font-medium">{item.name}</p>
+                            <p className="break-words text-xs text-muted-foreground">
                               {item.quantity} x {item.unitPrice.toLocaleString("id-ID")} IDR
                             </p>
                           </div>
                         ))
                       )}
                     </div>
-                    <p className="mt-3 border-t pt-3 text-sm font-semibold">
+                    <p className="mt-3 break-words border-t pt-3 font-mono text-sm font-semibold">
                       Subtotal: {normalizedItems.serviceSubtotal.toLocaleString("id-ID")} IDR
                     </p>
                   </div>
 
-                  <div className="rounded-lg border p-4">
+                  <div className="min-w-0 rounded-lg border p-3 sm:p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold">Daftar Sparepart</p>
                       <Badge variant="secondary">
@@ -321,9 +321,9 @@ export default async function MektekDetailPage({ params }: Props) {
                         <p className="text-sm text-muted-foreground">Belum ada sparepart.</p>
                       ) : (
                         normalizedItems.sparepartItems.map((item, index) => (
-                          <div key={`${item.name}-${index}`} className="text-sm">
-                            <p className="font-medium">{item.name}</p>
-                            <p className="text-xs text-muted-foreground">
+                          <div key={`${item.name}-${index}`} className="min-w-0 text-sm">
+                            <p className="break-words font-medium">{item.name}</p>
+                            <p className="break-words text-xs text-muted-foreground">
                               {item.quantity} x {item.unitPrice.toLocaleString("id-ID")} IDR
                               {item.partNumber ? ` · ${item.partNumber}` : ""}
                             </p>
@@ -331,7 +331,7 @@ export default async function MektekDetailPage({ params }: Props) {
                         ))
                       )}
                     </div>
-                    <p className="mt-3 border-t pt-3 text-sm font-semibold">
+                    <p className="mt-3 break-words border-t pt-3 font-mono text-sm font-semibold">
                       Subtotal: {normalizedItems.sparepartSubtotal.toLocaleString("id-ID")} IDR
                     </p>
                   </div>
@@ -340,7 +340,7 @@ export default async function MektekDetailPage({ params }: Props) {
                   <ServiceOrderItemsEditor serviceOrderId={order.id} />
                 )}
                 {canManageOrderItems && !canAddOrderItems && (
-                  <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                  <div className="break-words rounded-md border border-dashed p-3 text-xs text-muted-foreground">
                     {order.taskStatus === "COMPLETE"
                       ? "Service Items dan sparepart dikunci permanen karena Order ini telah ditutup."
                       : "Service Items dan sparepart dikunci selama Payment Review. Ubah Order kembali ke In Progress sebelum menambah pekerjaan."}
@@ -350,17 +350,17 @@ export default async function MektekDetailPage({ params }: Props) {
             </Card>
 
             <Card className="border shadow-sm">
-              <CardHeader className="pb-3">
+              <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
                 <CardTitle className="text-base">Work Timeline</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-5">
+              <CardContent className="space-y-5 px-4 pb-4 sm:px-6 sm:pb-6">
                 {canUpdateProgress && <AddTimelineEntryForm serviceOrderId={order.id} />}
 
                 <div className="space-y-3">
                   {timeline.map((timelineItem) => (
                     <div
                       key={timelineItem.id}
-                      className="grid grid-cols-[16px_1fr] gap-3 rounded-lg border p-4"
+                      className="grid min-w-0 grid-cols-[16px_minmax(0,1fr)] gap-3 rounded-lg border p-3 sm:p-4"
                     >
                       <span
                         className="mt-1 size-3 rounded-full bg-primary"
@@ -374,7 +374,7 @@ export default async function MektekDetailPage({ params }: Props) {
                             minute: "2-digit",
                           })}
                         </p>
-                        <p className="text-sm font-medium text-foreground">
+                        <p className="break-words text-sm font-medium text-foreground">
                           {timelineItem.description}
                         </p>
                       </div>
@@ -386,15 +386,15 @@ export default async function MektekDetailPage({ params }: Props) {
 
           </div>
 
-          <aside className="min-w-0 space-y-6">
+          <aside className="min-w-0 space-y-4 sm:space-y-6">
             <VisitDiscountCard visitCount={completedVisitCount} />
 
             {canManageSchedule && (
               <Card className="border shadow-sm">
-                <CardHeader className="pb-3">
+                <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
                   <CardTitle className="text-base">Jadwal</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
                   <EstimatedDoneControl
                     serviceOrderId={order.id}
                     estimatedDone={order.dueDateAt?.toISOString() ?? null}
@@ -409,10 +409,10 @@ export default async function MektekDetailPage({ params }: Props) {
 
             {canUpdateProgress && (
               <Card className="border shadow-sm">
-                <CardHeader className="pb-3">
+                <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
                   <CardTitle className="text-base">Status</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
                   <ServiceOrderStatusControl
                     locale={locale}
                     serviceOrderId={order.id}
@@ -426,10 +426,10 @@ export default async function MektekDetailPage({ params }: Props) {
 
             {(canManagePayment || canUseCustomerTools) && (
               <Tabs defaultValue={canRecordPayment ? "payment" : "docs"} className="min-w-0 space-y-4">
-                <TabsList className={`grid h-auto w-full ${canRecordPayment ? "grid-cols-3" : "grid-cols-2"}`}>
-                  {canRecordPayment && <TabsTrigger value="payment">Pembayaran</TabsTrigger>}
-                  <TabsTrigger value="docs" className="text-xs sm:text-sm">Dokumen</TabsTrigger>
-                  <TabsTrigger value="whatsapp" className="text-xs sm:text-sm">WhatsApp</TabsTrigger>
+                <TabsList className={`grid h-auto w-full gap-1 ${canRecordPayment ? "grid-cols-1 min-[360px]:grid-cols-3" : "grid-cols-2"}`}>
+                  {canRecordPayment && <TabsTrigger value="payment" className="w-full whitespace-normal px-2 text-xs sm:text-sm">Pembayaran</TabsTrigger>}
+                  <TabsTrigger value="docs" className="w-full whitespace-normal px-2 text-xs sm:text-sm">Dokumen</TabsTrigger>
+                  <TabsTrigger value="whatsapp" className="w-full whitespace-normal px-2 text-xs sm:text-sm">WhatsApp</TabsTrigger>
                 </TabsList>
                 {canRecordPayment && (
                   <TabsContent value="payment" className="mt-0">

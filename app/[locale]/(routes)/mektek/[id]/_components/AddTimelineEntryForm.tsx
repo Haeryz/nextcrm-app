@@ -41,22 +41,30 @@ export default function AddTimelineEntryForm({
   };
 
   return (
-    <form onSubmit={onSubmit} className="rounded-lg border p-4 bg-card space-y-3">
+    <form
+      onSubmit={onSubmit}
+      className="min-w-0 space-y-3 rounded-lg border bg-card p-3 sm:p-4"
+    >
       <div>
         <p className="text-sm font-semibold">Add Timeline</p>
         <p className="text-xs text-muted-foreground">
           Tambahkan catatan terbaru ke riwayat pesanan.
         </p>
       </div>
-      <div className="flex flex-col gap-3 sm:flex-row">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row">
         <Input
           placeholder="Contoh: Sparepart sudah dipasang"
           value={description}
           onChange={(event) => setDescription(event.target.value)}
           disabled={isPending}
           required
+          className="min-w-0"
         />
-        <Button type="submit" className="shrink-0" disabled={isPending}>
+        <Button
+          type="submit"
+          className="w-full shrink-0 sm:w-auto"
+          disabled={isPending}
+        >
           {isPending ? "Menyimpan..." : "Add Timeline"}
         </Button>
       </div>

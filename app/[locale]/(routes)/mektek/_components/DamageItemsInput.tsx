@@ -149,17 +149,20 @@ export default function DamageItemsInput({
   };
 
   return (
-    <section className="space-y-4" aria-labelledby={`${instanceId}-title`}>
+    <section
+      className="min-w-0 space-y-4"
+      aria-labelledby={`${instanceId}-title`}
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3">
+        <div className="flex min-w-0 items-start gap-3">
           <div className="rounded-lg border bg-background p-2 text-muted-foreground">
             <SectionIcon className="size-4" aria-hidden="true" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h5 id={`${instanceId}-title`} className="text-sm font-semibold">
               {label}
             </h5>
-            <p className="mt-0.5 max-w-2xl text-xs leading-5 text-muted-foreground">
+            <p className="mt-0.5 max-w-2xl break-words text-xs leading-5 text-muted-foreground">
               {helperText}
             </p>
           </div>
@@ -170,7 +173,7 @@ export default function DamageItemsInput({
           size="sm"
           onClick={addItem}
           disabled={disabled}
-          className="shrink-0"
+          className="w-full shrink-0 sm:w-auto"
         >
           <Plus className="size-4" aria-hidden="true" />
           {addLabel}
@@ -178,7 +181,7 @@ export default function DamageItemsInput({
       </div>
 
       {items.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-muted/10 px-4 py-8 text-center">
+        <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed bg-muted/10 px-3 py-6 text-center sm:px-4 sm:py-8">
           <div className="rounded-full bg-muted p-2.5 text-muted-foreground">
             <SectionIcon className="size-5" aria-hidden="true" />
           </div>
@@ -194,6 +197,7 @@ export default function DamageItemsInput({
             size="sm"
             onClick={addItem}
             disabled={disabled}
+            className="w-full sm:w-auto"
           >
             <Plus className="size-4" aria-hidden="true" />
             {addLabel}
@@ -212,10 +216,10 @@ export default function DamageItemsInput({
             return (
               <article
                 key={item.clientId ?? `${instanceId}-${index}`}
-                className="rounded-lg border bg-background p-4 shadow-xs"
+                className="min-w-0 rounded-lg border bg-background p-3 shadow-xs sm:p-4"
               >
-                <div className="mb-4 flex items-start justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
+                <div className="mb-4 flex flex-col gap-3 min-[420px]:flex-row min-[420px]:items-start min-[420px]:justify-between">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <Badge variant="outline">
                       {itemLabel} {String(index + 1).padStart(2, "0")}
                     </Badge>
@@ -223,12 +227,12 @@ export default function DamageItemsInput({
                       <Badge variant="secondary">Dari katalog</Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-right">
+                  <div className="flex w-full items-center justify-between gap-2 min-[420px]:w-auto min-[420px]:justify-start">
+                    <div className="text-left min-[420px]:text-right">
                       <p className="text-[11px] text-muted-foreground">
                         Total baris
                       </p>
-                      <p className="font-mono text-sm font-semibold tabular-nums">
+                      <p className="break-words font-mono text-sm font-semibold tabular-nums">
                         Rp {lineTotal.toLocaleString("id-ID")}
                       </p>
                     </div>
@@ -299,10 +303,10 @@ export default function DamageItemsInput({
                                     selectCatalogItem(index, catalogItem)
                                   }
                                 >
-                                  <span className="text-sm font-medium">
+                                  <span className="break-words text-sm font-medium">
                                     {catalogItem.description}
                                   </span>
-                                  <span className="text-xs text-muted-foreground">
+                                  <span className="break-words text-xs text-muted-foreground">
                                     {catalogItem.machine} ·{" "}
                                     {catalogItem.partNumber ||
                                       "Tanpa nomor komponen"}

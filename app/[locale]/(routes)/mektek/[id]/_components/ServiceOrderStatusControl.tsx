@@ -90,7 +90,7 @@ export default function ServiceOrderStatusControl({
               type="button"
               variant={currentStatus === key ? "default" : "outline"}
               size="sm"
-              className="h-auto min-h-9 gap-1.5 whitespace-normal"
+              className="h-auto min-h-9 w-full gap-1.5 whitespace-normal break-words"
               disabled={isPending || isClosed || currentStatus === key || closeBlocked}
               onClick={() => handleStatusChange(key)}
             >
@@ -136,11 +136,12 @@ export default function ServiceOrderStatusControl({
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Button
               type="button"
               size="sm"
               onClick={() => handleStatusChange(confirmation)}
+              className="h-auto w-full whitespace-normal sm:w-auto"
             >
               Konfirmasi {confirmation === "AWAITING_PAYMENT" ? "Service Done" : "Close Order"}
             </Button>
@@ -149,6 +150,7 @@ export default function ServiceOrderStatusControl({
               size="sm"
               variant="ghost"
               onClick={() => setConfirmation(null)}
+              className="w-full sm:w-auto"
             >
               Batal
             </Button>

@@ -10,17 +10,17 @@ export default function VisitDiscountCard({ visitCount }: VisitDiscountCardProps
   const tier = getDiscountTier(visitCount);
 
   return (
-    <Card className="border shadow-sm">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+    <Card className="min-w-0 border shadow-sm">
+      <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
             Loyalitas
           </CardTitle>
           {tier && <Badge variant="secondary">{tier.label}</Badge>}
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex items-end gap-1">
+      <CardContent className="space-y-3 px-4 pb-4 sm:px-6 sm:pb-6">
+        <div className="flex flex-wrap items-end gap-x-1 gap-y-0.5">
           <span className="text-3xl font-black text-foreground">{visitCount}</span>
           <span className="mb-1 text-sm text-muted-foreground">kunjungan selesai</span>
         </div>
@@ -44,14 +44,14 @@ export default function VisitDiscountCard({ visitCount }: VisitDiscountCardProps
           {[...discountTiers].reverse().map((item) => (
             <div
               key={item.label}
-              className={`flex justify-between rounded px-2 py-1 text-xs ${
+              className={`flex flex-col gap-0.5 rounded px-2 py-1 text-xs min-[360px]:flex-row min-[360px]:justify-between min-[360px]:gap-3 ${
                 tier?.label === item.label
                   ? "bg-foreground font-semibold text-background"
                   : "text-muted-foreground"
               }`}
             >
               <span>{item.label}</span>
-              <span>
+              <span className="break-words min-[360px]:text-right">
                 {item.minVisits}+ kunjungan -{" "}
                 {item.discount > 0 ? `Diskon ${item.discount}%` : "Tanpa diskon"}
               </span>

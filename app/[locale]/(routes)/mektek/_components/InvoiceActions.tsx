@@ -16,13 +16,13 @@ export default function InvoiceActions({
   const receiptHref = `/api/mektek/service-orders/${serviceOrderId}/receipt?download=1`;
 
   return (
-    <Card className="border shadow-sm">
-      <CardHeader className="pb-3">
+    <Card className="min-w-0 border shadow-sm">
+      <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
         <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground">
           Invoice & Struk
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 px-4 pb-4 sm:px-6 sm:pb-6">
         {invoiceAvailable ? (
           <Button asChild className="w-full">
             <a href={invoiceHref} target="_blank" rel="noreferrer">

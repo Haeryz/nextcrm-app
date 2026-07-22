@@ -64,7 +64,7 @@ export default function ServiceOrderItemsEditor({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <Separator />
       <div>
         <p className="text-sm font-semibold">Tambah servis atau sparepart</p>
@@ -73,7 +73,7 @@ export default function ServiceOrderItemsEditor({
         </p>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <div className="grid min-w-0 gap-4">
         <DamageItemsInput
           items={serviceItems}
           onChange={setServiceItems}
@@ -96,8 +96,13 @@ export default function ServiceOrderItemsEditor({
         />
       </div>
 
-      <div className="flex justify-end">
-        <Button type="button" onClick={submit} disabled={isPending}>
+      <div className="flex flex-col sm:flex-row sm:justify-end">
+        <Button
+          type="button"
+          onClick={submit}
+          disabled={isPending}
+          className="w-full sm:w-auto"
+        >
           {isPending ? (
             <Loader2 data-icon="inline-start" className="animate-spin" />
           ) : (

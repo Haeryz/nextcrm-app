@@ -73,11 +73,13 @@ export default function EstimatedDoneControl({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-start gap-3 rounded-md border bg-muted/20 p-3">
+      <div className="flex min-w-0 items-start gap-3 rounded-md border bg-muted/20 p-3">
         <CalendarClock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-        <div>
+        <div className="min-w-0">
           <p className="text-xs text-muted-foreground">Perkiraan saat ini</p>
-          <p className="text-sm font-medium">{formatEstimate(currentEstimate)}</p>
+          <p className="break-words text-sm font-medium">
+            {formatEstimate(currentEstimate)}
+          </p>
         </div>
       </div>
 
@@ -89,18 +91,20 @@ export default function EstimatedDoneControl({
           value={inputValue}
           onChange={(event) => setInputValue(event.target.value)}
           disabled={isPending}
+          className="min-w-0"
         />
         <p className="text-xs text-muted-foreground">
           Jadwal pelanggan langsung diperbarui setelah Anda menyimpan.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-col gap-2 min-[400px]:flex-row min-[400px]:flex-wrap">
         <Button
           type="button"
           size="sm"
           onClick={() => submit(inputValue)}
           disabled={isPending || !inputValue}
+          className="w-full min-[400px]:w-auto"
         >
           {isPending ? (
             <Loader2 data-icon="inline-start" className="animate-spin" />
@@ -115,6 +119,7 @@ export default function EstimatedDoneControl({
           variant="outline"
           onClick={() => submit(null)}
           disabled={isPending || (!currentEstimate && !inputValue)}
+          className="w-full min-[400px]:w-auto"
         >
           <X data-icon="inline-start" />
           Hapus

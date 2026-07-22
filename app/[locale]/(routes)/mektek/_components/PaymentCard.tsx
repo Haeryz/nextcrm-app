@@ -144,9 +144,9 @@ export default function PaymentCard({
   };
 
   return (
-    <Card className="border shadow-sm">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-3">
+    <Card className="min-w-0 border shadow-sm">
+      <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
+        <div className="flex flex-col items-start gap-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
           <CardTitle className="text-sm font-bold tracking-widest uppercase text-muted-foreground">
             Pembayaran
           </CardTitle>
@@ -159,10 +159,10 @@ export default function PaymentCard({
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">
         <div>
           <p className="mb-2 text-xs text-muted-foreground">Metode Pembayaran</p>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 min-[360px]:flex-row">
             {methods.map(({ key, label }) => (
               <Button
                 key={key}
@@ -170,7 +170,7 @@ export default function PaymentCard({
                 variant={method === key ? "default" : "outline"}
                 size="sm"
                 onClick={() => setMethod(key)}
-                className="flex-1"
+                className="w-full min-[360px]:flex-1"
                 disabled={isPending}
               >
                 {method === key ? (
@@ -189,28 +189,28 @@ export default function PaymentCard({
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <p className="mb-2 text-xs text-muted-foreground">Diskon</p>
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <span className="font-mono text-sm text-muted-foreground">Rp</span>
               <RupiahInput
                 aria-label="Diskon dalam Rupiah"
                 value={discount}
                 onValueChange={setDiscount}
                 placeholder="0"
-                className="font-mono"
+                className="min-w-0 font-mono"
                 disabled={isPending}
               />
             </div>
           </div>
           <div>
             <p className="mb-2 text-xs text-muted-foreground">Sudah dibayar</p>
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <span className="font-mono text-sm text-muted-foreground">Rp</span>
               <RupiahInput
                 aria-label="Jumlah yang sudah dibayar dalam Rupiah"
                 value={amountPaid}
                 onValueChange={setAmountPaid}
                 placeholder="0"
-                className="font-mono"
+                className="min-w-0 font-mono"
                 disabled={isPending}
               />
             </div>
@@ -222,12 +222,13 @@ export default function PaymentCard({
             Pengaturan Pajak
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="flex items-center justify-between gap-3 rounded-md border bg-background/80 p-3">
-              <div>
+            <div className="flex flex-col items-start gap-3 rounded-md border bg-background/80 p-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
+              <div className="min-w-0">
                 <p className="text-sm font-medium">PPN 11%</p>
                 <p className="text-xs text-muted-foreground">Berlaku untuk pribadi dan perusahaan</p>
               </div>
               <Switch
+                className="shrink-0"
                 aria-label="Aktifkan PPN 11%"
                 checked={ppnEnabled}
                 onCheckedChange={setPpnEnabled}
@@ -235,15 +236,16 @@ export default function PaymentCard({
               />
             </div>
             {customerType === "B2B" && (
-              <div className="flex items-center justify-between gap-3 rounded-md border bg-background/80 p-3">
-                <div>
-                  <p className="text-sm font-medium">PPh 23 ditambahkan 2%</p>
+              <div className="flex flex-col items-start gap-3 rounded-md border bg-background/80 p-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">PPh 23 dipotong 2%</p>
                   <p className="text-xs text-muted-foreground">
                     Ditambahkan ke total pelanggan perusahaan
                   </p>
                 </div>
                 <Switch
-                  aria-label="Aktifkan penambahan PPh 23 sebesar 2%"
+                  className="shrink-0"
+                  aria-label="Aktifkan pemotongan PPh 23 sebesar 2%"
                   checked={pphEnabled}
                   onCheckedChange={setPphEnabled}
                   disabled={isPending || !canManageTaxSettings}
@@ -290,7 +292,7 @@ export default function PaymentCard({
               </div>
               <div className="min-w-0">
                 <p className="text-xs text-muted-foreground">ID Pesanan</p>
-                <p className="truncate font-mono text-xs font-semibold">
+                <p className="break-all font-mono text-xs font-semibold">
                   {latestProviderPayment.midtransOrderId}
                 </p>
               </div>
@@ -370,10 +372,10 @@ export default function PaymentCard({
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button type="button" variant="outline" onClick={markPaid} disabled={isPending}>
+          <Button type="button" variant="outline" onClick={markPaid} disabled={isPending} className="w-full sm:w-auto">
             Tandai Lunas
           </Button>
-          <Button type="button" onClick={savePayment} disabled={isPending} className="sm:ml-auto">
+          <Button type="button" onClick={savePayment} disabled={isPending} className="w-full sm:ml-auto sm:w-auto">
             <Save className="mr-2 h-4 w-4" />
             {isPending ? "Menyimpan..." : "Simpan Pembayaran"}
           </Button>

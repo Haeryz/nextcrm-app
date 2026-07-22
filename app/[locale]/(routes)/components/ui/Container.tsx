@@ -16,14 +16,14 @@ const Container = ({
   children,
 }: ContainerProps) => {
   return (
-    <div className="flex flex-col flex-1 h-full w-full">
+    <div className="flex h-full min-w-0 w-full flex-1 flex-col">
       <Heading
         title={title}
         description={description}
         visibility={visibility}
       />
       <Separator className="my-4" />
-      <div className="flex-1 min-h-0 w-full">
+      <div className="min-h-0 min-w-0 w-full flex-1">
         {children}
       </div>
     </div>

@@ -103,8 +103,8 @@ export default function WhatsAppComposer({
   };
 
   return (
-    <Card className="border shadow-sm">
-      <CardHeader className="pb-3">
+    <Card className="min-w-0 border shadow-sm">
+      <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <CardTitle className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-muted-foreground">
             <MessageCircle className="size-4" />
@@ -133,10 +133,13 @@ export default function WhatsAppComposer({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 px-4 pb-4 sm:px-6 sm:pb-6">
         {phone ? (
           <p className="text-xs text-muted-foreground">
-            Kirim ke: <span className="font-mono font-semibold text-foreground">{phone}</span>
+            Kirim ke:{" "}
+            <span className="break-all font-mono font-semibold text-foreground">
+              {phone}
+            </span>
           </p>
         ) : (
           <p className="text-xs italic text-muted-foreground">
@@ -152,11 +155,11 @@ export default function WhatsAppComposer({
           placeholder="Ketik pesan WhatsApp..."
         />
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button
             type="button"
             onClick={sendDirectly}
-            className="flex-1"
+            className="w-full sm:flex-1"
             disabled={
               isSending ||
               connectionStatus !== "connected" ||
@@ -176,6 +179,7 @@ export default function WhatsAppComposer({
             variant="outline"
             onClick={openWhatsApp}
             disabled={!message.trim()}
+            className="w-full sm:w-auto"
           >
             <MessageCircle className="mr-2 size-4" />
             Buka WhatsApp
@@ -185,6 +189,7 @@ export default function WhatsAppComposer({
               type="button"
               variant="outline"
               onClick={() => window.open(trackingLink, "_blank", "noopener,noreferrer")}
+              className="w-full sm:w-auto"
             >
               <ExternalLink className="mr-2 size-4" />
               Preview Link
