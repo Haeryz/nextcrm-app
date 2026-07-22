@@ -64,11 +64,13 @@ test.afterAll(async () => {
 test("creates split MekTek items and streams tracking updates live", async ({ page, browser }) => {
   await page.goto("/mektek");
 
-  await page.getByPlaceholder("Customer name").fill(customerName);
-  await page.getByPlaceholder(/Vehicle/).fill(vehicle);
-  await page.getByPlaceholder("Phone").fill(customerPhone);
-  await page.getByPlaceholder(/Kerusakan #1/).fill(serviceName);
-  await page.getByPlaceholder("Estimasi biaya (Rp)").first().fill("200000");
+  await page.getByLabel("Nama pelanggan").fill(customerName);
+  await page.getByLabel("Kendaraan").fill(vehicle);
+  await page.getByLabel("Nomor telepon").fill(customerPhone);
+  await page.getByLabel("Keluhan / pekerjaan").fill(serviceName);
+  await page
+    .getByLabel("Harga satuan pekerjaan 1 dalam Rupiah")
+    .fill("200000");
 
   await page.getByPlaceholder("Search catalog item...").fill(machine);
   await page
@@ -80,11 +82,12 @@ test("creates split MekTek items and streams tracking updates live", async ({ pa
   await page.getByRole("button", { name: /^Add$/ }).click();
 
   await page.getByRole("button", { name: "Tambah sparepart" }).click();
-  const sparepartInputs = page.getByPlaceholder(/Sparepart #/);
-  await sparepartInputs.last().fill(manualPartName);
-  await page.getByPlaceholder("Estimasi biaya (Rp)").last().fill("50000");
+  await page.getByLabel("Nama sparepart").fill(manualPartName);
+  await page
+    .getByLabel("Harga satuan sparepart 1 dalam Rupiah")
+    .fill("50000");
 
-  await page.getByRole("button", { name: "Add Service" }).click();
+  await page.getByRole("button", { name: "Buat Order Servis" }).click();
   await expect(page.getByText("Service order created")).toBeVisible();
 
   const trackingLinkValue = await page

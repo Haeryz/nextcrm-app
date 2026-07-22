@@ -106,12 +106,14 @@ test("dashboard loads and loyalty discount applies automatically", async ({ page
     waitUntil: "domcontentloaded",
     timeout: 30_000,
   });
-  await page.getByPlaceholder("Customer name").fill(customerName);
-  await page.getByPlaceholder(/Vehicle/).fill(vehicle);
-  await page.getByPlaceholder("Phone").fill(customerPhone);
-  await page.getByPlaceholder(/Kerusakan #1/).fill("Brake inspection");
-  await page.getByPlaceholder(" (Rp)").first().fill("200000");
-  await page.getByRole("button", { name: "Add Service" }).click();
+  await page.getByLabel("Nama pelanggan").fill(customerName);
+  await page.getByLabel("Kendaraan").fill(vehicle);
+  await page.getByLabel("Nomor telepon").fill(customerPhone);
+  await page.getByLabel("Keluhan / pekerjaan").fill("Brake inspection");
+  await page
+    .getByLabel("Harga satuan pekerjaan 1 dalam Rupiah")
+    .fill("200000");
+  await page.getByRole("button", { name: "Buat Order Servis" }).click();
 
   await expect(page.getByText("Service order created")).toBeVisible();
   await expect(

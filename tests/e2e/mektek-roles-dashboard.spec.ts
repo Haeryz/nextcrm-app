@@ -162,16 +162,18 @@ test("admin sees the dedicated MekTek dashboard", async ({ page }) => {
 test("CS creates an order and receives automatic loyalty discount", async ({ browser }) => {
   const { context, page } = await freshContextLogin(() => browser.newContext(), csEmail);
   await page.goto("/en/mektek");
-  await expect(page.getByText("Input Service Baru")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Buat Order Servis" })).toBeVisible();
 
-  await page.getByPlaceholder("Customer name").fill(customerName);
-  await page.getByPlaceholder(/Vehicle/).fill(vehicle);
-  await page.getByLabel("Technician").click();
+  await page.getByLabel("Nama pelanggan").fill(customerName);
+  await page.getByLabel("Kendaraan").fill(vehicle);
+  await page.getByLabel("Teknisi utama").click();
   await page.getByRole("option", { name: "MekTek Technician" }).click();
-  await page.getByPlaceholder("Phone").fill(customerPhone);
-  await page.getByPlaceholder(/Kerusakan #1/).fill("Brake inspection");
-  await page.getByPlaceholder("Estimasi biaya (Rp)").first().fill("200000");
-  await page.getByRole("button", { name: "Add Service" }).click();
+  await page.getByLabel("Nomor telepon").fill(customerPhone);
+  await page.getByLabel("Keluhan / pekerjaan").fill("Brake inspection");
+  await page
+    .getByLabel("Harga satuan pekerjaan 1 dalam Rupiah")
+    .fill("200000");
+  await page.getByRole("button", { name: "Buat Order Servis" }).click();
 
   await expect(page.getByText("Service order created")).toBeVisible();
   await expect(
