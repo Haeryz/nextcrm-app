@@ -7,6 +7,7 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
@@ -70,8 +71,8 @@ export function AppSidebar({
   session,
   ...props
 }: AppSidebarProps) {
-  const { state } = useSidebar();
-  const isExpanded = state === "expanded";
+  const { state, isMobile } = useSidebar();
+  const isExpanded = isMobile || state === "expanded";
 
   const navItems = canAccessMektekStaffArea(session?.user)
     ? getMektekMenuItems(session?.user)
@@ -114,6 +115,10 @@ export function AppSidebar({
           >
             {process.env.NEXT_PUBLIC_APP_NAME || "NextCRM"}
           </h1>
+          <SidebarTrigger
+            aria-label="Tutup menu navigasi"
+            className="ml-auto size-9 md:hidden"
+          />
         </div>
       </SidebarHeader>
 

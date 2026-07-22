@@ -14,6 +14,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import {
   Collapsible,
@@ -63,6 +64,11 @@ interface NavMainProps {
 
 export function NavMain({ items, dict }: NavMainProps) {
   const pathname = usePathname()
+  const { isMobile, setOpenMobile } = useSidebar()
+
+  const closeMobileNavigation = () => {
+    if (isMobile) setOpenMobile(false)
+  }
 
   // Helper function to check if a route is active
   const isRouteActive = (url: string, exact?: boolean): boolean => {
@@ -119,7 +125,10 @@ export function NavMain({ items, dict }: NavMainProps) {
                               asChild
                               isActive={isActive}
                             >
-                              <Link href={subItem.url}>
+                              <Link
+                                href={subItem.url}
+                                onClick={closeMobileNavigation}
+                              >
                                 <span>{subItem.title}</span>
                               </Link>
                             </SidebarMenuSubButton>
@@ -143,7 +152,7 @@ export function NavMain({ items, dict }: NavMainProps) {
                 tooltip={item.title}
                 isActive={isActive}
               >
-                <Link href={item.url}>
+                <Link href={item.url} onClick={closeMobileNavigation}>
                   {item.icon && <item.icon />}
                   <span>{item.title}</span>
                 </Link>
