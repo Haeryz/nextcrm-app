@@ -49,8 +49,8 @@ describe("business and private invoice data", () => {
 
     expect(invoice.customer.type).toBe("B2B");
     expect(invoice.financials.pph).toBe(2000);
-    expect(invoice.financials.grossInvoiceTotal).toBe(111000);
-    expect(invoice.financials.netPayable).toBe(109000);
+    expect(invoice.financials.grossInvoiceTotal).toBe(113000);
+    expect(invoice.financials.netPayable).toBe(113000);
     expect(invoice.taxDocumentPlaceholder).toBe(true);
     expect(invoice.service.mileageKm).toBe(125000);
   });
@@ -70,9 +70,9 @@ describe("business and private invoice data", () => {
 
     expect(paymentCard).toMatch(/aria-label="Aktifkan PPN 11%"/);
     expect(paymentCard).toMatch(
-      /customerType === "B2B"[\s\S]*aria-label="Aktifkan pemotongan PPh 23 sebesar 2%"/,
+      /customerType === "B2B"[\s\S]*aria-label="Aktifkan penambahan PPh 23 sebesar 2%"/,
     );
-    expect(paymentCard).toContain("bukan biaya tambahan");
+    expect(paymentCard).toContain("PPh 23 ditambahkan 2%");
     expect(paymentCard).toMatch(/disabled=\{isPending \|\| !canManageTaxSettings\}/);
     expect(serviceOrders).toMatch(
       /wantsTaxSettingChange[\s\S]*!session\.user\.isAdmin/,

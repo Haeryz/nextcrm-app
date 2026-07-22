@@ -84,8 +84,9 @@ export default function PaymentCard({
       customerType === "B2B" && pphEnabled
         ? Math.round(taxBase * MEKTEK_PPH_RATE)
         : 0;
-    const grossInvoiceTotal = Math.max(0, taxBase + ppnAmount);
-    const total = Math.max(0, grossInvoiceTotal - pphAmount);
+    const totalBeforePph = Math.max(0, taxBase + ppnAmount);
+    const grossInvoiceTotal = Math.max(0, totalBeforePph + pphAmount);
+    const total = grossInvoiceTotal;
     const providerPaid = Math.min(initialProviderAmountPaid, total);
     const paid = Math.min(Math.max(paidAmount, providerPaid), total);
     const remaining = Math.max(0, total - paid);
@@ -95,6 +96,7 @@ export default function PaymentCard({
       taxBase,
       ppnAmount,
       pphAmount,
+      totalBeforePph,
       grossInvoiceTotal,
       total,
       providerPaid,
@@ -235,13 +237,13 @@ export default function PaymentCard({
             {customerType === "B2B" && (
               <div className="flex items-center justify-between gap-3 rounded-md border bg-background/80 p-3">
                 <div>
-                  <p className="text-sm font-medium">PPh 23 dipotong 2%</p>
+                  <p className="text-sm font-medium">PPh 23 ditambahkan 2%</p>
                   <p className="text-xs text-muted-foreground">
-                    Dipotong pelanggan perusahaan, bukan biaya tambahan
+                    Ditambahkan ke total pelanggan perusahaan
                   </p>
                 </div>
                 <Switch
-                  aria-label="Aktifkan pemotongan PPh 23 sebesar 2%"
+                  aria-label="Aktifkan penambahan PPh 23 sebesar 2%"
                   checked={pphEnabled}
                   onCheckedChange={setPphEnabled}
                   disabled={isPending || !canManageTaxSettings}
@@ -330,23 +332,23 @@ export default function PaymentCard({
             </div>
             {customerType === "B2B" && (
               <div className="min-w-0 rounded-md border bg-background/80 p-3">
-                <p className="text-xs text-muted-foreground">Total tagihan bruto</p>
+                <p className="text-xs text-muted-foreground">Total sebelum PPh</p>
                 <p className="break-words font-semibold leading-tight">
-                  {formatCurrency(totals.grossInvoiceTotal)}
+                  {formatCurrency(totals.totalBeforePph)}
                 </p>
               </div>
             )}
             {customerType === "B2B" && (
               <div className="min-w-0 rounded-md border bg-background/80 p-3">
-                <p className="text-xs text-muted-foreground">PPh 23 dipotong (-)</p>
+                <p className="text-xs text-muted-foreground">PPh 23 ditambahkan (+)</p>
                 <p className="break-words font-semibold leading-tight">
-                  - {formatCurrency(totals.pphAmount)}
+                  + {formatCurrency(totals.pphAmount)}
                 </p>
               </div>
             )}
             <div className="min-w-0 rounded-md border border-primary/30 bg-primary/5 p-3">
               <p className="text-xs text-muted-foreground">
-                {customerType === "B2B" ? "Jumlah net dibayar" : "Total tagihan"}
+                Total tagihan
               </p>
               <p className="break-words font-semibold leading-tight">
                 {formatCurrency(totals.total)}

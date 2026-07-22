@@ -366,17 +366,17 @@ function buildPdfDocument(data: MektekInvoiceData) {
     ...(isBusiness
       ? [
           {
-            label: "TOTAL TAGIHAN BRUTO",
-            value: financials.grossInvoiceTotal,
+            label: "TOTAL SEBELUM PPH",
+            value: financials.grossInvoiceTotal - financials.pph,
             bold: false,
           },
           {
-            label: `PPH 23 DIPOTONG (-) ${Math.round(financials.pphRate * 100)}%${financials.pphEnabled ? "" : " (NONAKTIF)"}`,
+            label: `PPH 23 DITAMBAHKAN (+) ${Math.round(financials.pphRate * 100)}%${financials.pphEnabled ? "" : " (NONAKTIF)"}`,
             value: financials.pph,
             bold: false,
           },
           {
-            label: "JUMLAH NET DIBAYAR",
+            label: "GRAND TOTAL",
             value: financials.netPayable,
             bold: true,
           },

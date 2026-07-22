@@ -141,7 +141,12 @@ export default async function CustomerDetailPage({
         : [];
   const serviceHistoryByPlate = new Map<
     string,
-    { count: number; lastServiceAt: Date | null }
+    {
+      count: number;
+      lastServiceAt: Date | null;
+      latestMileageKm: number | null;
+      latestMileageAt: Date | null;
+    }
   >();
   for (const order of orders) {
     const tags = readTags(order.tags);
@@ -153,6 +158,15 @@ export default async function CustomerDetailPage({
     if (!normalizedPlate) continue;
     const current = serviceHistoryByPlate.get(normalizedPlate);
     const serviceDate = order.createdAt ?? order.updatedAt ?? null;
+    const vehicleMileageKm =
+      typeof tags.vehicleMileageKm === "number"
+        ? tags.vehicleMileageKm
+        : null;
+    const hasNewerMileage =
+      vehicleMileageKm !== null &&
+      (current?.latestMileageKm == null ||
+        (serviceDate !== null &&
+          (!current.latestMileageAt || serviceDate > current.latestMileageAt)));
     serviceHistoryByPlate.set(normalizedPlate, {
       count: (current?.count ?? 0) + 1,
       lastServiceAt:
@@ -160,6 +174,12 @@ export default async function CustomerDetailPage({
         (serviceDate && serviceDate > current.lastServiceAt)
           ? serviceDate
           : current.lastServiceAt,
+      latestMileageKm: hasNewerMileage
+        ? vehicleMileageKm
+        : (current?.latestMileageKm ?? null),
+      latestMileageAt: hasNewerMileage
+        ? serviceDate
+        : (current?.latestMileageAt ?? null),
     });
   }
 
@@ -274,6 +294,12 @@ export default async function CustomerDetailPage({
                       )}
                       <div className="mt-4 border-t pt-3 text-xs text-muted-foreground">
                         <p>{history?.count ?? 0} riwayat servis</p>
+                        {history?.latestMileageKm != null && (
+                          <p className="mt-1">
+                            KM terakhir:{" "}
+                            {history.latestMileageKm.toLocaleString("id-ID")} KM
+                          </p>
+                        )}
                         <p className="mt-1">
                           Servis terakhir: {formatDateTime(lastServiceAt)}
                         </p>
@@ -333,6 +359,10 @@ export default async function CustomerDetailPage({
                     typeof tags.vehiclePlateNumber === "string"
                       ? tags.vehiclePlateNumber
                       : "";
+                  const vehicleMileageKm =
+                    typeof tags.vehicleMileageKm === "number"
+                      ? tags.vehicleMileageKm
+                      : null;
                   const status = getStatusMeta(order.taskStatus ?? "ACTIVE");
                   const technicianTag =
                     tags.technician &&
@@ -357,6 +387,9 @@ export default async function CustomerDetailPage({
                         <p className="truncate font-medium group-hover:underline">
                           {vehicle}
                           {plateNumber ? ` · ${plateNumber}` : ""}
+                          {vehicleMileageKm !== null
+                            ? ` · ${vehicleMileageKm.toLocaleString("id-ID")} KM`
+                            : ""}
                         </p>
                         <p className="line-clamp-1 text-sm text-muted-foreground">
                           {order.content || "Belum ada catatan servis"}

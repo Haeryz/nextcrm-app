@@ -57,9 +57,9 @@ describe("monthly service-order export", () => {
         "Nomor Plat": "B 1234 XYZ",
         Teknisi: "Made",
         Keluhan: "Periksa kompresor",
-        "Total Tagihan Bruto": 99_900,
-        "PPh 23 Dipotong": 1_800,
-        "Jumlah Net Dibayar": 98_100,
+        "Total Tagihan Bruto": 101_700,
+        "PPh 23 Ditambahkan": 1_800,
+        "Total Dibayar": 101_700,
       }),
     );
   });

@@ -35,4 +35,14 @@ describe("multiple customer vehicles", () => {
     expect(detail).toContain("Kendaraan Customer");
     expect(detail).toContain("customer.vehicles");
   });
+
+  it("renders recorded vehicle mileage in customer detail cards and service history", () => {
+    const detail = read(
+      "app/[locale]/(routes)/mektek/customers/[id]/page.tsx",
+    );
+
+    expect(detail).toContain("tags.vehicleMileageKm");
+    expect(detail).toContain("KM terakhir:");
+    expect(detail).toContain('vehicleMileageKm.toLocaleString("id-ID")');
+  });
 });
