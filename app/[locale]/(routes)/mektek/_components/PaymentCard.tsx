@@ -90,8 +90,8 @@ export default function PaymentCard({
         ? Math.round(serviceSubtotal * MEKTEK_PPH_RATE)
         : 0;
     const totalBeforePph = Math.max(0, taxBase + ppnAmount);
-    const grossInvoiceTotal = Math.max(0, totalBeforePph + pphAmount);
-    const total = grossInvoiceTotal;
+    const grossInvoiceTotal = totalBeforePph;
+    const total = Math.max(0, totalBeforePph - pphAmount);
     const providerPaid = Math.min(initialProviderAmountPaid, total);
     const paid = Math.min(Math.max(paidAmount, providerPaid), total);
     const remaining = Math.max(0, total - paid);
@@ -231,7 +231,9 @@ export default function PaymentCard({
             <div className="flex flex-col items-start gap-3 rounded-md border bg-background/80 p-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
               <div className="min-w-0">
                 <p className="text-sm font-medium">PPN 11%</p>
-                <p className="text-xs text-muted-foreground">Khusus pelanggan perusahaan</p>
+                <p className="text-xs text-muted-foreground">
+                  Ditambahkan ke DPP dan disetor oleh MekTek
+                </p>
               </div>
               <Switch
                 className="shrink-0"
@@ -243,14 +245,14 @@ export default function PaymentCard({
             </div>
             <div className="flex flex-col items-start gap-3 rounded-md border bg-background/80 p-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium">PPh 23 ditambahkan 2%</p>
+                  <p className="text-sm font-medium">PPh 23 dipotong 2%</p>
                   <p className="text-xs text-muted-foreground">
                     Dihitung 2% dari total jasa saja
                   </p>
                 </div>
                 <Switch
                   className="shrink-0"
-                  aria-label="Aktifkan penambahan PPh 23 sebesar 2%"
+                  aria-label="Aktifkan pemotongan PPh 23 sebesar 2%"
                   checked={pphEnabled}
                   onCheckedChange={setPphEnabled}
                   disabled={isPending || !canManageTaxSettings}
@@ -266,8 +268,8 @@ export default function PaymentCard({
             <div className="mt-3 flex gap-2 rounded-md border border-dashed bg-background/70 p-3 text-xs text-muted-foreground">
               <Info className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <p>
-                PPh 23 ditambahkan sebesar 2% dari total jasa saja dan tidak
-                dihitung dari nilai sparepart.
+                PPh 23 dipotong pelanggan sebesar 2% dari total jasa saja dan
+                disetor oleh pelanggan. Nilai sparepart tidak termasuk dasar PPh.
               </p>
             </div>
           )}
@@ -347,9 +349,11 @@ export default function PaymentCard({
             )}
             {customerType === "B2B" && (
               <div className="min-w-0 rounded-md border bg-background/80 p-3">
-                <p className="text-xs text-muted-foreground">PPh 23 ditambahkan (+)</p>
+                <p className="text-xs text-muted-foreground">
+                  PPh 23 dipotong (-)
+                </p>
                 <p className="break-words font-semibold leading-tight">
-                  + {formatCurrency(totals.pphAmount)}
+                  - {formatCurrency(totals.pphAmount)}
                 </p>
               </div>
             )}

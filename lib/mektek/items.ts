@@ -50,6 +50,40 @@ export const haveRequiredMektekItemInputPrices = (
 const parseQuantity = (value: unknown) =>
   Math.max(1, Math.floor(Number(value) || 1));
 
+export const mergeMektekLineItemInputs = <T extends MektekLineItemInput>(
+  items: ReadonlyArray<T>,
+): T[] => {
+  const merged: T[] = [];
+  const itemIndexes = new Map<string, number>();
+
+  for (const item of items) {
+    const catalogItemId = item.catalogItemId?.trim() ?? "";
+    const description = item.description?.trim() ?? "";
+    const identity = catalogItemId
+      ? `catalog:${catalogItemId}`
+      : description
+        ? `manual:${description.toLocaleLowerCase("id-ID")}`
+        : "";
+
+    const matchingIndex = identity ? itemIndexes.get(identity) : undefined;
+    if (matchingIndex === undefined) {
+      if (identity) itemIndexes.set(identity, merged.length);
+      merged.push({ ...item });
+      continue;
+    }
+
+    const current = merged[matchingIndex];
+    merged[matchingIndex] = {
+      ...current,
+      description: current.description?.trim() || description,
+      estimatedCost: current.estimatedCost || item.estimatedCost,
+      quantity: parseQuantity(current.quantity) + parseQuantity(item.quantity),
+    };
+  }
+
+  return merged;
+};
+
 const toStringOrNull = (value: unknown) => {
   const normalized = typeof value === "string" ? value.trim() : "";
   return normalized ? normalized : null;
@@ -128,7 +162,7 @@ export const buildMektekStoredItems = (
   items: MektekLineItemInput[] | undefined,
   kind: MektekLineItemKind
 ) =>
-  (Array.isArray(items) ? items : [])
+  mergeMektekLineItemInputs(Array.isArray(items) ? items : [])
     .map((item) => toLineItem(item, kind))
     .filter((item): item is MektekLineItem => !!item);
 

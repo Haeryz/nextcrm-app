@@ -62,4 +62,19 @@ describe("New service order form UI", () => {
     expect(formSource).toContain('role="combobox"');
     expect(formSource).toContain("Ketik nama teknisi");
   });
+
+  it("clears stale technician selections after invalid typed input", () => {
+    expect(formSource).toMatch(
+      /onBlur=\{\(\) => \{[\s\S]*setQuery\(""\);[\s\S]*onSelect\(UNASSIGNED_TECHNICIAN\)/,
+    );
+    expect(formSource).not.toMatch(
+      /<TechnicianSearchInput[\s\S]*<Select\s+value=\{technicianIds\[slot\]\}/,
+    );
+  });
+
+  it("exposes quantity steppers and merges repeated item rows", () => {
+    expect(itemsSource).toContain("mergeMektekLineItemInputs");
+    expect(itemsSource).toContain("Tambah jumlah");
+    expect(itemsSource).toContain("Kurangi jumlah");
+  });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState, useTransition } from "react";
-import { PackageSearch, Plus, Trash2, Wrench } from "lucide-react";
+import { Minus, PackageSearch, Plus, Trash2, Wrench } from "lucide-react";
 
 import { searchMektekCatalogItems } from "@/actions/mektek/service-orders";
 import { RupiahInput } from "@/components/mektek/RupiahInput";
@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { parseMoney } from "@/lib/mektek/items";
+import { mergeMektekLineItemInputs, parseMoney } from "@/lib/mektek/items";
 
 export type DamageItem = {
   clientId?: string;
@@ -126,22 +126,24 @@ export default function DamageItemsInput({
 
   const selectCatalogItem = (index: number, catalogItem: CatalogSearchItem) => {
     onChange(
-      items.map((item, itemIndex) =>
-        itemIndex === index
-          ? {
-              ...item,
-              catalogItemId: catalogItem.id,
-              machine: catalogItem.machine,
-              partNumber: catalogItem.partNumber ?? "",
-              catalogPartNumber: "",
-              description: catalogItem.description,
-              quantity: Math.max(1, Number(item.quantity) || 1),
-              estimatedCost:
-                typeof catalogItem.price === "number"
-                  ? String(catalogItem.price)
-                  : item.estimatedCost,
-            }
-          : item,
+      mergeMektekLineItemInputs(
+        items.map((item, itemIndex) =>
+          itemIndex === index
+            ? {
+                ...item,
+                catalogItemId: catalogItem.id,
+                machine: catalogItem.machine,
+                partNumber: catalogItem.partNumber ?? "",
+                catalogPartNumber: "",
+                description: catalogItem.description,
+                quantity: Math.max(1, Number(item.quantity) || 1),
+                estimatedCost:
+                  typeof catalogItem.price === "number"
+                    ? String(catalogItem.price)
+                    : item.estimatedCost,
+              }
+            : item,
+        ),
       ),
     );
     setActiveCatalogIndex(null);
@@ -279,6 +281,9 @@ export default function DamageItemsInput({
                           updateItem(index, "description", event.target.value);
                           if (catalogSearch) setActiveCatalogIndex(index);
                         }}
+                        onBlur={() =>
+                          onChange(mergeMektekLineItemInputs(items))
+                        }
                         disabled={disabled}
                         autoComplete="off"
                         required
@@ -344,28 +349,55 @@ export default function DamageItemsInput({
 
                   <div className="space-y-1.5 md:col-span-2">
                     <Label htmlFor={quantityId}>Jumlah</Label>
-                    <Input
-                      id={quantityId}
-                      aria-label={`Jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      step={1}
-                      value={String(quantity)}
-                      onChange={(event) =>
-                        updateItem(
-                          index,
-                          "quantity",
-                          Math.max(
-                            1,
-                            Math.floor(
-                              Number(event.target.value.replace(/\D/g, "")) || 1,
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label={`Kurangi jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
+                        onClick={() =>
+                          updateItem(index, "quantity", Math.max(1, quantity - 1))
+                        }
+                        disabled={disabled || quantity <= 1}
+                        className="shrink-0"
+                      >
+                        <Minus className="size-4" aria-hidden="true" />
+                      </Button>
+                      <Input
+                        id={quantityId}
+                        aria-label={`Jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        step={1}
+                        value={String(quantity)}
+                        onChange={(event) =>
+                          updateItem(
+                            index,
+                            "quantity",
+                            Math.max(
+                              1,
+                              Math.floor(
+                                Number(event.target.value.replace(/\D/g, "")) || 1,
+                              ),
                             ),
-                          ),
-                        )
-                      }
-                      disabled={disabled}
-                    />
+                          )
+                        }
+                        disabled={disabled}
+                        className="min-w-0 text-center"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label={`Tambah jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
+                        onClick={() => updateItem(index, "quantity", quantity + 1)}
+                        disabled={disabled}
+                        className="shrink-0"
+                      >
+                        <Plus className="size-4" aria-hidden="true" />
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5 md:col-span-3">

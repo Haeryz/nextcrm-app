@@ -30,7 +30,7 @@ describe("buildMektekFinancialSummary", () => {
     expect(summary.grandTotal).toBe(100_000);
   });
 
-  it("applies both PPN and PPH to a business customer by default", () => {
+  it("deducts service-only PPh from DPP plus PPN for a business customer", () => {
     const summary = buildMektekFinancialSummary({
       serviceItems: baseTags.serviceItems,
       sparepartItems: [
@@ -43,9 +43,9 @@ describe("buildMektekFinancialSummary", () => {
     expect(summary.pphEnabled).toBe(true);
     expect(summary.tax).toBe(16_500);
     expect(summary.pph).toBe(2_000);
-    expect(summary.grossInvoiceTotal).toBe(168_500);
-    expect(summary.grandTotal).toBe(168_500);
-    expect(summary.netPayable).toBe(168_500);
+    expect(summary.grossInvoiceTotal).toBe(166_500);
+    expect(summary.netPayable).toBe(164_500);
+    expect(summary.grandTotal).toBe(164_500);
   });
 
   it("lets an admin snapshot disable PPN and PPH independently", () => {
@@ -62,9 +62,9 @@ describe("buildMektekFinancialSummary", () => {
       pphEnabled: false,
     });
 
-    expect(noPpn.grandTotal).toBe(102_000);
+    expect(noPpn.grandTotal).toBe(98_000);
     expect(noPph.grandTotal).toBe(111_000);
-    expect(noPpn.grandTotal).toBeGreaterThan(100_000);
+    expect(noPpn.grandTotal).toBeLessThan(100_000);
   });
 
   it("uses settled Midtrans payments when tags still say unpaid", () => {
@@ -82,7 +82,7 @@ describe("buildMektekFinancialSummary", () => {
         {
           id: "payment-1",
           midtransOrderId: "MEK-123",
-          grossAmount: 113000,
+          grossAmount: 109000,
           paymentType: "qris",
           transactionStatus: "settlement",
           paidAt: new Date("2026-07-05T01:49:00.000Z"),
@@ -92,11 +92,11 @@ describe("buildMektekFinancialSummary", () => {
       ]
     );
 
-    expect(summary.grandTotal).toBe(113000);
-    expect(summary.amountPaid).toBe(113000);
+    expect(summary.grandTotal).toBe(109000);
+    expect(summary.amountPaid).toBe(109000);
     expect(summary.balanceDue).toBe(0);
     expect(summary.payment.status).toBe("paid");
-    expect(summary.payment.providerAmountPaid).toBe(113000);
+    expect(summary.payment.providerAmountPaid).toBe(109000);
   });
 
   it("does not double count a payment already reflected in tags", () => {
@@ -105,7 +105,7 @@ describe("buildMektekFinancialSummary", () => {
         ...baseTags,
         payment: {
           method: "qris",
-          amountPaid: 113000,
+          amountPaid: 109000,
           status: "paid",
         },
       },
@@ -114,7 +114,7 @@ describe("buildMektekFinancialSummary", () => {
         {
           id: "payment-1",
           midtransOrderId: "MEK-123",
-          grossAmount: 113000,
+          grossAmount: 109000,
           paymentType: "qris",
           transactionStatus: "settlement",
           paidAt: new Date("2026-07-05T01:49:00.000Z"),
@@ -122,7 +122,7 @@ describe("buildMektekFinancialSummary", () => {
       ]
     );
 
-    expect(summary.amountPaid).toBe(113000);
+    expect(summary.amountPaid).toBe(109000);
     expect(summary.balanceDue).toBe(0);
   });
 });

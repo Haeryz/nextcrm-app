@@ -31,7 +31,14 @@ describe("monthly service-order export", () => {
           vehicleMileageKm: 42_000,
           customerType: "B2B",
           address: "Denpasar",
-          serviceItems: [],
+          serviceItems: [
+            {
+              name: "Servis kompresor",
+              quantity: 1,
+              unitPrice: 100_000,
+              total: 100_000,
+            },
+          ],
           sparepartItems: [
             {
               name: "Kompresor",
@@ -57,9 +64,9 @@ describe("monthly service-order export", () => {
         "Nomor Plat": "B 1234 XYZ",
         Teknisi: "Made",
         Keluhan: "Periksa kompresor",
-        "Total Tagihan Bruto": 99_900,
-        "PPh 23 Ditambahkan": 0,
-        "Total Dibayar": 99_900,
+        "Total Tagihan Bruto": 210_900,
+        "PPh 23 Dipotong": 2_000,
+        "Total Dibayar": 208_900,
       }),
     );
   });

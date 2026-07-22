@@ -2,6 +2,7 @@ import {
   appendMektekLineItems,
   haveRequiredMektekItemInputPrices,
   haveRequiredMektekItemPrices,
+  mergeMektekLineItemInputs,
   normalizeMektekLineItems,
 } from "@/lib/mektek/items";
 
@@ -152,5 +153,30 @@ describe("appendMektekLineItems", () => {
     expect(result.sparepartItems).toEqual([
       expect.objectContaining({ name: "Filter Oli", quantity: 5, total: 250_000 }),
     ]);
+  });
+});
+
+describe("mergeMektekLineItemInputs", () => {
+  it("turns repeated manual and catalog rows into quantity increments", () => {
+    const result = mergeMektekLineItemInputs([
+      { description: "Servis AC", quantity: 1, estimatedCost: "125000" },
+      { description: " servis ac ", quantity: 2, estimatedCost: "125000" },
+      {
+        description: "Filter oli",
+        catalogItemId: "filter-1",
+        quantity: 1,
+        estimatedCost: "50000",
+      },
+      {
+        description: "Oil filter",
+        catalogItemId: "filter-1",
+        quantity: 3,
+        estimatedCost: "50000",
+      },
+    ]);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({ description: "Servis AC", quantity: 3 });
+    expect(result[1]).toMatchObject({ catalogItemId: "filter-1", quantity: 4 });
   });
 });

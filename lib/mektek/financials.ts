@@ -104,9 +104,9 @@ export function buildMektekFinancialSummary(
   const tax = ppnEnabled ? Math.round(taxBase * MEKTEK_PPN_RATE) : 0;
   const pphBase = normalizedItems.serviceSubtotal;
   const pph = pphEnabled ? Math.round(pphBase * MEKTEK_PPH_RATE) : 0;
-  const grossInvoiceTotal = Math.max(0, taxBase + tax + pph);
+  const grossInvoiceTotal = Math.max(0, taxBase + tax);
+  const netPayable = Math.max(0, grossInvoiceTotal - pph);
   // Kept as compatibility aliases for payment/invoice consumers.
-  const netPayable = grossInvoiceTotal;
   const grandTotal = netPayable;
   const payment = parsePayment(parsedTags);
   const providerPayments = normalizeProviderPayments(payments);

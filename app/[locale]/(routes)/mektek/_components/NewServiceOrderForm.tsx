@@ -37,6 +37,7 @@ import {
 } from "@/lib/mektek/customer-vehicles";
 import {
   haveRequiredMektekItemInputPrices,
+  mergeMektekLineItemInputs,
   parseMoney,
 } from "@/lib/mektek/items";
 import { getMektekTodayDateInput } from "@/lib/mektek/schedule";
@@ -153,7 +154,13 @@ function TechnicianSearchInput({
               item.name.toLocaleLowerCase("id-ID") ===
               query.trim().toLocaleLowerCase("id-ID"),
           );
-          if (!exactMatch) setQuery(selectedTechnician?.name ?? "");
+          if (exactMatch) {
+            onSelect(exactMatch.id);
+            setQuery(exactMatch.name);
+            return;
+          }
+          setQuery("");
+          onSelect(UNASSIGNED_TECHNICIAN);
         }}
       />
       <datalist id={`${id}-options`}>
@@ -263,11 +270,11 @@ export default function NewServiceOrderForm({
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const describedServiceItems = serviceItems.filter((item) =>
-      item.description.trim(),
+    const describedServiceItems = mergeMektekLineItemInputs(
+      serviceItems.filter((item) => item.description.trim()),
     );
-    const describedSparepartItems = sparepartItems.filter((item) =>
-      item.description.trim(),
+    const describedSparepartItems = mergeMektekLineItemInputs(
+      sparepartItems.filter((item) => item.description.trim()),
     );
 
     if (describedServiceItems.length === 0) {
@@ -875,7 +882,7 @@ export default function NewServiceOrderForm({
               {["Teknisi utama", "Pendamping 1", "Pendamping 2"].map(
                 (slotLabel, slot) => (
                   <div key={slotLabel} className="space-y-1.5">
-                    <Label htmlFor={`technician-${slot}`}>
+                    <Label htmlFor={`technician-search-${slot}`}>
                       {slotLabel}
                       {slot > 0 && (
                         <span className="ml-1 font-normal text-muted-foreground">
@@ -900,46 +907,6 @@ export default function NewServiceOrderForm({
                         )
                       }
                     />
-                    <Select
-                      value={technicianIds[slot]}
-                      onValueChange={(value) =>
-                        setTechnicianIds((current) =>
-                          current.map((item, index) =>
-                            index === slot ? value : item,
-                          ),
-                        )
-                      }
-                      disabled={isPending}
-                    >
-                      <SelectTrigger
-                        id={`technician-${slot}`}
-                        aria-label={slotLabel}
-                        className="w-full bg-background"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem value={UNASSIGNED_TECHNICIAN}>
-                            {slot === 0 ? "Pilih technician" : "Tidak ada"}
-                          </SelectItem>
-                          {technicians.map((technician) => (
-                            <SelectItem
-                              key={technician.id}
-                              value={technician.id}
-                              disabled={technicianIds.some(
-                                (selectedId, selectedSlot) =>
-                                  selectedSlot !== slot &&
-                                  selectedId === technician.id,
-                              )}
-                            >
-                              {technician.name} ·{" "}
-                              {MEKTEK_TECHNICIAN_ROLE_LABELS[technician.role]}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
                   </div>
                 ),
               )}

@@ -367,11 +367,11 @@ function buildPdfDocument(data: MektekInvoiceData) {
       ? [
           {
             label: "TOTAL SEBELUM PPH",
-            value: financials.grossInvoiceTotal - financials.pph,
+            value: financials.grossInvoiceTotal,
             bold: false,
           },
           {
-            label: `PPH 23 DITAMBAHKAN (+) ${Math.round(financials.pphRate * 100)}%${financials.pphEnabled ? "" : " (NONAKTIF)"}`,
+            label: `PPH 23 DIPOTONG (-) ${Math.round(financials.pphRate * 100)}%${financials.pphEnabled ? "" : " (NONAKTIF)"}`,
             value: financials.pph,
             bold: false,
           },
