@@ -57,10 +57,10 @@ export type LogisticsPurchaseOrderReceiptInput = {
   picId: string;
   deliveryNoteNumber: string;
   receivedAt: string;
-  note?: string;
   items: Array<{
     purchaseOrderItemId: string;
     quantity: string | number;
+    note?: string;
   }>;
 };
 
@@ -387,11 +387,11 @@ export async function recordMektekLogisticsPurchaseOrderReceipt(
     boundedText(input?.deliveryNoteNumber, MAX_DELIVERY_NOTE_LEN),
   );
   const receivedAt = parseDateOnly(input?.receivedAt);
-  const note = boundedText(input?.note, MAX_NOTE_LEN);
   const rawItems = Array.isArray(input?.items) ? input.items : [];
   const items = rawItems.map((item) => ({
     purchaseOrderItemId: compactText(item?.purchaseOrderItemId),
     quantity: parsePositiveInteger(item?.quantity),
+    note: boundedText(item?.note, MAX_NOTE_LEN),
   }));
 
   if (!purchaseOrderId) return { error: "Purchase Order wajib dipilih" };
@@ -469,6 +469,7 @@ export async function recordMektekLogisticsPurchaseOrderReceipt(
         return {
           item,
           quantity: inputItem.quantity!,
+          note: inputItem.note,
           progress: validation.data,
         };
       });
@@ -522,7 +523,7 @@ export async function recordMektekLogisticsPurchaseOrderReceipt(
             deliveryNoteNumber,
             quantity: validatedItem.quantity,
             receivedAt,
-            note: note || null,
+            note: validatedItem.note || null,
             createdBy: access.session.user.id,
           },
         });

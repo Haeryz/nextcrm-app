@@ -138,6 +138,45 @@ describe("MekTek Logistics actions", () => {
     );
   });
 
+  it("stores a different receipt note for every delivery-note item", async () => {
+    receiptCreate
+      .mockResolvedValueOnce({ id: "receipt-1" })
+      .mockResolvedValueOnce({ id: "receipt-2" });
+
+    const result = await recordMektekLogisticsPurchaseOrderReceipt({
+      purchaseOrderId: "po-1",
+      picId: "pic-1",
+      deliveryNoteNumber: "SJ-NOTE-001",
+      receivedAt: "2026-07-10",
+      items: [
+        {
+          purchaseOrderItemId: "item-1",
+          quantity: 4,
+          note: "Kemasan penyok ringan",
+        },
+        {
+          purchaseOrderItemId: "item-2",
+          quantity: 2,
+          note: "Barang lengkap dan baik",
+        },
+      ],
+    });
+
+    expect(result).toEqual(expect.objectContaining({ data: expect.any(Object) }));
+    expect(receiptCreate).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({ note: "Kemasan penyok ringan" }),
+      }),
+    );
+    expect(receiptCreate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        data: expect.objectContaining({ note: "Barang lengkap dan baik" }),
+      }),
+    );
+  });
+
   it("rejects a duplicate delivery-note number for the same PO", async () => {
     receiptFindFirst.mockResolvedValueOnce({ id: "existing-receipt" });
 

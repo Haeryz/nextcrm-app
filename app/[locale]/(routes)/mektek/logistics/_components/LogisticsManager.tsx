@@ -128,12 +128,16 @@ type PurchaseOrderDraft = Omit<LogisticsPurchaseOrderInput, "items"> & {
   items: PurchaseOrderItemDraft[];
 };
 
+type LogisticsReceiptItemDraft = {
+  quantity: string;
+  note: string;
+};
+
 type LogisticsDeliveryNoteGroup = {
   deliveryNoteNumber: string;
   receivedAt: string;
   createdAt: string;
   pic: { id: string; name: string };
-  note: string | null;
   lines: Array<{
     item: LogisticsPurchaseOrderItemRow;
     receipt: LogisticsReceiptRow;
@@ -215,10 +219,9 @@ export default function LogisticsManager({
     picId: pics[0]?.id ?? "",
     deliveryNoteNumber: "",
     receivedAt: getCatalogInventoryLocalDateKey(),
-    note: "",
   });
-  const [receiptQuantities, setReceiptQuantities] = useState<
-    Record<string, string>
+  const [receiptItemDrafts, setReceiptItemDrafts] = useState<
+    Record<string, LogisticsReceiptItemDraft>
   >({});
   const [receiptImage, setReceiptImage] = useState<File | null>(null);
   const [receiptImageError, setReceiptImageError] = useState<string | null>(null);
@@ -264,6 +267,21 @@ export default function LogisticsManager({
     }));
   };
 
+  const updateReceiptItem = (
+    itemId: string,
+    key: keyof LogisticsReceiptItemDraft,
+    value: string,
+  ) => {
+    setReceiptItemDrafts((current) => ({
+      ...current,
+      [itemId]: {
+        quantity: current[itemId]?.quantity ?? "",
+        note: current[itemId]?.note ?? "",
+        [key]: value,
+      },
+    }));
+  };
+
   const submitPurchaseOrder = () => {
     startTransition(async () => {
       const result = await createMektekLogisticsPurchaseOrder({
@@ -288,15 +306,18 @@ export default function LogisticsManager({
       picId: pics[0]?.id ?? "",
       deliveryNoteNumber: "",
       receivedAt: getCatalogInventoryLocalDateKey(),
-      note: "",
     });
-    setReceiptQuantities(
+    setReceiptItemDrafts(
       Object.fromEntries(
         purchaseOrder.items.map((item) => {
           const progress = getLogisticsItemProgress(item);
           return [
             item.id,
-            progress.status === "OPEN" ? String(progress.remainingQuantity) : "",
+            {
+              quantity:
+                progress.status === "OPEN" ? String(progress.remainingQuantity) : "",
+              note: "",
+            },
           ];
         }),
       ),
@@ -330,7 +351,8 @@ export default function LogisticsManager({
     const receiptItems = activeReceiptPurchaseOrder.items
       .map((item) => ({
         purchaseOrderItemId: item.id,
-        quantity: receiptQuantities[item.id] ?? "",
+        quantity: receiptItemDrafts[item.id]?.quantity ?? "",
+        note: receiptItemDrafts[item.id]?.note ?? "",
       }))
       .filter((item) => Number(item.quantity) > 0);
     startTransition(async () => {
@@ -393,7 +415,6 @@ export default function LogisticsManager({
       const current = groups.get(line.receipt.deliveryNoteNumber);
       if (current) {
         current.lines.push(line);
-        if (!current.note && line.receipt.note) current.note = line.receipt.note;
         continue;
       }
       groups.set(line.receipt.deliveryNoteNumber, {
@@ -401,7 +422,6 @@ export default function LogisticsManager({
         receivedAt: line.receipt.receivedAt,
         createdAt: line.receipt.createdAt,
         pic: line.receipt.pic,
-        note: line.receipt.note,
         lines: [line],
       });
     }
@@ -1316,37 +1336,42 @@ export default function LogisticsManager({
                                 min={0}
                                 max={progress.remainingQuantity}
                                 step={1}
-                                value={receiptQuantities[item.id] ?? ""}
+                                value={receiptItemDrafts[item.id]?.quantity ?? ""}
                                 onChange={(event) =>
-                                  setReceiptQuantities((current) => ({
-                                    ...current,
-                                    [item.id]: event.target.value,
-                                  }))
+                                  updateReceiptItem(item.id, "quantity", event.target.value)
                                 }
                                 placeholder="0"
                                 disabled={isPending || progress.status === "CLOSED"}
                               />
                             </div>
+                            {Number(receiptItemDrafts[item.id]?.quantity) > 0 && (
+                              <div className="space-y-1.5 sm:col-span-2">
+                                <Label htmlFor={`logistics-receipt-note-${item.id}`}>
+                                  Keterangan Item
+                                  <span className="ml-1 font-normal text-muted-foreground">
+                                    (opsional)
+                                  </span>
+                                </Label>
+                                <Textarea
+                                  id={`logistics-receipt-note-${item.id}`}
+                                  value={receiptItemDrafts[item.id]?.note ?? ""}
+                                  onChange={(event) =>
+                                    updateReceiptItem(item.id, "note", event.target.value)
+                                  }
+                                  placeholder={`Kondisi atau catatan khusus untuk ${item.partName}`}
+                                  maxLength={500}
+                                  rows={2}
+                                  disabled={isPending || progress.status === "CLOSED"}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Keterangan ini hanya berlaku untuk item ini.
+                                </p>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
                     </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="logistics-receipt-note">Catatan Penerimaan</Label>
-                    <Textarea
-                      id="logistics-receipt-note"
-                      value={receiptDraft.note}
-                      onChange={(event) =>
-                        setReceiptDraft((current) => ({
-                          ...current,
-                          note: event.target.value,
-                        }))
-                      }
-                      placeholder="Kondisi barang atau catatan pengiriman"
-                      disabled={isPending}
-                    />
                   </div>
 
                   <div className="space-y-1.5">
@@ -1513,25 +1538,32 @@ export default function LogisticsManager({
                               .map(({ item, receipt }) => (
                                 <div
                                   key={receipt.id}
-                                  className="flex flex-col gap-1 p-3 text-sm min-[420px]:flex-row min-[420px]:items-center min-[420px]:justify-between"
+                                  className="p-3 text-sm"
                                 >
-                                  <div className="min-w-0">
-                                    <p className="break-words font-medium">{item.partName}</p>
-                                    <p className="break-words text-xs text-muted-foreground">
-                                      {item.partNumber || "Tanpa Part Number"}
-                                    </p>
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <p className="break-words font-medium">
+                                        {item.partName}
+                                      </p>
+                                      <p className="break-words text-xs text-muted-foreground">
+                                        {item.partNumber || "Tanpa Part Number"}
+                                      </p>
+                                    </div>
+                                    <span className="font-mono font-semibold tabular-nums">
+                                      +{receipt.quantity}
+                                    </span>
                                   </div>
-                                  <span className="font-mono font-semibold tabular-nums">
-                                    +{receipt.quantity}
-                                  </span>
+                                  {receipt.note && (
+                                    <p className="mt-2 break-words text-xs text-muted-foreground">
+                                      <span className="font-medium text-foreground">
+                                        Keterangan:
+                                      </span>{" "}
+                                      {receipt.note}
+                                    </p>
+                                  )}
                                 </div>
                               ))}
                           </div>
-                          {deliveryNote.note && (
-                            <p className="mt-3 text-xs text-muted-foreground">
-                              {deliveryNote.note}
-                            </p>
-                          )}
                         </div>
                       );
                     })}

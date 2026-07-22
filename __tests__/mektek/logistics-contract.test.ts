@@ -78,6 +78,18 @@ describe("MekTek Logistics implementation contract", () => {
     expect(actionSource).toContain("validateLogisticsReceipt");
   });
 
+  it("keeps receipt notes scoped to their individual delivery-note items", () => {
+    expect(actionSource).toContain("note: boundedText(item?.note, MAX_NOTE_LEN)");
+    expect(actionSource).toContain("note: validatedItem.note || null");
+    expect(managerSource).toContain(
+      "id={`logistics-receipt-note-${item.id}`}",
+    );
+    expect(managerSource).toContain(
+      "Keterangan ini hanya berlaku untuk item ini.",
+    );
+    expect(managerSource).not.toContain('id="logistics-receipt-note"');
+  });
+
   it("keeps the PO spreadsheet on a dedicated Logistics route", () => {
     expect(pageSource).toContain("listMektekLogisticsPurchaseOrders");
     expect(pageSource).toContain("/mektek/logistics/spreadsheet");
