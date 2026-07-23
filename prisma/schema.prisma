@@ -652,6 +652,7 @@ model MektekPayment {
 
 model FinanceCounterparty {
   id                 String                  @id @default(uuid()) @db.Uuid
+  demoImportId       String?                 @db.Uuid
   legalName          String
   normalizedName     String                  @unique
   role               FinanceCounterpartyRole
@@ -675,9 +676,11 @@ model FinanceCounterparty {
   disbursements      FinanceDisbursement[]
   purchaseOrders     LogisticsPurchaseOrder[]
   supplyAllocations  LogisticsSupplyAllocation[]
+  demoImport         FinanceDemoImport?      @relation(fields: [demoImportId], references: [id], onDelete: SetNull)
 
   @@index([role, isActive])
   @@index([legalName])
+  @@index([demoImportId])
 }
 
 model FinanceContract {
@@ -813,6 +816,7 @@ model FinanceBillingSource {
 
 model FinanceInvoice {
   id                 String               @id @default(uuid()) @db.Uuid
+  demoImportId       String?              @db.Uuid
   draftNumber        String               @unique @default(uuid())
   invoiceNumber      String?              @unique
   counterpartyId     String               @db.Uuid
@@ -852,10 +856,41 @@ model FinanceInvoice {
   sources            FinanceBillingSource[]
   lines              FinanceInvoiceLine[]
   allocations        FinanceReceiptAllocation[]
+  demoImport         FinanceDemoImport?   @relation(fields: [demoImportId], references: [id], onDelete: SetNull)
 
   @@index([status, dueDate])
   @@index([counterpartyId, status])
   @@index([invoiceDate])
+  @@index([demoImportId])
+}
+
+model FinanceDemoImport {
+  id             String                @id @default(uuid()) @db.Uuid
+  label          String                @unique
+  sourceFileName String
+  sourceSha256   String
+  metadata       Json?                 @db.JsonB
+  rowCount       Int                   @default(0)
+  createdAt      DateTime              @default(now())
+
+  counterparties FinanceCounterparty[]
+  invoices       FinanceInvoice[]
+  rows           FinanceDemoRow[]
+}
+
+model FinanceDemoRow {
+  id        String            @id @default(uuid()) @db.Uuid
+  importId  String            @db.Uuid
+  sheetKey  String
+  sourceRow Int
+  data      Json              @db.JsonB
+  createdAt DateTime          @default(now())
+
+  import FinanceDemoImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@unique([importId, sheetKey, sourceRow])
+  @@index([sheetKey, sourceRow])
+  @@index([importId])
 }
 
 model FinanceInvoiceLine {

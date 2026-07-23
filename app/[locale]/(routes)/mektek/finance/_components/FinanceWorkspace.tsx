@@ -20,6 +20,9 @@ export type FinanceSection =
   | "overview"
   | "invoices"
   | "delivery-notes"
+  | "receivables"
+  | "spare-parts"
+  | "services"
   | "revenue"
   | "payables"
   | "cash"
@@ -40,6 +43,21 @@ const date = (value: Date | null | undefined) =>
 
 const dateInput = (value: Date | null | undefined) =>
   value ? value.toISOString().slice(0, 10) : "";
+
+type DemoData = Record<string, unknown>;
+
+const demoData = (value: unknown): DemoData =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? value as DemoData
+    : {};
+
+const demoText = (value: unknown) =>
+  value == null || value === "" ? "—" : String(value);
+
+const demoNumber = (value: unknown) => {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 const statusLabel: Record<string, string> = {
   DRAFT: "Draf",
@@ -173,8 +191,8 @@ export default async function FinanceWorkspace({ section }: { section: FinanceSe
   if (section === "invoices") {
     const [invoices, customers] = await Promise.all([
       prismadb.financeInvoice.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 200,
+        orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
+        take: 500,
         include: {
           counterparty: { select: { legalName: true } },
           lines: { orderBy: { position: "asc" }, take: 1 },
@@ -229,53 +247,343 @@ export default async function FinanceWorkspace({ section }: { section: FinanceSe
   }
 
   if (section === "delivery-notes") {
-    const rows = await prismadb.financeInvoice.findMany({
-      where: { deliveryNoteNumber: { not: null } },
-      orderBy: [{ deliveryNoteDate: "desc" }, { invoiceDate: "desc" }],
-      take: 300,
-      include: { counterparty: { select: { legalName: true } } },
-    });
+    const [workbookRows, workbookCount, liveRows] = await Promise.all([
+      prismadb.financeDemoRow.findMany({
+        where: { sheetKey: "delivery_notes" },
+        orderBy: { sourceRow: "desc" },
+        take: 500,
+        select: { id: true, sourceRow: true, data: true },
+      }),
+      prismadb.financeDemoRow.count({ where: { sheetKey: "delivery_notes" } }),
+      prismadb.financeBillingSource.findMany({
+        where: { sourceType: "OUTBOUND_DISPATCH" },
+        orderBy: { occurredAt: "desc" },
+        take: 100,
+        include: {
+          counterparty: { select: { legalName: true } },
+          invoice: { select: { invoiceNumber: true, invoiceDate: true } },
+        },
+      }),
+    ]);
+    const rows = [
+      ...liveRows.map((row) => {
+        const snapshot = demoData(row.snapshot);
+        const items = Array.isArray(snapshot.items)
+          ? snapshot.items.map((item) => demoData(item).description ?? demoData(item).name).filter(Boolean)
+          : [];
+        return {
+          id: `live-${row.id}`,
+          source: "Logistik langsung",
+          company: row.counterparty.legalName,
+          deliveryNoteNumber: row.sourceReference,
+          deliveryNoteDate: date(row.occurredAt),
+          invoiceNumber: row.invoice?.invoiceNumber ?? "—",
+          invoiceDate: date(row.invoice?.invoiceDate),
+          purchaseOrderNumber: demoText(snapshot.poNumber),
+          purchaseOrderDate: "—",
+          description: items.join(", ") || demoText(snapshot.projectName),
+          subtotal: Number(row.subtotal ?? 0),
+          taxAmount: Number(row.taxAmount ?? 0),
+          total: Number(row.totalAmount ?? 0),
+        };
+      }),
+      ...workbookRows.map((row) => {
+        const value = demoData(row.data);
+        return {
+          id: row.id,
+          source: `Excel baris ${row.sourceRow}`,
+          company: demoText(value.company),
+          deliveryNoteNumber: demoText(value.deliveryNoteNumber),
+          deliveryNoteDate: demoText(value.deliveryNoteDate),
+          invoiceNumber: demoText(value.invoiceNumber),
+          invoiceDate: demoText(value.invoiceDate),
+          purchaseOrderNumber: demoText(value.purchaseOrderNumber),
+          purchaseOrderDate: demoText(value.purchaseOrderDate),
+          description: demoText(value.description),
+          subtotal: demoNumber(value.subtotal),
+          taxAmount: demoNumber(value.taxAmount),
+          total: demoNumber(value.total),
+        };
+      }),
+    ];
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
           title="Rekap surat jalan"
-          description="Daftar surat jalan atau berita acara yang terhubung ke invoice dan PO."
+          description={`Data langsung dari Logistik dan ${workbookCount.toLocaleString("id-ID")} baris demo workbook.`}
         />
         {rows.length ? (
           <div className="overflow-hidden rounded-xl border bg-card">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
+              <table className="w-full min-w-[1500px] text-sm">
                 <thead className="bg-muted/50 text-left">
                   <tr>
                     <th className="p-3">Pelanggan</th>
                     <th className="p-3">Nomor SJ / BA</th>
                     <th className="p-3">Tanggal SJ</th>
                     <th className="p-3">Nomor invoice</th>
+                    <th className="p-3">Tanggal invoice</th>
                     <th className="p-3">Nomor PO</th>
+                    <th className="p-3">Tanggal PO</th>
+                    <th className="p-3">Deskripsi</th>
+                    <th className="p-3 text-right">Harga</th>
+                    <th className="p-3 text-right">PPN</th>
                     <th className="p-3 text-right">Total</th>
+                    <th className="p-3">Sumber</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.id} className="border-t">
-                      <td className="p-3">{row.counterparty.legalName}</td>
+                      <td className="p-3">{row.company}</td>
                       <td className="p-3 font-medium">{row.deliveryNoteNumber}</td>
-                      <td className="p-3">{date(row.deliveryNoteDate)}</td>
-                      <td className="p-3">{row.invoiceNumber ?? "—"}</td>
-                      <td className="p-3">{row.purchaseOrderNumber ?? "—"}</td>
-                      <td className="p-3 text-right font-medium">{money(row.netAmount)}</td>
+                      <td className="p-3">{row.deliveryNoteDate}</td>
+                      <td className="p-3">{row.invoiceNumber}</td>
+                      <td className="p-3">{row.invoiceDate}</td>
+                      <td className="p-3">{row.purchaseOrderNumber}</td>
+                      <td className="p-3">{row.purchaseOrderDate}</td>
+                      <td className="max-w-[320px] truncate p-3" title={row.description}>{row.description}</td>
+                      <td className="p-3 text-right">{money(row.subtotal)}</td>
+                      <td className="p-3 text-right">{money(row.taxAmount)}</td>
+                      <td className="p-3 text-right font-medium">{money(row.total)}</td>
+                      <td className="p-3 text-xs text-muted-foreground">{row.source}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           </div>
-        ) : <Empty>Belum ada surat jalan. Data dimasukkan melalui Rekap Invoice.</Empty>}
+        ) : <Empty>Belum ada surat jalan dari Logistik maupun data demo workbook.</Empty>}
+      </main>
+    );
+  }
+
+  if (section === "receivables") {
+    const rows = await prismadb.financeDemoRow.findMany({
+      where: { sheetKey: "invoice_receivables" },
+      orderBy: { sourceRow: "asc" },
+      take: 500,
+      select: { id: true, data: true },
+    });
+    const months = [
+      ["jan", "Jan"], ["feb", "Feb"], ["mar", "Mar"], ["apr", "Apr"],
+      ["may", "Mei"], ["jun", "Jun"], ["jul", "Jul"], ["aug", "Agu"],
+      ["sep", "Sep"], ["oct", "Okt"], ["nov", "Nov"], ["dec", "Des"],
+    ] as const;
+    return (
+      <main className="space-y-4 px-4 pb-8 sm:px-6">
+        <Header
+          title="Rekapitulasi invoice jasa & part"
+          description="Total piutang, pembayaran, sisa piutang, dan realisasi bulanan sesuai workbook Accounting."
+        />
+        {rows.length ? (
+          <div className="overflow-hidden rounded-xl border bg-card">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1800px] text-sm">
+                <thead className="bg-muted/50 text-left">
+                  <tr>
+                    <th className="p-3">Nama perusahaan</th>
+                    <th className="p-3 text-right">Total piutang</th>
+                    <th className="p-3 text-right">Piutang dibayar</th>
+                    <th className="p-3 text-right">Sisa piutang</th>
+                    {months.map(([, label]) => <th key={label} className="p-3 text-right">{label}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const value = demoData(row.data);
+                    const monthly = demoData(value.months);
+                    return (
+                      <tr key={row.id} className="border-t">
+                        <td className="p-3 font-medium">{demoText(value.customer)}</td>
+                        <td className="p-3 text-right">{money(value.totalReceivable)}</td>
+                        <td className="p-3 text-right">{money(value.paid)}</td>
+                        <td className="p-3 text-right font-semibold">{money(value.balance)}</td>
+                        {months.map(([key]) => (
+                          <td key={key} className="p-3 text-right">{money(monthly[key])}</td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : <Empty>Data rekap piutang demo belum diimpor.</Empty>}
+      </main>
+    );
+  }
+
+  if (section === "spare-parts") {
+    const rows = await prismadb.financeDemoRow.findMany({
+      where: { sheetKey: "spare_part_income" },
+      orderBy: { sourceRow: "asc" },
+      take: 500,
+      select: { id: true, data: true },
+    });
+    return (
+      <main className="space-y-4 px-4 pb-8 sm:px-6">
+        <Header
+          title="Laporan audit sales spare part"
+          description="Rincian pendapatan spare part sesuai invoice, SJ, PO, PPN, dan faktur pajak."
+        />
+        {rows.length ? (
+          <div className="overflow-hidden rounded-xl border bg-card">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1400px] text-sm">
+                <thead className="bg-muted/50 text-left">
+                  <tr>
+                    <th className="p-3">Pelanggan</th>
+                    <th className="p-3">Nomor SJ</th>
+                    <th className="p-3">Tanggal SJ</th>
+                    <th className="p-3">Kwitansi</th>
+                    <th className="p-3">Nomor invoice</th>
+                    <th className="p-3">Tanggal invoice</th>
+                    <th className="p-3">Nomor PO</th>
+                    <th className="p-3">Tanggal PO</th>
+                    <th className="p-3 text-right">Harga</th>
+                    <th className="p-3 text-right">PPN</th>
+                    <th className="p-3 text-right">Total</th>
+                    <th className="p-3">Faktur pajak</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const value = demoData(row.data);
+                    return (
+                      <tr key={row.id} className="border-t">
+                        <td className="p-3 font-medium">{demoText(value.customer)}</td>
+                        <td className="p-3">{demoText(value.deliveryNoteNumber)}</td>
+                        <td className="p-3">{demoText(value.deliveryNoteDate)}</td>
+                        <td className="p-3">{demoText(value.receiptNumber)}</td>
+                        <td className="p-3">{demoText(value.invoiceNumber)}</td>
+                        <td className="p-3">{demoText(value.invoiceDate)}</td>
+                        <td className="p-3">{demoText(value.purchaseOrderNumber)}</td>
+                        <td className="p-3">{demoText(value.purchaseOrderDate)}</td>
+                        <td className="p-3 text-right">{money(value.subtotal)}</td>
+                        <td className="p-3 text-right">{money(value.taxAmount)}</td>
+                        <td className="p-3 text-right font-semibold">{money(value.total)}</td>
+                        <td className="p-3">{demoText(value.taxInvoiceNumber)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : <Empty>Data pendapatan spare part demo belum diimpor.</Empty>}
+      </main>
+    );
+  }
+
+  if (section === "services") {
+    const rows = await prismadb.financeDemoRow.findMany({
+      where: { sheetKey: "service_income" },
+      orderBy: { sourceRow: "asc" },
+      take: 500,
+      select: { id: true, data: true },
+    });
+    return (
+      <main className="space-y-4 px-4 pb-8 sm:px-6">
+        <Header
+          title="Laporan audit sales jasa"
+          description="Rincian pendapatan jasa sesuai invoice, PO, PPN, faktur pajak, dan keterangan pekerjaan."
+        />
+        {rows.length ? (
+          <div className="overflow-hidden rounded-xl border bg-card">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1200px] text-sm">
+                <thead className="bg-muted/50 text-left">
+                  <tr>
+                    <th className="p-3">Pelanggan</th>
+                    <th className="p-3">Kwitansi</th>
+                    <th className="p-3">Nomor invoice</th>
+                    <th className="p-3">Tanggal invoice</th>
+                    <th className="p-3">Nomor PO</th>
+                    <th className="p-3">Tanggal PO</th>
+                    <th className="p-3 text-right">Harga</th>
+                    <th className="p-3 text-right">PPN</th>
+                    <th className="p-3 text-right">Total</th>
+                    <th className="p-3">Faktur pajak</th>
+                    <th className="p-3">Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => {
+                    const value = demoData(row.data);
+                    return (
+                      <tr key={row.id} className="border-t">
+                        <td className="p-3 font-medium">{demoText(value.customer)}</td>
+                        <td className="p-3">{demoText(value.receiptNumber)}</td>
+                        <td className="p-3">{demoText(value.invoiceNumber)}</td>
+                        <td className="p-3">{demoText(value.invoiceDate)}</td>
+                        <td className="p-3">{demoText(value.purchaseOrderNumber)}</td>
+                        <td className="p-3">{demoText(value.purchaseOrderDate)}</td>
+                        <td className="p-3 text-right">{money(value.subtotal)}</td>
+                        <td className="p-3 text-right">{money(value.taxAmount)}</td>
+                        <td className="p-3 text-right font-semibold">{money(value.total)}</td>
+                        <td className="p-3">{demoText(value.taxInvoiceNumber)}</td>
+                        <td className="max-w-[360px] p-3">{demoText(value.notes)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : <Empty>Data pendapatan jasa demo belum diimpor.</Empty>}
       </main>
     );
   }
 
   if (section === "revenue") {
+    const workbookRows = await prismadb.financeDemoRow.findMany({
+      where: { sheetKey: "service_part_summary" },
+      orderBy: { sourceRow: "asc" },
+      take: 500,
+      select: { id: true, data: true },
+    });
+    if (workbookRows.length) {
+      return (
+        <main className="space-y-4 px-4 pb-8 sm:px-6">
+          <Header
+            title="Rekapitulasi pendapatan jasa & part"
+            description="Ringkasan pendapatan bulanan, PPN, dan total sesuai workbook Accounting."
+          />
+          <div className="overflow-hidden rounded-xl border bg-card">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] text-sm">
+                <thead className="bg-muted/50 text-left">
+                  <tr>
+                    <th className="p-3">Pelanggan</th>
+                    <th className="p-3 text-right">Total part / bulan</th>
+                    <th className="p-3 text-right">Total jasa / bulan</th>
+                    <th className="p-3 text-right">Total part & jasa</th>
+                    <th className="p-3 text-right">PPN</th>
+                    <th className="p-3 text-right">Total akhir</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workbookRows.map((row) => {
+                    const value = demoData(row.data);
+                    return (
+                      <tr key={row.id} className="border-t">
+                        <td className="p-3 font-medium">{demoText(value.customer)}</td>
+                        <td className="p-3 text-right">{money(value.partIncome)}</td>
+                        <td className="p-3 text-right">{money(value.serviceIncome)}</td>
+                        <td className="p-3 text-right">{money(value.combinedIncome)}</td>
+                        <td className="p-3 text-right">{money(value.taxAmount)}</td>
+                        <td className="p-3 text-right font-semibold">{money(value.total)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </main>
+      );
+    }
     const invoices = await prismadb.financeInvoice.findMany({
       where: { status: { not: "VOID" } },
       include: {
@@ -441,17 +749,68 @@ export default async function FinanceWorkspace({ section }: { section: FinanceSe
   }
 
   if (section === "contracts") {
-    const rows = await prismadb.financeContract.findMany({
-      orderBy: { endDate: "asc" },
-      take: 100,
-      include: {
-        counterparty: { select: { legalName: true } },
-        _count: { select: { lines: true, purchaseOrders: true } },
-      },
-    });
+    const [rows, workbookRows] = await Promise.all([
+      prismadb.financeContract.findMany({
+        orderBy: { endDate: "asc" },
+        take: 100,
+        include: {
+          counterparty: { select: { legalName: true } },
+          _count: { select: { lines: true, purchaseOrders: true } },
+        },
+      }),
+      prismadb.financeDemoRow.findMany({
+        where: { sheetKey: "contracts" },
+        orderBy: { sourceRow: "asc" },
+        take: 500,
+        select: { id: true, data: true },
+      }),
+    ]);
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
-        <Header title="Kontrak" description="Nomor kontrak, periode, nilai, dan cakupan pekerjaan." />
+        <Header
+          title="Data kontrak mekanik all site"
+          description="User, vendor, nomor kontrak, penandatangan, periode, nilai, mekanik, jam kerja, dan catatan."
+        />
+        {workbookRows.length ? (
+          <div className="overflow-hidden rounded-xl border bg-card">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1500px] text-sm">
+                <thead className="bg-muted/50 text-left">
+                  <tr>
+                    <th className="p-3">User</th>
+                    <th className="p-3">Vendor</th>
+                    <th className="p-3">Nomor kontrak</th>
+                    <th className="p-3">TTD kontrak / Direktur</th>
+                    <th className="p-3">Periode kontrak</th>
+                    <th className="p-3 text-right">Nilai kontrak</th>
+                    <th className="p-3 text-right">Total mekanik</th>
+                    <th className="p-3">Jam kerja</th>
+                    <th className="p-3">Catatan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {workbookRows.map((row) => {
+                    const value = demoData(row.data);
+                    const contractValue = demoNumber(value.additionalValue) || demoNumber(value.contractValue);
+                    return (
+                      <tr key={row.id} className="border-t align-top">
+                        <td className="p-3 font-medium">{demoText(value.customer)}</td>
+                        <td className="p-3">{demoText(value.vendor)}</td>
+                        <td className="p-3">{demoText(value.contractNumber)}</td>
+                        <td className="p-3">{demoText(value.signatory)}</td>
+                        <td className="p-3">{demoText(value.period)}</td>
+                        <td className="p-3 text-right">{contractValue ? money(contractValue) : "—"}</td>
+                        <td className="p-3 text-right">{demoText(value.mechanicCount)}</td>
+                        <td className="p-3">{demoText(value.workingHours)}</td>
+                        <td className="p-3">{demoText(value.remarks)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
         {rows.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
             {rows.map((row) => (
@@ -477,7 +836,7 @@ export default async function FinanceWorkspace({ section }: { section: FinanceSe
               </Card>
             ))}
           </div>
-        ) : <Empty>Belum ada kontrak.</Empty>}
+        ) : workbookRows.length ? null : <Empty>Belum ada kontrak.</Empty>}
       </main>
     );
   }
