@@ -104,6 +104,8 @@ const dateLabel = (value: string | null) =>
 
 export default function PaymentFakturManager({
   customers,
+  sheetSearch,
+  hasMoreCustomerMatches,
   selectedCustomerId,
   selectedSheetKey,
   rows,
@@ -114,6 +116,8 @@ export default function PaymentFakturManager({
   totalRows,
 }: {
   customers: PaymentFakturCustomerOption[];
+  sheetSearch: string;
+  hasMoreCustomerMatches: boolean;
   selectedCustomerId: string | null;
   selectedSheetKey: string | null;
   rows: PaymentFakturRow[];
@@ -139,6 +143,7 @@ export default function PaymentFakturManager({
   const [editing, setEditing] = useState<PaymentFakturRow | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [searchValue, setSearchValue] = useState(search);
+  const [sheetSearchValue, setSheetSearchValue] = useState(sheetSearch);
   const selectedCustomer = customers.find((row) => row.id === selectedCustomerId);
   const calculatedTotal =
     (Number(form.subtotal) || 0) + (Number(form.taxAmount) || 0);
@@ -226,11 +231,19 @@ export default function PaymentFakturManager({
 
   if (!customers.length) {
     return (
-      <div className="mx-4 rounded-lg border border-dashed p-8 text-center sm:mx-6">
-        <h2 className="text-lg font-semibold">Data Payment Faktur belum diimpor</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Jalankan impor workbook PAYMENT FAKTUR 2026 setelah migrasi database.
-        </p>
+      <div className="mx-4 space-y-4 rounded-lg border border-dashed p-8 text-center sm:mx-6">
+        <h2 className="text-lg font-semibold">
+          {sheetSearch ? "Sheet customer tidak ditemukan" : "Data Payment Faktur belum diimpor"}
+        </h2>
+        {sheetSearch ? (
+          <Button onClick={() => setQuery({ sheetQ: null, customer: null })}>
+            Tampilkan semua sheet
+          </Button>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Jalankan impor workbook PAYMENT FAKTUR 2026 setelah migrasi database.
+          </p>
+        )}
       </div>
     );
   }
@@ -266,14 +279,37 @@ export default function PaymentFakturManager({
       </div>
 
       <div className="rounded-lg border bg-card">
-        <div className="flex items-center justify-between border-b px-3 py-2">
+        <div className="flex flex-col gap-2 border-b p-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {customers.length} sheet customer
+            {hasMoreCustomerMatches ? "50+ sheet cocok" : `${customers.length} sheet customer`}
           </p>
-          <p className="text-xs text-muted-foreground">
-            Geser untuk melihat semua sheet
-          </p>
+          <form
+            className="flex w-full gap-2 sm:w-auto"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setQuery({
+                sheetQ: sheetSearchValue.trim() || null,
+                customer: null,
+                page: null,
+              });
+            }}
+          >
+            <Input
+              className="h-8 w-full sm:w-64"
+              value={sheetSearchValue}
+              onChange={(event) => setSheetSearchValue(event.target.value)}
+              placeholder="Cari kode atau nama customer"
+            />
+            <Button type="submit" size="sm" variant="outline" disabled={pending}>
+              Cari sheet
+            </Button>
+          </form>
         </div>
+        {hasMoreCustomerMatches && (
+          <p className="border-b bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            Hanya 50 hasil pertama dimuat. Persempit pencarian untuk menemukan sheet lainnya.
+          </p>
+        )}
         <div className="overflow-x-auto">
           <div className="flex min-w-max gap-1 p-2">
             {customers.map((customer) => {

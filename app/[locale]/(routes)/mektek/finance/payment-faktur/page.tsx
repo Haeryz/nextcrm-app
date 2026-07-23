@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 import { calculatePaymentFakturAmounts } from "@/lib/mektek/payment-faktur";
 import { prismadb } from "@/lib/prisma";
 
@@ -7,31 +9,69 @@ import PaymentFakturManager, {
 } from "../_components/PaymentFakturManager";
 
 const PAGE_SIZE = 50;
+const CUSTOMER_RESULT_LIMIT = 50;
+
+type PaymentSummaryAggregate = {
+  total: string | number | null;
+  paid: string | number | null;
+  remaining: string | number | null;
+  paidCount: number;
+  installmentCount: number;
+  pendingCount: number;
+};
+
+type PaymentMonthlyAggregate = {
+  month: number;
+  total: string | number;
+};
 
 export default async function PaymentFakturPage({
   searchParams,
 }: {
   searchParams: Promise<{
     customer?: string;
+    sheetQ?: string;
     q?: string;
     page?: string;
   }>;
 }) {
   const query = await searchParams;
-  const customers = await prismadb.paymentFakturCustomer.findMany({
-    orderBy: [{ position: "asc" }, { customerName: "asc" }],
-    select: {
-      id: true,
-      sheetKey: true,
-      customerName: true,
-      taxLabelPercent: true,
-      _count: { select: { entries: true } },
-    },
-  });
-  const selected =
-    customers.find((customer) => customer.sheetKey === query.customer) ??
-    customers[0] ??
-    null;
+  const sheetSearch = String(query.sheetQ ?? "").trim().slice(0, 100);
+  const customerSelect = {
+    id: true,
+    sheetKey: true,
+    customerName: true,
+    taxLabelPercent: true,
+    _count: { select: { entries: true } },
+  } as const;
+  const [customerMatches, requestedCustomer] = await Promise.all([
+    prismadb.paymentFakturCustomer.findMany({
+      where: sheetSearch
+        ? {
+            OR: [
+              { sheetKey: { contains: sheetSearch, mode: "insensitive" } },
+              { customerName: { contains: sheetSearch, mode: "insensitive" } },
+            ],
+          }
+        : undefined,
+      orderBy: [{ position: "asc" }, { customerName: "asc" }],
+      take: CUSTOMER_RESULT_LIMIT + 1,
+      select: customerSelect,
+    }),
+    query.customer
+      ? prismadb.paymentFakturCustomer.findUnique({
+          where: { sheetKey: query.customer },
+          select: customerSelect,
+        })
+      : null,
+  ]);
+  const hasMoreCustomerMatches = customerMatches.length > CUSTOMER_RESULT_LIMIT;
+  const visibleCustomers = customerMatches.slice(0, CUSTOMER_RESULT_LIMIT);
+  const selected = requestedCustomer ?? visibleCustomers[0] ?? null;
+  const navigatorCustomers =
+    selected && !visibleCustomers.some((customer) => customer.id === selected.id)
+      ? [selected, ...visibleCustomers]
+      : visibleCustomers;
   const search = String(query.q ?? "").trim().slice(0, 100);
   const requestedPage = Math.max(1, Number.parseInt(query.page ?? "1", 10) || 1);
   const where = selected
@@ -51,22 +91,49 @@ export default async function PaymentFakturPage({
       }
     : { id: "__empty__" };
 
-  const [totalRows, summaryRows] = selected
+  const [totalRows, summaryAggregateRows, monthlyAggregateRows] = selected
     ? await Promise.all([
         prismadb.paymentFakturEntry.count({ where }),
-        prismadb.paymentFakturEntry.findMany({
-          where: { customerId: selected.id },
-          select: {
-            grandTotal: true,
-            deliveryDate: true,
-            transferDate: true,
-            installment1: true,
-            installment2: true,
-            installment3: true,
-          },
-        }),
+        prismadb.$queryRaw<PaymentSummaryAggregate[]>(Prisma.sql`
+          SELECT
+            COALESCE(SUM("grandTotal"), 0) AS total,
+            COALESCE(SUM("paidAmount"), 0) AS paid,
+            COALESCE(SUM(GREATEST("grandTotal" - "paidAmount", 0)), 0) AS remaining,
+            COUNT(*) FILTER (
+              WHERE "grandTotal" > 0
+                AND GREATEST("grandTotal" - "paidAmount", 0) = 0
+            )::int AS "paidCount",
+            COUNT(*) FILTER (
+              WHERE "paidAmount" > 0
+                AND GREATEST("grandTotal" - "paidAmount", 0) > 0
+            )::int AS "installmentCount",
+            COUNT(*) FILTER (WHERE "paidAmount" = 0)::int AS "pendingCount"
+          FROM (
+            SELECT
+              "grandTotal",
+              CASE
+                WHEN "transferDate" IS NOT NULL THEN "grandTotal"
+                ELSE LEAST(
+                  "grandTotal",
+                  "installment1" + "installment2" + "installment3"
+                )
+              END AS "paidAmount"
+            FROM "PaymentFakturEntry"
+            WHERE "customerId" = ${selected.id}::uuid
+          ) AS calculated
+        `),
+        prismadb.$queryRaw<PaymentMonthlyAggregate[]>(Prisma.sql`
+          SELECT
+            EXTRACT(MONTH FROM "deliveryDate")::int AS month,
+            COALESCE(SUM("grandTotal"), 0) AS total
+          FROM "PaymentFakturEntry"
+          WHERE "customerId" = ${selected.id}::uuid
+            AND "deliveryDate" IS NOT NULL
+          GROUP BY EXTRACT(MONTH FROM "deliveryDate")
+          ORDER BY month
+        `),
       ])
-    : [0, []];
+    : [0, [], []];
   const pageCount = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
   const page = Math.min(requestedPage, pageCount);
   const entries = selected
@@ -78,36 +145,24 @@ export default async function PaymentFakturPage({
       })
     : [];
 
-  const summary = summaryRows.reduce(
-    (result, row) => {
-      const amounts = calculatePaymentFakturAmounts({
-        grandTotal: Number(row.grandTotal),
-        transferDate: row.transferDate,
-        installment1: Number(row.installment1),
-        installment2: Number(row.installment2),
-        installment3: Number(row.installment3),
-      });
-      result.total += Number(row.grandTotal);
-      result.paid += amounts.paidAmount;
-      result.remaining += amounts.remainingAmount;
-      result[amounts.status] += 1;
-      if (row.deliveryDate) {
-        result.monthlyTotals[row.deliveryDate.getUTCMonth()] += Number(row.grandTotal);
-      }
-      return result;
-    },
-    {
-      total: 0,
-      paid: 0,
-      remaining: 0,
-      LUNAS: 0,
-      CICILAN: 0,
-      BELUM_BAYAR: 0,
-      monthlyTotals: Array.from({ length: 12 }, () => 0),
-    },
-  );
+  const summaryAggregate = summaryAggregateRows[0];
+  const monthlyTotals = Array.from({ length: 12 }, () => 0);
+  for (const row of monthlyAggregateRows) {
+    if (row.month >= 1 && row.month <= 12) {
+      monthlyTotals[row.month - 1] = Number(row.total);
+    }
+  }
+  const summary = {
+    total: Number(summaryAggregate?.total ?? 0),
+    paid: Number(summaryAggregate?.paid ?? 0),
+    remaining: Number(summaryAggregate?.remaining ?? 0),
+    LUNAS: summaryAggregate?.paidCount ?? 0,
+    CICILAN: summaryAggregate?.installmentCount ?? 0,
+    BELUM_BAYAR: summaryAggregate?.pendingCount ?? 0,
+    monthlyTotals,
+  };
 
-  const customerOptions: PaymentFakturCustomerOption[] = customers.map((row) => ({
+  const customerOptions: PaymentFakturCustomerOption[] = navigatorCustomers.map((row) => ({
     id: row.id,
     sheetKey: row.sheetKey,
     customerName: row.customerName,
@@ -146,6 +201,8 @@ export default async function PaymentFakturPage({
   return (
     <PaymentFakturManager
       customers={customerOptions}
+      sheetSearch={sheetSearch}
+      hasMoreCustomerMatches={hasMoreCustomerMatches}
       selectedCustomerId={selected?.id ?? null}
       selectedSheetKey={selected?.sheetKey ?? null}
       rows={rows}
