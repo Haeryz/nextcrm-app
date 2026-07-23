@@ -35,6 +35,8 @@ export async function GET(request: Request) {
         items: {
           orderBy: { position: "asc" },
           select: {
+            partName: true,
+            partNumber: true,
             orderedQuantity: true,
             receivedQuantity: true,
             receipts: { select: { receivingReference: true } },
@@ -47,10 +49,14 @@ export async function GET(request: Request) {
       header: [...LOGISTICS_PO_EXPORT_HEADERS],
     });
     worksheet["!cols"] = [
-      { wch: 34 },
-      { wch: 34 },
+      { wch: 8 },
+      { wch: 22 },
+      { wch: 24 },
+      { wch: 30 },
+      { wch: 30 },
       { wch: 14 },
-      { wch: 10 },
+      { wch: 30 },
+      { wch: 22 },
       { wch: 14 },
       { wch: 14 },
       { wch: 14 },
@@ -59,7 +65,7 @@ export async function GET(request: Request) {
     const summary = XLSX.utils.json_to_sheet([
       { Ringkasan: "Periode", Nilai: `${range.fromMonth} s.d. ${range.toMonth}` },
       { Ringkasan: "Jumlah PO", Nilai: orders.length },
-      { Ringkasan: "Jumlah baris PO", Nilai: rows.length },
+      { Ringkasan: "Jumlah baris item", Nilai: rows.length },
       {
         Ringkasan: "Total QTY Order",
         Nilai: rows.reduce((sum, row) => sum + Number(row["QTY Order"] || 0), 0),

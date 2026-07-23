@@ -1,8 +1,12 @@
 export const LOGISTICS_PO_EXPORT_HEADERS = [
-  "PO / Batch",
-  "User / Project",
+  "No",
+  "PO",
+  "Batch",
+  "User",
+  "Project",
   "Tanggal",
-  "Item",
+  "Item Name",
+  "Kode Barang",
   "QTY Order",
   "QTY Keluar",
   "QTY Sisa",
@@ -45,6 +49,8 @@ type ExportPurchaseOrder = {
   inputDate: Date;
   deliveryDate: Date | null;
   items: Array<{
+    partName: string;
+    partNumber: string | null;
     orderedQuantity: number;
     receivedQuantity: number;
     receipts: Array<{ receivingReference: string }>;
@@ -54,29 +60,25 @@ type ExportPurchaseOrder = {
 const dateKey = (value: Date) => value.toISOString().slice(0, 10);
 
 export function buildLogisticsPoExportRows(orders: ExportPurchaseOrder[]) {
-  return orders.map((order) => {
+  return orders.flatMap((order, orderIndex) => {
     const batches = new Set(
       order.items.flatMap((item) =>
         item.receipts.map((receipt) => receipt.receivingReference),
       ),
     );
-    const quantities = order.items.reduce(
-      (total, item) => ({
-        ordered: total.ordered + item.orderedQuantity,
-        dispatched: total.dispatched + item.receivedQuantity,
-      }),
-      { ordered: 0, dispatched: 0 },
-    );
-
-    return {
-      "PO / Batch": `${order.poNumber} / ${batches.size} batch Barang Keluar`,
-      "User / Project": `${order.userName} / ${order.projectName}`,
+    return order.items.map((item, itemIndex) => ({
+      No: itemIndex === 0 ? orderIndex + 1 : "",
+      PO: order.poNumber,
+      Batch: `${batches.size} batch Barang Keluar`,
+      User: order.userName,
+      Project: order.projectName,
       Tanggal: dateKey(order.deliveryDate || order.inputDate),
-      Item: order.items.length,
-      "QTY Order": quantities.ordered,
-      "QTY Keluar": quantities.dispatched,
-      "QTY Sisa": Math.max(quantities.ordered - quantities.dispatched, 0),
+      "Item Name": item.partName,
+      "Kode Barang": item.partNumber || "",
+      "QTY Order": item.orderedQuantity,
+      "QTY Keluar": item.receivedQuantity,
+      "QTY Sisa": Math.max(item.orderedQuantity - item.receivedQuantity, 0),
       Status: order.status === "CLOSED" ? "Closed" : "Open",
-    };
+    }));
   });
 }

@@ -22,12 +22,16 @@ describe("Monitoring PO monthly export", () => {
     expect(() => getLogisticsPoExportRange(fromMonth, toMonth)).toThrow(message);
   });
 
-  it("exports one Riwayat Monitoring PO row per created PO", () => {
+  it("exports one unmerged Riwayat Monitoring PO row per item", () => {
     expect(LOGISTICS_PO_EXPORT_HEADERS).toEqual([
-      "PO / Batch",
-      "User / Project",
+      "No",
+      "PO",
+      "Batch",
+      "User",
+      "Project",
       "Tanggal",
-      "Item",
+      "Item Name",
+      "Kode Barang",
       "QTY Order",
       "QTY Keluar",
       "QTY Sisa",
@@ -44,6 +48,8 @@ describe("Monitoring PO monthly export", () => {
         deliveryDate: null,
         items: [
           {
+            partName: "Thermostat",
+            partNumber: "ND077500-2580",
             orderedQuantity: 2,
             receivedQuantity: 1,
             receipts: [
@@ -52,11 +58,15 @@ describe("Monitoring PO monthly export", () => {
             ],
           },
           {
+            partName: "Snap Ring",
+            partNumber: "146300-5010",
             orderedQuantity: 1,
             receivedQuantity: 1,
             receipts: [{ receivingReference: "OUT-1" }],
           },
           {
+            partName: "Aselole",
+            partNumber: null,
             orderedQuantity: 4,
             receivedQuantity: 0,
             receipts: [],
@@ -67,13 +77,45 @@ describe("Monitoring PO monthly export", () => {
 
     expect(rows).toEqual([
       {
-        "PO / Batch": "PO-10 / 2 batch Barang Keluar",
-        "User / Project": "PT User / Site A",
+        No: 1,
+        PO: "PO-10",
+        Batch: "2 batch Barang Keluar",
+        User: "PT User",
+        Project: "Site A",
         Tanggal: "2026-07-12",
-        Item: 3,
-        "QTY Order": 7,
-        "QTY Keluar": 2,
-        "QTY Sisa": 5,
+        "Item Name": "Thermostat",
+        "Kode Barang": "ND077500-2580",
+        "QTY Order": 2,
+        "QTY Keluar": 1,
+        "QTY Sisa": 1,
+        Status: "Open",
+      },
+      {
+        No: "",
+        PO: "PO-10",
+        Batch: "2 batch Barang Keluar",
+        User: "PT User",
+        Project: "Site A",
+        Tanggal: "2026-07-12",
+        "Item Name": "Snap Ring",
+        "Kode Barang": "146300-5010",
+        "QTY Order": 1,
+        "QTY Keluar": 1,
+        "QTY Sisa": 0,
+        Status: "Open",
+      },
+      {
+        No: "",
+        PO: "PO-10",
+        Batch: "2 batch Barang Keluar",
+        User: "PT User",
+        Project: "Site A",
+        Tanggal: "2026-07-12",
+        "Item Name": "Aselole",
+        "Kode Barang": "",
+        "QTY Order": 4,
+        "QTY Keluar": 0,
+        "QTY Sisa": 4,
         Status: "Open",
       },
     ]);
