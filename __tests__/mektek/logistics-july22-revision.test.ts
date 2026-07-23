@@ -87,19 +87,25 @@ describe("22 July Logistics revision contract", () => {
     expect(menu).toContain('url: "/mektek/receiving"');
   });
 
-  it("creates delivery notes per outbound batch and removes them from Receiving", () => {
-    expect(logisticsActions).toContain("buildOutboundDispatchReference");
+  it("uses a user-entered Surat Jalan number for each outbound batch", () => {
+    expect(logisticsActions).toContain("deliveryNoteNumber");
     expect(logisticsActions).toContain(
       "recordMektekOutboundPurchaseOrderDispatch",
     );
+    expect(outboundManager).toContain("Nomor Surat Jalan");
+    expect(outboundManager).toContain("dispatchReference");
     expect(outboundManager).toContain("PDF Surat Jalan");
     expect(receivingManager).not.toContain("Surat Jalan");
   });
 
-  it("creates the initial delivery note without opening it after saving Monitoring PO", () => {
-    expect(logisticsActions).toContain("buildAutomaticDeliveryNoteNumber");
-    expect(outboundManager).not.toContain('window.open("about:blank", "_blank")');
-    expect(outboundManager).not.toContain("deliveryNoteWindow");
+  it("keeps the PO number separate and only exposes PDFs inside dispatch history", () => {
+    expect(logisticsActions).not.toContain("buildAutomaticDeliveryNoteNumber");
+    expect(outboundManager).toContain(
+      "delivery-note?reference=${encodeURIComponent(batch.dispatchReference)}",
+    );
+    expect(outboundManager).not.toContain(
+      "delivery-note`",
+    );
   });
 
   it("uses the requested three approval roles on Receiving purchase orders", () => {
@@ -108,9 +114,24 @@ describe("22 July Logistics revision contract", () => {
     expect(purchaseOrderPdf).toContain("Purchasing Admin");
   });
 
-  it("removes Catalog item creation while retaining inventory mutation", () => {
-    expect(catalogManager).not.toContain("Tambah Spare Part");
+  it("restores Catalog item creation while retaining inventory mutation", () => {
+    expect(catalogManager).toContain("Tambah Spare Part");
+    expect(catalogManager).toContain("createMektekCatalogItem");
     expect(inventoryPanel).toContain("Catat Mutasi Stok");
+  });
+
+  it("captures one Receiving photo per received item and supports mobile camera input", () => {
+    expect(receivingManager).toContain("receiptItemPhotos");
+    expect(receivingManager).toContain('capture="environment"');
+    expect(receivingManager).toContain("Foto Item");
+    expect(receivingManager).toContain("receipt.imageMimeType");
+  });
+
+  it("links manual Receiving entries into Catalog stock", () => {
+    expect(logisticsActions).toContain("ensureManualReceivingCatalogItem");
+    expect(receivingManager).toContain(
+      "otomatis ditambahkan ke Catalog / Item",
+    );
   });
 
   it("places month and spreadsheet filters inside the stock-card surface", () => {

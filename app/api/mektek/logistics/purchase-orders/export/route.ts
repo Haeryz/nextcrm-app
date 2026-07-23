@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 
 import {
   buildLogisticsPoExportRows,
@@ -31,7 +31,9 @@ export async function GET(request: Request) {
         userName: true,
         projectName: true,
         inputDate: true,
+        dueDate: true,
         deliveryDate: true,
+        poType: true,
         items: {
           orderBy: { position: "asc" },
           select: {
@@ -39,7 +41,10 @@ export async function GET(request: Request) {
             partNumber: true,
             orderedQuantity: true,
             receivedQuantity: true,
-            receipts: { select: { receivingReference: true } },
+            receipts: {
+              orderBy: [{ receivedAt: "asc" }, { createdAt: "asc" }],
+              select: { receivingReference: true },
+            },
           },
         },
       },
@@ -48,15 +53,36 @@ export async function GET(request: Request) {
     const worksheet = XLSX.utils.json_to_sheet(rows, {
       header: [...LOGISTICS_PO_EXPORT_HEADERS],
     });
+    const openRowStyle = {
+      fill: {
+        patternType: "solid",
+        fgColor: { rgb: "FCE4D6" },
+      },
+      font: { color: { rgb: "9C5700" } },
+    } as const;
+    rows.forEach((row, rowIndex) => {
+      if (row.Status !== "Open") return;
+      LOGISTICS_PO_EXPORT_HEADERS.forEach((_, columnIndex) => {
+        const address = XLSX.utils.encode_cell({
+          r: rowIndex + 1,
+          c: columnIndex,
+        });
+        const cell = worksheet[address];
+        if (cell) cell.s = openRowStyle;
+      });
+    });
     worksheet["!cols"] = [
       { wch: 8 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 28 },
       { wch: 22 },
       { wch: 24 },
       { wch: 30 },
       { wch: 30 },
-      { wch: 14 },
       { wch: 30 },
       { wch: 22 },
+      { wch: 30 },
       { wch: 14 },
       { wch: 14 },
       { wch: 14 },
@@ -83,7 +109,11 @@ export async function GET(request: Request) {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Riwayat Monitoring PO");
     XLSX.utils.book_append_sheet(workbook, summary, "Ringkasan");
-    const file = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
+    const file = XLSX.write(workbook, {
+      type: "buffer",
+      bookType: "xlsx",
+      cellStyles: true,
+    });
     return new Response(new Uint8Array(file), {
       headers: {
         "Content-Type":

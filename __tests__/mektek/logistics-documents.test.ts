@@ -36,7 +36,8 @@ describe("MekTek Logistics documents", () => {
     expect(schema).toMatch(/imageMimeType\s+String\?/);
     expect(imageRoute).toContain("validateLogisticsReceiptImageUpload");
     expect(imageRoute).toContain("requireMektekLogisticsApiSession");
-    expect(receivingManager).toContain("Foto Kondisi Barang");
+    expect(receivingManager).toContain("Foto Item");
+    expect(receivingManager).toContain("receiptItemPhotos");
     expect(receivingManager).toContain('capture="environment"');
   });
 

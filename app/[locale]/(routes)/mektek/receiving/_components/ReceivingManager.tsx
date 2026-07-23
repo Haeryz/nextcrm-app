@@ -3,12 +3,10 @@
 import { useMemo, useRef, useState, useTransition } from "react";
 import {
   AlertTriangle,
-  Camera,
   CheckCircle2,
   ChevronRight,
   Clock3,
   FileSpreadsheet,
-  ImagePlus,
   Loader2,
   MessageCircle,
   PackageCheck,
@@ -152,6 +150,11 @@ type LogisticsReceiptItemDraft = {
   note: string;
 };
 
+type ReceiptItemPhotoDraft = {
+  file: File | null;
+  error: string | null;
+};
+
 type LogisticsReceivingBatchGroup = {
   receivingReference: string;
   receivedAt: string;
@@ -249,8 +252,6 @@ export default function ReceivingManager({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const nextItemId = useRef(2);
-  const conditionCameraInputRef = useRef<HTMLInputElement>(null);
-  const conditionGalleryInputRef = useRef<HTMLInputElement>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createValue, setCreateValue] = useState<PurchaseOrderDraft>(() =>
     blankPurchaseOrder(),
@@ -266,8 +267,9 @@ export default function ReceivingManager({
   const [receiptItemDrafts, setReceiptItemDrafts] = useState<
     Record<string, LogisticsReceiptItemDraft>
   >({});
-  const [receiptImage, setReceiptImage] = useState<File | null>(null);
-  const [receiptImageError, setReceiptImageError] = useState<string | null>(null);
+  const [receiptItemPhotos, setReceiptItemPhotos] = useState<
+    Record<string, ReceiptItemPhotoDraft>
+  >({});
   const [documentPhone, setDocumentPhone] = useState("");
   const [isSendingDocument, startSendingDocument] = useTransition();
 
@@ -427,28 +429,41 @@ export default function ReceivingManager({
         }),
       ),
     );
-    setReceiptImage(null);
-    setReceiptImageError(null);
+    setReceiptItemPhotos({});
   };
 
-  const selectReceiptImage = (file: File | null) => {
+  const selectReceiptItemPhoto = (itemId: string, file: File | null) => {
     if (!file) {
-      setReceiptImage(null);
-      setReceiptImageError(null);
+      setReceiptItemPhotos((current) => ({
+        ...current,
+        [itemId]: { file: null, error: null },
+      }));
       return;
     }
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setReceiptImage(null);
-      setReceiptImageError("Pilih foto kondisi barang berformat JPEG, PNG, atau WebP");
+      setReceiptItemPhotos((current) => ({
+        ...current,
+        [itemId]: {
+          file: null,
+          error: "Pilih foto kondisi barang berformat JPEG, PNG, atau WebP",
+        },
+      }));
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setReceiptImage(null);
-      setReceiptImageError("Ukuran foto kondisi barang maksimal 5 MB");
+      setReceiptItemPhotos((current) => ({
+        ...current,
+        [itemId]: {
+          file: null,
+          error: "Ukuran foto kondisi barang maksimal 5 MB",
+        },
+      }));
       return;
     }
-    setReceiptImage(file);
-    setReceiptImageError(null);
+    setReceiptItemPhotos((current) => ({
+      ...current,
+      [itemId]: { file, error: null },
+    }));
   };
 
   const submitReceipt = () => {
@@ -471,19 +486,31 @@ export default function ReceivingManager({
         toast.error(result?.error || "Gagal mencatat barang masuk");
         return;
       }
-      let imageUploadError: string | null = null;
-      const primaryReceipt = result.data.receipts[0];
-      if (receiptImage && primaryReceipt) {
+      const imageUploadErrors: string[] = [];
+      const receiptByItemId = new Map(
+        result.data.receipts.map((receipt) => [
+          receipt.purchaseOrderItemId,
+          receipt,
+        ]),
+      );
+      for (const [itemId, photo] of Object.entries(receiptItemPhotos)) {
+        const receipt = receiptByItemId.get(itemId);
+        if (!photo.file || !receipt) continue;
         try {
-          await uploadLogisticsReceiptImage(primaryReceipt.id, receiptImage);
+          await uploadLogisticsReceiptImage(receipt.id, photo.file);
         } catch (error) {
-          imageUploadError =
-            error instanceof Error ? error.message : "Gagal mengunggah foto kondisi barang";
+          imageUploadErrors.push(
+            error instanceof Error
+              ? error.message
+              : "Gagal mengunggah foto kondisi barang",
+          );
         }
       }
       const closed = result.data.purchaseOrderStatus === "CLOSED";
-      if (imageUploadError) {
-        toast.warning(`Penerimaan tersimpan, tetapi ${imageUploadError}`);
+      if (imageUploadErrors.length > 0) {
+        toast.warning(
+          `Penerimaan tersimpan, tetapi ${imageUploadErrors.length} foto item gagal diunggah`,
+        );
       } else {
         toast.success(
           closed
@@ -795,7 +822,7 @@ export default function ReceivingManager({
                             excludedCatalogItemIds={selectedCatalogItemIds}
                             disabled={isPending}
                             catalogStockMessage="Terhubung ke Catalog / Item dan akan menambah stok ketika diterima."
-                            manualStockMessage="Item manual tidak mengubah stok Catalog saat diterima."
+                            manualStockMessage="Item manual otomatis ditambahkan ke Catalog / Item dan stoknya bertambah saat diterima."
                             onSourceChange={(source) =>
                               switchItemSource(item.clientId, source)
                             }
@@ -1512,7 +1539,7 @@ export default function ReceivingManager({
                               </p>
                               {item.source === "MANUAL" ? (
                                 <p className="text-xs text-muted-foreground">
-                                  Item manual · penerimaan tidak mengubah stok Catalog.
+                                  Item manual · otomatis terhubung ke Catalog / Item.
                                 </p>
                               ) : !item.catalogItemId ? (
                                 <p className="text-xs text-destructive">
@@ -1599,91 +1626,54 @@ export default function ReceivingManager({
                                 </p>
                               </div>
                             )}
+                            {Number(receiptItemDrafts[item.id]?.quantity) > 0 && (
+                              <div className="space-y-1.5 sm:col-span-3">
+                                <Label htmlFor={`receiving-item-photo-${item.id}`}>
+                                  Foto Item{" "}
+                                  <span className="font-normal text-muted-foreground">
+                                    (opsional)
+                                  </span>
+                                </Label>
+                                <Input
+                                  id={`receiving-item-photo-${item.id}`}
+                                  type="file"
+                                  accept="image/jpeg,image/png,image/webp"
+                                  capture="environment"
+                                  onChange={(event) =>
+                                    selectReceiptItemPhoto(
+                                      item.id,
+                                      event.currentTarget.files?.[0] ?? null,
+                                    )
+                                  }
+                                  disabled={
+                                    isPending ||
+                                    progress.status === "CLOSED" ||
+                                    !canReceiveItem
+                                  }
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Di HP akan membuka kamera; di PC pilih file JPEG,
+                                  PNG, atau WebP maksimal 5 MB.
+                                </p>
+                                {receiptItemPhotos[item.id]?.file && (
+                                  <p className="truncate text-xs font-medium">
+                                    File dipilih:{" "}
+                                    {receiptItemPhotos[item.id].file?.name}
+                                  </p>
+                                )}
+                                {receiptItemPhotos[item.id]?.error && (
+                                  <p
+                                    className="text-xs text-destructive"
+                                    role="alert"
+                                  >
+                                    {receiptItemPhotos[item.id].error}
+                                  </p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label id="logistics-condition-photo-label">Foto Kondisi Barang</Label>
-                    <div className="rounded-lg border bg-muted/20 p-3">
-                      <Input
-                        ref={conditionCameraInputRef}
-                        id="logistics-condition-camera"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        capture="environment"
-                        className="sr-only"
-                        aria-label="Ambil foto kondisi barang menggunakan kamera"
-                        onChange={(event) => {
-                          const file = event.currentTarget.files?.[0];
-                          if (file) selectReceiptImage(file);
-                        }}
-                        disabled={isPending}
-                      />
-                      <Input
-                        ref={conditionGalleryInputRef}
-                        id="logistics-condition-gallery"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        className="sr-only"
-                        aria-label="Pilih foto kondisi barang dari galeri"
-                        onChange={(event) => {
-                          const file = event.currentTarget.files?.[0];
-                          if (file) selectReceiptImage(file);
-                        }}
-                        disabled={isPending}
-                      />
-                      <div
-                        role="group"
-                        aria-labelledby="logistics-condition-photo-label"
-                        aria-describedby="logistics-condition-photo-help"
-                        className="grid gap-2 sm:grid-cols-2"
-                      >
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            if (!conditionCameraInputRef.current) return;
-                            conditionCameraInputRef.current.value = "";
-                            conditionCameraInputRef.current.click();
-                          }}
-                          disabled={isPending}
-                        >
-                          <Camera aria-hidden="true" />
-                          Ambil Foto
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            if (!conditionGalleryInputRef.current) return;
-                            conditionGalleryInputRef.current.value = "";
-                            conditionGalleryInputRef.current.click();
-                          }}
-                          disabled={isPending}
-                        >
-                          <ImagePlus aria-hidden="true" />
-                          Pilih dari Galeri
-                        </Button>
-                      </div>
-                      <p
-                        id="logistics-condition-photo-help"
-                        className="mt-2 text-xs text-muted-foreground"
-                      >
-                        Format JPEG, PNG, atau WebP, maksimal 5 MB.
-                      </p>
-                      {receiptImage && (
-                        <p className="mt-2 truncate text-xs font-medium">
-                          File dipilih: {receiptImage.name}
-                        </p>
-                      )}
-                      {receiptImageError && (
-                        <p className="mt-2 text-xs text-destructive" role="alert">
-                          {receiptImageError}
-                        </p>
-                      )}
                     </div>
                   </div>
 
@@ -1692,7 +1682,9 @@ export default function ReceivingManager({
                       type="submit"
                       disabled={
                         isPending ||
-                        !!receiptImageError ||
+                        Object.values(receiptItemPhotos).some(
+                          (photo) => !!photo.error,
+                        ) ||
                         !receiptDraft.picId ||
                         !hasSelectedReceiptItems
                       }
@@ -1717,9 +1709,6 @@ export default function ReceivingManager({
                 {activeReceivingBatches.length > 0 ? (
                   <div className="space-y-3">
                     {activeReceivingBatches.map((batch) => {
-                      const imageReceipt = batch.lines.find(
-                        ({ receipt }) => receipt.imageMimeType,
-                      )?.receipt;
                       return (
                         <div
                           key={batch.receivingReference}
@@ -1733,19 +1722,6 @@ export default function ReceivingManager({
                               <p className="text-xs text-muted-foreground">
                                 {formatDate(batch.receivedAt)} · PIC {batch.pic.name}
                               </p>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {imageReceipt && (
-                                <Button asChild type="button" variant="outline" size="sm">
-                                  <a
-                                    href={`/api/mektek/logistics/receipts/${encodeURIComponent(imageReceipt.id)}/image`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    Foto Kondisi
-                                  </a>
-                                </Button>
-                              )}
                             </div>
                           </div>
                           <div className="mt-3 divide-y rounded-md border">
@@ -1770,9 +1746,27 @@ export default function ReceivingManager({
                                         {item.partNumber || "Tanpa Part Number"}
                                       </p>
                                     </div>
-                                    <span className="font-mono font-semibold tabular-nums">
-                                      +{receipt.quantity}
-                                    </span>
+                                    <div className="flex shrink-0 items-center gap-2">
+                                      {receipt.imageMimeType && (
+                                        <Button
+                                          asChild
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                        >
+                                          <a
+                                            href={`/api/mektek/logistics/receipts/${encodeURIComponent(receipt.id)}/image`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                          >
+                                            Foto Item
+                                          </a>
+                                        </Button>
+                                      )}
+                                      <span className="font-mono font-semibold tabular-nums">
+                                        +{receipt.quantity}
+                                      </span>
+                                    </div>
                                   </div>
                                   {receipt.note && (
                                     <p className="mt-2 break-words text-xs text-muted-foreground">

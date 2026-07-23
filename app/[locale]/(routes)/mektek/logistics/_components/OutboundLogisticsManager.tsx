@@ -247,6 +247,7 @@ export default function OutboundLogisticsManager({
   const [dispatchDraft, setDispatchDraft] = useState({
     picId: pics[0]?.id ?? "",
     dispatchedAt: getCatalogInventoryLocalDateKey(),
+    deliveryNoteNumber: "",
   });
   const [dispatchItemDrafts, setDispatchItemDrafts] = useState<
     Record<string, DispatchItemDraft>
@@ -374,6 +375,7 @@ export default function OutboundLogisticsManager({
     setDispatchDraft({
       picId: pics[0]?.id ?? "",
       dispatchedAt: getCatalogInventoryLocalDateKey(),
+      deliveryNoteNumber: "",
     });
     setDispatchItemDrafts(
       Object.fromEntries(
@@ -462,8 +464,8 @@ export default function OutboundLogisticsManager({
       } else {
         toast.success(
           result.data.purchaseOrderStatus === "CLOSED"
-            ? "Barang Keluar tersimpan dan Monitoring PO otomatis Closed"
-            : `Barang Keluar tersimpan untuk ${result.data.receipts.length} item`,
+            ? `Surat Jalan ${result.data.dispatchReference} tersimpan dan Monitoring PO otomatis Closed`
+            : `Surat Jalan ${result.data.dispatchReference} tersimpan untuk ${result.data.receipts.length} item`,
         );
       }
       setActivePurchaseOrder(null);
@@ -917,6 +919,7 @@ export default function OutboundLogisticsManager({
               <thead className="border-y bg-muted/40 text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 text-left">PO / Batch</th>
+                  <th className="px-4 py-3 text-left">Nomor Surat Jalan</th>
                   <th className="px-4 py-3 text-left">User / Project</th>
                   <th className="px-4 py-3 text-left">Tanggal</th>
                   <th className="px-4 py-3 text-right">Item</th>
@@ -944,6 +947,37 @@ export default function OutboundLogisticsManager({
                         }{" "}
                         batch Barang Keluar
                       </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      {Array.from(
+                        new Set(
+                          purchaseOrder.items.flatMap((item) =>
+                            item.receipts.map(
+                              (receipt) => receipt.receivingReference,
+                            ),
+                          ),
+                        ),
+                      ).length > 0 ? (
+                        <div className="space-y-1">
+                          {Array.from(
+                            new Set(
+                              purchaseOrder.items.flatMap((item) =>
+                                item.receipts.map(
+                                  (receipt) => receipt.receivingReference,
+                                ),
+                              ),
+                            ),
+                          ).map((reference) => (
+                            <p key={reference} className="font-mono text-xs">
+                              {reference}
+                            </p>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">
+                          Belum ada pengiriman
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-medium">{purchaseOrder.userName}</p>
@@ -984,24 +1018,13 @@ export default function OutboundLogisticsManager({
                         <Button type="button" variant="outline" size="sm" onClick={() => openPurchaseOrder(purchaseOrder)}>
                           <ReceiptText data-icon="inline-start" /> Detail
                         </Button>
-                        {purchaseOrder.deliveryNoteNumber && (
-                          <Button asChild type="button" variant="outline" size="sm">
-                            <a
-                              href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(purchaseOrder.id)}/delivery-note`}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <Printer data-icon="inline-start" /> PDF Surat Jalan
-                            </a>
-                          </Button>
-                        )}
                       </div>
                     </td>
                   </tr>
                 ))}
                 {purchaseOrders.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">
                       Belum ada Monitoring PO yang cocok dengan filter.
                     </td>
                   </tr>
@@ -1153,7 +1176,7 @@ export default function OutboundLogisticsManager({
                       dikirim hari ini.
                     </p>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="outbound-dispatched-at">Tanggal Keluar</Label>
                       <Input
@@ -1171,6 +1194,28 @@ export default function OutboundLogisticsManager({
                         disabled={isPending}
                         required
                       />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="outbound-delivery-note-number">
+                        Nomor Surat Jalan
+                      </Label>
+                      <Input
+                        id="outbound-delivery-note-number"
+                        value={dispatchDraft.deliveryNoteNumber}
+                        onChange={(event) =>
+                          setDispatchDraft((current) => ({
+                            ...current,
+                            deliveryNoteNumber: event.target.value,
+                          }))
+                        }
+                        placeholder="Contoh: SJ-0001"
+                        maxLength={100}
+                        disabled={isPending}
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Nomor ini khusus untuk pengiriman saat ini, bukan nomor PO.
+                      </p>
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="outbound-dispatch-pic">PIC</Label>
@@ -1376,6 +1421,7 @@ export default function OutboundLogisticsManager({
                         isPending ||
                         !!dispatchImageError ||
                         !dispatchDraft.picId ||
+                        !dispatchDraft.deliveryNoteNumber.trim() ||
                         !hasSelectedDispatchItems
                       }
                     >
@@ -1407,7 +1453,7 @@ export default function OutboundLogisticsManager({
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
                               <p className="font-mono font-semibold">
-                                Batch {batch.dispatchReference}
+                                Surat Jalan {batch.dispatchReference}
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 {formatDate(batch.dispatchedAt)} · PIC{" "}

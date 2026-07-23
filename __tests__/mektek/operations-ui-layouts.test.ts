@@ -36,7 +36,8 @@ describe("operations page UI contracts", () => {
 
     expect(itemsPage).toContain("spreadsheetHref=");
     expect(itemManager).toContain("Buka Spreadsheet Inventory");
-    expect(itemManager).not.toContain("Tambah Spare Part");
+    expect(itemManager).toContain("Tambah Spare Part");
+    expect(itemManager).toContain("createMektekCatalogItem");
     expect(itemManager).toContain("flex w-full gap-2 sm:w-auto");
 
     expect(logisticsPage).toContain("OutboundLogisticsManager");

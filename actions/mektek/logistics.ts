@@ -20,7 +20,6 @@ import {
 } from "@/lib/mektek/finance-sync";
 import { normalizeFinanceKey } from "@/lib/mektek/finance";
 import {
-  buildAutomaticDeliveryNoteNumber,
   isLogisticsPurchaseOrderType,
   normalizeLogisticsReference,
   validateLogisticsReceipt,
@@ -36,6 +35,7 @@ const MAX_NAME_LEN = 160;
 const MAX_PO_TYPE_LEN = 60;
 const MAX_NOTE_LEN = 500;
 const MAX_PART_NUMBER_LEN = 120;
+const MAX_DELIVERY_NOTE_NUMBER_LEN = 100;
 const MAX_ITEMS_PER_PO = 100;
 const MEKTEK_COMPANY_NAME = "PT. Mektek Tanjung Lestari";
 
@@ -121,6 +121,7 @@ export type MektekOutboundDispatchInput = {
   purchaseOrderId: string;
   picId: string;
   dispatchedAt: string;
+  deliveryNoteNumber: string;
   items: Array<{
     purchaseOrderItemId: string;
     quantity: string | number;
@@ -340,6 +341,53 @@ async function hydratePurchaseOrderLines(
   });
 }
 
+async function ensureManualReceivingCatalogItem(
+  tx: Prisma.TransactionClient,
+  input: { partName: string; partNumber: string; poNumber: string },
+) {
+  const existing = await tx.catalogItem.findFirst({
+    where: {
+      OR: [
+        {
+          partNumber: {
+            equals: input.partNumber,
+            mode: "insensitive",
+          },
+        },
+        {
+          catalogPartNumber: {
+            equals: input.partNumber,
+            mode: "insensitive",
+          },
+        },
+      ],
+    },
+    select: { id: true },
+  });
+  if (existing) return existing;
+
+  return tx.catalogItem.create({
+    data: {
+      id: `manual-receiving-${randomUUID()}`,
+      machine: "Receiving",
+      rowNumber: 0,
+      description: input.partName,
+      partNumber: input.partNumber,
+      rearStock: 0,
+      frontStock: 0,
+      searchText: [
+        "Receiving",
+        input.partName,
+        input.partNumber,
+      ]
+        .join(" ")
+        .toLocaleLowerCase("id-ID"),
+      remark: `Ditambahkan otomatis dari Receiving PO ${input.poNumber}`,
+    },
+    select: { id: true },
+  });
+}
+
 function logisticsWhere(
   flow: LogisticsPurchaseOrderFlow,
   input?: { query?: string; status?: string },
@@ -530,6 +578,16 @@ export async function createMektekReceivingPurchaseOrder(
   try {
     const purchaseOrder = await prismadb.$transaction(async (tx) => {
       const hydrated = await hydratePurchaseOrderLines(tx, lines.data);
+      const manualCatalogIds = new Map<number, string>();
+      for (const line of hydrated) {
+        if (line.source !== "MANUAL") continue;
+        const catalogItem = await ensureManualReceivingCatalogItem(tx, {
+          partName: line.partName,
+          partNumber: line.partNumber,
+          poNumber: header.data.poNumber,
+        });
+        manualCatalogIds.set(line.position, catalogItem.id);
+      }
       return tx.logisticsPurchaseOrder.create({
         data: {
           ...header.data,
@@ -540,7 +598,7 @@ export async function createMektekReceivingPurchaseOrder(
               line.source === "MANUAL"
                 ? {
                     source: "MANUAL",
-                    catalogItemId: null,
+                    catalogItemId: manualCatalogIds.get(line.position)!,
                     position: line.position,
                     partName: line.partName,
                     partNumber: line.partNumber,
@@ -565,6 +623,8 @@ export async function createMektekReceivingPurchaseOrder(
       });
     });
     revalidatePath("/[locale]/(routes)/mektek/receiving", "page");
+    revalidatePath("/[locale]/(routes)/mektek/items", "page");
+    revalidatePath("/[locale]/(routes)/mektek/items/spreadsheet", "page");
     return { data: purchaseOrder };
   } catch (error) {
     console.log("[CREATE_MEKTEK_RECEIVING_PO]", error);
@@ -616,9 +676,6 @@ export async function createMektekOutboundPurchaseOrder(
           flow: "OUTBOUND",
           financeCounterpartyId: counterparty.id,
           supplyReviewStatus: conflictKeys.size ? "BLOCKED" : "CLEAR",
-          deliveryNoteNumber: buildAutomaticDeliveryNoteNumber(
-            header.data.poNumber,
-          ),
           deliveryDate: null,
           createdBy: access.session.user.id,
         },
@@ -684,13 +741,6 @@ export async function createMektekOutboundPurchaseOrder(
   }
 }
 
-function buildOutboundDispatchReference(poNumber: string) {
-  const day = getCatalogInventoryLocalDateKey().replaceAll("-", "");
-  return normalizeLogisticsReference(
-    `OUT-${poNumber}-${day}-${randomUUID().slice(0, 8)}`,
-  );
-}
-
 export async function recordMektekOutboundPurchaseOrderDispatch(
   input: MektekOutboundDispatchInput,
 ) {
@@ -699,6 +749,9 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
   const purchaseOrderId = compactText(input?.purchaseOrderId);
   const picId = compactText(input?.picId);
   const dispatchedAt = parseDateOnly(input?.dispatchedAt);
+  const deliveryNoteNumber = normalizeLogisticsReference(
+    boundedText(input?.deliveryNoteNumber, MAX_DELIVERY_NOTE_NUMBER_LEN),
+  );
   const rawItems = Array.isArray(input?.items) ? input.items : [];
   const items = rawItems.map((item) => ({
     purchaseOrderItemId: compactText(item?.purchaseOrderItemId),
@@ -709,6 +762,7 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
   if (!purchaseOrderId) return { error: "Purchase Order wajib dipilih" };
   if (!picId) return { error: "PIC wajib dipilih" };
   if (!dispatchedAt) return { error: "Tanggal Keluar tidak valid" };
+  if (!deliveryNoteNumber) return { error: "Nomor Surat Jalan wajib diisi" };
   if (items.length === 0) return { error: "Pilih minimal satu item yang dikirim" };
   if (
     items.some(
@@ -749,6 +803,8 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
               id: true,
               catalogItemId: true,
               source: true,
+              partName: true,
+              partNumber: true,
               orderedQuantity: true,
               receivedQuantity: true,
               status: true,
@@ -765,6 +821,20 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
       if (dispatchedAt < purchaseOrder.inputDate) {
         throw new LogisticsActionError(
           "Tanggal Keluar tidak boleh sebelum Tanggal Input PO",
+        );
+      }
+      const existingDeliveryNote = await tx.logisticsReceipt.findFirst({
+        where: {
+          receivingReference: {
+            equals: deliveryNoteNumber,
+            mode: "insensitive",
+          },
+        },
+        select: { id: true },
+      });
+      if (existingDeliveryNote) {
+        throw new LogisticsActionError(
+          `Nomor Surat Jalan ${deliveryNoteNumber} sudah digunakan`,
         );
       }
       const byId = new Map(purchaseOrder.items.map((item) => [item.id, item]));
@@ -795,7 +865,7 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
         where: { id: purchaseOrder.id },
         data: { updatedAt: new Date() },
       });
-      const reference = buildOutboundDispatchReference(purchaseOrder.poNumber);
+      const reference = deliveryNoteNumber;
       const receipts: Array<Awaited<ReturnType<typeof tx.logisticsReceipt.create>>> = [];
       const movementInputs: Array<{
         receiptId: string;
@@ -965,6 +1035,8 @@ export async function recordMektekReceivingPurchaseOrderReceipt(
               id: true,
               catalogItemId: true,
               source: true,
+              partName: true,
+              partNumber: true,
               orderedQuantity: true,
               receivedQuantity: true,
               status: true,
@@ -979,6 +1051,24 @@ export async function recordMektekReceivingPurchaseOrderReceipt(
         throw new LogisticsActionError(
           "Tanggal Masuk tidak boleh sebelum Tanggal Input PO",
         );
+      }
+      for (const item of purchaseOrder.items) {
+        if (item.source !== "MANUAL" || item.catalogItemId) continue;
+        if (!item.partNumber) {
+          throw new LogisticsActionError(
+            `Item manual ${item.partName} belum memiliki Part Number`,
+          );
+        }
+        const catalogItem = await ensureManualReceivingCatalogItem(tx, {
+          partName: item.partName,
+          partNumber: item.partNumber,
+          poNumber: purchaseOrder.poNumber,
+        });
+        await tx.logisticsPurchaseOrderItem.update({
+          where: { id: item.id },
+          data: { catalogItemId: catalogItem.id },
+        });
+        item.catalogItemId = catalogItem.id;
       }
       const byId = new Map(purchaseOrder.items.map((item) => [item.id, item]));
       const validated = items.map((inputItem) => {

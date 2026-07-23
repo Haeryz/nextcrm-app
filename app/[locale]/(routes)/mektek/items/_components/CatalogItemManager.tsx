@@ -3,10 +3,19 @@
 import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Edit, FileSpreadsheet, ImagePlus, Loader2, Trash2, X } from "lucide-react";
+import {
+  Edit,
+  FileSpreadsheet,
+  ImagePlus,
+  Loader2,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  createMektekCatalogItem,
   deleteMektekCatalogItem,
   updateMektekCatalogItem,
   type CatalogItemInput,
@@ -335,12 +344,14 @@ function CatalogItemForm({
             <Input
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
+              capture="environment"
               onChange={(event) => selectImage(event.target.files?.[0] ?? null)}
               disabled={pending}
-              aria-label="Pilih Catalogue Image dari perangkat"
+              aria-label="Ambil atau pilih Catalogue Image dari perangkat"
             />
             <p className="text-xs text-muted-foreground">
-              Pilih JPEG, PNG, WebP, atau GIF dari perangkat Anda (maksimal 4 MB).
+              Di HP akan membuka kamera; di PC pilih file JPEG, PNG, WebP, atau
+              GIF (maksimal 4 MB).
             </p>
             {imageDraft.error && (
               <p className="text-xs text-destructive" role="alert">
@@ -384,11 +395,44 @@ export default function CatalogItemManager({
 }: CatalogItemManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createValue, setCreateValue] = useState<CatalogItemInput>(blankItem);
+  const [createImage, setCreateImage] = useState<ImageDraft>(blankImageDraft);
   const [editingItem, setEditingItem] = useState<CatalogItemRow | null>(null);
   const [editValue, setEditValue] = useState<CatalogItemInput>(blankItem);
   const [editImage, setEditImage] = useState<ImageDraft>(blankImageDraft);
 
   const itemCountLabel = `${items.length} item di halaman ini`;
+
+  const openCreate = () => {
+    setCreateValue(blankItem);
+    setCreateImage(blankImageDraft);
+    setCreateOpen(true);
+  };
+
+  const submitCreate = () => {
+    startTransition(async () => {
+      const result = await createMektekCatalogItem(createValue);
+      if (result?.error || !result?.data) {
+        toast.error(result?.error || "Gagal menambahkan Spare Part");
+        return;
+      }
+      try {
+        await updateCatalogImage(result.data.id, createImage);
+      } catch (error) {
+        toast.warning(
+          error instanceof Error
+            ? `Spare Part tersimpan, tetapi foto gagal diunggah: ${error.message}`
+            : "Spare Part tersimpan, tetapi foto gagal diunggah",
+        );
+      }
+      toast.success("Spare Part berhasil ditambahkan ke Catalog / Item");
+      setCreateOpen(false);
+      setCreateValue(blankItem);
+      setCreateImage(blankImageDraft);
+      router.refresh();
+    });
+  };
 
   const openEdit = (item: CatalogItemRow) => {
     setEditingItem(item);
@@ -439,6 +483,15 @@ export default function CatalogItemManager({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">{itemCountLabel}</p>
         <div className="flex w-full gap-2 sm:w-auto">
+          <Button
+            type="button"
+            className="min-w-0 flex-1 sm:flex-none"
+            onClick={openCreate}
+            disabled={isPending}
+          >
+            <Plus data-icon="inline-start" />
+            Tambah Spare Part
+          </Button>
           <Button asChild variant="outline" className="min-w-0 flex-1 sm:flex-none">
             <Link href={spreadsheetHref}>
               <FileSpreadsheet data-icon="inline-start" />
@@ -528,6 +581,29 @@ export default function CatalogItemManager({
           )}
         </div>
       </div>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Tambah Spare Part</DialogTitle>
+            <DialogDescription>
+              Tambahkan item manual beserta stok awal dan foto agar dapat
+              langsung digunakan oleh Receiving dan Monitoring PO.
+            </DialogDescription>
+          </DialogHeader>
+          <CatalogItemForm
+            value={createValue}
+            onChange={setCreateValue}
+            onSubmit={submitCreate}
+            submitLabel="Simpan Spare Part"
+            pending={isPending}
+            imageSrc={null}
+            imageDraft={createImage}
+            onImageDraftChange={setCreateImage}
+            showInitialStock
+          />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">

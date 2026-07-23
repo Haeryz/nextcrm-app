@@ -1,12 +1,15 @@
 export const LOGISTICS_PO_EXPORT_HEADERS = [
   "No",
+  "Tanggal",
+  "Due Date",
+  "Nomor Surat Jalan",
   "PO",
   "Batch",
   "User",
   "Project",
-  "Tanggal",
   "Item Name",
   "Kode Barang",
+  "PO Class (Normal/Consignment)",
   "QTY Order",
   "QTY Keluar",
   "QTY Sisa",
@@ -47,7 +50,9 @@ type ExportPurchaseOrder = {
   userName: string;
   projectName: string;
   inputDate: Date;
+  dueDate: Date;
   deliveryDate: Date | null;
+  poType: string;
   items: Array<{
     partName: string;
     partNumber: string | null;
@@ -66,19 +71,27 @@ export function buildLogisticsPoExportRows(orders: ExportPurchaseOrder[]) {
         item.receipts.map((receipt) => receipt.receivingReference),
       ),
     );
-    return order.items.map((item, itemIndex) => ({
-      No: itemIndex === 0 ? orderIndex + 1 : "",
-      PO: order.poNumber,
-      Batch: `${batches.size} batch Barang Keluar`,
-      User: order.userName,
-      Project: order.projectName,
-      Tanggal: dateKey(order.deliveryDate || order.inputDate),
-      "Item Name": item.partName,
-      "Kode Barang": item.partNumber || "",
-      "QTY Order": item.orderedQuantity,
-      "QTY Keluar": item.receivedQuantity,
-      "QTY Sisa": Math.max(item.orderedQuantity - item.receivedQuantity, 0),
-      Status: order.status === "CLOSED" ? "Closed" : "Open",
-    }));
+    return order.items.map((item, itemIndex) => {
+      const deliveryNoteNumbers = Array.from(
+        new Set(item.receipts.map((receipt) => receipt.receivingReference)),
+      );
+      return {
+        No: itemIndex === 0 ? orderIndex + 1 : "",
+        Tanggal: dateKey(order.inputDate),
+        "Due Date": dateKey(order.dueDate),
+        "Nomor Surat Jalan": deliveryNoteNumbers.join(", "),
+        PO: order.poNumber,
+        Batch: `${batches.size} batch Barang Keluar`,
+        User: order.userName,
+        Project: order.projectName,
+        "Item Name": item.partName,
+        "Kode Barang": item.partNumber || "",
+        "PO Class (Normal/Consignment)": order.poType,
+        "QTY Order": item.orderedQuantity,
+        "QTY Keluar": item.receivedQuantity,
+        "QTY Sisa": Math.max(item.orderedQuantity - item.receivedQuantity, 0),
+        Status: order.status === "CLOSED" ? "Closed" : "Open",
+      };
+    });
   });
 }

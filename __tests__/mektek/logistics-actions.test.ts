@@ -18,11 +18,15 @@ const purchaseOrderFindUnique = jest.fn();
 const purchaseOrderUpdate = jest.fn();
 const purchaseOrderUpdateMany = jest.fn();
 const purchaseOrderItemCreate = jest.fn();
+const purchaseOrderItemUpdate = jest.fn();
 const purchaseOrderItemUpdateMany = jest.fn();
 const purchaseOrderItemCount = jest.fn();
 const receiptCreate = jest.fn();
+const receiptFindFirst = jest.fn();
 const logisticsPicFindFirst = jest.fn();
 const catalogItemFindMany = jest.fn();
+const catalogItemFindFirst = jest.fn();
+const catalogItemCreate = jest.fn();
 const transaction = jest.fn();
 const supplyAllocationFindMany = jest.fn();
 const supplyAllocationCreate = jest.fn();
@@ -39,12 +43,20 @@ const transactionClient = {
   },
   logisticsPurchaseOrderItem: {
     create: purchaseOrderItemCreate,
+    update: purchaseOrderItemUpdate,
     updateMany: purchaseOrderItemUpdateMany,
     count: purchaseOrderItemCount,
   },
-  logisticsReceipt: { create: receiptCreate },
+  logisticsReceipt: {
+    create: receiptCreate,
+    findFirst: receiptFindFirst,
+  },
   logisticsPic: { findFirst: logisticsPicFindFirst },
-  catalogItem: { findMany: catalogItemFindMany },
+  catalogItem: {
+    findMany: catalogItemFindMany,
+    findFirst: catalogItemFindFirst,
+    create: catalogItemCreate,
+  },
   logisticsSupplyAllocation: {
     findMany: supplyAllocationFindMany,
     create: supplyAllocationCreate,
@@ -101,12 +113,20 @@ describe("MekTek Logistics and Receiving actions", () => {
     jest.clearAllMocks();
     (canManageMektekLogistics as jest.Mock).mockReturnValue(true);
     purchaseOrderItemCreate.mockReset();
+    purchaseOrderItemUpdate.mockResolvedValue({ id: "po-item-1" });
     receiptCreate.mockReset();
     (getServerSession as jest.Mock).mockResolvedValue({
       user: { id: "admin-id", userStatus: "ACTIVE" },
     });
     transaction.mockImplementation(async (callback) => callback(transactionClient));
     catalogItemFindMany.mockResolvedValue(catalogRows);
+    catalogItemFindFirst.mockResolvedValue(null);
+    catalogItemCreate.mockResolvedValue({
+      id: "manual-catalog-1",
+      description: "Seal Kit Custom",
+      partNumber: "SK-CUSTOM-01",
+    });
+    receiptFindFirst.mockResolvedValue(null);
     supplyAllocationFindMany.mockResolvedValue([]);
     supplyAllocationCreate.mockResolvedValue({ id: "allocation-1" });
     supplyAllocationUpdateMany.mockResolvedValue({ count: 0 });
@@ -198,16 +218,17 @@ describe("MekTek Logistics and Receiving actions", () => {
     });
 
     expect(result).toEqual(expect.objectContaining({ data: expect.any(Object) }));
-    expect(purchaseOrderCreate).toHaveBeenCalledWith(
+    const createInput = purchaseOrderCreate.mock.calls[0][0];
+    expect(createInput).toEqual(
       expect.objectContaining({
         data: expect.objectContaining({
           flow: "OUTBOUND",
           poNumber: "PO-001",
-          deliveryNoteNumber: "SJ-PO-001",
           supplierName: "PT. Mektek Tanjung Lestari",
         }),
       }),
     );
+    expect(createInput.data).not.toHaveProperty("deliveryNoteNumber");
     expect(purchaseOrderItemCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         source: "CATALOG",
@@ -295,6 +316,7 @@ describe("MekTek Logistics and Receiving actions", () => {
       purchaseOrderId: "outbound-1",
       picId: "pic-1",
       dispatchedAt: "2026-07-12",
+      deliveryNoteNumber: "sj-0001",
       items: [
         {
           purchaseOrderItemId: "outbound-item-1",
@@ -309,7 +331,7 @@ describe("MekTek Logistics and Receiving actions", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           purchaseOrderStatus: "OPEN",
-          dispatchReference: expect.stringMatching(/^OUT-PO-OUT-001-/),
+          dispatchReference: "SJ-0001",
           itemProgresses: [
             expect.objectContaining({
               orderedQuantity: 10,
@@ -322,7 +344,7 @@ describe("MekTek Logistics and Receiving actions", () => {
     );
     expect(receiptCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        receivingReference: expect.stringMatching(/^OUT-PO-OUT-001-/),
+        receivingReference: "SJ-0001",
         quantity: 5,
         warehouse: "REAR",
         note: "Dikirim sebagian",
@@ -340,6 +362,62 @@ describe("MekTek Logistics and Receiving actions", () => {
         preventNegativeStock: true,
       }),
     );
+  });
+
+  it("requires a unique Surat Jalan number for every outbound batch", async () => {
+    const missing = await recordMektekOutboundPurchaseOrderDispatch({
+      purchaseOrderId: "outbound-1",
+      picId: "pic-1",
+      dispatchedAt: "2026-07-12",
+      deliveryNoteNumber: "",
+      items: [
+        {
+          purchaseOrderItemId: "outbound-item-1",
+          quantity: 1,
+          warehouse: "REAR",
+        },
+      ],
+    });
+
+    expect(missing).toEqual({ error: "Nomor Surat Jalan wajib diisi" });
+    expect(transaction).not.toHaveBeenCalled();
+
+    purchaseOrderFindUnique.mockResolvedValue({
+      id: "outbound-1",
+      poNumber: "PO-OUT-001",
+      flow: "OUTBOUND",
+      inputDate: new Date("2026-07-01T00:00:00.000Z"),
+      items: [
+        {
+          id: "outbound-item-1",
+          catalogItemId: "catalog-1",
+          source: "CATALOG",
+          orderedQuantity: 10,
+          receivedQuantity: 0,
+          status: "OPEN",
+        },
+      ],
+    });
+    receiptFindFirst.mockResolvedValueOnce({ id: "existing-receipt" });
+
+    const duplicate = await recordMektekOutboundPurchaseOrderDispatch({
+      purchaseOrderId: "outbound-1",
+      picId: "pic-1",
+      dispatchedAt: "2026-07-12",
+      deliveryNoteNumber: "SJ-0001",
+      items: [
+        {
+          purchaseOrderItemId: "outbound-item-1",
+          quantity: 1,
+          warehouse: "REAR",
+        },
+      ],
+    });
+
+    expect(duplicate).toEqual({
+      error: "Nomor Surat Jalan SJ-0001 sudah digunakan",
+    });
+    expect(receiptCreate).not.toHaveBeenCalled();
   });
 
   it("creates a Receiving PO from Catalog snapshots without changing stock", async () => {
@@ -379,7 +457,7 @@ describe("MekTek Logistics and Receiving actions", () => {
     expect(applyCatalogStockMovement).not.toHaveBeenCalled();
   });
 
-  it("creates a Receiving PO with a manual item snapshot when Catalog has no match", async () => {
+  it("creates and links a Catalog item for a manual Receiving row", async () => {
     purchaseOrderCreate.mockResolvedValueOnce({
       id: "receiving-manual-1",
       poNumber: "RCV-MANUAL-001",
@@ -412,7 +490,7 @@ describe("MekTek Logistics and Receiving actions", () => {
             create: [
               expect.objectContaining({
                 source: "MANUAL",
-                catalogItemId: null,
+                catalogItemId: "manual-catalog-1",
                 partName: "Seal Kit Custom",
                 partNumber: "SK-CUSTOM-01",
                 orderedQuantity: 3,
@@ -422,6 +500,18 @@ describe("MekTek Logistics and Receiving actions", () => {
         }),
       }),
     );
+    expect(catalogItemCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        id: expect.stringMatching(/^manual-receiving-/),
+        machine: "Receiving",
+        rowNumber: 0,
+        description: "Seal Kit Custom",
+        partNumber: "SK-CUSTOM-01",
+        rearStock: 0,
+        frontStock: 0,
+      }),
+      select: expect.objectContaining({ id: true }),
+    });
     expect(applyCatalogStockMovement).not.toHaveBeenCalled();
   });
 
@@ -505,7 +595,7 @@ describe("MekTek Logistics and Receiving actions", () => {
     );
   });
 
-  it("completes a manual Receiving item without mutating Catalog stock", async () => {
+  it("adds manual Receiving stock to its automatically linked Catalog item", async () => {
     purchaseOrderFindUnique.mockResolvedValue({
       id: "receiving-manual-1",
       poNumber: "RCV-MANUAL-001",
@@ -516,6 +606,8 @@ describe("MekTek Logistics and Receiving actions", () => {
           id: "receiving-manual-item-1",
           source: "MANUAL",
           catalogItemId: null,
+          partName: "Seal Kit Custom",
+          partNumber: "SK-CUSTOM-01",
           orderedQuantity: 3,
           receivedQuantity: 0,
           status: "OPEN",
@@ -549,7 +641,20 @@ describe("MekTek Logistics and Receiving actions", () => {
         note: "Barang manual diterima",
       }),
     });
-    expect(applyCatalogStockMovement).not.toHaveBeenCalled();
+    expect(purchaseOrderItemUpdate).toHaveBeenCalledWith({
+      where: { id: "receiving-manual-item-1" },
+      data: { catalogItemId: "manual-catalog-1" },
+    });
+    expect(applyCatalogStockMovement).toHaveBeenCalledWith(
+      transactionClient,
+      expect.objectContaining({
+        catalogItemId: "manual-catalog-1",
+        direction: "IN",
+        source: "RECEIVING",
+        sourceId: "receipt-1",
+        warehouse: "REAR",
+      }),
+    );
   });
 
   it("does not accept an outbound PO in the Receiving mutation", async () => {
