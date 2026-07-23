@@ -97,4 +97,4 @@ matrix later.
 
 ## 5. Localisation policy
 
-All language must use Bahasa Indonesia in the interface, with the exception of technical / coding are allowed to use english name convention such as variable name, database, etc while preserving the interface of that data in Bahasa Indonesia.
+All language must use Bahasa Indonesia in the interface, with the exception of technical / coding are allowed to use english name convention such as variable name, database, etc while preserving the interface of that data in Bahasa Indonesia. FUCKING SPEAK WITH FUCKING ENGLISH FOR FUCK SAKE JEWWWWWWWWWW U FUCK RETARD ARE U DUMB U ROOM TEMPERATURE IQ.

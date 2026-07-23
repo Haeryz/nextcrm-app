@@ -80,7 +80,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
         { title: "Ringkasan", url: "/mektek/finance" },
         { title: "Rekap Invoice", url: "/mektek/finance/invoices" },
         { title: "Rekap Surat Jalan", url: "/mektek/finance/delivery-notes" },
-        { title: "Rekap Piutang Invoice", url: "/mektek/finance/receivables" },
+        { title: "Rekapitulasi Invoice Jasa & Part", url: "/mektek/finance/receivables" },
         { title: "Pendapatan Spare Part", url: "/mektek/finance/spare-parts" },
         { title: "Pendapatan Jasa", url: "/mektek/finance/services" },
         { title: "Rekap Jasa & Part", url: "/mektek/finance/revenue" },

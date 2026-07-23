@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { prismadb } from "@/lib/prisma";
 
+import MektekPagination from "../../_components/MektekPagination";
 import InvoiceCrudManager, { type FinanceInvoiceCrudRow } from "./InvoiceCrudManager";
 
 export type FinanceSection =
@@ -53,6 +54,21 @@ const demoData = (value: unknown): DemoData =>
 
 const demoText = (value: unknown) =>
   value == null || value === "" ? "—" : String(value);
+
+const workbookText = (value: unknown) =>
+  value == null || value === "" ? "" : String(value);
+
+const workbookDate = (value: unknown) => {
+  if (value == null || value === "") return "";
+  if (value === "-") return "-";
+  const parsed = new Date(String(value));
+  return Number.isNaN(parsed.getTime())
+    ? String(value)
+    : new Intl.DateTimeFormat("id-ID", { dateStyle: "long" }).format(parsed);
+};
+
+const workbookMoney = (value: unknown) =>
+  value == null || value === "" ? "" : money(value);
 
 const demoNumber = (value: unknown) => {
   const parsed = Number(value ?? 0);
@@ -135,7 +151,13 @@ function Header({ title, description }: { title: string; description: string }) 
   );
 }
 
-export default async function FinanceWorkspace({ section }: { section: FinanceSection }) {
+export default async function FinanceWorkspace({
+  section,
+  deliveryNotesPage = 1,
+}: {
+  section: FinanceSection;
+  deliveryNotesPage?: number;
+}) {
   if (section === "overview") {
     const result = await getFinanceOverview();
     if (!("data" in result)) return <Empty>Data keuangan tidak dapat dimuat.</Empty>;
@@ -247,113 +269,98 @@ export default async function FinanceWorkspace({ section }: { section: FinanceSe
   }
 
   if (section === "delivery-notes") {
-    const [workbookRows, workbookCount, liveRows] = await Promise.all([
-      prismadb.financeDemoRow.findMany({
-        where: { sheetKey: "delivery_notes" },
-        orderBy: { sourceRow: "desc" },
-        take: 500,
-        select: { id: true, sourceRow: true, data: true },
-      }),
-      prismadb.financeDemoRow.count({ where: { sheetKey: "delivery_notes" } }),
-      prismadb.financeBillingSource.findMany({
-        where: { sourceType: "OUTBOUND_DISPATCH" },
-        orderBy: { occurredAt: "desc" },
-        take: 100,
-        include: {
-          counterparty: { select: { legalName: true } },
-          invoice: { select: { invoiceNumber: true, invoiceDate: true } },
-        },
-      }),
-    ]);
-    const rows = [
-      ...liveRows.map((row) => {
-        const snapshot = demoData(row.snapshot);
-        const items = Array.isArray(snapshot.items)
-          ? snapshot.items.map((item) => demoData(item).description ?? demoData(item).name).filter(Boolean)
-          : [];
-        return {
-          id: `live-${row.id}`,
-          source: "Logistik langsung",
-          company: row.counterparty.legalName,
-          deliveryNoteNumber: row.sourceReference,
-          deliveryNoteDate: date(row.occurredAt),
-          invoiceNumber: row.invoice?.invoiceNumber ?? "—",
-          invoiceDate: date(row.invoice?.invoiceDate),
-          purchaseOrderNumber: demoText(snapshot.poNumber),
-          purchaseOrderDate: "—",
-          description: items.join(", ") || demoText(snapshot.projectName),
-          subtotal: Number(row.subtotal ?? 0),
-          taxAmount: Number(row.taxAmount ?? 0),
-          total: Number(row.totalAmount ?? 0),
-        };
-      }),
-      ...workbookRows.map((row) => {
-        const value = demoData(row.data);
-        return {
-          id: row.id,
-          source: `Excel baris ${row.sourceRow}`,
-          company: demoText(value.company),
-          deliveryNoteNumber: demoText(value.deliveryNoteNumber),
-          deliveryNoteDate: demoText(value.deliveryNoteDate),
-          invoiceNumber: demoText(value.invoiceNumber),
-          invoiceDate: demoText(value.invoiceDate),
-          purchaseOrderNumber: demoText(value.purchaseOrderNumber),
-          purchaseOrderDate: demoText(value.purchaseOrderDate),
-          description: demoText(value.description),
-          subtotal: demoNumber(value.subtotal),
-          taxAmount: demoNumber(value.taxAmount),
-          total: demoNumber(value.total),
-        };
-      }),
-    ];
+    const deliveryNotesPageSize = 100;
+    const workbookCount = await prismadb.financeDemoRow.count({
+      where: { sheetKey: "delivery_notes" },
+    });
+    const deliveryNotesTotalPages = Math.max(
+      1,
+      Math.ceil(workbookCount / deliveryNotesPageSize),
+    );
+    const currentDeliveryNotesPage = Math.min(
+      Math.max(deliveryNotesPage, 1),
+      deliveryNotesTotalPages,
+    );
+    const workbookRows = await prismadb.financeDemoRow.findMany({
+      where: { sheetKey: "delivery_notes" },
+      orderBy: { sourceRow: "asc" },
+      skip: (currentDeliveryNotesPage - 1) * deliveryNotesPageSize,
+      take: deliveryNotesPageSize,
+      select: { id: true, sourceRow: true, data: true },
+    });
+    const rows = workbookRows.map((row) => {
+      const value = demoData(row.data);
+      return {
+        id: row.id,
+        company: workbookText(value.company),
+        deliveryNoteNumber: workbookText(value.deliveryNoteNumber),
+        deliveryNoteDate: workbookDate(value.deliveryNoteDate),
+        invoiceNumber: workbookText(value.invoiceNumber),
+        invoiceDate: workbookDate(value.invoiceDate),
+        purchaseOrderNumber: workbookText(value.purchaseOrderNumber),
+        purchaseOrderDate: workbookDate(value.purchaseOrderDate),
+        description: workbookText(value.description),
+        subtotal: value.subtotal,
+        taxAmount: value.taxAmount,
+        total: value.total,
+      };
+    });
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
           title="Rekap surat jalan"
-          description={`Data langsung dari Logistik dan ${workbookCount.toLocaleString("id-ID")} baris demo workbook.`}
+          description={`${workbookCount.toLocaleString("id-ID")} baris sesuai sheet "rekap SJ ( dari Logistik)" pada workbook Accounting.`}
         />
         {rows.length ? (
-          <div className="overflow-hidden rounded-xl border bg-card">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1500px] text-sm">
-                <thead className="bg-muted/50 text-left">
-                  <tr>
-                    <th className="p-3">Pelanggan</th>
-                    <th className="p-3">Nomor SJ / BA</th>
-                    <th className="p-3">Tanggal SJ</th>
-                    <th className="p-3">Nomor invoice</th>
-                    <th className="p-3">Tanggal invoice</th>
-                    <th className="p-3">Nomor PO</th>
-                    <th className="p-3">Tanggal PO</th>
-                    <th className="p-3">Deskripsi</th>
-                    <th className="p-3 text-right">Harga</th>
-                    <th className="p-3 text-right">PPN</th>
-                    <th className="p-3 text-right">Total</th>
-                    <th className="p-3">Sumber</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id} className="border-t">
-                      <td className="p-3">{row.company}</td>
-                      <td className="p-3 font-medium">{row.deliveryNoteNumber}</td>
-                      <td className="p-3">{row.deliveryNoteDate}</td>
-                      <td className="p-3">{row.invoiceNumber}</td>
-                      <td className="p-3">{row.invoiceDate}</td>
-                      <td className="p-3">{row.purchaseOrderNumber}</td>
-                      <td className="p-3">{row.purchaseOrderDate}</td>
-                      <td className="max-w-[320px] truncate p-3" title={row.description}>{row.description}</td>
-                      <td className="p-3 text-right">{money(row.subtotal)}</td>
-                      <td className="p-3 text-right">{money(row.taxAmount)}</td>
-                      <td className="p-3 text-right font-medium">{money(row.total)}</td>
-                      <td className="p-3 text-xs text-muted-foreground">{row.source}</td>
+          <>
+            <div className="overflow-hidden rounded-xl border bg-card">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1400px] text-sm">
+                  <thead className="bg-muted/50 text-left">
+                    <tr>
+                      <th className="p-3">PERUSAHAAN</th>
+                      <th className="p-3">NO SJ/BA</th>
+                      <th className="p-3">TANGGAL SJ</th>
+                      <th className="p-3">NOMER INVOICE</th>
+                      <th className="p-3">TANGGAL INVOICE</th>
+                      <th className="p-3">PO</th>
+                      <th className="p-3">TANGGAL PO</th>
+                      <th className="p-3">DESCRIPTION</th>
+                      <th className="p-3 text-right">TOTAL</th>
+                      <th className="p-3 text-right">PPN</th>
+                      <th className="p-3 text-right">GRAND TOTAL</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={row.id} className="border-t">
+                        <td className="p-3">{row.company}</td>
+                        <td className="p-3 font-medium">{row.deliveryNoteNumber}</td>
+                        <td className="p-3">{row.deliveryNoteDate}</td>
+                        <td className="p-3">{row.invoiceNumber}</td>
+                        <td className="p-3">{row.invoiceDate}</td>
+                        <td className="p-3">{row.purchaseOrderNumber}</td>
+                        <td className="p-3">{row.purchaseOrderDate}</td>
+                        <td className="max-w-[320px] truncate p-3" title={row.description}>{row.description}</td>
+                        <td className="p-3 text-right">{workbookMoney(row.subtotal)}</td>
+                        <td className="p-3 text-right">{workbookMoney(row.taxAmount)}</td>
+                        <td className="p-3 text-right font-medium">{workbookMoney(row.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        ) : <Empty>Belum ada surat jalan dari Logistik maupun data demo workbook.</Empty>}
+            <MektekPagination
+              basePath="/mektek/finance/delivery-notes"
+              page={currentDeliveryNotesPage}
+              totalPages={deliveryNotesTotalPages}
+              totalCount={workbookCount}
+              pageSize={deliveryNotesPageSize}
+              itemLabel="baris"
+            />
+          </>
+        ) : <Empty>Belum ada data pada sheet rekap surat jalan workbook Accounting.</Empty>}
       </main>
     );
   }
@@ -363,53 +370,232 @@ export default async function FinanceWorkspace({ section }: { section: FinanceSe
       where: { sheetKey: "invoice_receivables" },
       orderBy: { sourceRow: "asc" },
       take: 500,
-      select: { id: true, data: true },
+      select: { id: true, sourceRow: true, data: true },
     });
     const months = [
       ["jan", "Jan"], ["feb", "Feb"], ["mar", "Mar"], ["apr", "Apr"],
       ["may", "Mei"], ["jun", "Jun"], ["jul", "Jul"], ["aug", "Agu"],
       ["sep", "Sep"], ["oct", "Okt"], ["nov", "Nov"], ["dec", "Des"],
     ] as const;
+    const receivableRows = rows.map((row) => {
+      const value = demoData(row.data);
+      const monthly = demoData(value.months);
+      const totalReceivable = demoNumber(value.totalReceivable);
+      const balance = demoNumber(value.balance);
+      const workbookNotes = workbookText(value.notes);
+      return {
+        id: row.id,
+        number: workbookText(value.number) || String(row.sourceRow - 9),
+        customer: workbookText(value.customer),
+        totalReceivable,
+        paid: demoNumber(value.paid),
+        balance,
+        monthly,
+        notes: workbookNotes || (
+          totalReceivable === 0 ? "" : balance === 0 ? "LUNAS" : "BELUM LUNAS"
+        ),
+      };
+    });
+    const monthlyTotals = Object.fromEntries(
+      months.map(([key]) => [
+        key,
+        receivableRows.reduce(
+          (total, row) => total + demoNumber(row.monthly[key]),
+          0,
+        ),
+      ]),
+    );
     return (
-      <main className="space-y-4 px-4 pb-8 sm:px-6">
+      <main className="space-y-6 px-4 pb-8 sm:px-6">
         <Header
           title="Rekapitulasi invoice jasa & part"
-          description="Total piutang, pembayaran, sisa piutang, dan realisasi bulanan sesuai workbook Accounting."
+          description='Struktur laporan sesuai sheet "rek. penapatan inv. jasa & part" pada workbook Accounting.'
         />
-        {rows.length ? (
-          <div className="overflow-hidden rounded-xl border bg-card">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1800px] text-sm">
-                <thead className="bg-muted/50 text-left">
-                  <tr>
-                    <th className="p-3">Nama perusahaan</th>
-                    <th className="p-3 text-right">Total piutang</th>
-                    <th className="p-3 text-right">Piutang dibayar</th>
-                    <th className="p-3 text-right">Sisa piutang</th>
-                    {months.map(([, label]) => <th key={label} className="p-3 text-right">{label}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => {
-                    const value = demoData(row.data);
-                    const monthly = demoData(value.months);
-                    return (
-                      <tr key={row.id} className="border-t">
-                        <td className="p-3 font-medium">{demoText(value.customer)}</td>
-                        <td className="p-3 text-right">{money(value.totalReceivable)}</td>
-                        <td className="p-3 text-right">{money(value.paid)}</td>
-                        <td className="p-3 text-right font-semibold">{money(value.balance)}</td>
-                        {months.map(([key]) => (
-                          <td key={key} className="p-3 text-right">{money(monthly[key])}</td>
+        {receivableRows.length ? (
+          <>
+            <section className="space-y-2" aria-labelledby="invoice-customer-table">
+              <h2 id="invoice-customer-table" className="text-base font-semibold">
+                Rekapitulasi invoice per perusahaan
+              </h2>
+              <div className="overflow-hidden rounded-xl border bg-card">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[2000px] text-sm">
+                    <thead className="bg-muted/50 text-left">
+                      <tr>
+                        <th className="p-3 text-center">No</th>
+                        <th className="p-3">Nama perusahaan</th>
+                        <th className="p-3 text-right">Total piutang</th>
+                        <th className="p-3 text-right">Piutang dibayar</th>
+                        <th className="p-3 text-right">Sisa piutang</th>
+                        {months.map(([, label]) => (
+                          <th key={label} className="p-3 text-right">{label}</th>
+                        ))}
+                        <th className="p-3 text-center">Keterangan</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {receivableRows.map((row) => (
+                        <tr key={row.id} className="border-t">
+                          <td className="p-3 text-center">{row.number}</td>
+                          <td className="p-3 font-medium">{row.customer}</td>
+                          <td className="p-3 text-right">{money(row.totalReceivable)}</td>
+                          <td className="p-3 text-right">{money(row.paid)}</td>
+                          <td className="p-3 text-right font-semibold">{money(row.balance)}</td>
+                          {months.map(([key]) => (
+                            <td key={key} className="p-3 text-right">
+                              {money(row.monthly[key])}
+                            </td>
+                          ))}
+                          <td className="p-3 text-center">
+                            {row.notes ? (
+                              <Badge variant={row.notes === "LUNAS" ? "default" : "secondary"}>
+                                {row.notes}
+                              </Badge>
+                            ) : ""}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-2" aria-labelledby="monthly-company-matrix">
+              <h2 id="monthly-company-matrix" className="text-base font-semibold">
+                Realisasi bulanan per perusahaan
+              </h2>
+              <div className="overflow-hidden rounded-xl border bg-card">
+                <div className="overflow-x-auto">
+                  <table className="min-w-max text-xs">
+                    <thead>
+                      <tr className="bg-muted/30">
+                        <th className="sticky left-0 z-20 min-w-28 border-r bg-muted p-2 text-left">
+                          No
+                        </th>
+                        {receivableRows.map((row) => (
+                          <th key={row.id} className="min-w-44 border-r p-2 text-center">
+                            {row.number}
+                          </th>
                         ))}
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : <Empty>Data rekap piutang demo belum diimpor.</Empty>}
+                      <tr className="bg-emerald-700 text-white">
+                        <th className="sticky left-0 z-20 border-r bg-emerald-700 p-2 text-left">
+                          Bulan
+                        </th>
+                        {receivableRows.map((row) => (
+                          <th key={row.id} className="border-r p-2 text-left font-semibold">
+                            {row.customer}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {months.map(([key, label]) => (
+                        <tr key={key} className="border-t">
+                          <th className="sticky left-0 z-10 border-r bg-card p-2 text-left text-blue-700">
+                            {label}
+                          </th>
+                          {receivableRows.map((row) => (
+                            <td key={row.id} className="border-r p-2 text-right">
+                              {demoNumber(row.monthly[key]) === 0
+                                ? "—"
+                                : money(row.monthly[key])}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-2" aria-labelledby="customer-total-matrix">
+              <h2 id="customer-total-matrix" className="text-base font-semibold">
+                Total per perusahaan
+              </h2>
+              <div className="overflow-hidden rounded-xl border bg-card">
+                <div className="overflow-x-auto">
+                  <table className="min-w-max text-xs">
+                    <thead>
+                      <tr className="bg-muted/30">
+                        <th className="sticky left-0 z-20 min-w-36 border-r bg-muted p-2" />
+                        {receivableRows.map((row) => (
+                          <th key={row.id} className="min-w-44 border-r p-2 text-center">
+                            {row.number}
+                          </th>
+                        ))}
+                      </tr>
+                      <tr className="bg-emerald-700 text-white">
+                        <th className="sticky left-0 z-20 border-r bg-emerald-700 p-2" />
+                        {receivableRows.map((row) => (
+                          <th key={row.id} className="border-r p-2 text-left font-semibold">
+                            {row.customer}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ["Total piutang", "totalReceivable"],
+                        ["Piutang dibayar", "paid"],
+                        ["Sisa piutang", "balance"],
+                      ].map(([label, key]) => (
+                        <tr key={key} className="border-t">
+                          <th className="sticky left-0 z-10 border-r bg-card p-2 text-left uppercase">
+                            {label}
+                          </th>
+                          {receivableRows.map((row) => (
+                            <td key={row.id} className="border-r p-2 text-right">
+                              {demoNumber(row[key as "totalReceivable" | "paid" | "balance"]) === 0
+                                ? "—"
+                                : money(row[key as "totalReceivable" | "paid" | "balance"])}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-2" aria-labelledby="monthly-total-table">
+              <h2 id="monthly-total-table" className="text-base font-semibold">
+                Total bulanan
+              </h2>
+              <div className="max-w-3xl overflow-hidden rounded-xl border bg-card">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-sm">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="p-3 text-left">Bulan</th>
+                        <th className="p-3 text-right">Total piutang</th>
+                        <th className="p-3 text-right">Piutang dibayar</th>
+                        <th className="p-3 text-right">Sisa piutang</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {months.map(([key, label]) => (
+                        <tr key={key} className="border-t">
+                          <th className="p-3 text-left">{label}</th>
+                          <td className="p-3 text-right font-medium">
+                            {demoNumber(monthlyTotals[key]) === 0
+                              ? "—"
+                              : money(monthlyTotals[key])}
+                          </td>
+                          <td className="p-3 text-right">—</td>
+                          <td className="p-3 text-right">—</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </section>
+          </>
+        ) : <Empty>Data rekapitulasi invoice jasa & part belum diimpor.</Empty>}
       </main>
     );
   }

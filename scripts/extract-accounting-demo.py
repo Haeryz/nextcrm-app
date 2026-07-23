@@ -3,16 +3,27 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import posixpath
 import re
+import xml.etree.ElementTree as ElementTree
+import zipfile
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 from openpyxl import load_workbook
+from openpyxl.utils.cell import range_boundaries
 
 
 SOURCE = Path("data/format alur penginputan Accounting.xlsx")
 OUTPUT = Path(".tmp/accounting-demo-data.json")
+SPREADSHEET_NAMESPACE = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+DOCUMENT_RELATIONSHIP_NAMESPACE = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+)
+PACKAGE_RELATIONSHIP_NAMESPACE = (
+    "http://schemas.openxmlformats.org/package/2006/relationships"
+)
 
 
 def clean(value: Any) -> Any:
@@ -59,6 +70,99 @@ def classify(description: str | None) -> str:
     if service:
         return "service"
     return "other"
+
+
+def merged_cell_anchors(
+    source: Path,
+    sheet_name: str,
+    *,
+    min_row: int,
+    max_row: int,
+    max_col: int,
+) -> dict[tuple[int, int], tuple[int, int]]:
+    """Find relevant merged cells without loading the million-row sheet in memory."""
+    with zipfile.ZipFile(source) as archive:
+        workbook_xml = ElementTree.fromstring(archive.read("xl/workbook.xml"))
+        relationship_id = None
+        for sheet in workbook_xml.findall(
+            f".//{{{SPREADSHEET_NAMESPACE}}}sheet"
+        ):
+            if sheet.attrib.get("name") == sheet_name:
+                relationship_id = sheet.attrib.get(
+                    f"{{{DOCUMENT_RELATIONSHIP_NAMESPACE}}}id"
+                )
+                break
+        if not relationship_id:
+            raise KeyError(f"Worksheet {sheet_name!r} was not found")
+
+        relationships_xml = ElementTree.fromstring(
+            archive.read("xl/_rels/workbook.xml.rels")
+        )
+        target = None
+        for relationship in relationships_xml.findall(
+            f"{{{PACKAGE_RELATIONSHIP_NAMESPACE}}}Relationship"
+        ):
+            if relationship.attrib.get("Id") == relationship_id:
+                target = relationship.attrib.get("Target")
+                break
+        if not target:
+            raise KeyError(f"Worksheet relationship {relationship_id!r} was not found")
+
+        worksheet_path = (
+            target.lstrip("/")
+            if target.startswith("/")
+            else posixpath.normpath(posixpath.join("xl", target))
+        )
+        anchors: dict[tuple[int, int], tuple[int, int]] = {}
+        with archive.open(worksheet_path) as worksheet_xml:
+            for _, element in ElementTree.iterparse(worksheet_xml, events=("end",)):
+                if element.tag != f"{{{SPREADSHEET_NAMESPACE}}}mergeCell":
+                    element.clear()
+                    continue
+                reference = element.attrib.get("ref")
+                if not reference:
+                    element.clear()
+                    continue
+                min_col_index, min_row_index, max_col_index, max_row_index = (
+                    range_boundaries(reference)
+                )
+                if (
+                    max_row_index < min_row
+                    or min_row_index > max_row
+                    or min_col_index > max_col
+                ):
+                    element.clear()
+                    continue
+                anchor = (min_row_index, min_col_index)
+                for row_index in range(
+                    max(min_row_index, min_row),
+                    min(max_row_index, max_row) + 1,
+                ):
+                    for column_index in range(
+                        min_col_index,
+                        min(max_col_index, max_col) + 1,
+                    ):
+                        anchors[(row_index, column_index)] = anchor
+                element.clear()
+        return anchors
+
+
+def expand_merged_values(
+    source_row: int,
+    values: tuple[Any, ...],
+    merged_cells: dict[tuple[int, int], tuple[int, int]],
+    anchor_values: dict[tuple[int, int], Any],
+) -> tuple[Any, ...]:
+    expanded = list(values)
+    for column_index, value in enumerate(expanded, start=1):
+        anchor = merged_cells.get((source_row, column_index))
+        if not anchor:
+            continue
+        if anchor == (source_row, column_index):
+            anchor_values[anchor] = value
+        elif value is None and anchor in anchor_values:
+            expanded[column_index - 1] = anchor_values[anchor]
+    return tuple(expanded)
 
 
 workbook = load_workbook(SOURCE, read_only=True, data_only=True)
@@ -109,13 +213,27 @@ for source_row, values in enumerate(
 
 
 delivery_sheet = workbook["rekap SJ ( dari Logistik)"]
+delivery_merged_cells = merged_cell_anchors(
+    SOURCE,
+    delivery_sheet.title,
+    min_row=7,
+    max_row=17066,
+    max_col=11,
+)
+delivery_anchor_values: dict[tuple[int, int], Any] = {}
 for source_row, values in enumerate(
-    delivery_sheet.iter_rows(min_row=7, max_row=17066, max_col=12, values_only=True),
+    delivery_sheet.iter_rows(min_row=7, max_row=17066, max_col=11, values_only=True),
     start=7,
 ):
+    values = expand_merged_values(
+        source_row,
+        values,
+        delivery_merged_cells,
+        delivery_anchor_values,
+    )
     company = text(values[0])
     delivery_number = text(values[1])
-    if not company or not delivery_number:
+    if not any(clean(value) is not None for value in values):
         continue
     data = {
         "company": company,
@@ -136,13 +254,14 @@ for source_row, values in enumerate(
 receivable_sheet = workbook["rek. penapatan inv. jasa & part"]
 months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
 for source_row, values in enumerate(
-    receivable_sheet.iter_rows(min_row=10, max_row=164, max_col=17, values_only=True),
+    receivable_sheet.iter_rows(min_row=10, max_row=164, max_col=18, values_only=True),
     start=10,
 ):
     customer = text(values[1])
     if not customer:
         continue
     data = {
+        "number": number(values[0]),
         "customer": customer,
         "totalReceivable": number(values[2]) or 0,
         "paid": number(values[3]) or 0,
@@ -151,10 +270,8 @@ for source_row, values in enumerate(
             month: number(values[index + 5]) or 0
             for index, month in enumerate(months)
         },
-        "notes": text(values[17]) if len(values) > 17 else None,
+        "notes": text(values[17]),
     }
-    if not any([data["totalReceivable"], data["paid"], data["balance"], *data["months"].values()]):
-        continue
     rows.append({"sheetKey": "invoice_receivables", "sourceRow": source_row, "data": data})
 
 
