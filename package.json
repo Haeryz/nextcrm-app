@@ -18,6 +18,8 @@
     "finance:demo:import:commit": "tsx scripts/finance-demo-import.ts --commit",
     "finance:demo:delete": "tsx scripts/finance-demo-import.ts --delete",
     "finance:demo:delete:commit": "tsx scripts/finance-demo-import.ts --delete --commit",
+    "finance:payment-faktur:import": "tsx scripts/import-payment-faktur.ts",
+    "finance:payment-faktur:import:commit": "tsx scripts/import-payment-faktur.ts --commit",
     "build:full": "prisma generate && prisma migrate deploy && next build",
     "migrate:deploy": "pnpm exec prisma migrate deploy",
     "start": "next start",
