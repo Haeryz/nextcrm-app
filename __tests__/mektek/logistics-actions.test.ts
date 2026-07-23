@@ -362,6 +362,10 @@ describe("MekTek Logistics and Receiving actions", () => {
         preventNegativeStock: true,
       }),
     );
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      maxWait: 15_000,
+      timeout: 30_000,
+    });
   });
 
   it("requires a unique Surat Jalan number for every outbound batch", async () => {
@@ -593,6 +597,36 @@ describe("MekTek Logistics and Receiving actions", () => {
         warehouse: "FRONT",
       }),
     );
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
+      maxWait: 15_000,
+      timeout: 30_000,
+    });
+  });
+
+  it("returns an actionable message when a Receiving transaction times out", async () => {
+    transaction.mockRejectedValueOnce(
+      Object.assign(new Error("Transaction already closed: timeout was 5000 ms"), {
+        code: "P2028",
+      }),
+    );
+
+    const result = await recordMektekReceivingPurchaseOrderReceipt({
+      purchaseOrderId: "receiving-1",
+      picId: "pic-1",
+      receivedAt: "2026-07-12",
+      items: [
+        {
+          purchaseOrderItemId: "receiving-item-1",
+          quantity: 5,
+          warehouse: "REAR",
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      error:
+        "Transaksi Receiving melewati batas waktu. Silakan coba simpan kembali.",
+    });
   });
 
   it("adds manual Receiving stock to its automatically linked Catalog item", async () => {

@@ -132,6 +132,36 @@ export type MektekOutboundDispatchInput = {
 
 class LogisticsActionError extends Error {}
 
+const LOGISTICS_TRANSACTION_OPTIONS = {
+  maxWait: 15_000,
+  timeout: 30_000,
+} as const;
+
+function getTransactionRetryMessage(
+  error: unknown,
+  operation: "Barang Keluar" | "Receiving",
+) {
+  const code =
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    typeof error.code === "string"
+      ? error.code
+      : null;
+  const message = error instanceof Error ? error.message : "";
+
+  if (
+    code === "P2028" ||
+    /transaction.*(?:closed|expired|timed?\s*out|timeout)/i.test(message)
+  ) {
+    return `Transaksi ${operation} melewati batas waktu. Silakan coba simpan kembali.`;
+  }
+  if (code === "P2034") {
+    return `Data ${operation} sedang diproses pengguna lain. Muat ulang halaman lalu coba kembali.`;
+  }
+  return null;
+}
+
 async function ensureLogisticsManager(area: LogisticsStaffArea) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized: silakan Login" } as const;
@@ -955,7 +985,7 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
           ...progress,
         })),
       };
-    });
+    }, LOGISTICS_TRANSACTION_OPTIONS);
     revalidatePath("/[locale]/(routes)/mektek/logistics", "page");
     revalidatePath("/[locale]/(routes)/mektek/logistics/spreadsheet", "page");
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
@@ -967,6 +997,8 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
     if (error instanceof Error && error.message.includes("Stok")) {
       return { error: error.message };
     }
+    const retryMessage = getTransactionRetryMessage(error, "Barang Keluar");
+    if (retryMessage) return { error: retryMessage };
     return { error: "Gagal mencatat Barang Keluar Monitoring PO" };
   }
 }
@@ -1187,7 +1219,7 @@ export async function recordMektekReceivingPurchaseOrderReceipt(
           ...progress,
         })),
       };
-    });
+    }, LOGISTICS_TRANSACTION_OPTIONS);
     revalidatePath("/[locale]/(routes)/mektek/receiving", "page");
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
     revalidatePath("/[locale]/(routes)/mektek/items/spreadsheet", "page");
@@ -1195,6 +1227,8 @@ export async function recordMektekReceivingPurchaseOrderReceipt(
   } catch (error) {
     console.log("[RECORD_MEKTEK_RECEIVING]", error);
     if (error instanceof LogisticsActionError) return { error: error.message };
+    const retryMessage = getTransactionRetryMessage(error, "Receiving");
+    if (retryMessage) return { error: retryMessage };
     return { error: "Gagal mencatat barang masuk Receiving" };
   }
 }
