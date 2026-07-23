@@ -1,13 +1,21 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   createFinanceInvoiceEntry,
   deleteFinanceInvoiceEntry,
+  searchFinancePurchaseOrders,
   updateFinanceInvoiceEntry,
   type FinanceInvoiceEntryInput,
 } from "@/actions/mektek/finance";
@@ -24,6 +32,24 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { classifyFinanceRevenueLine } from "@/lib/mektek/finance";
+import type { FinancePurchaseOrderSuggestion } from "@/lib/mektek/finance-po";
+
+export type FinanceInvoiceSourceRow = {
+  id: string;
+  purchaseOrderId: string;
+  purchaseOrderNumber: string;
+  purchaseOrderMode: "MANUAL" | "CONSIGNMENT";
+  customerName: string;
+  projectName: string;
+  purchaseOrderDate: string;
+  dueDate: string;
+  deliveryNoteNumber: string;
+  deliveryNoteDate: string;
+  description: string;
+  subtotal: string;
+  pricingComplete: boolean;
+};
 
 export type FinanceInvoiceCrudRow = {
   id: string;
@@ -47,6 +73,7 @@ export type FinanceInvoiceCrudRow = {
   total: number;
   balance: number;
   hasPayment: boolean;
+  sources: FinanceInvoiceSourceRow[];
 };
 
 type InvoiceFormState = Omit<FinanceInvoiceEntryInput, "subtotal" | "taxRate"> & {
@@ -103,6 +130,19 @@ export default function InvoiceCrudManager({
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<InvoiceFormState>(emptyForm);
+  const [purchaseOrderOptions, setPurchaseOrderOptions] = useState<
+    FinancePurchaseOrderSuggestion[]
+  >([]);
+  const [purchaseOrderSearchOpen, setPurchaseOrderSearchOpen] = useState(false);
+  const [purchaseOrderSearching, setPurchaseOrderSearching] = useState(false);
+  const [activePurchaseOrderIndex, setActivePurchaseOrderIndex] = useState(0);
+  const [purchaseOrderQuery, setPurchaseOrderQuery] = useState("");
+  const [selectedInvoiceSources, setSelectedInvoiceSources] = useState<
+    FinanceInvoiceSourceRow[]
+  >([]);
+  const [purchaseOrderPricingWarning, setPurchaseOrderPricingWarning] =
+    useState("");
+  const purchaseOrderRequestId = useRef(0);
   const totalPreview = useMemo(() => {
     const subtotal = Number(form.subtotal || 0);
     const rate = Number(form.taxRate || 0);
@@ -110,18 +150,276 @@ export default function InvoiceCrudManager({
       ? subtotal * (1 + rate / 100)
       : 0;
   }, [form.subtotal, form.taxRate]);
+  const revenueCategory = useMemo(
+    () =>
+      classifyFinanceRevenueLine({
+        kind: "MANUAL",
+        description: form.description,
+      }),
+    [form.description],
+  );
 
   const set = (name: keyof InvoiceFormState, value: string) =>
     setForm((current) => ({ ...current, [name]: value }));
 
+  const resetPurchaseOrderSearch = () => {
+    purchaseOrderRequestId.current += 1;
+    setPurchaseOrderOptions([]);
+    setPurchaseOrderSearchOpen(false);
+    setPurchaseOrderSearching(false);
+    setActivePurchaseOrderIndex(0);
+    setPurchaseOrderQuery("");
+    setSelectedInvoiceSources([]);
+    setPurchaseOrderPricingWarning("");
+  };
+
+  const applySourceAggregate = useCallback(
+    (sources: FinanceInvoiceSourceRow[]) => {
+      if (!sources.length) {
+        setForm((current) => ({
+          ...current,
+          customerName: "",
+          deliveryNoteNumber: "",
+          deliveryNoteDate: "",
+          dueDate: "",
+          purchaseOrderNumber: "",
+          purchaseOrderDate: "",
+          description: "",
+          subtotal: "",
+        }));
+        setPurchaseOrderPricingWarning("");
+        return;
+      }
+      const unique = (values: string[]) => [...new Set(values.filter(Boolean))];
+      const purchaseOrderNumbers = unique(
+        sources.map((source) => source.purchaseOrderNumber),
+      );
+      const deliveryNoteNumbers = unique(
+        sources.map((source) => source.deliveryNoteNumber),
+      );
+      const purchaseOrderDates = unique(
+        sources.map((source) => source.purchaseOrderDate),
+      );
+      const deliveryNoteDates = unique(
+        sources.map((source) => source.deliveryNoteDate),
+      );
+      const dueDates = unique(sources.map((source) => source.dueDate));
+      const pricingComplete = sources.every(
+        (source) => source.pricingComplete,
+      );
+      const subtotal = pricingComplete
+        ? sources.reduce(
+            (sum, source) => sum + Number(source.subtotal || 0),
+            0,
+          )
+        : null;
+      const description = sources
+        .map(
+          (source) =>
+            `[PO ${source.purchaseOrderNumber} · SJ ${source.deliveryNoteNumber}]\n${source.description}`,
+        )
+        .join("\n\n");
+
+      setForm((current) => ({
+        ...current,
+        customerName: sources[0].customerName,
+        deliveryNoteNumber: deliveryNoteNumbers.join(", "),
+        deliveryNoteDate:
+          deliveryNoteDates.length === 1 ? deliveryNoteDates[0] : "",
+        dueDate: dueDates.length === 1 ? dueDates[0] : current.dueDate,
+        purchaseOrderNumber: purchaseOrderNumbers.join(", "),
+        purchaseOrderDate:
+          purchaseOrderDates.length === 1 ? purchaseOrderDates[0] : "",
+        description,
+        subtotal:
+          subtotal != null && Number.isFinite(subtotal) ? String(subtotal) : "",
+      }));
+      setPurchaseOrderPricingWarning(
+        pricingComplete
+          ? ""
+          : "Harga yang disetujui belum lengkap pada salah satu Surat Jalan. Isi nilai sebelum PPN secara manual.",
+      );
+    },
+    [],
+  );
+
+  const applyPurchaseOrder = useCallback(
+    (option: FinancePurchaseOrderSuggestion) => {
+      if (
+        option.totalDeliveryNoteCount > 0 &&
+        option.deliveryNotes.length === 0
+      ) {
+        toast.error(
+          "Semua Surat Jalan pada PO ini sudah ditagihkan ke invoice lain",
+        );
+        return;
+      }
+      if (option.deliveryNotes.length) {
+        if (
+          selectedInvoiceSources.length &&
+          selectedInvoiceSources[0].customerName !== option.customerName
+        ) {
+          toast.error(
+            "Satu invoice hanya dapat memuat PO dan Surat Jalan dari pelanggan yang sama",
+          );
+          return;
+        }
+        const additions: FinanceInvoiceSourceRow[] =
+          option.deliveryNotes.map((deliveryNote) => ({
+            id: deliveryNote.id,
+            purchaseOrderId: option.id,
+            purchaseOrderNumber: option.poNumber,
+            purchaseOrderMode: option.poMode,
+            customerName: option.customerName,
+            projectName: option.projectName,
+            purchaseOrderDate: option.purchaseOrderDate,
+            dueDate: option.dueDate,
+            deliveryNoteNumber: deliveryNote.number,
+            deliveryNoteDate: deliveryNote.date,
+            description: deliveryNote.description,
+            subtotal: deliveryNote.subtotal,
+            pricingComplete: deliveryNote.pricingComplete,
+          }));
+        const byId = new Map(
+          [...selectedInvoiceSources, ...additions].map((source) => [
+            source.id,
+            source,
+          ]),
+        );
+        const merged = [...byId.values()];
+        setSelectedInvoiceSources(merged);
+        applySourceAggregate(merged);
+        setPurchaseOrderQuery("");
+        setPurchaseOrderSearchOpen(false);
+        setActivePurchaseOrderIndex(0);
+        return;
+      }
+      setForm((current) => ({
+        ...current,
+        purchaseOrderNumber: option.poNumber,
+        customerName: option.customerName,
+        deliveryNoteNumber: option.deliveryNoteNumber,
+        deliveryNoteDate: option.deliveryNoteDate,
+        dueDate: option.dueDate,
+        purchaseOrderDate: option.purchaseOrderDate,
+        description: option.description,
+        subtotal: option.subtotal,
+      }));
+      setPurchaseOrderPricingWarning(
+        option.pricingComplete
+          ? ""
+          : "Harga yang disetujui belum lengkap pada PO ini. Isi nilai sebelum PPN secara manual.",
+      );
+      setPurchaseOrderQuery(option.poNumber);
+      setPurchaseOrderSearchOpen(false);
+      setActivePurchaseOrderIndex(0);
+    },
+    [applySourceAggregate, selectedInvoiceSources],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const query = purchaseOrderQuery.trim();
+    if (!query) return;
+
+    const requestId = ++purchaseOrderRequestId.current;
+    const timer = window.setTimeout(async () => {
+      setPurchaseOrderSearching(true);
+      const result = await searchFinancePurchaseOrders({
+        query,
+        invoiceId: editingId ?? undefined,
+      });
+      if (requestId !== purchaseOrderRequestId.current) return;
+      setPurchaseOrderSearching(false);
+      if ("error" in result) {
+        setPurchaseOrderOptions([]);
+        setPurchaseOrderSearchOpen(false);
+        toast.error(result.error);
+        return;
+      }
+      setPurchaseOrderOptions(result.data);
+      setActivePurchaseOrderIndex(0);
+      const normalizedQuery = query.toLocaleLowerCase("id-ID");
+      const exact = result.data.find(
+        (option) =>
+          option.poNumber.toLocaleLowerCase("id-ID") === normalizedQuery,
+      );
+      if (exact) {
+        if (
+          exact.deliveryNotes.length > 0 ||
+          exact.totalDeliveryNoteCount === 0
+        ) {
+          applyPurchaseOrder(exact);
+          return;
+        }
+      }
+      setPurchaseOrderSearchOpen(true);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    applyPurchaseOrder,
+    editingId,
+    open,
+    purchaseOrderQuery,
+  ]);
+
+  const changePurchaseOrderNumber = (value: string) => {
+    setPurchaseOrderPricingWarning("");
+    setPurchaseOrderQuery(value);
+    if (!value.trim()) {
+      purchaseOrderRequestId.current += 1;
+      setPurchaseOrderOptions([]);
+      setPurchaseOrderSearchOpen(false);
+      setPurchaseOrderSearching(false);
+    }
+    if (!selectedInvoiceSources.length) {
+      set("purchaseOrderNumber", value);
+    }
+  };
+
+  const removeInvoiceSource = (sourceId: string) => {
+    const remaining = selectedInvoiceSources.filter(
+      (source) => source.id !== sourceId,
+    );
+    setSelectedInvoiceSources(remaining);
+    applySourceAggregate(remaining);
+  };
+
+  const handlePurchaseOrderKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (!purchaseOrderSearchOpen || purchaseOrderOptions.length === 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActivePurchaseOrderIndex(
+        (current) => (current + 1) % purchaseOrderOptions.length,
+      );
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActivePurchaseOrderIndex(
+        (current) =>
+          (current - 1 + purchaseOrderOptions.length) %
+          purchaseOrderOptions.length,
+      );
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      applyPurchaseOrder(purchaseOrderOptions[activePurchaseOrderIndex]);
+    } else if (event.key === "Escape") {
+      setPurchaseOrderSearchOpen(false);
+    }
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm);
+    resetPurchaseOrderSearch();
     setOpen(true);
   };
 
   const openEdit = (row: FinanceInvoiceCrudRow) => {
     setEditingId(row.id);
+    resetPurchaseOrderSearch();
     setForm({
       customerName: row.customerName,
       deliveryNoteNumber: row.deliveryNoteNumber,
@@ -139,6 +437,8 @@ export default function InvoiceCrudManager({
       accountDestination: row.accountDestination,
       notes: row.notes,
     });
+    setSelectedInvoiceSources(row.sources);
+    setPurchaseOrderQuery(row.sources.length ? "" : row.purchaseOrderNumber);
     setOpen(true);
   };
 
@@ -148,6 +448,7 @@ export default function InvoiceCrudManager({
         ...form,
         subtotal: form.subtotal,
         taxRate: form.taxRate,
+        sourceIds: selectedInvoiceSources.map((source) => source.id),
       };
       const result = editingId
         ? await updateFinanceInvoiceEntry(editingId, input)
@@ -320,7 +621,146 @@ export default function InvoiceCrudManager({
 
             <div className="space-y-2">
               <Label htmlFor="purchaseOrderNumber">Nomor PO</Label>
-              <Input id="purchaseOrderNumber" value={fieldValue(form, "purchaseOrderNumber")} onChange={(event) => set("purchaseOrderNumber", event.target.value)} />
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="purchaseOrderNumber"
+                  className="pl-9 pr-9"
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={purchaseOrderSearchOpen}
+                  aria-controls="finance-purchase-order-options"
+                  aria-activedescendant={
+                    purchaseOrderSearchOpen && purchaseOrderOptions.length
+                      ? `finance-purchase-order-option-${purchaseOrderOptions[activePurchaseOrderIndex]?.id}`
+                      : undefined
+                  }
+                  autoComplete="off"
+                  value={purchaseOrderQuery}
+                  onChange={(event) =>
+                    changePurchaseOrderNumber(event.target.value)
+                  }
+                  onFocus={() => {
+                    if (
+                      purchaseOrderQuery.trim()
+                    ) {
+                      setPurchaseOrderSearchOpen(true);
+                    }
+                  }}
+                  onBlur={() =>
+                    window.setTimeout(
+                      () => setPurchaseOrderSearchOpen(false),
+                      100,
+                    )
+                  }
+                  onKeyDown={handlePurchaseOrderKeyDown}
+                  placeholder="Ketik nomor PO Logistics"
+                />
+                {purchaseOrderSearching && (
+                  <Loader2 className="pointer-events-none absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
+                )}
+                {purchaseOrderSearchOpen && (
+                  <div
+                    id="finance-purchase-order-options"
+                    role="listbox"
+                    className="absolute z-50 mt-1 max-h-72 w-full overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+                  >
+                    {purchaseOrderOptions.length ? (
+                      purchaseOrderOptions.map((option, index) => (
+                        <button
+                          key={option.id}
+                          id={`finance-purchase-order-option-${option.id}`}
+                          type="button"
+                          role="option"
+                          aria-selected={index === activePurchaseOrderIndex}
+                          disabled={
+                            option.totalDeliveryNoteCount > 0 &&
+                            option.deliveryNotes.length === 0
+                          }
+                          className={`flex w-full items-start justify-between gap-3 rounded-sm px-3 py-2 text-left text-sm ${
+                            index === activePurchaseOrderIndex
+                              ? "bg-accent text-accent-foreground"
+                              : "hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                          }`}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onMouseEnter={() =>
+                            setActivePurchaseOrderIndex(index)
+                          }
+                          onClick={() => applyPurchaseOrder(option)}
+                        >
+                          <span>
+                            <span className="block font-mono font-medium">
+                              {option.poNumber}
+                            </span>
+                            <span className="block text-xs text-muted-foreground">
+                              {option.customerName}
+                              {option.projectName
+                                ? ` · ${option.projectName}`
+                                : ""}
+                              {option.deliveryNotes.length
+                                ? ` · ${option.deliveryNotes.length} Surat Jalan`
+                                : option.totalDeliveryNoteCount
+                                  ? " · Sudah ditagihkan"
+                                  : " · Belum ada Surat Jalan"}
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {option.purchaseOrderDate}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-3 py-2 text-sm text-muted-foreground">
+                        Nomor PO Logistics tidak ditemukan
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Pilih rekomendasi atau ketik nomor PO lengkap. Semua Surat Jalan
+                yang belum ditagih dari PO tersebut akan ditambahkan dan dapat
+                dihapus satu per satu.
+              </p>
+              {selectedInvoiceSources.length > 0 && (
+                <div className="space-y-2 rounded-md border bg-muted/20 p-3">
+                  <p className="text-xs font-medium">
+                    Surat Jalan terpilih ({selectedInvoiceSources.length})
+                  </p>
+                  <div className="space-y-2">
+                    {selectedInvoiceSources.map((source) => (
+                      <div
+                        key={source.id}
+                        className="flex items-start justify-between gap-3 rounded-md bg-background px-3 py-2 text-xs"
+                      >
+                        <span>
+                          <span className="block font-medium">
+                            {source.deliveryNoteNumber}
+                          </span>
+                          <span className="block text-muted-foreground">
+                            PO {source.purchaseOrderNumber}
+                            {source.purchaseOrderMode === "CONSIGNMENT"
+                              ? " · Konsinyasi"
+                              : ""}
+                            {source.deliveryNoteDate
+                              ? ` · ${source.deliveryNoteDate}`
+                              : ""}
+                          </span>
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={() => removeInvoiceSource(source.id)}
+                        >
+                          Hapus
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="purchaseOrderDate">Tanggal PO</Label>
@@ -330,11 +770,29 @@ export default function InvoiceCrudManager({
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="description">Jenis pengeluaran / deskripsi *</Label>
               <Textarea id="description" value={fieldValue(form, "description")} onChange={(event) => set("description", event.target.value)} placeholder="Jasa, spare part, rental, service, atau pekerjaan lain" />
+              <p
+                className={
+                  revenueCategory === "unclassified"
+                    ? "text-xs text-amber-700"
+                    : "text-xs text-muted-foreground"
+                }
+              >
+                {revenueCategory === "service"
+                  ? "Terdeteksi otomatis: Pendapatan jasa"
+                  : revenueCategory === "sparepart"
+                    ? "Terdeteksi otomatis: Pendapatan spare part"
+                    : "Belum dapat dipisahkan otomatis. Gunakan deskripsi jasa atau spare part yang jelas; invoice campuran harus memiliki baris terpisah."}
+              </p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="subtotal">Nilai sebelum PPN (IDR) *</Label>
               <Input id="subtotal" type="number" min="0" step="0.01" value={form.subtotal} onChange={(event) => set("subtotal", event.target.value)} />
+              {purchaseOrderPricingWarning && (
+                <p className="text-xs text-amber-700">
+                  {purchaseOrderPricingWarning}
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="taxRate">PPN (%)</Label>

@@ -52,9 +52,10 @@ export interface NavItem {
 
 export interface NavSubItem {
   title: string
-  url: string
+  url?: string
   isActive?: boolean
   exact?: boolean
+  items?: NavSubItem[]
 }
 
 interface NavMainProps {
@@ -85,7 +86,53 @@ export function NavMain({ items, dict }: NavMainProps) {
   // Helper to check if any sub-item is active
   const hasActiveChild = (subItems?: NavSubItem[]): boolean => {
     if (!subItems) return false
-    return subItems.some((item) => isRouteActive(item.url))
+    return subItems.some(
+      (item) =>
+        (item.url ? isRouteActive(item.url, item.exact) : false) ||
+        hasActiveChild(item.items),
+    )
+  }
+
+  const renderSubItem = (subItem: NavSubItem, depth = 0): React.ReactNode => {
+    if (subItem.items && subItem.items.length > 0) {
+      const hasActive = hasActiveChild(subItem.items)
+      return (
+        <Collapsible
+          key={subItem.title}
+          asChild
+          defaultOpen={hasActive}
+          className="group/nested-collapsible"
+        >
+          <SidebarMenuSubItem>
+            <CollapsibleTrigger asChild>
+              <SidebarMenuSubButton isActive={hasActive}>
+                <span>{subItem.title}</span>
+                <ChevronRight className="ml-auto transition-transform group-data-[state=open]/nested-collapsible:rotate-90" />
+              </SidebarMenuSubButton>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <SidebarMenuSub className={cn(depth > 0 && "mr-0 pr-0")}>
+                {subItem.items.map((child) =>
+                  renderSubItem(child, depth + 1),
+                )}
+              </SidebarMenuSub>
+            </CollapsibleContent>
+          </SidebarMenuSubItem>
+        </Collapsible>
+      )
+    }
+
+    if (!subItem.url) return null
+    const isActive = isRouteActive(subItem.url, subItem.exact)
+    return (
+      <SidebarMenuSubItem key={subItem.title}>
+        <SidebarMenuSubButton asChild isActive={isActive}>
+          <Link href={subItem.url} onClick={closeMobileNavigation}>
+            <span>{subItem.title}</span>
+          </Link>
+        </SidebarMenuSubButton>
+      </SidebarMenuSubItem>
+    )
   }
 
   return (
@@ -117,24 +164,7 @@ export function NavMain({ items, dict }: NavMainProps) {
                   </CollapsibleTrigger>
                   <CollapsibleContent>
                     <SidebarMenuSub>
-                      {item.items.map((subItem) => {
-                        const isActive = isRouteActive(subItem.url, subItem.exact)
-                        return (
-                          <SidebarMenuSubItem key={subItem.title}>
-                            <SidebarMenuSubButton
-                              asChild
-                              isActive={isActive}
-                            >
-                              <Link
-                                href={subItem.url}
-                                onClick={closeMobileNavigation}
-                              >
-                                <span>{subItem.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        )
-                      })}
+                      {item.items.map((subItem) => renderSubItem(subItem))}
                     </SidebarMenuSub>
                   </CollapsibleContent>
                 </SidebarMenuItem>

@@ -77,15 +77,21 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
       title: "Finance",
       icon: CircleDollarSign,
       items: [
-        { title: "Ringkasan", url: "/mektek/finance" },
-        { title: "Rekap Invoice", url: "/mektek/finance/invoices" },
-        { title: "Rekap Surat Jalan", url: "/mektek/finance/delivery-notes" },
-        { title: "Rekapitulasi Invoice Jasa & Part", url: "/mektek/finance/receivables" },
-        { title: "Pendapatan Spare Part", url: "/mektek/finance/spare-parts" },
-        { title: "Pendapatan Jasa", url: "/mektek/finance/services" },
-        { title: "Rekap Jasa & Part", url: "/mektek/finance/revenue" },
-        { title: "Kontrak", url: "/mektek/finance/contracts" },
-        { title: "Audit Sistem", url: "/mektek/finance/audit" },
+        {
+          title: "Accounting",
+          items: [
+            { title: "Ringkasan", url: "/mektek/finance", exact: true },
+            { title: "Rekap Invoice", url: "/mektek/finance/invoices" },
+            { title: "Rekap Surat Jalan", url: "/mektek/finance/delivery-notes" },
+            { title: "Rekapitulasi Invoice Jasa & Part", url: "/mektek/finance/receivables" },
+            { title: "Pendapatan Spare Part", url: "/mektek/finance/spare-parts" },
+            { title: "Pendapatan Jasa", url: "/mektek/finance/services" },
+            { title: "Rekap Jasa & Part", url: "/mektek/finance/revenue" },
+            { title: "Kontrak", url: "/mektek/finance/contracts" },
+            { title: "Audit Sistem", url: "/mektek/finance/audit" },
+          ],
+        },
+        { title: "Payment Faktur", url: "/mektek/finance/payment-faktur" },
       ],
     });
   }

@@ -21,9 +21,15 @@ import {
 } from "@/lib/mektek/permissions";
 import {
   canApproveFinanceRequest,
+  classifyFinanceRevenueLine,
   normalizeFinanceKey,
   validateBillingSourceGrouping,
 } from "@/lib/mektek/finance";
+import {
+  buildFinancePurchaseOrderDeliveryNoteSuggestion,
+  buildFinancePurchaseOrderSuggestion,
+  type FinancePurchaseOrderSuggestion,
+} from "@/lib/mektek/finance-po";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -479,7 +485,126 @@ export type FinanceInvoiceEntryInput = {
   taxInvoiceNumber?: string;
   accountDestination?: string;
   notes?: string;
+  sourceIds?: string[];
 };
+
+export async function searchFinancePurchaseOrders(input: {
+  query?: string;
+  invoiceId?: string;
+}): Promise<
+  { data: FinancePurchaseOrderSuggestion[] } | { error: string }
+> {
+  const access = await ensureFinanceManager();
+  if ("error" in access && access.error) return { error: access.error };
+  const query = text(input?.query, 80);
+  const invoiceId = text(input?.invoiceId, 36);
+  if (!query) return { data: [] };
+
+  const purchaseOrders = await prismadb.logisticsPurchaseOrder.findMany({
+    where: {
+      flow: "OUTBOUND",
+      poNumber: { contains: query, mode: "insensitive" },
+    },
+    orderBy: { updatedAt: "desc" },
+    take: 20,
+    select: {
+      id: true,
+      poNumber: true,
+      poMode: true,
+      userName: true,
+      projectName: true,
+      inputDate: true,
+      dueDate: true,
+      deliveryNoteNumber: true,
+      deliveryDate: true,
+      items: {
+        orderBy: { position: "asc" },
+        select: {
+          position: true,
+          partName: true,
+          partNumber: true,
+          orderedQuantity: true,
+          agreedUnitPrice: true,
+        },
+      },
+    },
+  });
+  const billingSources = purchaseOrders.length
+    ? await prismadb.financeBillingSource.findMany({
+        where: {
+          sourceType: "OUTBOUND_DISPATCH",
+          AND: [
+            {
+              OR: purchaseOrders.map((row) => ({
+                sourceKey: { startsWith: `OUTBOUND:${row.id}:` },
+              })),
+            },
+          ],
+        },
+        orderBy: { occurredAt: "asc" },
+        select: {
+          id: true,
+          sourceKey: true,
+          sourceReference: true,
+          occurredAt: true,
+          subtotal: true,
+          snapshot: true,
+          invoiceId: true,
+          status: true,
+        },
+      })
+    : [];
+  const purchaseOrderIds = new Set(purchaseOrders.map((row) => row.id));
+  const deliveryNotesByPurchaseOrder = new Map<
+    string,
+    ReturnType<typeof buildFinancePurchaseOrderDeliveryNoteSuggestion>[]
+  >();
+  const deliveryNoteCountByPurchaseOrder = new Map<string, number>();
+  for (const source of billingSources) {
+    const purchaseOrderId = source.sourceKey.split(":")[1] ?? "";
+    if (!purchaseOrderIds.has(purchaseOrderId)) continue;
+    deliveryNoteCountByPurchaseOrder.set(
+      purchaseOrderId,
+      (deliveryNoteCountByPurchaseOrder.get(purchaseOrderId) ?? 0) + 1,
+    );
+    const available =
+      (source.invoiceId == null &&
+        (source.status === "UNBILLED" ||
+          source.status === "NEEDS_REVIEW")) ||
+      (invoiceId && source.invoiceId === invoiceId);
+    if (!available) continue;
+    const values = deliveryNotesByPurchaseOrder.get(purchaseOrderId) ?? [];
+    values.push(buildFinancePurchaseOrderDeliveryNoteSuggestion(source));
+    deliveryNotesByPurchaseOrder.set(purchaseOrderId, values);
+  }
+  const normalizedQuery = query.toLocaleLowerCase("id-ID");
+  const suggestions = purchaseOrders
+    .sort((left, right) => {
+      const leftNumber = left.poNumber.toLocaleLowerCase("id-ID");
+      const rightNumber = right.poNumber.toLocaleLowerCase("id-ID");
+      const leftRank = leftNumber === normalizedQuery
+        ? 0
+        : leftNumber.startsWith(normalizedQuery)
+          ? 1
+          : 2;
+      const rightRank = rightNumber === normalizedQuery
+        ? 0
+        : rightNumber.startsWith(normalizedQuery)
+          ? 1
+          : 2;
+      return leftRank - rightRank || leftNumber.localeCompare(rightNumber, "id-ID");
+    })
+    .slice(0, 8)
+    .map((purchaseOrder) =>
+      buildFinancePurchaseOrderSuggestion(
+        purchaseOrder,
+        deliveryNotesByPurchaseOrder.get(purchaseOrder.id) ?? [],
+        deliveryNoteCountByPurchaseOrder.get(purchaseOrder.id) ?? 0,
+      ),
+    );
+
+  return { data: suggestions };
+}
 
 function parseInvoiceEntry(input: FinanceInvoiceEntryInput) {
   const customerName = text(input.customerName, 180);
@@ -489,7 +614,7 @@ function parseInvoiceEntry(input: FinanceInvoiceEntryInput) {
   const dueDate = input.dueDate ? dateOnly(input.dueDate) : null;
   const deliveryNoteDate = input.deliveryNoteDate ? dateOnly(input.deliveryNoteDate) : null;
   const purchaseOrderDate = input.purchaseOrderDate ? dateOnly(input.purchaseOrderDate) : null;
-  const description = text(input.description, 500);
+  const description = text(input.description, 5000);
   const subtotal = money(input.subtotal);
   const rawTaxRate = Number(String(input.taxRate ?? 11).replace(",", "."));
 
@@ -515,10 +640,10 @@ function parseInvoiceEntry(input: FinanceInvoiceEntryInput) {
       invoiceNumber,
       invoiceDate,
       dueDate,
-      deliveryNoteNumber: text(input.deliveryNoteNumber, 80) || null,
+      deliveryNoteNumber: text(input.deliveryNoteNumber, 1000) || null,
       deliveryNoteDate,
       receiptNumber: text(input.receiptNumber, 80) || null,
-      purchaseOrderNumber: text(input.purchaseOrderNumber, 80) || null,
+      purchaseOrderNumber: text(input.purchaseOrderNumber, 1000) || null,
       purchaseOrderDate,
       description,
       subtotal,
@@ -528,8 +653,84 @@ function parseInvoiceEntry(input: FinanceInvoiceEntryInput) {
       taxInvoiceNumber: text(input.taxInvoiceNumber, 100) || null,
       accountDestination: text(input.accountDestination, 180) || null,
       notes: text(input.notes, 1000) || null,
+      sourceIds:
+        input.sourceIds === undefined
+          ? undefined
+          : [
+              ...new Set(
+                input.sourceIds.map((id) => text(id, 36)).filter(Boolean),
+              ),
+            ],
     },
   } as const;
+}
+
+async function validateInvoiceBillingSources(
+  tx: FinanceTx,
+  sourceIds: string[],
+  counterpartyId: string,
+  invoiceId?: string,
+) {
+  if (sourceIds.length === 0) return [];
+  const sources = await tx.financeBillingSource.findMany({
+    where: {
+      id: { in: sourceIds },
+      sourceType: "OUTBOUND_DISPATCH",
+      OR: [
+        {
+          invoiceId: null,
+          status: { in: ["UNBILLED", "NEEDS_REVIEW"] },
+        },
+        ...(invoiceId ? [{ invoiceId }] : []),
+      ],
+    },
+    select: { id: true, counterpartyId: true },
+  });
+  if (
+    sources.length !== sourceIds.length ||
+    sources.some((source) => source.counterpartyId !== counterpartyId)
+  ) {
+    throw new Error("SOURCE_MISMATCH");
+  }
+  return sources;
+}
+
+async function syncInvoiceBillingSources(
+  tx: FinanceTx,
+  invoiceId: string,
+  sourceIds: string[],
+) {
+  const removed = await tx.financeBillingSource.findMany({
+    where: {
+      invoiceId,
+      ...(sourceIds.length ? { id: { notIn: sourceIds } } : {}),
+    },
+    select: { id: true, subtotal: true },
+  });
+  const pricedRemovedIds = removed
+    .filter((source) => source.subtotal != null)
+    .map((source) => source.id);
+  const unpricedRemovedIds = removed
+    .filter((source) => source.subtotal == null)
+    .map((source) => source.id);
+  if (pricedRemovedIds.length) {
+    await tx.financeBillingSource.updateMany({
+      where: { id: { in: pricedRemovedIds } },
+      data: { invoiceId: null, status: "UNBILLED" },
+    });
+  }
+  if (unpricedRemovedIds.length) {
+    await tx.financeBillingSource.updateMany({
+      where: { id: { in: unpricedRemovedIds } },
+      data: { invoiceId: null, status: "NEEDS_REVIEW" },
+    });
+  }
+  if (sourceIds.length) {
+    await tx.financeBillingSource.updateMany({
+      where: { id: { in: sourceIds } },
+      data: { invoiceId, status: "BILLED" },
+    });
+  }
 }
 
 export async function createFinanceInvoiceEntry(input: FinanceInvoiceEntryInput) {
@@ -551,6 +752,8 @@ export async function createFinanceInvoiceEntry(input: FinanceInvoiceEntryInput)
         },
         update: { isActive: true },
       });
+      const sourceIds = value.sourceIds ?? [];
+      await validateInvoiceBillingSources(tx, sourceIds, counterparty.id);
       const created = await tx.financeInvoice.create({
         data: {
           invoiceNumber: value.invoiceNumber,
@@ -576,7 +779,10 @@ export async function createFinanceInvoiceEntry(input: FinanceInvoiceEntryInput)
           lines: {
             create: {
               position: 1,
-              kind: "MANUAL",
+              kind: classifyFinanceRevenueLine({
+                kind: "MANUAL",
+                description: value.description,
+              }),
               description: value.description,
               quantity: 1,
               unitPrice: value.subtotal,
@@ -585,6 +791,7 @@ export async function createFinanceInvoiceEntry(input: FinanceInvoiceEntryInput)
           },
         },
       });
+      await syncInvoiceBillingSources(tx, created.id, sourceIds);
       await audit(tx, {
         entityType: "INVOICE",
         entityId: created.id,
@@ -594,6 +801,7 @@ export async function createFinanceInvoiceEntry(input: FinanceInvoiceEntryInput)
           invoiceNumber: created.invoiceNumber,
           customerName: value.customerName,
           netAmount: created.netAmount.toString(),
+          sourceIds,
         },
       });
       return created;
@@ -602,6 +810,12 @@ export async function createFinanceInvoiceEntry(input: FinanceInvoiceEntryInput)
     return { data: row };
   } catch (error) {
     console.error("[CREATE_FINANCE_INVOICE_ENTRY]", error);
+    if (error instanceof Error && error.message === "SOURCE_MISMATCH") {
+      return {
+        error:
+          "Surat Jalan tidak tersedia atau berasal dari pelanggan yang berbeda",
+      };
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { error: "Nomor invoice sudah digunakan" };
     }
@@ -641,6 +855,15 @@ export async function updateFinanceInvoiceEntry(
         },
         update: { isActive: true },
       });
+      const sourceIds =
+        value.sourceIds ??
+        (
+          await tx.financeBillingSource.findMany({
+            where: { invoiceId: id },
+            select: { id: true },
+          })
+        ).map((source) => source.id);
+      await validateInvoiceBillingSources(tx, sourceIds, counterparty.id, id);
       const updated = await tx.financeInvoice.update({
         where: { id },
         data: {
@@ -665,7 +888,10 @@ export async function updateFinanceInvoiceEntry(
             deleteMany: {},
             create: {
               position: 1,
-              kind: "MANUAL",
+              kind: classifyFinanceRevenueLine({
+                kind: "MANUAL",
+                description: value.description,
+              }),
               description: value.description,
               quantity: 1,
               unitPrice: value.subtotal,
@@ -674,6 +900,7 @@ export async function updateFinanceInvoiceEntry(
           },
         },
       });
+      await syncInvoiceBillingSources(tx, updated.id, sourceIds);
       await audit(tx, {
         entityType: "INVOICE",
         entityId: updated.id,
@@ -688,6 +915,7 @@ export async function updateFinanceInvoiceEntry(
           invoiceNumber: updated.invoiceNumber,
           customerName: value.customerName,
           netAmount: updated.netAmount.toString(),
+          sourceIds,
         },
       });
       return updated;
@@ -699,6 +927,12 @@ export async function updateFinanceInvoiceEntry(
     const reason = error instanceof Error ? error.message : "";
     if (reason === "NOT_FOUND") return { error: "Invoice tidak ditemukan" };
     if (reason === "LOCKED") return { error: "Invoice lunas atau void tidak dapat diedit" };
+    if (reason === "SOURCE_MISMATCH") {
+      return {
+        error:
+          "Surat Jalan tidak tersedia atau berasal dari pelanggan yang berbeda",
+      };
+    }
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { error: "Nomor invoice sudah digunakan" };
     }
@@ -720,10 +954,7 @@ export async function deleteFinanceInvoiceEntry(invoiceId: string) {
       });
       if (!existing) throw new Error("NOT_FOUND");
       if (existing._count.allocations > 0) throw new Error("HAS_PAYMENT");
-      await tx.financeBillingSource.updateMany({
-        where: { invoiceId: id },
-        data: { invoiceId: null, status: "UNBILLED" },
-      });
+      await syncInvoiceBillingSources(tx, id, []);
       await tx.financeApproval.deleteMany({
         where: { entityType: "INVOICE", entityId: id },
       });

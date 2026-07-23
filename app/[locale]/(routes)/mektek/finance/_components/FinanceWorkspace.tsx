@@ -12,6 +12,13 @@ import {
 import { getFinanceOverview } from "@/actions/mektek/finance";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  buildFinanceRevenueSplit,
+  getContractDaysRemaining,
+  parseFinanceContractPeriodEnd,
+  type FinanceRevenueCategory,
+} from "@/lib/mektek/finance";
+import { buildFinancePurchaseOrderDeliveryNoteSuggestion } from "@/lib/mektek/finance-po";
 import { prismadb } from "@/lib/prisma";
 
 import MektekPagination from "../../_components/MektekPagination";
@@ -44,6 +51,83 @@ const date = (value: Date | null | undefined) =>
 
 const dateInput = (value: Date | null | undefined) =>
   value ? value.toISOString().slice(0, 10) : "";
+
+type FinanceRevenueReportRow = {
+  key: string;
+  category: Exclude<FinanceRevenueCategory, "unclassified">;
+  customer: string;
+  deliveryNoteNumber: string;
+  deliveryNoteDate: Date | null;
+  receiptNumber: string;
+  invoiceNumber: string;
+  invoiceDate: Date | null;
+  purchaseOrderNumber: string;
+  purchaseOrderDate: Date | null;
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  taxInvoiceNumber: string;
+  description: string;
+};
+
+async function getFinanceRevenueReport() {
+  const invoices = await prismadb.financeInvoice.findMany({
+    where: { status: { not: "VOID" } },
+    orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
+    include: {
+      counterparty: { select: { legalName: true } },
+      lines: {
+        orderBy: { position: "asc" },
+        select: {
+          kind: true,
+          description: true,
+          lineTotal: true,
+        },
+      },
+    },
+  });
+  const rows: FinanceRevenueReportRow[] = [];
+  let unclassifiedCount = 0;
+  let unclassifiedSubtotal = 0;
+
+  for (const invoice of invoices) {
+    const split = buildFinanceRevenueSplit({
+      taxAmount: Number(invoice.taxAmount),
+      lines: invoice.lines.map((line) => ({
+        ...line,
+        lineTotal: Number(line.lineTotal),
+      })),
+    });
+    if (split.unclassified.subtotal > 0) {
+      unclassifiedCount += 1;
+      unclassifiedSubtotal += split.unclassified.subtotal;
+    }
+    for (const category of ["sparepart", "service"] as const) {
+      const bucket = split[category];
+      if (bucket.subtotal <= 0) continue;
+      rows.push({
+        key: `${invoice.id}:${category}`,
+        category,
+        customer: invoice.counterparty.legalName,
+        deliveryNoteNumber: invoice.deliveryNoteNumber ?? "",
+        deliveryNoteDate: invoice.deliveryNoteDate,
+        receiptNumber: invoice.receiptNumber ?? "",
+        invoiceNumber:
+          invoice.invoiceNumber ?? `Draf ${invoice.draftNumber.slice(0, 8)}`,
+        invoiceDate: invoice.invoiceDate,
+        purchaseOrderNumber: invoice.purchaseOrderNumber ?? "",
+        purchaseOrderDate: invoice.purchaseOrderDate,
+        subtotal: bucket.subtotal,
+        taxAmount: bucket.taxAmount,
+        total: bucket.total,
+        taxInvoiceNumber: invoice.taxInvoiceNumber ?? "",
+        description: bucket.descriptions.join("; "),
+      });
+    }
+  }
+
+  return { rows, unclassifiedCount, unclassifiedSubtotal };
+}
 
 type DemoData = Record<string, unknown>;
 
@@ -151,6 +235,28 @@ function Header({ title, description }: { title: string; description: string }) 
   );
 }
 
+function RevenueClassificationWarning({
+  count,
+  subtotal,
+}: {
+  count: number;
+  subtotal: number;
+}) {
+  return (
+    <div className="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+      <div>
+        <p className="font-medium">Ada jenis pengeluaran yang belum dapat dipisahkan</p>
+        <p>
+          {count.toLocaleString("id-ID")} invoice senilai {money(subtotal)} memuat
+          deskripsi campuran atau tidak jelas. Rinci menjadi baris jasa dan spare part
+          agar pendapatannya masuk otomatis tanpa salah hitung.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default async function FinanceWorkspace({
   section,
   deliveryNotesPage = 1,
@@ -218,6 +324,17 @@ export default async function FinanceWorkspace({
         include: {
           counterparty: { select: { legalName: true } },
           lines: { orderBy: { position: "asc" }, take: 1 },
+          sources: {
+            where: { sourceType: "OUTBOUND_DISPATCH" },
+            orderBy: { occurredAt: "asc" },
+            select: {
+              id: true,
+              sourceReference: true,
+              occurredAt: true,
+              subtotal: true,
+              snapshot: true,
+            },
+          },
           allocations: {
             where: { receipt: { status: "POSTED" } },
             select: { amount: true },
@@ -232,6 +349,34 @@ export default async function FinanceWorkspace({
     ]);
     const rows: FinanceInvoiceCrudRow[] = invoices.map((row) => {
       const paid = row.allocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0);
+      const sources = row.sources.map((source) => {
+        const snapshot =
+          source.snapshot &&
+          typeof source.snapshot === "object" &&
+          !Array.isArray(source.snapshot)
+            ? source.snapshot
+            : {};
+        const deliveryNote =
+          buildFinancePurchaseOrderDeliveryNoteSuggestion(source);
+        return {
+          id: deliveryNote.id,
+          purchaseOrderId: String(snapshot.purchaseOrderId ?? ""),
+          purchaseOrderNumber: String(snapshot.poNumber ?? ""),
+          purchaseOrderMode:
+            snapshot.poMode === "CONSIGNMENT"
+              ? ("CONSIGNMENT" as const)
+              : ("MANUAL" as const),
+          customerName: row.counterparty.legalName,
+          projectName: String(snapshot.projectName ?? ""),
+          purchaseOrderDate: dateInput(row.purchaseOrderDate),
+          dueDate: dateInput(row.dueDate),
+          deliveryNoteNumber: deliveryNote.number,
+          deliveryNoteDate: deliveryNote.date,
+          description: deliveryNote.description,
+          subtotal: deliveryNote.subtotal,
+          pricingComplete: deliveryNote.pricingComplete,
+        };
+      });
       return {
         id: row.id,
         invoiceNumber: row.invoiceNumber ?? "",
@@ -254,6 +399,7 @@ export default async function FinanceWorkspace({
         total: Number(row.netAmount),
         balance: Math.max(0, Number(row.netAmount) - paid),
         hasPayment: row.allocations.length > 0,
+        sources,
       };
     });
 
@@ -601,18 +747,20 @@ export default async function FinanceWorkspace({
   }
 
   if (section === "spare-parts") {
-    const rows = await prismadb.financeDemoRow.findMany({
-      where: { sheetKey: "spare_part_income" },
-      orderBy: { sourceRow: "asc" },
-      take: 500,
-      select: { id: true, data: true },
-    });
+    const report = await getFinanceRevenueReport();
+    const rows = report.rows.filter((row) => row.category === "sparepart");
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
-          title="Laporan audit sales spare part"
-          description="Rincian pendapatan spare part sesuai invoice, SJ, PO, PPN, dan faktur pajak."
+          title="Pendapatan spare part"
+          description="Terbentuk otomatis dari baris spare part pada rekap invoice, termasuk invoice campuran."
         />
+        {report.unclassifiedCount > 0 ? (
+          <RevenueClassificationWarning
+            count={report.unclassifiedCount}
+            subtotal={report.unclassifiedSubtotal}
+          />
+        ) : null}
         {rows.length ? (
           <div className="overflow-hidden rounded-xl border bg-card">
             <div className="overflow-x-auto">
@@ -635,21 +783,20 @@ export default async function FinanceWorkspace({
                 </thead>
                 <tbody>
                   {rows.map((row) => {
-                    const value = demoData(row.data);
                     return (
-                      <tr key={row.id} className="border-t">
-                        <td className="p-3 font-medium">{demoText(value.customer)}</td>
-                        <td className="p-3">{demoText(value.deliveryNoteNumber)}</td>
-                        <td className="p-3">{demoText(value.deliveryNoteDate)}</td>
-                        <td className="p-3">{demoText(value.receiptNumber)}</td>
-                        <td className="p-3">{demoText(value.invoiceNumber)}</td>
-                        <td className="p-3">{demoText(value.invoiceDate)}</td>
-                        <td className="p-3">{demoText(value.purchaseOrderNumber)}</td>
-                        <td className="p-3">{demoText(value.purchaseOrderDate)}</td>
-                        <td className="p-3 text-right">{money(value.subtotal)}</td>
-                        <td className="p-3 text-right">{money(value.taxAmount)}</td>
-                        <td className="p-3 text-right font-semibold">{money(value.total)}</td>
-                        <td className="p-3">{demoText(value.taxInvoiceNumber)}</td>
+                      <tr key={row.key} className="border-t">
+                        <td className="p-3 font-medium">{row.customer}</td>
+                        <td className="p-3">{row.deliveryNoteNumber || "—"}</td>
+                        <td className="p-3">{date(row.deliveryNoteDate)}</td>
+                        <td className="p-3">{row.receiptNumber || "—"}</td>
+                        <td className="p-3">{row.invoiceNumber}</td>
+                        <td className="p-3">{date(row.invoiceDate)}</td>
+                        <td className="p-3">{row.purchaseOrderNumber || "—"}</td>
+                        <td className="p-3">{date(row.purchaseOrderDate)}</td>
+                        <td className="p-3 text-right">{money(row.subtotal)}</td>
+                        <td className="p-3 text-right">{money(row.taxAmount)}</td>
+                        <td className="p-3 text-right font-semibold">{money(row.total)}</td>
+                        <td className="p-3">{row.taxInvoiceNumber || "—"}</td>
                       </tr>
                     );
                   })}
@@ -657,24 +804,26 @@ export default async function FinanceWorkspace({
               </table>
             </div>
           </div>
-        ) : <Empty>Data pendapatan spare part demo belum diimpor.</Empty>}
+        ) : <Empty>Belum ada baris invoice yang terdeteksi sebagai spare part.</Empty>}
       </main>
     );
   }
 
   if (section === "services") {
-    const rows = await prismadb.financeDemoRow.findMany({
-      where: { sheetKey: "service_income" },
-      orderBy: { sourceRow: "asc" },
-      take: 500,
-      select: { id: true, data: true },
-    });
+    const report = await getFinanceRevenueReport();
+    const rows = report.rows.filter((row) => row.category === "service");
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
-          title="Laporan audit sales jasa"
-          description="Rincian pendapatan jasa sesuai invoice, PO, PPN, faktur pajak, dan keterangan pekerjaan."
+          title="Pendapatan jasa"
+          description="Terbentuk otomatis dari baris jasa pada rekap invoice, termasuk invoice campuran."
         />
+        {report.unclassifiedCount > 0 ? (
+          <RevenueClassificationWarning
+            count={report.unclassifiedCount}
+            subtotal={report.unclassifiedSubtotal}
+          />
+        ) : null}
         {rows.length ? (
           <div className="overflow-hidden rounded-xl border bg-card">
             <div className="overflow-x-auto">
@@ -696,20 +845,19 @@ export default async function FinanceWorkspace({
                 </thead>
                 <tbody>
                   {rows.map((row) => {
-                    const value = demoData(row.data);
                     return (
-                      <tr key={row.id} className="border-t">
-                        <td className="p-3 font-medium">{demoText(value.customer)}</td>
-                        <td className="p-3">{demoText(value.receiptNumber)}</td>
-                        <td className="p-3">{demoText(value.invoiceNumber)}</td>
-                        <td className="p-3">{demoText(value.invoiceDate)}</td>
-                        <td className="p-3">{demoText(value.purchaseOrderNumber)}</td>
-                        <td className="p-3">{demoText(value.purchaseOrderDate)}</td>
-                        <td className="p-3 text-right">{money(value.subtotal)}</td>
-                        <td className="p-3 text-right">{money(value.taxAmount)}</td>
-                        <td className="p-3 text-right font-semibold">{money(value.total)}</td>
-                        <td className="p-3">{demoText(value.taxInvoiceNumber)}</td>
-                        <td className="max-w-[360px] p-3">{demoText(value.notes)}</td>
+                      <tr key={row.key} className="border-t">
+                        <td className="p-3 font-medium">{row.customer}</td>
+                        <td className="p-3">{row.receiptNumber || "—"}</td>
+                        <td className="p-3">{row.invoiceNumber}</td>
+                        <td className="p-3">{date(row.invoiceDate)}</td>
+                        <td className="p-3">{row.purchaseOrderNumber || "—"}</td>
+                        <td className="p-3">{date(row.purchaseOrderDate)}</td>
+                        <td className="p-3 text-right">{money(row.subtotal)}</td>
+                        <td className="p-3 text-right">{money(row.taxAmount)}</td>
+                        <td className="p-3 text-right font-semibold">{money(row.total)}</td>
+                        <td className="p-3">{row.taxInvoiceNumber || "—"}</td>
+                        <td className="max-w-[360px] p-3">{row.description}</td>
                       </tr>
                     );
                   })}
@@ -717,76 +865,20 @@ export default async function FinanceWorkspace({
               </table>
             </div>
           </div>
-        ) : <Empty>Data pendapatan jasa demo belum diimpor.</Empty>}
+        ) : <Empty>Belum ada baris invoice yang terdeteksi sebagai jasa.</Empty>}
       </main>
     );
   }
 
   if (section === "revenue") {
-    const workbookRows = await prismadb.financeDemoRow.findMany({
-      where: { sheetKey: "service_part_summary" },
-      orderBy: { sourceRow: "asc" },
-      take: 500,
-      select: { id: true, data: true },
-    });
-    if (workbookRows.length) {
-      return (
-        <main className="space-y-4 px-4 pb-8 sm:px-6">
-          <Header
-            title="Rekapitulasi pendapatan jasa & part"
-            description="Ringkasan pendapatan bulanan, PPN, dan total sesuai workbook Accounting."
-          />
-          <div className="overflow-hidden rounded-xl border bg-card">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-sm">
-                <thead className="bg-muted/50 text-left">
-                  <tr>
-                    <th className="p-3">Pelanggan</th>
-                    <th className="p-3 text-right">Total part / bulan</th>
-                    <th className="p-3 text-right">Total jasa / bulan</th>
-                    <th className="p-3 text-right">Total part & jasa</th>
-                    <th className="p-3 text-right">PPN</th>
-                    <th className="p-3 text-right">Total akhir</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {workbookRows.map((row) => {
-                    const value = demoData(row.data);
-                    return (
-                      <tr key={row.id} className="border-t">
-                        <td className="p-3 font-medium">{demoText(value.customer)}</td>
-                        <td className="p-3 text-right">{money(value.partIncome)}</td>
-                        <td className="p-3 text-right">{money(value.serviceIncome)}</td>
-                        <td className="p-3 text-right">{money(value.combinedIncome)}</td>
-                        <td className="p-3 text-right">{money(value.taxAmount)}</td>
-                        <td className="p-3 text-right font-semibold">{money(value.total)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </main>
-      );
-    }
-    const invoices = await prismadb.financeInvoice.findMany({
-      where: { status: { not: "VOID" } },
-      include: {
-        counterparty: { select: { legalName: true } },
-        lines: { select: { description: true, lineTotal: true } },
-      },
-    });
+    const report = await getFinanceRevenueReport();
     const totals = new Map<string, { jasa: number; sukuCadang: number; ppn: number }>();
-    for (const invoice of invoices) {
-      const current = totals.get(invoice.counterparty.legalName) ?? { jasa: 0, sukuCadang: 0, ppn: 0 };
-      for (const line of invoice.lines) {
-        const isPart = /(spare\s*part|suku cadang|part|weld|penjualan)/i.test(line.description);
-        if (isPart) current.sukuCadang += Number(line.lineTotal);
-        else current.jasa += Number(line.lineTotal);
-      }
-      current.ppn += Number(invoice.taxAmount);
-      totals.set(invoice.counterparty.legalName, current);
+    for (const row of report.rows) {
+      const current = totals.get(row.customer) ?? { jasa: 0, sukuCadang: 0, ppn: 0 };
+      if (row.category === "sparepart") current.sukuCadang += row.subtotal;
+      else current.jasa += row.subtotal;
+      current.ppn += row.taxAmount;
+      totals.set(row.customer, current);
     }
     const rows = [...totals.entries()].sort(([a], [b]) => a.localeCompare(b, "id"));
 
@@ -794,8 +886,14 @@ export default async function FinanceWorkspace({
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
           title="Rekap pendapatan jasa & suku cadang"
-          description="Rekap otomatis dari data invoice; nilai tidak perlu diketik ulang."
+          description="Rekap otomatis dari baris invoice; invoice campuran dibagi menurut nilai setiap baris."
         />
+        {report.unclassifiedCount > 0 ? (
+          <RevenueClassificationWarning
+            count={report.unclassifiedCount}
+            subtotal={report.unclassifiedSubtotal}
+          />
+        ) : null}
         {rows.length ? (
           <div className="overflow-hidden rounded-xl border bg-card">
             <div className="overflow-x-auto">
@@ -951,13 +1049,79 @@ export default async function FinanceWorkspace({
         select: { id: true, data: true },
       }),
     ]);
+    const now = new Date();
+    const expiringContracts = rows.flatMap((row) => {
+      const daysRemaining = getContractDaysRemaining(row.endDate, now);
+      return row.status === "ACTIVE" && daysRemaining >= 0 && daysRemaining <= 7
+        ? [{
+            key: row.id,
+            contractNumber: row.contractNumber,
+            customer: row.counterparty.legalName,
+            endDate: row.endDate,
+            daysRemaining,
+          }]
+        : [];
+    });
+    const workbookContracts = workbookRows.map((row) => {
+      const value = demoData(row.data);
+      const endDate = parseFinanceContractPeriodEnd(value.period);
+      const daysRemaining = endDate
+        ? getContractDaysRemaining(endDate, now)
+        : null;
+      if (
+        endDate &&
+        daysRemaining != null &&
+        daysRemaining >= 0 &&
+        daysRemaining <= 7
+      ) {
+        expiringContracts.push({
+          key: row.id,
+          contractNumber: demoText(value.contractNumber) || "Tanpa nomor",
+          customer: demoText(value.customer) || "Tanpa nama user",
+          endDate,
+          daysRemaining,
+        });
+      }
+      return { ...row, value, endDate, daysRemaining };
+    });
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
           title="Data kontrak mekanik all site"
           description="User, vendor, nomor kontrak, penandatangan, periode, nilai, mekanik, jam kerja, dan catatan."
         />
-        {workbookRows.length ? (
+        {expiringContracts.length ? (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+            <div className="flex items-start gap-3">
+              <Clock3 className="mt-0.5 h-5 w-5 shrink-0" />
+              <div className="space-y-2">
+                <div>
+                  <p className="font-semibold">Pengingat periode kontrak</p>
+                  <p className="text-sm">
+                    {expiringContracts.length.toLocaleString("id-ID")} kontrak akan
+                    berakhir dalam tujuh hari. Segera periksa perpanjangan dan
+                    pekerjaan yang masih terbuka.
+                  </p>
+                </div>
+                <ul className="space-y-1 text-sm">
+                  {expiringContracts.map((contract) => (
+                    <li key={contract.key}>
+                      <span className="font-medium">{contract.contractNumber}</span>
+                      {" · "}
+                      {contract.customer}
+                      {" · "}
+                      {contract.daysRemaining === 0
+                        ? "berakhir hari ini"
+                        : `berakhir ${contract.daysRemaining} hari lagi`}
+                      {" ("}{date(contract.endDate)}{")"}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {workbookContracts.length ? (
           <div className="overflow-hidden rounded-xl border bg-card">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1500px] text-sm">
@@ -975,16 +1139,36 @@ export default async function FinanceWorkspace({
                   </tr>
                 </thead>
                 <tbody>
-                  {workbookRows.map((row) => {
-                    const value = demoData(row.data);
+                  {workbookContracts.map((row) => {
+                    const { value } = row;
                     const contractValue = demoNumber(value.additionalValue) || demoNumber(value.contractValue);
                     return (
-                      <tr key={row.id} className="border-t align-top">
+                      <tr
+                        key={row.id}
+                        className={
+                          row.daysRemaining != null &&
+                          row.daysRemaining >= 0 &&
+                          row.daysRemaining <= 7
+                            ? "border-t bg-amber-50 align-top"
+                            : "border-t align-top"
+                        }
+                      >
                         <td className="p-3 font-medium">{demoText(value.customer)}</td>
                         <td className="p-3">{demoText(value.vendor)}</td>
                         <td className="p-3">{demoText(value.contractNumber)}</td>
                         <td className="p-3">{demoText(value.signatory)}</td>
-                        <td className="p-3">{demoText(value.period)}</td>
+                        <td className="p-3">
+                          <p>{demoText(value.period)}</p>
+                          {row.daysRemaining != null &&
+                          row.daysRemaining >= 0 &&
+                          row.daysRemaining <= 7 ? (
+                            <Badge variant="destructive" className="mt-1">
+                              {row.daysRemaining === 0
+                                ? "Berakhir hari ini"
+                                : `${row.daysRemaining} hari lagi`}
+                            </Badge>
+                          ) : null}
+                        </td>
                         <td className="p-3 text-right">{contractValue ? money(contractValue) : "—"}</td>
                         <td className="p-3 text-right">{demoText(value.mechanicCount)}</td>
                         <td className="p-3">{demoText(value.workingHours)}</td>
@@ -1000,7 +1184,16 @@ export default async function FinanceWorkspace({
         {rows.length ? (
           <div className="grid gap-3 lg:grid-cols-2">
             {rows.map((row) => (
-              <Card key={row.id}>
+              <Card
+                key={row.id}
+                className={
+                  row.status === "ACTIVE" &&
+                  getContractDaysRemaining(row.endDate, now) >= 0 &&
+                  getContractDaysRemaining(row.endDate, now) <= 7
+                    ? "border-amber-400 bg-amber-50"
+                    : undefined
+                }
+              >
                 <CardContent className="p-5">
                   <div className="flex justify-between gap-3">
                     <div>
@@ -1009,7 +1202,18 @@ export default async function FinanceWorkspace({
                         {row.counterparty.legalName} · {contractTypeLabel[row.type] ?? row.type}
                       </p>
                     </div>
-                    <Badge variant="outline">{statusLabel[row.status] ?? row.status}</Badge>
+                    <div className="flex flex-col items-end gap-1">
+                      <Badge variant="outline">{statusLabel[row.status] ?? row.status}</Badge>
+                      {row.status === "ACTIVE" &&
+                      getContractDaysRemaining(row.endDate, now) >= 0 &&
+                      getContractDaysRemaining(row.endDate, now) <= 7 ? (
+                        <Badge variant="destructive">
+                          {getContractDaysRemaining(row.endDate, now) === 0
+                            ? "Berakhir hari ini"
+                            : `${getContractDaysRemaining(row.endDate, now)} hari lagi`}
+                        </Badge>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div><p className="text-muted-foreground">Periode</p><p>{date(row.startDate)} – {date(row.endDate)}</p></div>

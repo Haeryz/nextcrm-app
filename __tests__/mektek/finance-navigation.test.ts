@@ -1,0 +1,43 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+const source = (path: string) =>
+  readFileSync(resolve(process.cwd(), path), "utf8");
+
+describe("Finance navigation hierarchy", () => {
+  const menu = source(
+    "app/[locale]/(routes)/components/menu-items/Mektek.tsx",
+  );
+  const navigation = source(
+    "app/[locale]/(routes)/components/nav-main.tsx",
+  );
+  const paymentPage = source(
+    "app/[locale]/(routes)/mektek/finance/payment-faktur/page.tsx",
+  );
+
+  it("groups every existing Finance destination inside Accounting", () => {
+    expect(menu).toContain('title: "Finance"');
+    expect(menu).toContain('title: "Accounting"');
+    expect(menu).toContain(
+      '{ title: "Ringkasan", url: "/mektek/finance", exact: true }',
+    );
+    expect(menu).toContain(
+      '{ title: "Rekap Invoice", url: "/mektek/finance/invoices" }',
+    );
+    expect(menu).toContain(
+      '{ title: "Audit Sistem", url: "/mektek/finance/audit" }',
+    );
+  });
+
+  it("adds Payment Faktur beside Accounting and supports nested menu groups", () => {
+    expect(menu).toContain(
+      '{ title: "Payment Faktur", url: "/mektek/finance/payment-faktur" }',
+    );
+    expect(navigation).toContain("items?: NavSubItem[]");
+    expect(navigation).toContain("renderSubItem");
+  });
+
+  it("keeps Payment Faktur intentionally empty", () => {
+    expect(paymentPage).toContain("return null");
+  });
+});
