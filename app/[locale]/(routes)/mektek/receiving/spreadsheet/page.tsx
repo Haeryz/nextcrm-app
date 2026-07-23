@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Download } from "lucide-react";
 
 import { listMektekReceivingPurchaseOrders } from "@/actions/mektek/logistics";
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
@@ -104,6 +105,10 @@ export default async function MektekReceivingSpreadsheetPage({
   const queryString = new URLSearchParams();
   if (query) queryString.set("q", query);
   if (status) queryString.set("status", status);
+  const exportQuery = queryString.toString();
+  const exportHref = `/api/mektek/receiving/purchase-orders/export${
+    exportQuery ? `?${exportQuery}` : ""
+  }`;
 
   const pageHref = (targetPage: number) => {
     const paramsForPage = new URLSearchParams(queryString);
@@ -117,9 +122,18 @@ export default async function MektekReceivingSpreadsheetPage({
       description="Pantau PO supplier, penerimaan parsial, dan quantity yang masih pending"
     >
       <div className="flex flex-col gap-6">
-        <div className="flex justify-start">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Button asChild type="button" variant="outline" className="w-full sm:w-auto">
             <Link href={`/${locale}/mektek/receiving`}>Kembali ke Receiving</Link>
+          </Button>
+          <Button asChild type="button" className="w-full sm:w-auto">
+            <Link
+              href={exportHref}
+              title="Export seluruh Purchase Order sesuai filter aktif"
+            >
+              <Download data-icon="inline-start" />
+              Export Excel
+            </Link>
           </Button>
         </div>
 
