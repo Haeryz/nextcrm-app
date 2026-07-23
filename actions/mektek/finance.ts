@@ -463,6 +463,293 @@ export async function createFinanceInvoiceDraft(sourceIds: string[]) {
   }
 }
 
+export type FinanceInvoiceEntryInput = {
+  customerName: string;
+  deliveryNoteNumber?: string;
+  deliveryNoteDate?: string;
+  receiptNumber?: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate?: string;
+  purchaseOrderNumber?: string;
+  purchaseOrderDate?: string;
+  description: string;
+  subtotal: number | string;
+  taxRate?: number | string;
+  taxInvoiceNumber?: string;
+  accountDestination?: string;
+  notes?: string;
+};
+
+function parseInvoiceEntry(input: FinanceInvoiceEntryInput) {
+  const customerName = text(input.customerName, 180);
+  const normalizedName = normalizeFinanceKey(customerName);
+  const invoiceNumber = text(input.invoiceNumber, 80);
+  const invoiceDate = dateOnly(input.invoiceDate);
+  const dueDate = input.dueDate ? dateOnly(input.dueDate) : null;
+  const deliveryNoteDate = input.deliveryNoteDate ? dateOnly(input.deliveryNoteDate) : null;
+  const purchaseOrderDate = input.purchaseOrderDate ? dateOnly(input.purchaseOrderDate) : null;
+  const description = text(input.description, 500);
+  const subtotal = money(input.subtotal);
+  const rawTaxRate = Number(String(input.taxRate ?? 11).replace(",", "."));
+
+  if (!customerName || !normalizedName) return { error: "Nama customer wajib diisi" } as const;
+  if (!invoiceNumber) return { error: "Nomor invoice wajib diisi" } as const;
+  if (!invoiceDate) return { error: "Tanggal invoice tidak valid" } as const;
+  if (input.dueDate && !dueDate) return { error: "Tanggal jatuh tempo tidak valid" } as const;
+  if (input.deliveryNoteDate && !deliveryNoteDate) return { error: "Tanggal surat jalan tidak valid" } as const;
+  if (input.purchaseOrderDate && !purchaseOrderDate) return { error: "Tanggal PO tidak valid" } as const;
+  if (!description) return { error: "Deskripsi pekerjaan atau barang wajib diisi" } as const;
+  if (!subtotal || subtotal.lte(0)) return { error: "Nilai sebelum pajak harus lebih dari 0" } as const;
+  if (!Number.isFinite(rawTaxRate) || rawTaxRate < 0 || rawTaxRate > 100) {
+    return { error: "PPN harus berada di antara 0 dan 100 persen" } as const;
+  }
+
+  const taxRate = new Prisma.Decimal((rawTaxRate / 100).toFixed(6));
+  const taxAmount = subtotal.mul(taxRate).toDecimalPlaces(2);
+  const total = subtotal.add(taxAmount);
+  return {
+    data: {
+      customerName,
+      normalizedName,
+      invoiceNumber,
+      invoiceDate,
+      dueDate,
+      deliveryNoteNumber: text(input.deliveryNoteNumber, 80) || null,
+      deliveryNoteDate,
+      receiptNumber: text(input.receiptNumber, 80) || null,
+      purchaseOrderNumber: text(input.purchaseOrderNumber, 80) || null,
+      purchaseOrderDate,
+      description,
+      subtotal,
+      taxRate,
+      taxAmount,
+      total,
+      taxInvoiceNumber: text(input.taxInvoiceNumber, 100) || null,
+      accountDestination: text(input.accountDestination, 180) || null,
+      notes: text(input.notes, 1000) || null,
+    },
+  } as const;
+}
+
+export async function createFinanceInvoiceEntry(input: FinanceInvoiceEntryInput) {
+  const access = await ensureFinanceManager();
+  if ("error" in access) return access;
+  const parsed = parseInvoiceEntry(input);
+  if ("error" in parsed) return parsed;
+  const value = parsed.data;
+
+  try {
+    const row = await prismadb.$transaction(async (tx) => {
+      const counterparty = await tx.financeCounterparty.upsert({
+        where: { normalizedName: value.normalizedName },
+        create: {
+          legalName: value.customerName,
+          normalizedName: value.normalizedName,
+          role: "CUSTOMER",
+          isActive: true,
+        },
+        update: { isActive: true },
+      });
+      const created = await tx.financeInvoice.create({
+        data: {
+          invoiceNumber: value.invoiceNumber,
+          counterpartyId: counterparty.id,
+          status: "ISSUED",
+          invoiceDate: value.invoiceDate,
+          dueDate: value.dueDate,
+          deliveryNoteNumber: value.deliveryNoteNumber,
+          deliveryNoteDate: value.deliveryNoteDate,
+          receiptNumber: value.receiptNumber,
+          purchaseOrderNumber: value.purchaseOrderNumber,
+          purchaseOrderDate: value.purchaseOrderDate,
+          accountDestination: value.accountDestination,
+          subtotal: value.subtotal,
+          taxRate: value.taxRate,
+          taxAmount: value.taxAmount,
+          grossAmount: value.total,
+          netAmount: value.total,
+          taxInvoiceNumber: value.taxInvoiceNumber,
+          notes: value.notes,
+          requestedBy: access.current.id,
+          issuedAt: new Date(),
+          lines: {
+            create: {
+              position: 1,
+              kind: "MANUAL",
+              description: value.description,
+              quantity: 1,
+              unitPrice: value.subtotal,
+              lineTotal: value.subtotal,
+            },
+          },
+        },
+      });
+      await audit(tx, {
+        entityType: "INVOICE",
+        entityId: created.id,
+        action: "CREATE",
+        actorId: access.current.id,
+        after: {
+          invoiceNumber: created.invoiceNumber,
+          customerName: value.customerName,
+          netAmount: created.netAmount.toString(),
+        },
+      });
+      return created;
+    });
+    revalidatePath(financePath, "layout");
+    return { data: row };
+  } catch (error) {
+    console.error("[CREATE_FINANCE_INVOICE_ENTRY]", error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { error: "Nomor invoice sudah digunakan" };
+    }
+    return { error: "Invoice gagal disimpan" };
+  }
+}
+
+export async function updateFinanceInvoiceEntry(
+  invoiceId: string,
+  input: FinanceInvoiceEntryInput,
+) {
+  const access = await ensureFinanceManager();
+  if ("error" in access) return access;
+  const id = text(invoiceId, 36);
+  const parsed = parseInvoiceEntry(input);
+  if (!id) return { error: "Invoice tidak valid" };
+  if ("error" in parsed) return parsed;
+  const value = parsed.data;
+
+  try {
+    const row = await prismadb.$transaction(async (tx) => {
+      const existing = await tx.financeInvoice.findUnique({
+        where: { id },
+        include: { lines: { orderBy: { position: "asc" }, take: 1 } },
+      });
+      if (!existing) throw new Error("NOT_FOUND");
+      if (existing.status === "PAID" || existing.status === "VOID") {
+        throw new Error("LOCKED");
+      }
+      const counterparty = await tx.financeCounterparty.upsert({
+        where: { normalizedName: value.normalizedName },
+        create: {
+          legalName: value.customerName,
+          normalizedName: value.normalizedName,
+          role: "CUSTOMER",
+          isActive: true,
+        },
+        update: { isActive: true },
+      });
+      const updated = await tx.financeInvoice.update({
+        where: { id },
+        data: {
+          invoiceNumber: value.invoiceNumber,
+          counterpartyId: counterparty.id,
+          invoiceDate: value.invoiceDate,
+          dueDate: value.dueDate,
+          deliveryNoteNumber: value.deliveryNoteNumber,
+          deliveryNoteDate: value.deliveryNoteDate,
+          receiptNumber: value.receiptNumber,
+          purchaseOrderNumber: value.purchaseOrderNumber,
+          purchaseOrderDate: value.purchaseOrderDate,
+          accountDestination: value.accountDestination,
+          subtotal: value.subtotal,
+          taxRate: value.taxRate,
+          taxAmount: value.taxAmount,
+          grossAmount: value.total,
+          netAmount: value.total,
+          taxInvoiceNumber: value.taxInvoiceNumber,
+          notes: value.notes,
+          lines: {
+            deleteMany: {},
+            create: {
+              position: 1,
+              kind: "MANUAL",
+              description: value.description,
+              quantity: 1,
+              unitPrice: value.subtotal,
+              lineTotal: value.subtotal,
+            },
+          },
+        },
+      });
+      await audit(tx, {
+        entityType: "INVOICE",
+        entityId: updated.id,
+        action: "UPDATE",
+        actorId: access.current.id,
+        before: {
+          invoiceNumber: existing.invoiceNumber,
+          customerName: value.customerName,
+          netAmount: existing.netAmount.toString(),
+        },
+        after: {
+          invoiceNumber: updated.invoiceNumber,
+          customerName: value.customerName,
+          netAmount: updated.netAmount.toString(),
+        },
+      });
+      return updated;
+    });
+    revalidatePath(financePath, "layout");
+    return { data: row };
+  } catch (error) {
+    console.error("[UPDATE_FINANCE_INVOICE_ENTRY]", error);
+    const reason = error instanceof Error ? error.message : "";
+    if (reason === "NOT_FOUND") return { error: "Invoice tidak ditemukan" };
+    if (reason === "LOCKED") return { error: "Invoice lunas atau void tidak dapat diedit" };
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { error: "Nomor invoice sudah digunakan" };
+    }
+    return { error: "Invoice gagal diperbarui" };
+  }
+}
+
+export async function deleteFinanceInvoiceEntry(invoiceId: string) {
+  const access = await ensureFinanceManager();
+  if ("error" in access) return access;
+  const id = text(invoiceId, 36);
+  if (!id) return { error: "Invoice tidak valid" };
+
+  try {
+    await prismadb.$transaction(async (tx) => {
+      const existing = await tx.financeInvoice.findUnique({
+        where: { id },
+        include: { _count: { select: { allocations: true } } },
+      });
+      if (!existing) throw new Error("NOT_FOUND");
+      if (existing._count.allocations > 0) throw new Error("HAS_PAYMENT");
+      await tx.financeBillingSource.updateMany({
+        where: { invoiceId: id },
+        data: { invoiceId: null, status: "UNBILLED" },
+      });
+      await tx.financeApproval.deleteMany({
+        where: { entityType: "INVOICE", entityId: id },
+      });
+      await tx.financeInvoice.delete({ where: { id } });
+      await audit(tx, {
+        entityType: "INVOICE",
+        entityId: id,
+        action: "DELETE",
+        actorId: access.current.id,
+        before: {
+          invoiceNumber: existing.invoiceNumber,
+          netAmount: existing.netAmount.toString(),
+        },
+      });
+    });
+    revalidatePath(financePath, "layout");
+    return { data: { id } };
+  } catch (error) {
+    console.error("[DELETE_FINANCE_INVOICE_ENTRY]", error);
+    const reason = error instanceof Error ? error.message : "";
+    if (reason === "NOT_FOUND") return { error: "Invoice tidak ditemukan" };
+    if (reason === "HAS_PAYMENT") return { error: "Invoice yang sudah memiliki pembayaran tidak dapat dihapus" };
+    return { error: "Invoice gagal dihapus" };
+  }
+}
+
 export async function submitFinanceInvoiceForApproval(invoiceId: string) {
   const access = await ensureFinanceManager();
   if ("error" in access) return access;

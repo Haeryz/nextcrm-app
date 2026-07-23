@@ -77,11 +77,12 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
       title: "Finance",
       icon: CircleDollarSign,
       items: [
-        { title: "Overview", url: "/mektek/finance" },
-        { title: "Invoices", url: "/mektek/finance/invoices" },
-        { title: "Payables", url: "/mektek/finance/payables" },
-        { title: "Cash", url: "/mektek/finance/cash" },
-        { title: "Contracts", url: "/mektek/finance/contracts" },
+        { title: "Ringkasan", url: "/mektek/finance" },
+        { title: "Rekap Invoice", url: "/mektek/finance/invoices" },
+        { title: "Rekap Surat Jalan", url: "/mektek/finance/delivery-notes" },
+        { title: "Rekap Pendapatan", url: "/mektek/finance/revenue" },
+        { title: "Kas & Pembayaran", url: "/mektek/finance/cash" },
+        { title: "Kontrak", url: "/mektek/finance/contracts" },
         { title: "Audit", url: "/mektek/finance/audit" },
       ],
     });

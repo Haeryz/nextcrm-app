@@ -821,6 +821,12 @@ model FinanceInvoice {
   currency           String               @default("IDR")
   invoiceDate        DateTime?            @db.Date
   dueDate            DateTime?            @db.Date
+  deliveryNoteNumber String?
+  deliveryNoteDate   DateTime?            @db.Date
+  receiptNumber      String?
+  purchaseOrderNumber String?
+  purchaseOrderDate  DateTime?            @db.Date
+  accountDestination String?
   subtotal           Decimal              @default(0) @db.Decimal(18, 2)
   discountAmount     Decimal              @default(0) @db.Decimal(18, 2)
   taxRate            Decimal              @default(0) @db.Decimal(8, 6)
