@@ -90,6 +90,131 @@ enum LogisticsPurchaseOrderStatus {
   CLOSED
 }
 
+enum LogisticsPurchaseOrderMode {
+  MANUAL
+  CONSIGNMENT
+}
+
+enum FinanceSupplyReviewStatus {
+  CLEAR
+  BLOCKED
+  OVERRIDDEN
+}
+
+enum FinanceCounterpartyRole {
+  CUSTOMER
+  SUPPLIER
+  BOTH
+}
+
+enum FinanceContractType {
+  SERVICE
+  SPARE_PART
+  RENTAL
+  CONSIGNMENT
+  MIXED
+  OTHER
+}
+
+enum FinanceContractStatus {
+  DRAFT
+  ACTIVE
+  TERMINATED
+}
+
+enum FinanceQuoteStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum FinanceSourceType {
+  SERVICE_ORDER
+  OUTBOUND_DISPATCH
+  RECEIVING_PO
+  NON_PO_EXPENSE
+  BACKFILL
+}
+
+enum FinanceSourceStatus {
+  UNBILLED
+  DRAFTED
+  BILLED
+  CANCELLED
+  NEEDS_REVIEW
+}
+
+enum FinanceInvoiceStatus {
+  DRAFT
+  PENDING_APPROVAL
+  ISSUED
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+enum FinanceSupplierBillStatus {
+  DRAFT
+  PENDING_APPROVAL
+  POSTED
+  PARTIALLY_PAID
+  PAID
+  VOID
+}
+
+enum FinanceCashStatus {
+  POSTED
+  REVERSED
+}
+
+enum FinancePaymentMethod {
+  CASH
+  BANK_TRANSFER
+  MIDTRANS
+  VIRTUAL_ACCOUNT
+  QRIS
+  CREDIT_CARD
+  OTHER
+}
+
+enum FinanceApprovalAction {
+  ISSUE_INVOICE
+  POST_SUPPLIER_BILL
+  APPROVE_QUOTE
+  POST_DISBURSEMENT
+  VOID_INVOICE
+  VOID_SUPPLIER_BILL
+  REVERSE_RECEIPT
+  REVERSE_DISBURSEMENT
+  OVERRIDE_SUPPLY_CONFLICT
+}
+
+enum FinanceApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum FinanceAttachmentKind {
+  SIGNED_CONTRACT
+  QUOTE
+  INVOICE_SUPPORT
+  TAX_INVOICE
+  PAYMENT_PROOF
+  APPROVAL
+  SIGNATURE
+  OTHER
+}
+
+enum FinanceReminderStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 enum MektekVoucherDiscountType {
   FIXED
   PERCENTAGE
@@ -400,7 +525,14 @@ model LogisticsPurchaseOrder {
   inputDate          DateTime                     @db.Date
   dueDate            DateTime                     @db.Date
   poType             String                       @default("Normal")
+  poMode             LogisticsPurchaseOrderMode   @default(MANUAL)
   status             LogisticsPurchaseOrderStatus @default(OPEN)
+  supplyReviewStatus FinanceSupplyReviewStatus     @default(CLEAR)
+  financeCounterpartyId String?                    @db.Uuid
+  financeContractId     String?                    @db.Uuid
+  financeQuoteId        String?                    @db.Uuid
+  supplyStartDate       DateTime?                  @db.Date
+  supplyEndDate         DateTime?                  @db.Date
   deliveryNoteNumber String?                      @unique
   deliveryDate       DateTime?                    @db.Date
   notes              String?
@@ -408,13 +540,20 @@ model LogisticsPurchaseOrder {
   createdAt          DateTime                     @default(now())
   updatedAt          DateTime                     @updatedAt
 
-  items LogisticsPurchaseOrderItem[]
+  items               LogisticsPurchaseOrderItem[]
+  financeCounterparty FinanceCounterparty? @relation(fields: [financeCounterpartyId], references: [id], onDelete: SetNull)
+  financeContract     FinanceContract?     @relation(fields: [financeContractId], references: [id], onDelete: SetNull)
+  financeQuote        FinanceQuote?        @relation(fields: [financeQuoteId], references: [id], onDelete: SetNull)
 
   @@unique([flow, poNumber])
   @@index([flow, status, dueDate])
   @@index([supplierName])
   @@index([userName])
   @@index([projectName])
+  @@index([poMode, supplyReviewStatus])
+  @@index([financeCounterpartyId, supplyStartDate, supplyEndDate])
+  @@index([financeContractId])
+  @@index([financeQuoteId])
   @@index([updatedAt])
 }
 
@@ -431,18 +570,26 @@ model LogisticsPurchaseOrderItem {
   warehouse        CatalogWarehouse?
   note             String?
   status           LogisticsPurchaseOrderStatus     @default(OPEN)
+  agreedUnitPrice  Decimal?                          @db.Decimal(18, 2)
+  financeContractLineId String?                      @db.Uuid
+  financeQuoteLineId    String?                      @db.Uuid
   createdAt        DateTime                         @default(now())
   updatedAt        DateTime                         @updatedAt
 
   purchaseOrder LogisticsPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   catalogItem   CatalogItem?           @relation(fields: [catalogItemId], references: [id], onDelete: SetNull)
   receipts      LogisticsReceipt[]
+  financeContractLine FinanceContractLine? @relation(fields: [financeContractLineId], references: [id], onDelete: SetNull)
+  financeQuoteLine    FinanceQuoteLine?    @relation(fields: [financeQuoteLineId], references: [id], onDelete: SetNull)
+  supplyAllocation   LogisticsSupplyAllocation?
 
   @@unique([purchaseOrderId, position])
   @@index([purchaseOrderId, status])
   @@index([catalogItemId])
   @@index([partName])
   @@index([partNumber])
+  @@index([financeContractLineId])
+  @@index([financeQuoteLineId])
 }
 
 model LogisticsPic {
@@ -501,6 +648,481 @@ model MektekPayment {
   @@index([serviceOrderId])
   @@index([transactionStatus])
   @@index([createdAt])
+}
+
+model FinanceCounterparty {
+  id                 String                  @id @default(uuid()) @db.Uuid
+  legalName          String
+  normalizedName     String                  @unique
+  role               FinanceCounterpartyRole
+  taxId              String?
+  billingAddress     String?
+  contactName        String?
+  phone              String?
+  email              String?
+  paymentTermsDays   Int?
+  isActive           Boolean                 @default(true)
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  contracts          FinanceContract[]
+  quotes             FinanceQuote[]
+  billingSources     FinanceBillingSource[]
+  invoices           FinanceInvoice[]
+  receipts           FinanceReceipt[]
+  payableSources     FinancePayableSource[]
+  supplierBills      FinanceSupplierBill[]
+  disbursements      FinanceDisbursement[]
+  purchaseOrders     LogisticsPurchaseOrder[]
+  supplyAllocations  LogisticsSupplyAllocation[]
+
+  @@index([role, isActive])
+  @@index([legalName])
+}
+
+model FinanceContract {
+  id               String                @id @default(uuid()) @db.Uuid
+  counterpartyId   String                @db.Uuid
+  contractNumber   String
+  normalizedNumber String
+  type             FinanceContractType
+  status           FinanceContractStatus @default(DRAFT)
+  version          Int                   @default(1)
+  supersedesId     String?               @db.Uuid
+  projectName      String?
+  siteName         String?
+  startDate        DateTime              @db.Date
+  endDate          DateTime              @db.Date
+  contractValue    Decimal?              @db.Decimal(18, 2)
+  ownerId          String?               @db.Uuid
+  signedAt         DateTime?
+  notes            String?
+  createdBy        String?               @db.Uuid
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  counterparty     FinanceCounterparty   @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+  lines            FinanceContractLine[]
+  billingSources   FinanceBillingSource[]
+  invoices         FinanceInvoice[]
+  purchaseOrders   LogisticsPurchaseOrder[]
+  reminders        FinanceReminderDelivery[]
+
+  @@unique([counterpartyId, normalizedNumber, version])
+  @@index([status, endDate])
+  @@index([counterpartyId, startDate, endDate])
+}
+
+model FinanceContractLine {
+  id               String   @id @default(uuid()) @db.Uuid
+  contractId       String   @db.Uuid
+  position         Int
+  catalogItemId    String?
+  itemName         String
+  partNumber       String?
+  itemKey          String
+  contractedQuantity Int?
+  unitPrice        Decimal? @db.Decimal(18, 2)
+  notes            String?
+  createdAt        DateTime @default(now())
+
+  contract         FinanceContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  purchaseOrderItems LogisticsPurchaseOrderItem[]
+
+  @@unique([contractId, position])
+  @@index([contractId, itemKey])
+  @@index([catalogItemId])
+}
+
+model FinanceQuote {
+  id               String             @id @default(uuid()) @db.Uuid
+  quoteNumber      String             @unique
+  counterpartyId   String             @db.Uuid
+  status           FinanceQuoteStatus @default(DRAFT)
+  projectName      String?
+  validFrom        DateTime           @db.Date
+  validUntil       DateTime           @db.Date
+  currency         String             @default("IDR")
+  notes            String?
+  createdBy        String?            @db.Uuid
+  approvedBy       String?            @db.Uuid
+  approvedAt       DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  counterparty     FinanceCounterparty @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+  lines            FinanceQuoteLine[]
+  billingSources   FinanceBillingSource[]
+  purchaseOrders   LogisticsPurchaseOrder[]
+
+  @@index([counterpartyId, status, validUntil])
+}
+
+model FinanceQuoteLine {
+  id               String   @id @default(uuid()) @db.Uuid
+  quoteId          String   @db.Uuid
+  position         Int
+  catalogItemId    String?
+  itemName         String
+  partNumber       String?
+  itemKey          String
+  quantity         Int?
+  unitPrice        Decimal  @db.Decimal(18, 2)
+  notes            String?
+  createdAt        DateTime @default(now())
+
+  quote            FinanceQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  purchaseOrderItems LogisticsPurchaseOrderItem[]
+
+  @@unique([quoteId, position])
+  @@index([quoteId, itemKey])
+  @@index([catalogItemId])
+}
+
+model FinanceBillingSource {
+  id                 String              @id @default(uuid()) @db.Uuid
+  sourceType         FinanceSourceType
+  sourceKey          String              @unique
+  sourceReference    String
+  counterpartyId     String              @db.Uuid
+  contractId         String?             @db.Uuid
+  quoteId            String?             @db.Uuid
+  invoiceId          String?             @db.Uuid
+  status             FinanceSourceStatus @default(UNBILLED)
+  occurredAt         DateTime
+  currency           String              @default("IDR")
+  taxProfile         String              @default("NONE")
+  paymentTermsDays   Int?
+  subtotal           Decimal?            @db.Decimal(18, 2)
+  taxAmount          Decimal?            @db.Decimal(18, 2)
+  withholdingAmount  Decimal?            @db.Decimal(18, 2)
+  totalAmount        Decimal?            @db.Decimal(18, 2)
+  snapshot           Json                @db.JsonB
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  counterparty       FinanceCounterparty @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+  contract           FinanceContract?    @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  quote              FinanceQuote?       @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  invoice            FinanceInvoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([status, occurredAt])
+  @@index([counterpartyId, status])
+  @@index([invoiceId])
+}
+
+model FinanceInvoice {
+  id                 String               @id @default(uuid()) @db.Uuid
+  draftNumber        String               @unique @default(uuid())
+  invoiceNumber      String?              @unique
+  counterpartyId     String               @db.Uuid
+  contractId         String?              @db.Uuid
+  status             FinanceInvoiceStatus @default(DRAFT)
+  currency           String               @default("IDR")
+  invoiceDate        DateTime?            @db.Date
+  dueDate            DateTime?            @db.Date
+  subtotal           Decimal              @default(0) @db.Decimal(18, 2)
+  discountAmount     Decimal              @default(0) @db.Decimal(18, 2)
+  taxRate            Decimal              @default(0) @db.Decimal(8, 6)
+  taxAmount          Decimal              @default(0) @db.Decimal(18, 2)
+  withholdingRate    Decimal              @default(0) @db.Decimal(8, 6)
+  withholdingAmount  Decimal              @default(0) @db.Decimal(18, 2)
+  grossAmount        Decimal              @default(0) @db.Decimal(18, 2)
+  netAmount          Decimal              @default(0) @db.Decimal(18, 2)
+  taxInvoiceNumber   String?
+  publicTokenHash    String?              @unique
+  notes              String?
+  requestedBy        String?              @db.Uuid
+  approvedBy         String?              @db.Uuid
+  approvedAt         DateTime?
+  issuedAt           DateTime?
+  voidedAt           DateTime?
+  voidReason         String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  counterparty       FinanceCounterparty  @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+  contract           FinanceContract?     @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  sources            FinanceBillingSource[]
+  lines              FinanceInvoiceLine[]
+  allocations        FinanceReceiptAllocation[]
+
+  @@index([status, dueDate])
+  @@index([counterpartyId, status])
+  @@index([invoiceDate])
+}
+
+model FinanceInvoiceLine {
+  id               String   @id @default(uuid()) @db.Uuid
+  invoiceId        String   @db.Uuid
+  position         Int
+  kind             String
+  description      String
+  partNumber       String?
+  quantity         Decimal  @db.Decimal(18, 3)
+  unitPrice        Decimal  @db.Decimal(18, 2)
+  discountAmount   Decimal  @default(0) @db.Decimal(18, 2)
+  lineTotal        Decimal  @db.Decimal(18, 2)
+  sourceLineKey    String?
+
+  invoice          FinanceInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, position])
+  @@index([invoiceId])
+}
+
+model FinanceReceipt {
+  id                 String               @id @default(uuid()) @db.Uuid
+  receiptNumber      String               @unique
+  counterpartyId     String               @db.Uuid
+  status             FinanceCashStatus    @default(POSTED)
+  method             FinancePaymentMethod
+  amount             Decimal              @db.Decimal(18, 2)
+  receivedAt         DateTime
+  bankReference      String?
+  providerPaymentId  String?              @unique
+  proofRequired      Boolean              @default(false)
+  notes              String?
+  createdBy          String?              @db.Uuid
+  reversedAt         DateTime?
+  reversalReason     String?
+  createdAt          DateTime             @default(now())
+
+  counterparty       FinanceCounterparty  @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+  allocations        FinanceReceiptAllocation[]
+
+  @@index([counterpartyId, receivedAt])
+  @@index([status, receivedAt])
+}
+
+model FinanceReceiptAllocation {
+  id               String   @id @default(uuid()) @db.Uuid
+  receiptId        String   @db.Uuid
+  invoiceId        String   @db.Uuid
+  amount           Decimal  @db.Decimal(18, 2)
+  createdAt        DateTime @default(now())
+
+  receipt          FinanceReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  invoice          FinanceInvoice @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+
+  @@unique([receiptId, invoiceId])
+  @@index([invoiceId])
+}
+
+model FinancePayableSource {
+  id                 String              @id @default(uuid()) @db.Uuid
+  sourceType         FinanceSourceType
+  sourceKey          String              @unique
+  sourceReference    String
+  counterpartyId     String              @db.Uuid
+  supplierBillId     String?             @db.Uuid
+  status             FinanceSourceStatus @default(UNBILLED)
+  occurredAt         DateTime
+  subtotal           Decimal?            @db.Decimal(18, 2)
+  taxAmount          Decimal?            @db.Decimal(18, 2)
+  totalAmount        Decimal?            @db.Decimal(18, 2)
+  snapshot           Json                @db.JsonB
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  counterparty       FinanceCounterparty @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+  supplierBill       FinanceSupplierBill? @relation(fields: [supplierBillId], references: [id], onDelete: SetNull)
+
+  @@index([status, occurredAt])
+  @@index([counterpartyId, status])
+  @@index([supplierBillId])
+}
+
+model FinanceSupplierBill {
+  id                    String                    @id @default(uuid()) @db.Uuid
+  internalNumber        String                    @unique
+  supplierInvoiceNumber String
+  counterpartyId        String                    @db.Uuid
+  status                FinanceSupplierBillStatus @default(DRAFT)
+  currency              String                    @default("IDR")
+  billDate              DateTime                  @db.Date
+  dueDate               DateTime                  @db.Date
+  subtotal              Decimal                   @default(0) @db.Decimal(18, 2)
+  taxAmount             Decimal                   @default(0) @db.Decimal(18, 2)
+  totalAmount           Decimal                   @default(0) @db.Decimal(18, 2)
+  expenseCategory       String?
+  matchException        String?
+  notes                 String?
+  requestedBy           String?                   @db.Uuid
+  approvedBy            String?                   @db.Uuid
+  approvedAt            DateTime?
+  postedAt              DateTime?
+  voidedAt              DateTime?
+  voidReason            String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+
+  counterparty          FinanceCounterparty       @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+  sources               FinancePayableSource[]
+  lines                 FinanceSupplierBillLine[]
+  allocations           FinanceDisbursementAllocation[]
+
+  @@unique([counterpartyId, supplierInvoiceNumber])
+  @@index([status, dueDate])
+  @@index([counterpartyId, status])
+}
+
+model FinanceSupplierBillLine {
+  id               String   @id @default(uuid()) @db.Uuid
+  supplierBillId   String   @db.Uuid
+  position         Int
+  description      String
+  partNumber       String?
+  quantity         Decimal  @db.Decimal(18, 3)
+  unitCost         Decimal  @db.Decimal(18, 2)
+  lineTotal        Decimal  @db.Decimal(18, 2)
+  sourceLineKey    String?
+
+  supplierBill     FinanceSupplierBill @relation(fields: [supplierBillId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierBillId, position])
+  @@index([supplierBillId])
+}
+
+model FinanceDisbursement {
+  id                  String               @id @default(uuid()) @db.Uuid
+  paymentNumber       String               @unique
+  counterpartyId      String               @db.Uuid
+  status              FinanceCashStatus    @default(POSTED)
+  method              FinancePaymentMethod
+  amount              Decimal              @db.Decimal(18, 2)
+  paidAt              DateTime
+  bankReference       String?
+  notes               String?
+  createdBy           String?              @db.Uuid
+  approvedBy          String?              @db.Uuid
+  approvedAt          DateTime?
+  reversedAt          DateTime?
+  reversalReason      String?
+  createdAt           DateTime             @default(now())
+
+  counterparty        FinanceCounterparty  @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+  allocations         FinanceDisbursementAllocation[]
+
+  @@index([counterpartyId, paidAt])
+  @@index([status, paidAt])
+}
+
+model FinanceDisbursementAllocation {
+  id               String   @id @default(uuid()) @db.Uuid
+  disbursementId   String   @db.Uuid
+  supplierBillId   String   @db.Uuid
+  amount           Decimal  @db.Decimal(18, 2)
+  createdAt        DateTime @default(now())
+
+  disbursement     FinanceDisbursement @relation(fields: [disbursementId], references: [id], onDelete: Cascade)
+  supplierBill     FinanceSupplierBill @relation(fields: [supplierBillId], references: [id], onDelete: Restrict)
+
+  @@unique([disbursementId, supplierBillId])
+  @@index([supplierBillId])
+}
+
+model FinanceApproval {
+  id               String                @id @default(uuid()) @db.Uuid
+  action           FinanceApprovalAction
+  entityType       String
+  entityId         String
+  status           FinanceApprovalStatus @default(PENDING)
+  requestedBy      String                @db.Uuid
+  requestedAt      DateTime              @default(now())
+  decidedBy        String?               @db.Uuid
+  decidedAt        DateTime?
+  reason           String?
+  metadata         Json?                 @db.JsonB
+
+  @@index([status, requestedAt])
+  @@index([entityType, entityId])
+  @@index([requestedBy])
+}
+
+model FinanceAuditEvent {
+  id               String   @id @default(uuid()) @db.Uuid
+  entityType       String
+  entityId         String
+  action           String
+  actorId          String?  @db.Uuid
+  before           Json?    @db.JsonB
+  after            Json?    @db.JsonB
+  metadata         Json?    @db.JsonB
+  createdAt        DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}
+
+model FinanceAttachment {
+  id               String                @id @default(uuid()) @db.Uuid
+  entityType       String
+  entityId         String
+  kind             FinanceAttachmentKind
+  fileName         String
+  mimeType         String
+  byteSize         Int
+  sha256           String                @db.Char(64)
+  data             Bytes
+  uploadedBy       String?               @db.Uuid
+  createdAt        DateTime              @default(now())
+
+  @@index([entityType, entityId, createdAt])
+  @@index([sha256])
+}
+
+model FinanceReminderDelivery {
+  id               String                @id @default(uuid()) @db.Uuid
+  contractId       String                @db.Uuid
+  milestoneDays    Int
+  recipientUserId  String                @db.Uuid
+  channel          String                @default("WHATSAPP")
+  status           FinanceReminderStatus @default(PENDING)
+  attempts         Int                   @default(0)
+  lastError        String?
+  attemptedAt      DateTime?
+  sentAt           DateTime?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  contract         FinanceContract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, milestoneDays, recipientUserId, channel])
+  @@index([status, attemptedAt])
+  @@index([recipientUserId, createdAt])
+}
+
+model FinanceDocumentSequence {
+  kind             String
+  periodKey        String
+  nextValue        Int      @default(1)
+  updatedAt        DateTime @updatedAt
+
+  @@id([kind, periodKey])
+}
+
+model LogisticsSupplyAllocation {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  purchaseOrderItemId String                    @unique @db.Uuid
+  counterpartyId      String                    @db.Uuid
+  projectKey          String
+  itemKey             String
+  poMode              LogisticsPurchaseOrderMode
+  supplyStartDate     DateTime                  @db.Date
+  supplyEndDate       DateTime                  @db.Date
+  quantity            Int
+  status              FinanceSupplyReviewStatus @default(CLEAR)
+  overrideApprovalId  String?                   @db.Uuid
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  purchaseOrderItem   LogisticsPurchaseOrderItem @relation(fields: [purchaseOrderItemId], references: [id], onDelete: Cascade)
+  counterparty        FinanceCounterparty        @relation(fields: [counterpartyId], references: [id], onDelete: Restrict)
+
+  @@index([counterpartyId, projectKey, itemKey, supplyStartDate, supplyEndDate])
+  @@index([poMode, status])
 }
 
 model MektekVoucher {

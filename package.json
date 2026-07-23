@@ -12,6 +12,7 @@
     "dev": "node scripts/dev.js",
     "build": "node scripts/build.js",
     "catalog:import": "node scripts/import-catalog-data.js",
+    "finance:backfill": "tsx scripts/backfill-finance.ts",
     "build:full": "prisma generate && prisma migrate deploy && next build",
     "migrate:deploy": "pnpm exec prisma migrate deploy",
     "start": "next start",

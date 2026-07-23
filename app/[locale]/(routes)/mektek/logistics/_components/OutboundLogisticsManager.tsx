@@ -683,7 +683,7 @@ export default function OutboundLogisticsManager({
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="outbound-po-type">PO Type</Label>
+                        <Label htmlFor="outbound-po-type">Supply mode</Label>
                         <Select
                           value={draft.poType}
                           onValueChange={(value) => updateDraft("poType", value)}
@@ -693,10 +693,11 @@ export default function OutboundLogisticsManager({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Normal">Normal</SelectItem>
-                            <SelectItem value="Consignment">Consignment</SelectItem>
+                            <SelectItem value="Normal">Manual · one-off PO</SelectItem>
+                            <SelectItem value="Consignment">Consignment · contract supply</SelectItem>
                           </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground">Mode dipisahkan dan diperiksa terhadap customer, project, item, serta periode yang sama sebelum barang keluar.</p>
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="outbound-input-date">Tanggal Pengiriman</Label>

@@ -1,6 +1,7 @@
 import {
   Activity,
   ClipboardList,
+  CircleDollarSign,
   MessageCircle,
   TicketPercent,
   Truck,
@@ -14,6 +15,7 @@ import {
   canManageMektekCatalog,
   canManageMektekCustomers,
   canManageMektekLogistics,
+  canManageMektekFinance,
   canManageMektekVouchers,
   canUseMektekCustomerTools,
   canViewMektekDashboard,
@@ -66,6 +68,21 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
         ...(canUseReceiving
           ? [{ title: "Receiving", url: "/mektek/receiving" }]
           : []),
+      ],
+    });
+  }
+
+  if (canManageMektekFinance(user)) {
+    items.push({
+      title: "Finance",
+      icon: CircleDollarSign,
+      items: [
+        { title: "Overview", url: "/mektek/finance" },
+        { title: "Invoices", url: "/mektek/finance/invoices" },
+        { title: "Payables", url: "/mektek/finance/payables" },
+        { title: "Cash", url: "/mektek/finance/cash" },
+        { title: "Contracts", url: "/mektek/finance/contracts" },
+        { title: "Audit", url: "/mektek/finance/audit" },
       ],
     });
   }

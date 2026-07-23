@@ -6,6 +6,7 @@ import {
   canManageMektekVouchers,
   canManageMektekPayments,
   canManageMektekSchedule,
+  canManageMektekFinance,
   canUpdateMektekProgress,
   canUseMektekCustomerTools,
   canViewMektekDashboard,
@@ -26,6 +27,7 @@ describe("MekTek permissions", () => {
     expect(canManageMektekVouchers(admin)).toBe(true);
     expect(canManageMektekSchedule(admin)).toBe(true);
     expect(canViewMektekDashboard(admin)).toBe(true);
+    expect(canManageMektekFinance(admin)).toBe(true);
   });
 
   it("keeps non-logistics division scaffolding broad outside Logistics", () => {
@@ -45,6 +47,14 @@ describe("MekTek permissions", () => {
     expect(canManageMektekVouchers(finance)).toBe(true);
     expect(canManageMektekSchedule(finance)).toBe(true);
     expect(canViewMektekDashboard(finance)).toBe(true);
+    expect(canManageMektekFinance(finance)).toBe(true);
+
+    expect(
+      canManageMektekFinance({
+        ...finance,
+        staffDivision: "LOGISTICS" as const,
+      }),
+    ).toBe(false);
   });
 
   it("limits Logistics staff to Catalog and their assigned Logistics area", () => {
@@ -116,6 +126,7 @@ describe("MekTek permissions", () => {
       expect(canManageMektekVouchers(customer)).toBe(false);
       expect(canManageMektekSchedule(customer)).toBe(false);
       expect(canViewMektekDashboard(customer)).toBe(false);
+      expect(canManageMektekFinance(customer)).toBe(false);
     }
   });
 
@@ -136,6 +147,7 @@ describe("MekTek permissions", () => {
       expect(canManageMektekVouchers(user)).toBe(false);
       expect(canManageMektekSchedule(user)).toBe(false);
       expect(canViewMektekDashboard(user)).toBe(false);
+      expect(canManageMektekFinance(user)).toBe(false);
     }
   });
 });

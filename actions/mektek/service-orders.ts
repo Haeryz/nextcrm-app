@@ -21,6 +21,7 @@ import {
   type MektekLineItemInput,
 } from "@/lib/mektek/items";
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
+import { syncServiceOrderBillingSource } from "@/lib/mektek/finance-sync";
 import {
   canCreateMektekOrders,
   canManageMektekPayments,
@@ -1367,6 +1368,12 @@ export const updateMektekServiceOrderStatus = async (input: {
         updatedBy: session.user.id,
       },
     });
+
+    if (newStatus === "AWAITING_PAYMENT" || newStatus === "COMPLETE") {
+      await prismadb.$transaction((tx) =>
+        syncServiceOrderBillingSource(tx, { serviceOrderId: serviceOrder.id }),
+      );
+    }
 
     if (shouldNotifyReady || shouldNotifyComplete) {
       const trackingLink = customerCode

@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
+import { syncPaidMektekPaymentToFinance } from "@/lib/mektek/finance-sync";
 import { prismadb } from "@/lib/prisma";
 import type { MidtransStatusVerdict } from "@/lib/midtrans";
 
@@ -144,6 +145,12 @@ export async function applyMidtransPaymentResult(params: {
     verdict === "paid"
       ? await syncPaidMektekPaymentToOrder(updatedPayment, paymentType)
       : null;
+
+  if (verdict === "paid") {
+    await prismadb.$transaction((tx) =>
+      syncPaidMektekPaymentToFinance(tx, updatedPayment.id),
+    );
+  }
 
   if (verdict !== "paid") {
     revalidateMektekPaymentViews();

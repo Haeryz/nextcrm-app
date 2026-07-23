@@ -88,6 +88,19 @@ export function canManageMektekLogistics(
         user?.logisticsStaffArea === "RECEIVING";
 }
 
+// Finance is the first division-scoped workspace. Unlike the transitional
+// broad-access predicates above, confidential ledger data is restricted at the
+// shared server/UI seam to the owner or an active FINANCE division account.
+export function canManageMektekFinance(user?: MektekSessionUser | null) {
+  return (
+    isActive(user) &&
+    (!!user?.isAdmin || user?.staffDivision === "FINANCE")
+  );
+}
+
+export const canViewMektekFinance = canManageMektekFinance;
+export const canApproveMektekFinance = canManageMektekFinance;
+
 export function canManageMektekSchedule(user?: MektekSessionUser | null) {
   return isActive(user) && (!!user?.isAdmin || isBroadDivisionStaff(user));
 }

@@ -14,6 +14,12 @@ import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 import { getCatalogInventoryLocalDateKey } from "@/lib/mektek/catalog-inventory";
 import { applyCatalogStockMovement } from "@/lib/mektek/catalog-stock-ledger";
 import {
+  ensureFinanceCounterparty,
+  syncOutboundDispatchBillingSource,
+  syncReceivingPayableSource,
+} from "@/lib/mektek/finance-sync";
+import { normalizeFinanceKey } from "@/lib/mektek/finance";
+import {
   buildAutomaticDeliveryNoteNumber,
   isLogisticsPurchaseOrderType,
   normalizeLogisticsReference,
@@ -47,6 +53,7 @@ type LogisticsPurchaseOrderHeaderInput = {
   inputDate: string;
   dueDate: string;
   poType: string;
+  poMode?: "MANUAL" | "CONSIGNMENT";
   notes?: string;
 };
 
@@ -187,7 +194,8 @@ function normalizeHeader(
   const supplierName = boundedText(supplierValue, MAX_NAME_LEN);
   const userName = boundedText(input?.userName, MAX_NAME_LEN);
   const projectName = boundedText(input?.projectName, MAX_NAME_LEN);
-  const poType = boundedText(input?.poType, MAX_PO_TYPE_LEN) || "Normal";
+  const requestedMode = input?.poMode ?? (compactText(input?.poType).toLowerCase() === "consignment" ? "CONSIGNMENT" : "MANUAL");
+  const poType = requestedMode === "CONSIGNMENT" ? "Consignment" : "Normal";
   const notes = boundedText(input?.notes, MAX_NOTE_LEN);
   const inputDate = parseDateOnly(input?.inputDate);
   const dueDate = parseDateOnly(input?.dueDate);
@@ -213,6 +221,9 @@ function normalizeHeader(
       inputDate,
       dueDate,
       poType,
+      poMode: requestedMode,
+      supplyStartDate: inputDate,
+      supplyEndDate: dueDate,
       notes: notes || null,
     },
   } as const;
@@ -584,10 +595,27 @@ export async function createMektekOutboundPurchaseOrder(
   try {
     const purchaseOrder = await prismadb.$transaction(async (tx) => {
       const hydrated = await hydratePurchaseOrderLines(tx, lines.data);
+      const counterparty = await ensureFinanceCounterparty(tx, header.data.userName, "CUSTOMER");
+      const itemKeys = hydrated.map((line) => normalizeFinanceKey(line.source === "CATALOG" ? line.catalogItem.id : line.partNumber || line.partName));
+      const conflicts = await tx.logisticsSupplyAllocation.findMany({
+        where: {
+          counterpartyId: counterparty.id,
+          projectKey: normalizeFinanceKey(header.data.projectName),
+          itemKey: { in: itemKeys },
+          poMode: { not: header.data.poMode },
+          supplyStartDate: { lte: header.data.supplyEndDate },
+          supplyEndDate: { gte: header.data.supplyStartDate },
+          status: { in: ["CLEAR", "BLOCKED", "OVERRIDDEN"] },
+        },
+        select: { itemKey: true },
+      });
+      const conflictKeys = new Set(conflicts.map((row) => row.itemKey));
       const purchaseOrder = await tx.logisticsPurchaseOrder.create({
         data: {
           ...header.data,
           flow: "OUTBOUND",
+          financeCounterpartyId: counterparty.id,
+          supplyReviewStatus: conflictKeys.size ? "BLOCKED" : "CLEAR",
           deliveryNoteNumber: buildAutomaticDeliveryNoteNumber(
             header.data.poNumber,
           ),
@@ -612,6 +640,7 @@ export async function createMektekOutboundPurchaseOrder(
             },
           });
           createdItems.push(item);
+          await tx.logisticsSupplyAllocation.create({ data: { purchaseOrderItemId: item.id, counterpartyId: counterparty.id, projectKey: normalizeFinanceKey(header.data.projectName), itemKey: itemKeys[line.position - 1], poMode: header.data.poMode, supplyStartDate: header.data.supplyStartDate, supplyEndDate: header.data.supplyEndDate, quantity: line.orderedQuantity, status: conflictKeys.has(itemKeys[line.position - 1]) ? "BLOCKED" : "CLEAR" } });
           continue;
         }
 
@@ -630,6 +659,12 @@ export async function createMektekOutboundPurchaseOrder(
           },
         });
         createdItems.push(item);
+        await tx.logisticsSupplyAllocation.create({ data: { purchaseOrderItemId: item.id, counterpartyId: counterparty.id, projectKey: normalizeFinanceKey(header.data.projectName), itemKey: itemKeys[line.position - 1], poMode: header.data.poMode, supplyStartDate: header.data.supplyStartDate, supplyEndDate: header.data.supplyEndDate, quantity: line.orderedQuantity, status: conflictKeys.has(itemKeys[line.position - 1]) ? "BLOCKED" : "CLEAR" } });
+      }
+      if (conflictKeys.size) {
+        const approval = await tx.financeApproval.create({ data: { action: "OVERRIDE_SUPPLY_CONFLICT", entityType: "OUTBOUND_PO", entityId: purchaseOrder.id, requestedBy: access.session.user.id, metadata: { conflictItemKeys: [...conflictKeys], poMode: header.data.poMode } } });
+        await tx.logisticsSupplyAllocation.updateMany({ where: { purchaseOrderItemId: { in: createdItems.map((item) => item.id) }, status: "BLOCKED" }, data: { overrideApprovalId: approval.id } });
+        await tx.financeAuditEvent.create({ data: { entityType: "OUTBOUND_PO", entityId: purchaseOrder.id, action: "SUPPLY_CONFLICT_BLOCK", actorId: access.session.user.id, metadata: { conflictItemKeys: [...conflictKeys], approvalId: approval.id } } });
       }
       return { ...purchaseOrder, items: createdItems };
     });
@@ -707,6 +742,7 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
           poNumber: true,
           flow: true,
           inputDate: true,
+          supplyReviewStatus: true,
           items: {
             orderBy: { position: "asc" },
             select: {
@@ -722,6 +758,9 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
       });
       if (!purchaseOrder || purchaseOrder.flow !== "OUTBOUND") {
         throw new LogisticsActionError("Monitoring PO tidak ditemukan");
+      }
+      if (purchaseOrder.supplyReviewStatus === "BLOCKED") {
+        throw new LogisticsActionError("Pengiriman diblokir: overlap supply Manual/Consignment menunggu approval Finance");
       }
       if (dispatchedAt < purchaseOrder.inputDate) {
         throw new LogisticsActionError(
@@ -830,6 +869,11 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
       await tx.logisticsPurchaseOrder.update({
         where: { id: purchaseOrder.id },
         data: { status: purchaseOrderStatus },
+      });
+      await syncOutboundDispatchBillingSource(tx, {
+        purchaseOrderId: purchaseOrder.id,
+        dispatchReference: reference,
+        occurredAt: dispatchedAt,
       });
       return {
         receipts,
@@ -1037,6 +1081,11 @@ export async function recordMektekReceivingPurchaseOrderReceipt(
       await tx.logisticsPurchaseOrder.update({
         where: { id: purchaseOrder.id },
         data: { status: purchaseOrderStatus },
+      });
+      await syncReceivingPayableSource(tx, {
+        purchaseOrderId: purchaseOrder.id,
+        receivingReference: reference,
+        occurredAt: receivedAt,
       });
       return {
         receipts,

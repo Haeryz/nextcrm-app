@@ -7,6 +7,11 @@ jest.mock("@/lib/mektek/permissions", () => ({
 jest.mock("@/lib/mektek/catalog-stock-ledger", () => ({
   applyCatalogStockMovement: jest.fn(),
 }));
+jest.mock("@/lib/mektek/finance-sync", () => ({
+  ensureFinanceCounterparty: jest.fn(async () => ({ id: "finance-counterparty-1" })),
+  syncOutboundDispatchBillingSource: jest.fn(async () => null),
+  syncReceivingPayableSource: jest.fn(async () => null),
+}));
 
 const purchaseOrderCreate = jest.fn();
 const purchaseOrderFindUnique = jest.fn();
@@ -19,6 +24,11 @@ const receiptCreate = jest.fn();
 const logisticsPicFindFirst = jest.fn();
 const catalogItemFindMany = jest.fn();
 const transaction = jest.fn();
+const supplyAllocationFindMany = jest.fn();
+const supplyAllocationCreate = jest.fn();
+const supplyAllocationUpdateMany = jest.fn();
+const financeApprovalCreate = jest.fn();
+const financeAuditEventCreate = jest.fn();
 
 const transactionClient = {
   logisticsPurchaseOrder: {
@@ -35,6 +45,13 @@ const transactionClient = {
   logisticsReceipt: { create: receiptCreate },
   logisticsPic: { findFirst: logisticsPicFindFirst },
   catalogItem: { findMany: catalogItemFindMany },
+  logisticsSupplyAllocation: {
+    findMany: supplyAllocationFindMany,
+    create: supplyAllocationCreate,
+    updateMany: supplyAllocationUpdateMany,
+  },
+  financeApproval: { create: financeApprovalCreate },
+  financeAuditEvent: { create: financeAuditEventCreate },
 };
 
 jest.mock("@/lib/prisma", () => ({
@@ -90,6 +107,11 @@ describe("MekTek Logistics and Receiving actions", () => {
     });
     transaction.mockImplementation(async (callback) => callback(transactionClient));
     catalogItemFindMany.mockResolvedValue(catalogRows);
+    supplyAllocationFindMany.mockResolvedValue([]);
+    supplyAllocationCreate.mockResolvedValue({ id: "allocation-1" });
+    supplyAllocationUpdateMany.mockResolvedValue({ count: 0 });
+    financeApprovalCreate.mockResolvedValue({ id: "approval-1" });
+    financeAuditEventCreate.mockResolvedValue({ id: "audit-1" });
     purchaseOrderCreate.mockResolvedValue({
       id: "po-1",
       poNumber: "PO-001",
