@@ -1,18 +1,25 @@
 #!/bin/sh
-set -e
+
+set -eu
 
 echo "[entrypoint] NextCRM starting up..."
 
-# Run Prisma migrations before the server starts.
-# prisma CLI is installed at /usr/local/bin/prisma and resolves migrations
-# from ./prisma/ (copied into the image at build time).
-if [ -n "$DATABASE_URL" ]; then
+# Prisma CLI requires one of these variables because prisma.config.ts
+# validates the database URL when it is loaded.
+MIGRATION_DATABASE_URL="${DIRECT_DATABASE_URL:-${DATABASE_URL_UNPOOLED:-${DATABASE_URL:-}}}"
+
+if [ -n "$MIGRATION_DATABASE_URL" ]; then
     echo "[entrypoint] Running database migrations..."
-    NODE_PATH=/usr/local/lib/node_modules prisma migrate deploy
-    echo "[entrypoint] Migrations complete."
+
+    ./node_modules/.bin/prisma migrate deploy
+
+    echo "[entrypoint] Database migrations complete."
 else
-    echo "[entrypoint] WARNING: DATABASE_URL is not set — skipping migrations."
+    echo "[entrypoint] WARNING: No database URL is configured."
+    echo "[entrypoint] Set DIRECT_DATABASE_URL, DATABASE_URL_UNPOOLED, or DATABASE_URL."
+    echo "[entrypoint] Skipping database migrations."
 fi
 
 echo "[entrypoint] Starting Next.js server on port ${PORT:-3000}..."
+
 exec node server.js

@@ -140,11 +140,15 @@ describe("22 July Logistics revision contract", () => {
     expect(inventoryPanel).toContain("Kartu stok sparepart");
   });
 
-  it("exports outbound PO for a customizable month range", () => {
-    expect(exportRoute).toContain('searchParams.get("fromMonth")');
-    expect(exportRoute).toContain('searchParams.get("toMonth")');
+  it("exports outbound SJ or PO recap for one selected month", () => {
+    expect(exportRoute).toContain('searchParams.get("type")');
+    expect(exportRoute).toContain('searchParams.get("month")');
+    expect(exportRoute).toContain("buildLogisticsDeliveryNoteExportRows");
+    expect(exportRoute).toContain("buildLogisticsPoMonthlyExportRows");
     expect(exportRoute).toContain("application/vnd.openxmlformats");
     expect(outboundManager).toContain("Export Excel");
+    expect(outboundManager).toContain("Recap Bulanan (SJ)");
+    expect(outboundManager).toContain("Recap PO Bulanan (PO/User)");
   });
 
   it("moves export and created-PO filters into the Monitoring PO page", () => {

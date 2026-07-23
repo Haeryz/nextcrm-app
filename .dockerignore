@@ -7,9 +7,9 @@ node_modules
 out
 
 # Development & test files
-.env
-.env.local
-.env.*.local
+.env*
+!.env.example
+!.env.production.example
 **/*.test.ts
 **/*.test.tsx
 **/*.spec.ts

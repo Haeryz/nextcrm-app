@@ -1,172 +1,169 @@
-# NextCRM — production docker-compose (no domain / direct port access)
-# -------------------------------------------------------
-# Quick start:
-#   1. Run ./setup.sh
-#   2. docker compose --env-file .env.production up -d --build
-#
-# Access:
-#   App          http://<server-ip>:3000
-#   MinIO API    http://<server-ip>:9000
-#   MinIO UI     http://<server-ip>:9001
-#   pgAdmin      http://<server-ip>:5050
-# -------------------------------------------------------
+name: ${COMPOSE_PROJECT_NAME:-nextcrm}
+
+x-logging: &default-logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
-
-  # ── PostgreSQL 17 + pgvector ───────────────────────────
-  postgres:
-    image: pgvector/pgvector:pg17
-    container_name: nextcrm-postgres
+  # Public edge. Only Traefik publishes host ports; the app and database remain
+  # isolated on Docker networks.
+  traefik:
+    image: traefik:v3.7.1
     restart: unless-stopped
-    networks:
-      - internal
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-nextcrm}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-nextcrm}
+    init: true
+    command:
+      - --api.dashboard=false
+      - --global.checknewversion=false
+      - --global.sendanonymoususage=false
+      - --log.level=${TRAEFIK_LOG_LEVEL:-INFO}
+      - --accesslog=true
+      - --ping=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=${TRAEFIK_NETWORK:-nextcrm-proxy}
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.web.http.redirections.entrypoint.permanent=true
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL:?Set TRAEFIK_ACME_EMAIL in .env.production}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+    ports:
+      - target: 80
+        published: "80"
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: "443"
+        protocol: tcp
+        mode: host
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_acme:/letsencrypt
+    networks:
+      - proxy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nextcrm} -d ${POSTGRES_DB:-nextcrm}"]
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
-    # NOT exposed to host — only app container can reach it
+      start_period: 10s
+    logging: *default-logging
 
-  # ── MinIO (S3-compatible object storage) ──────────────
-  minio:
-    image: minio/minio:latest
-    container_name: nextcrm-minio
+  # Supabase's PostgreSQL distribution includes pgvector and the extensions
+  # expected by Supabase while remaining fully compatible with Prisma.
+  supabase:
+    image: supabase/postgres:17.6.1.136
     restart: unless-stopped
-    command: server /data --console-address ":9001"
-    networks:
-      - internal
-    ports:
-      - "9000:9000"   # S3 API (used by app + direct uploads)
-      - "9001:9001"   # Web console
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-nextcrm}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: ${POSTGRES_DB:-nextcrm}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.production}
+      JWT_EXP: ${JWT_EXPIRY:-3600}
     volumes:
-      - minio_data:/data
+      - supabase_data:/var/lib/postgresql/data
+      - ./docker/supabase/init/00-extensions.sql:/docker-entrypoint-initdb.d/00-extensions.sql:ro
+    networks:
+      - backend
+    shm_size: 256mb
+    stop_grace_period: 1m
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d \"$${POSTGRES_DB}\" -h 127.0.0.1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
       start_period: 30s
+    logging: *default-logging
 
-  # ── NextCRM application ────────────────────────────────
-  nextcrm:
+  # The application image is built from the repository's multi-stage
+  # Dockerfile. Prisma migrations run in its existing entrypoint before boot.
+  appbuild:
+    image: ${APP_IMAGE:-nextcrm-app}:${APP_IMAGE_TAG:-local}
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: nextcrm-app
+      target: runner
     restart: unless-stopped
-    networks:
-      - internal
-    ports:
-      - "3000:3000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+    init: true
+    env_file:
+      - path: ./.env.production
+        required: false
     environment:
-      # Database (internal service name)
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-nextcrm}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-nextcrm}?schema=public"
-
-      # NextAuth — use http:// and your server IP or localhost
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
-      JWT_SECRET: ${JWT_SECRET}
-
-      # Auth mode
-      NEXTCRM_DISABLE_AUTH: ${NEXTCRM_DISABLE_AUTH:-true}
-      NEXTCRM_GUEST_USER_ID: ${NEXTCRM_GUEST_USER_ID:-00000000-0000-0000-0000-000000000001}
-      NEXTCRM_GUEST_USER_EMAIL: ${NEXTCRM_GUEST_USER_EMAIL:-guest@nextcrm.local}
-      NEXTCRM_GUEST_USER_NAME: ${NEXTCRM_GUEST_USER_NAME:-NextCRM Guest}
-      NEXTCRM_GUEST_USER_LANGUAGE: ${NEXTCRM_GUEST_USER_LANGUAGE:-en}
-
-      # Encryption key (required — generate with: openssl rand -hex 32)
-      EMAIL_ENCRYPTION_KEY: ${EMAIL_ENCRYPTION_KEY}
-
-      # Public app URL (used for links in emails etc.)
-      NEXT_PUBLIC_APP_URL: ${NEXTAUTH_URL:-http://localhost:3000}
-      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-NextCRM}
-      NEXT_PUBLIC_APP_V: ${NEXT_PUBLIC_APP_V:-0.0.3-beta}
-
-      # MinIO — internal address for server-side calls
-      MINIO_ENDPOINT: "minio"
-      MINIO_PORT: "9000"
-      MINIO_USE_SSL: "false"
-      MINIO_BUCKET: ${MINIO_BUCKET:-nextcrm}
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-nextcrm}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-      # Public endpoint for presigned download URLs (http + server IP)
-      NEXT_PUBLIC_MINIO_ENDPOINT: ${NEXT_PUBLIC_MINIO_ENDPOINT:-http://localhost:9000}
-
-      # OAuth (optional — leave blank to keep no-auth mode)
-      GOOGLE_ID: ${GOOGLE_ID:-}
-      GOOGLE_SECRET: ${GOOGLE_SECRET:-}
-      GITHUB_ID: ${GITHUB_ID:-}
-      GITHUB_SECRET: ${GITHUB_SECRET:-}
-
-      # AI / enrichment (optional)
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-
-      # Inngest background jobs (optional — https://app.inngest.com)
-      INNGEST_EVENT_KEY: ${INNGEST_EVENT_KEY:-}
-      INNGEST_SIGNING_KEY: ${INNGEST_SIGNING_KEY:-}
-
-      # Email sending via Resend (optional)
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
-      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
-
-      # IMAP / SMTP (optional)
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-
-      CRON_SECRET: ${CRON_SECRET:-}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}@supabase:5432/${POSTGRES_DB:-nextcrm}?schema=public
+      DIRECT_DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}@supabase:5432/${POSTGRES_DB:-nextcrm}?schema=public
+      NEXTAUTH_URL: https://${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
+      NEXT_PUBLIC_APP_URL: https://${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?Set NEXTAUTH_SECRET in .env.production}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.production}
+      EMAIL_ENCRYPTION_KEY: ${EMAIL_ENCRYPTION_KEY:?Set EMAIL_ENCRYPTION_KEY in .env.production}
+    depends_on:
+      supabase:
+        condition: service_healthy
+    networks:
+      - backend
+      - proxy
+    shm_size: 256mb
+    stop_grace_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
       start_period: 90s
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${TRAEFIK_NETWORK:-nextcrm-proxy}
+      traefik.http.routers.nextcrm.rule: Host(`${APP_DOMAIN:?Set APP_DOMAIN in .env.production}`)
+      traefik.http.routers.nextcrm.entrypoints: websecure
+      traefik.http.routers.nextcrm.tls: "true"
+      traefik.http.routers.nextcrm.tls.certresolver: letsencrypt
+      traefik.http.routers.nextcrm.middlewares: nextcrm-compress,nextcrm-security
+      traefik.http.services.nextcrm.loadbalancer.server.port: "3000"
+      traefik.http.services.nextcrm.loadbalancer.healthcheck.path: /
+      traefik.http.services.nextcrm.loadbalancer.healthcheck.interval: 30s
+      traefik.http.services.nextcrm.loadbalancer.healthcheck.timeout: 10s
+      traefik.http.middlewares.nextcrm-compress.compress: "true"
+      traefik.http.middlewares.nextcrm-security.headers.contentTypeNosniff: "true"
+      traefik.http.middlewares.nextcrm-security.headers.frameDeny: "true"
+      traefik.http.middlewares.nextcrm-security.headers.referrerPolicy: strict-origin-when-cross-origin
+      traefik.http.middlewares.nextcrm-security.headers.stsSeconds: "31536000"
+      traefik.http.middlewares.nextcrm-security.headers.stsIncludeSubdomains: "true"
+    logging: *default-logging
 
-  # ── pgAdmin (optional DB admin UI) ────────────────────
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: nextcrm-pgadmin
-    restart: unless-stopped
-    networks:
-      - internal
-    ports:
-      - "5050:80"
-    depends_on:
-      - postgres
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@admin.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-
-# ── Networks ───────────────────────────────────────────────
 networks:
-  internal:
-    name: nextcrm-internal
-    driver: bridge
+  backend:
+    internal: true
+  proxy:
+    name: ${TRAEFIK_NETWORK:-nextcrm-proxy}
 
-# ── Volumes ────────────────────────────────────────────────
 volumes:
-  postgres_data:
-    name: nextcrm-postgres-data
-  minio_data:
-    name: nextcrm-minio-data
-  pgadmin_data:
-    name: nextcrm-pgadmin-data
+  supabase_data:
+  traefik_acme:

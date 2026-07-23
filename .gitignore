@@ -32,13 +32,10 @@ yarn-debug.log*
 yarn-error.log*
 .nextcrm-dev*.log
 
-# local env files
-.env*.local
-.env.demo
-.env.xmation
-.env.dev
-.env
-.env.test.coolify
+# Local environment files can contain deployment credentials.
+.env*
+!.env.example
+!.env.production.example
 
 # vercel
 .vercel

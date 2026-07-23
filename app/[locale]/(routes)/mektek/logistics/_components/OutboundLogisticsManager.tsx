@@ -52,7 +52,10 @@ import {
   getLogisticsItemProgress,
   getLogisticsStatusLabel,
 } from "@/lib/mektek/logistics";
-import { getLogisticsPoExportRange } from "@/lib/mektek/logistics-export";
+import {
+  getLogisticsPoExportRange,
+  type LogisticsPoExportType,
+} from "@/lib/mektek/logistics-export";
 
 type CatalogOption = {
   id: string;
@@ -255,8 +258,9 @@ export default function OutboundLogisticsManager({
   const [dispatchImage, setDispatchImage] = useState<File | null>(null);
   const [dispatchImageError, setDispatchImageError] = useState<string | null>(null);
   const currentMonth = getCatalogInventoryLocalDateKey().slice(0, 7);
-  const [fromMonth, setFromMonth] = useState(currentMonth);
-  const [toMonth, setToMonth] = useState(currentMonth);
+  const [exportMonth, setExportMonth] = useState(currentMonth);
+  const [exportType, setExportType] =
+    useState<LogisticsPoExportType>("delivery-note");
 
   const selectedCatalogItemIds = useMemo(
     () =>
@@ -271,12 +275,12 @@ export default function OutboundLogisticsManager({
   );
   let exportRangeError: string | null = null;
   try {
-    getLogisticsPoExportRange(fromMonth, toMonth);
+    getLogisticsPoExportRange(exportMonth, exportMonth);
   } catch (error) {
     exportRangeError =
-      error instanceof Error ? error.message : "Rentang export tidak valid";
+      error instanceof Error ? error.message : "Bulan export tidak valid";
   }
-  const exportHref = `/api/mektek/logistics/purchase-orders/export?fromMonth=${encodeURIComponent(fromMonth)}&toMonth=${encodeURIComponent(toMonth)}`;
+  const exportHref = `/api/mektek/logistics/purchase-orders/export?type=${encodeURIComponent(exportType)}&month=${encodeURIComponent(exportMonth)}`;
 
   const updateDraft = <K extends keyof OutboundDraft>(
     key: K,
@@ -583,35 +587,48 @@ export default function OutboundLogisticsManager({
                   <DialogHeader>
                     <DialogTitle>Export Excel Monitoring PO</DialogTitle>
                     <DialogDescription>
-                      Pilih rentang bulan PO yang ingin dimasukkan ke file Excel.
+                      Pilih jenis recap dan bulan yang ingin dimasukkan ke file
+                      Excel.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label htmlFor="po-export-from-month">Dari bulan</Label>
-                      <Input
-                        id="po-export-from-month"
-                        type="month"
-                        max={currentMonth}
-                        value={fromMonth}
-                        onChange={(event) => setFromMonth(event.target.value)}
-                      />
+                      <Label htmlFor="po-export-type">Jenis recap</Label>
+                      <Select
+                        value={exportType}
+                        onValueChange={(value: LogisticsPoExportType) =>
+                          setExportType(value)
+                        }
+                      >
+                        <SelectTrigger id="po-export-type" className="w-full">
+                          <SelectValue placeholder="Pilih jenis recap" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="delivery-note">
+                            Recap Bulanan (SJ)
+                          </SelectItem>
+                          <SelectItem value="purchase-order">
+                            Recap PO Bulanan (PO/User)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label htmlFor="po-export-to-month">Sampai bulan</Label>
+                      <Label htmlFor="po-export-month">Bulan</Label>
                       <Input
-                        id="po-export-to-month"
+                        id="po-export-month"
                         type="month"
-                        min={fromMonth}
                         max={currentMonth}
-                        value={toMonth}
-                        onChange={(event) => setToMonth(event.target.value)}
+                        value={exportMonth}
+                        onChange={(event) => setExportMonth(event.target.value)}
                       />
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {exportRangeError ??
-                      "File berisi satu baris untuk setiap item PO pada rentang bulan terpilih."}
+                      (exportType === "delivery-note"
+                        ? "Recap dikelompokkan berdasarkan nomor SJ; satu SJ dapat berisi beberapa baris item."
+                        : "Recap dikelompokkan berdasarkan nomor PO; nomor urut tetap sama untuk seluruh item dalam satu PO.")}
                   </p>
                   <div className="flex justify-end">
                     {exportRangeError ? (
