@@ -1,5 +1,3 @@
-import "server-only";
-
 import { Prisma, type FinanceCounterpartyRole } from "@prisma/client";
 
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
