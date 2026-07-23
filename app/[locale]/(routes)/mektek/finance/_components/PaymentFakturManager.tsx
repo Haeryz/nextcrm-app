@@ -265,6 +265,54 @@ export default function PaymentFakturManager({
         </div>
       </div>
 
+      <div className="rounded-lg border bg-card">
+        <div className="flex items-center justify-between border-b px-3 py-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {customers.length} sheet customer
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Geser untuk melihat semua sheet
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <div className="flex min-w-max gap-1 p-2">
+            {customers.map((customer) => {
+              const active = customer.sheetKey === selectedSheetKey;
+              return (
+                <button
+                  key={customer.id}
+                  type="button"
+                  title={customer.customerName}
+                  aria-current={active ? "page" : undefined}
+                  className={
+                    active
+                      ? "rounded-md bg-primary px-3 py-2 text-left text-primary-foreground shadow-sm"
+                      : "rounded-md border bg-background px-3 py-2 text-left hover:bg-muted"
+                  }
+                  onClick={() =>
+                    setQuery({ customer: customer.sheetKey, page: null })
+                  }
+                  disabled={pending}
+                >
+                  <span className="block text-sm font-semibold">
+                    {customer.sheetKey}
+                  </span>
+                  <span
+                    className={
+                      active
+                        ? "block text-[11px] text-primary-foreground/80"
+                        : "block text-[11px] text-muted-foreground"
+                    }
+                  >
+                    {customer.entryCount} invoice
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           ["Total invoice", rupiah.format(summary.total)],
