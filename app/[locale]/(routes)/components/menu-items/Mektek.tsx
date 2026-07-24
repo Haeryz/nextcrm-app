@@ -94,6 +94,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
             },
             { title: "Pembayaran Pemasok", url: "/mektek/finance/payables" },
             { title: "Payment Faktur", url: "/mektek/finance/payment-faktur" },
+            { title: "Laporan Hutang Pemasok", url: "/mektek/finance/supplier-debt-report" },
       ],
     });
   }

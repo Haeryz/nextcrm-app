@@ -33,8 +33,14 @@ const compactRupiah = new Intl.NumberFormat("id-ID", {
 
 export default function PaymentFakturTrendChart({
   values,
+  eyebrow = "Analitik pembayaran",
+  title = "Pergerakan invoice bulanan",
+  description = "Nilai invoice berdasarkan tanggal pengiriman pada sheet aktif.",
 }: {
   values: number[];
+  eyebrow?: string;
+  title?: string;
+  description?: string;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const [activeIndex, setActiveIndex] = useState(() => {
@@ -90,13 +96,13 @@ export default function PaymentFakturTrendChart({
         <div>
           <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.2em] text-indigo-200">
             <Activity className="h-4 w-4" />
-            Analitik pembayaran
+            {eyebrow}
           </div>
           <h3 className="mt-2 text-lg font-semibold">
-            Pergerakan invoice bulanan
+            {title}
           </h3>
           <p className="mt-1 text-sm text-slate-300">
-            Nilai invoice berdasarkan tanggal pengiriman pada sheet aktif.
+            {description}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

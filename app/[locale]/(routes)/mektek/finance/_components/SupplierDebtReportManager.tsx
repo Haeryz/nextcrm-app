@@ -1,0 +1,780 @@
+"use client";
+
+import { FormEvent, useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  FileSpreadsheet,
+  Filter,
+  Search,
+} from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import type {
+  SupplierDebtDetailEntry,
+  SupplierDebtDetailSheet,
+  SupplierDebtMonthlySummary,
+  SupplierDebtOverviewRow,
+  SupplierDebtRecapEntry,
+  SupplierDebtStatus,
+} from "@/lib/mektek/supplier-debt-report";
+
+import PaymentFakturTrendChart from "./PaymentFakturTrendChart";
+
+type ReportView = "overview" | "recap" | "detail";
+
+type SheetOption = Pick<
+  SupplierDebtDetailSheet,
+  | "sheetKey"
+  | "supplierName"
+  | "contactName"
+  | "paymentTermDays"
+  | "phone"
+  | "bankAccount"
+  | "bankAccountName"
+  | "bankName"
+> & {
+  entryCount: number;
+};
+
+type Summary = {
+  total: number;
+  paid: number;
+  remaining: number;
+  count: number;
+  LUNAS?: number;
+  CICILAN?: number;
+  BELUM_BAYAR?: number;
+};
+
+const rupiah = new Intl.NumberFormat("id-ID", {
+  style: "currency",
+  currency: "IDR",
+  maximumFractionDigits: 0,
+});
+
+const dateLabel = (value: string | null) =>
+  value
+    ? new Intl.DateTimeFormat("id-ID", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      }).format(new Date(`${value}T00:00:00.000Z`))
+    : "—";
+
+const statusLabel: Record<SupplierDebtStatus, string> = {
+  BELUM_BAYAR: "Belum dibayar",
+  CICILAN: "Cicilan",
+  LUNAS: "Lunas",
+};
+
+const statusBadge: Record<SupplierDebtStatus, string> = {
+  BELUM_BAYAR: "bg-rose-100 text-rose-800 hover:bg-rose-100",
+  CICILAN: "bg-amber-100 text-amber-800 hover:bg-amber-100",
+  LUNAS: "bg-emerald-100 text-emerald-800 hover:bg-emerald-100",
+};
+
+function SummaryCards({
+  items,
+}: {
+  items: Array<[label: string, value: string]>;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {items.map(([label, value]) => (
+        <div key={label} className="rounded-lg border bg-card p-4">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {label}
+          </p>
+          <p className="mt-1 text-lg font-semibold">{value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function SupplierDebtReportManager({
+  sourceFile,
+  view,
+  overviewMeta,
+  overviewRows,
+  overviewSummary,
+  recapRows,
+  recapSummary,
+  recapMonthlySummary,
+  sheets,
+  selectedSheetKey,
+  detailRows,
+  detailSummary,
+  monthlyTotals,
+  search,
+  status,
+  sort,
+  direction,
+  page,
+  pageCount,
+  totalRows,
+}: {
+  sourceFile: string;
+  view: ReportView;
+  overviewMeta: {
+    title: string;
+    period: string | null;
+    updatedAt: string | null;
+  };
+  overviewRows: SupplierDebtOverviewRow[];
+  overviewSummary: Summary;
+  recapRows: SupplierDebtRecapEntry[];
+  recapSummary: Summary;
+  recapMonthlySummary: SupplierDebtMonthlySummary[];
+  sheets: SheetOption[];
+  selectedSheetKey: string | null;
+  detailRows: SupplierDebtDetailEntry[];
+  detailSummary: Summary;
+  monthlyTotals: number[];
+  search: string;
+  status: "SEMUA" | SupplierDebtStatus;
+  sort: string;
+  direction: "asc" | "desc";
+  page: number;
+  pageCount: number;
+  totalRows: number;
+}) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [pending, startTransition] = useTransition();
+  const [searchValue, setSearchValue] = useState(search);
+  const selectedSheet = sheets.find(
+    (sheet) => sheet.sheetKey === selectedSheetKey,
+  );
+
+  const setQuery = (updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    startTransition(() => router.push(`${pathname}?${params.toString()}`));
+  };
+
+  const submitSearch = (event: FormEvent) => {
+    event.preventDefault();
+    setQuery({ q: searchValue.trim() || null, page: null });
+  };
+
+  const resetFilters = () => {
+    setSearchValue("");
+    setQuery({
+      q: null,
+      status: null,
+      sort: null,
+      direction: null,
+      page: null,
+    });
+  };
+
+  const filterPanel = (
+    <div className="rounded-xl border bg-card p-3 shadow-sm">
+      <div className="mb-3 flex items-center gap-2">
+        <Filter className="h-4 w-4 text-primary" />
+        <div>
+          <p className="text-sm font-semibold">Filter dan urutkan tabel</p>
+          <p className="text-xs text-muted-foreground">
+            Pencarian berlaku pada laporan yang sedang aktif.
+          </p>
+        </div>
+      </div>
+      <div
+        className={
+          view === "detail"
+            ? "grid gap-2 lg:grid-cols-[minmax(280px,1fr)_190px_200px_auto_auto]"
+            : "grid gap-2 lg:grid-cols-[minmax(280px,1fr)_220px_auto_auto]"
+        }
+      >
+        <form className="flex gap-2" onSubmit={submitSearch}>
+          <div className="relative min-w-0 flex-1">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              value={searchValue}
+              onChange={(event) => setSearchValue(event.target.value)}
+              placeholder={
+                view === "overview"
+                  ? "Cari pemasok, PIC, lokasi, atau catatan"
+                  : "Cari pemasok, invoice, PO, SJ, atau deskripsi"
+              }
+            />
+          </div>
+          <Button type="submit" variant="outline" disabled={pending}>
+            Cari
+          </Button>
+        </form>
+        {view === "detail" && (
+          <select
+            className="h-10 rounded-md border bg-background px-3 text-sm"
+            value={status}
+            onChange={(event) =>
+              setQuery({ status: event.target.value, page: null })
+            }
+            aria-label="Filter status hutang"
+            disabled={pending}
+          >
+            <option value="SEMUA">Semua status</option>
+            <option value="BELUM_BAYAR">Belum dibayar</option>
+            <option value="CICILAN">Cicilan</option>
+            <option value="LUNAS">Lunas</option>
+          </select>
+        )}
+        <select
+          className="h-10 rounded-md border bg-background px-3 text-sm"
+          value={sort}
+          onChange={(event) =>
+            setQuery({ sort: event.target.value, page: null })
+          }
+          aria-label="Urutkan laporan berdasarkan"
+          disabled={pending}
+        >
+          <option value="number">Nomor urut</option>
+          {view === "overview" ? (
+            <>
+              <option value="supplierName">Nama pemasok</option>
+              <option value="remainingDebt">Sisa hutang</option>
+              <option value="dueAmount">Jatuh tempo</option>
+            </>
+          ) : (
+            <>
+              <option value="supplierName">Nama pemasok</option>
+              <option value="invoiceDate">Tanggal invoice</option>
+              <option value="invoiceNumber">Nomor invoice</option>
+              <option value="grandTotal">Nilai invoice</option>
+              <option value="paymentAmount">Nilai dibayar</option>
+              <option value="remainingAmount">Sisa hutang</option>
+            </>
+          )}
+        </select>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() =>
+            setQuery({
+              direction: direction === "asc" ? "desc" : "asc",
+              page: null,
+            })
+          }
+          disabled={pending}
+        >
+          {direction === "asc" ? (
+            <ArrowUp className="mr-2 h-4 w-4" />
+          ) : (
+            <ArrowDown className="mr-2 h-4 w-4" />
+          )}
+          {direction === "asc" ? "Menaik" : "Menurun"}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={resetFilters}
+          disabled={pending}
+        >
+          Reset
+        </Button>
+      </div>
+    </div>
+  );
+
+  const pagination = (
+    <div className="flex flex-col gap-2 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+      <span>
+        {totalRows} baris · halaman {page} dari {pageCount}
+      </span>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={page <= 1 || pending}
+          onClick={() => setQuery({ page: String(page - 1) })}
+        >
+          <ChevronLeft className="mr-1 h-4 w-4" /> Sebelumnya
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={page >= pageCount || pending}
+          onClick={() => setQuery({ page: String(page + 1) })}
+        >
+          Berikutnya <ChevronRight className="ml-1 h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-5 px-4 pb-8 sm:px-6">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <FileSpreadsheet className="h-4 w-4" />
+            Laporan keuangan 2026
+          </div>
+          <h2 className="mt-1 text-xl font-semibold">
+            Laporan Hutang Pemasok
+          </h2>
+          <p className="text-xs text-muted-foreground">
+            Sumber: {sourceFile}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {[
+            ["overview", "Total Hutang"],
+            ["recap", "Rekap Hutang"],
+            ["detail", "Rincian per Pemasok"],
+          ].map(([value, label]) => (
+            <Button
+              key={value}
+              type="button"
+              variant={view === value ? "default" : "outline"}
+              onClick={() =>
+                setQuery({
+                  view: value,
+                  q: null,
+                  status: null,
+                  sort: null,
+                  direction: null,
+                  page: null,
+                })
+              }
+              disabled={pending}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      {view === "overview" && (
+        <>
+          <div>
+            <p className="text-sm text-muted-foreground">
+              {overviewMeta.period || "Periode laporan 2026"}
+            </p>
+            <h3 className="text-lg font-semibold">{overviewMeta.title}</h3>
+            <p className="text-xs text-muted-foreground">
+              {overviewMeta.updatedAt || "Tanggal pembaruan mengikuti workbook"}
+            </p>
+          </div>
+          <SummaryCards
+            items={[
+              ["Total sisa hutang", rupiah.format(overviewSummary.total)],
+              ["Total sisa piutang", rupiah.format(overviewSummary.paid)],
+              ["Tagihan jatuh tempo", rupiah.format(overviewSummary.remaining)],
+              ["Jumlah pemasok", `${overviewSummary.count} pemasok`],
+            ]}
+          />
+          {filterPanel}
+          <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1500px] text-sm">
+                <thead className="bg-muted/60 text-left text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-3">No.</th>
+                    <th className="px-3 py-3">Nama pemasok</th>
+                    <th className="px-3 py-3">PIC</th>
+                    <th className="px-3 py-3">Lokasi</th>
+                    <th className="px-3 py-3 text-right">Sisa hutang</th>
+                    <th className="px-3 py-3 text-right">Sisa piutang</th>
+                    <th className="px-3 py-3 text-right">TOP</th>
+                    <th className="px-3 py-3 text-right">Jatuh tempo</th>
+                    <th className="px-3 py-3">Catatan jatuh tempo</th>
+                    <th className="px-3 py-3">Rincian</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {overviewRows.map((row) => (
+                    <tr key={row.sourceRow} className="align-top hover:bg-muted/30">
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {row.number}
+                      </td>
+                      <td className="px-3 py-3 font-medium">{row.supplierName}</td>
+                      <td className="px-3 py-3">{row.pic || "—"}</td>
+                      <td className="px-3 py-3">{row.location || "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-medium">
+                        {rupiah.format(row.remainingDebt)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right">
+                        {rupiah.format(row.remainingReceivable)}
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        {row.paymentTermDays
+                          ? `${row.paymentTermDays} hari`
+                          : "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right">
+                        {rupiah.format(row.dueAmount)}
+                      </td>
+                      <td className="max-w-96 px-3 py-3">
+                        {row.dueDescription || "—"}
+                      </td>
+                      <td className="max-w-96 px-3 py-3">
+                        {row.breakdown.length
+                          ? row.breakdown.map((value) => rupiah.format(value)).join(" · ")
+                          : row.breakdownNote || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                  {!overviewRows.length && (
+                    <tr>
+                      <td
+                        colSpan={10}
+                        className="px-4 py-12 text-center text-muted-foreground"
+                      >
+                        Tidak ada data yang cocok.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {pagination}
+        </>
+      )}
+
+      {view === "recap" && (
+        <>
+          <div>
+            <p className="text-sm text-muted-foreground">
+              Rekap invoice dan pembayaran seluruh pemasok
+            </p>
+            <h3 className="text-lg font-semibold">Rekap Hutang Pemasok</h3>
+          </div>
+          <SummaryCards
+            items={[
+              ["Total nominal", rupiah.format(recapSummary.total)],
+              ["Total pembayaran", rupiah.format(recapSummary.paid)],
+              ["Sisa hutang", rupiah.format(recapSummary.remaining)],
+              ["Jumlah invoice", `${recapSummary.count} invoice`],
+            ]}
+          />
+          <PaymentFakturTrendChart
+            values={recapMonthlySummary.map((row) => row.debtValue)}
+            eyebrow="Analitik hutang"
+            title="Pergerakan hutang bulanan"
+            description="Nilai hutang pemasok berdasarkan periode pada rekap workbook."
+          />
+          {filterPanel}
+          <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1500px] text-sm">
+                <thead className="bg-muted/60 text-left text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-3">No.</th>
+                    <th className="px-3 py-3">Nama pemasok</th>
+                    <th className="px-3 py-3">Tanggal invoice</th>
+                    <th className="px-3 py-3">Nomor invoice</th>
+                    <th className="px-3 py-3 text-right">Nominal</th>
+                    <th className="px-3 py-3">Tanggal pembayaran</th>
+                    <th className="px-3 py-3 text-right">Total pembayaran</th>
+                    <th className="px-3 py-3 text-right">Bulan ke</th>
+                    <th className="px-3 py-3">Jenis transaksi</th>
+                    <th className="px-3 py-3">Kategori akun</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {recapRows.map((row) => (
+                    <tr key={row.sourceRow} className="align-top hover:bg-muted/30">
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {row.number}
+                      </td>
+                      <td className="px-3 py-3 font-medium">{row.supplierName}</td>
+                      <td className="px-3 py-3">{dateLabel(row.invoiceDate)}</td>
+                      <td className="px-3 py-3">{row.invoiceNumber}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-medium">
+                        {rupiah.format(row.nominal)}
+                      </td>
+                      <td className="px-3 py-3">
+                        {dateLabel(row.actualPaymentDate)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right">
+                        {rupiah.format(row.totalPayment)}
+                      </td>
+                      <td className="px-3 py-3 text-right">
+                        {row.monthNumber ?? "—"}
+                      </td>
+                      <td className="px-3 py-3">{row.transactionType || "—"}</td>
+                      <td className="px-3 py-3">
+                        {[
+                          row.accountCategory,
+                          row.otherDebtCategory,
+                          row.accountantServiceDebt,
+                          row.cashCategory,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ") || "—"}
+                      </td>
+                    </tr>
+                  ))}
+                  {!recapRows.length && (
+                    <tr>
+                      <td
+                        colSpan={10}
+                        className="px-4 py-12 text-center text-muted-foreground"
+                      >
+                        Tidak ada data yang cocok.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {pagination}
+        </>
+      )}
+
+      {view === "detail" && (
+        <>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">
+                Rincian hutang per pemasok
+              </p>
+              <h3 className="text-lg font-semibold">
+                {selectedSheet?.supplierName || selectedSheetKey}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Sheet {selectedSheetKey}
+                {selectedSheet?.contactName
+                  ? ` · PIC ${selectedSheet.contactName}`
+                  : ""}
+                {selectedSheet?.paymentTermDays
+                  ? ` · TOP ${selectedSheet.paymentTermDays} hari`
+                  : ""}
+              </p>
+            </div>
+            <select
+              className="h-10 min-w-72 rounded-md border bg-background px-3 text-sm"
+              value={selectedSheetKey ?? ""}
+              onChange={(event) =>
+                setQuery({ sheet: event.target.value, page: null })
+              }
+              disabled={pending}
+            >
+              {sheets.map((sheet) => (
+                <option key={sheet.sheetKey} value={sheet.sheetKey}>
+                  {sheet.sheetKey} — {sheet.supplierName} ({sheet.entryCount})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="rounded-lg border bg-card">
+            <div className="overflow-x-auto">
+              <div className="flex min-w-max gap-1 p-2">
+                {sheets.map((sheet) => {
+                  const active = sheet.sheetKey === selectedSheetKey;
+                  return (
+                    <button
+                      key={sheet.sheetKey}
+                      type="button"
+                      title={sheet.supplierName}
+                      aria-current={active ? "page" : undefined}
+                      className={
+                        active
+                          ? "rounded-md bg-primary px-3 py-2 text-left text-primary-foreground shadow-sm"
+                          : "rounded-md border bg-background px-3 py-2 text-left hover:bg-muted"
+                      }
+                      onClick={() =>
+                        setQuery({ sheet: sheet.sheetKey, page: null })
+                      }
+                      disabled={pending}
+                    >
+                      <span className="block text-sm font-semibold">
+                        {sheet.sheetKey}
+                      </span>
+                      <span
+                        className={
+                          active
+                            ? "block text-[11px] text-primary-foreground/80"
+                            : "block text-[11px] text-muted-foreground"
+                        }
+                      >
+                        {sheet.entryCount} baris
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {selectedSheet &&
+            (selectedSheet.bankAccount ||
+              selectedSheet.bankName ||
+              selectedSheet.phone) && (
+              <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">
+                    Kontak
+                  </p>
+                  <p className="font-medium">{selectedSheet.phone || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Bank</p>
+                  <p className="font-medium">{selectedSheet.bankName || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">
+                    Nomor rekening
+                  </p>
+                  <p className="font-medium">{selectedSheet.bankAccount || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">
+                    Nama rekening
+                  </p>
+                  <p className="font-medium">
+                    {selectedSheet.bankAccountName || "—"}
+                  </p>
+                </div>
+              </div>
+            )}
+
+          <SummaryCards
+            items={[
+              ["Total invoice", rupiah.format(detailSummary.total)],
+              ["Hutang dibayar", rupiah.format(detailSummary.paid)],
+              ["Sisa hutang", rupiah.format(detailSummary.remaining)],
+              [
+                "Status",
+                `${detailSummary.LUNAS ?? 0} lunas · ${detailSummary.CICILAN ?? 0} cicilan · ${detailSummary.BELUM_BAYAR ?? 0} pending`,
+              ],
+            ]}
+          />
+          <PaymentFakturTrendChart
+            values={monthlyTotals}
+            eyebrow="Analitik hutang"
+            title="Pergerakan invoice bulanan"
+            description="Nilai invoice berdasarkan tanggal invoice pada sheet pemasok aktif."
+          />
+          {filterPanel}
+          <div className="overflow-hidden rounded-lg border">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[2500px] text-sm">
+                <thead className="bg-muted/60 text-left text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="px-3 py-3">No.</th>
+                    <th className="px-3 py-3">Tanggal PO</th>
+                    <th className="px-3 py-3">Nomor PO</th>
+                    <th className="px-3 py-3">Terima barang</th>
+                    <th className="px-3 py-3">Diterima oleh</th>
+                    <th className="px-3 py-3">Nomor SJ</th>
+                    <th className="px-3 py-3">Tanggal invoice</th>
+                    <th className="px-3 py-3">Nomor invoice</th>
+                    <th className="px-3 py-3">Nomor FP</th>
+                    <th className="px-3 py-3">Jatuh tempo</th>
+                    <th className="px-3 py-3">Part number</th>
+                    <th className="px-3 py-3">Deskripsi</th>
+                    <th className="px-3 py-3 text-right">Qty</th>
+                    <th className="px-3 py-3 text-right">Harga</th>
+                    <th className="px-3 py-3 text-right">Jumlah</th>
+                    <th className="px-3 py-3 text-right">Grand total</th>
+                    <th className="px-3 py-3">Date in part</th>
+                    <th className="px-3 py-3">Tanggal bayar</th>
+                    <th className="px-3 py-3 text-right">Nominal bayar</th>
+                    <th className="px-3 py-3">Tanggal PBK</th>
+                    <th className="px-3 py-3">Kode akun</th>
+                    <th className="px-3 py-3 text-right">Sisa</th>
+                    <th className="px-3 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {detailRows.map((row) => (
+                    <tr key={row.sourceRow} className="align-top hover:bg-muted/30">
+                      <td className="px-3 py-3 text-muted-foreground">
+                        {row.number || "—"}
+                      </td>
+                      <td className="px-3 py-3">
+                        {dateLabel(row.purchaseOrderDate)}
+                      </td>
+                      <td className="px-3 py-3">{row.purchaseOrderNumber || "—"}</td>
+                      <td className="px-3 py-3">
+                        {dateLabel(row.goodsReceiptDate)}
+                      </td>
+                      <td className="px-3 py-3">{row.receivedBy || "—"}</td>
+                      <td className="px-3 py-3">{row.deliveryNoteNumber || "—"}</td>
+                      <td className="px-3 py-3">{dateLabel(row.invoiceDate)}</td>
+                      <td className="px-3 py-3 font-medium">
+                        {row.invoiceNumber || "—"}
+                      </td>
+                      <td className="max-w-56 break-all px-3 py-3">
+                        {row.taxInvoiceNumber || "—"}
+                      </td>
+                      <td className="px-3 py-3">{dateLabel(row.dueDate)}</td>
+                      <td className="px-3 py-3">{row.partNumber || "—"}</td>
+                      <td className="max-w-80 px-3 py-3">
+                        {row.description || "—"}
+                      </td>
+                      <td className="px-3 py-3 text-right">{row.quantity || "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right">
+                        {row.unitPrice ? rupiah.format(row.unitPrice) : "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right">
+                        {row.amount ? rupiah.format(row.amount) : "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right font-medium">
+                        {row.grandTotal ? rupiah.format(row.grandTotal) : "—"}
+                      </td>
+                      <td className="px-3 py-3">
+                        {dateLabel(row.partsEntryDate)}
+                      </td>
+                      <td className="px-3 py-3">{dateLabel(row.paymentDate)}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right">
+                        {row.paymentAmount
+                          ? rupiah.format(row.paymentAmount)
+                          : "—"}
+                      </td>
+                      <td className="px-3 py-3">{dateLabel(row.pbkDate)}</td>
+                      <td className="max-w-60 px-3 py-3">{row.accountCode || "—"}</td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right">
+                        {rupiah.format(row.remainingAmount)}
+                      </td>
+                      <td className="px-3 py-3">
+                        {row.grandTotal > 0 || row.paymentAmount > 0 ? (
+                          <Badge className={statusBadge[row.status]}>
+                            {statusLabel[row.status]}
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">
+                            Rincian item
+                          </Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {!detailRows.length && (
+                    <tr>
+                      <td
+                        colSpan={23}
+                        className="px-4 py-12 text-center text-muted-foreground"
+                      >
+                        Tidak ada data yang cocok pada sheet ini.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {pagination}
+        </>
+      )}
+    </div>
+  );
+}
