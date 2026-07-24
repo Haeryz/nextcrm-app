@@ -5,17 +5,17 @@ const read = (path: string) =>
   readFileSync(resolve(process.cwd(), path), "utf8");
 
 describe("July 22 Finance and Logistics revision", () => {
-  it("shows priced PO lines and the full PO total in Logistics", () => {
+  it("keeps Monitoring PO focused on quantities without item prices", () => {
     const manager = read(
       "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
     );
     const action = read("actions/mektek/logistics.ts");
 
-    expect(manager).toContain("Harga satuan");
-    expect(manager).toContain("Total harga Purchase Order");
-    expect(manager).toContain("calculateLogisticsPurchaseOrderTotal");
-    expect(action).toContain("requireUnitPrice: true");
-    expect(action).toContain("agreedUnitPrice: line.unitPrice");
+    expect(manager).not.toContain("Harga satuan");
+    expect(manager).not.toContain("Total harga");
+    expect(manager).not.toContain("calculateLogisticsPurchaseOrderTotal");
+    expect(action).not.toContain("requireUnitPrice: true");
+    expect(action.match(/agreedUnitPrice: null/g)).toHaveLength(2);
   });
 
   it("filters Accounting recaps and keeps the existing Payment Faktur filter", () => {

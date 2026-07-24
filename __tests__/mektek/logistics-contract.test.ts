@@ -10,6 +10,12 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
   const outboundManager = readSource(
     "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
   );
+  const outboundPage = readSource(
+    "app/[locale]/(routes)/mektek/logistics/page.tsx",
+  );
+  const outboundSpreadsheetPage = readSource(
+    "app/[locale]/(routes)/mektek/logistics/spreadsheet/page.tsx",
+  );
   const receivingManager = readSource(
     "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
   );
@@ -76,6 +82,25 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
     expect(actionSource).toMatch(
       /catalogItemId,\s+orderedQuantity,\s+unitPrice: agreedUnitPrice,\s+agreedUnitPrice,/,
     );
+  });
+
+  it("keeps Monitoring PO free from item prices", () => {
+    const outboundCreateSource = actionSource.slice(
+      actionSource.indexOf("export async function createMektekOutboundPurchaseOrder"),
+      actionSource.indexOf(
+        "export async function recordMektekOutboundPurchaseOrderDispatch",
+      ),
+    );
+
+    expect(outboundManager).not.toContain("agreedUnitPrice");
+    expect(outboundManager).not.toContain("Harga satuan");
+    expect(outboundManager).not.toContain("Total harga");
+    expect(outboundPage).not.toContain("agreedUnitPrice: item.agreedUnitPrice");
+    expect(outboundSpreadsheetPage).not.toContain(
+      "agreedUnitPrice: item.agreedUnitPrice",
+    );
+    expect(outboundCreateSource).not.toContain("requireUnitPrice");
+    expect(outboundCreateSource.match(/agreedUnitPrice: null/g)).toHaveLength(2);
   });
 
   it("creates and exposes a delivery note for each outbound batch", () => {

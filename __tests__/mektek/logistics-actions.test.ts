@@ -239,7 +239,7 @@ describe("MekTek Logistics and Receiving actions", () => {
         catalogItemId: "catalog-1",
         warehouse: null,
         orderedQuantity: 3,
-        agreedUnitPrice: "150000.00",
+        agreedUnitPrice: null,
       }),
     });
     expect(applyCatalogStockMovement).not.toHaveBeenCalled();
@@ -303,7 +303,7 @@ describe("MekTek Logistics and Receiving actions", () => {
         partName: "Bracket Custom",
         partNumber: "BR-CUSTOM-01",
         orderedQuantity: 2,
-        agreedUnitPrice: "75000.00",
+        agreedUnitPrice: null,
       }),
     });
     expect(applyCatalogStockMovement).not.toHaveBeenCalled();

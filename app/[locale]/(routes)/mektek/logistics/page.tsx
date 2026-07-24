@@ -111,17 +111,24 @@ export default async function MektekLogisticsPage({
       deliveryDate: deliveryDate?.toISOString() ?? null,
       createdAt: createdAt.toISOString(),
       updatedAt: updatedAt.toISOString(),
-      items: items.map(({ createdAt, updatedAt, receipts, ...item }) => ({
-        ...item,
-        agreedUnitPrice: item.agreedUnitPrice?.toString() ?? null,
-        createdAt: createdAt.toISOString(),
-        updatedAt: updatedAt.toISOString(),
-        receipts: receipts.map(({ receivedAt, createdAt, ...receipt }) => ({
-          ...receipt,
-          receivedAt: receivedAt.toISOString(),
+      items: items.map(
+        ({
+          createdAt,
+          updatedAt,
+          receipts,
+          agreedUnitPrice: _agreedUnitPrice,
+          ...item
+        }) => ({
+          ...item,
           createdAt: createdAt.toISOString(),
-        })),
-      })),
+          updatedAt: updatedAt.toISOString(),
+          receipts: receipts.map(({ receivedAt, createdAt, ...receipt }) => ({
+            ...receipt,
+            receivedAt: receivedAt.toISOString(),
+            createdAt: createdAt.toISOString(),
+          })),
+        }),
+      ),
     }),
   );
   return (

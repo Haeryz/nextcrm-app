@@ -100,9 +100,14 @@ export default async function MektekLogisticsSpreadsheetPage({
       createdAt: createdAt.toISOString(),
       updatedAt: updatedAt.toISOString(),
       items: items.map(
-        ({ createdAt, updatedAt, receipts, ...item }) => ({
+        ({
+          createdAt,
+          updatedAt,
+          receipts,
+          agreedUnitPrice: _agreedUnitPrice,
+          ...item
+        }) => ({
           ...item,
-          agreedUnitPrice: item.agreedUnitPrice?.toString() ?? null,
           createdAt: createdAt.toISOString(),
           updatedAt: updatedAt.toISOString(),
           receipts: receipts.map(({ receivedAt, createdAt, ...receipt }) => ({

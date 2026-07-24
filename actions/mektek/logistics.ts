@@ -768,7 +768,6 @@ export async function createMektekOutboundPurchaseOrder(
   if ("error" in header) return { error: header.error };
   const lines = normalizePurchaseOrderLines(input?.items, {
     requireCatalogWarehouse: false,
-    requireUnitPrice: true,
     emptyError: "Minimal satu item wajib diisi",
   });
   if ("error" in lines) return { error: lines.error };
@@ -817,7 +816,7 @@ export async function createMektekOutboundPurchaseOrder(
               partNumber: line.partNumber,
               machine: line.machine,
               orderedQuantity: line.orderedQuantity,
-              agreedUnitPrice: line.unitPrice,
+              agreedUnitPrice: null,
               warehouse: null,
               note: line.note,
             },
@@ -838,7 +837,7 @@ export async function createMektekOutboundPurchaseOrder(
               line.catalogItem.partNumber || line.catalogItem.catalogPartNumber,
             machine: line.catalogItem.machine,
             orderedQuantity: line.orderedQuantity,
-            agreedUnitPrice: line.unitPrice,
+            agreedUnitPrice: null,
             warehouse: null,
             note: line.note,
           },
