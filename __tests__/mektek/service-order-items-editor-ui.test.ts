@@ -30,4 +30,13 @@ describe("Service order items editor UI", () => {
     expect(editorSource).toContain("addMektekTimelineEntry");
     expect(editorSource).toContain("Kirim update ke Timeline");
   });
+
+  it("labels sparepart rows as Sparepart instead of Pekerjaan", () => {
+    expect(editorSource).toMatch(
+      /items=\{sparepartItems\}[\s\S]*itemLabel="Sparepart"/,
+    );
+    expect(editorSource).toMatch(
+      /items=\{sparepartItems\}[\s\S]*minimumItems=\{0\}/,
+    );
+  });
 });

@@ -117,9 +117,12 @@ export default function ServiceOrderItemsEditor({
           items={sparepartItems}
           onChange={setSparepartItems}
           label="Daftar Sparepart"
+          itemLabel="Sparepart"
+          descriptionLabel="Nama sparepart"
           addLabel="Tambah sparepart"
           emptyMessage="Belum ada sparepart."
           descriptionPlaceholder={(index) => `Sparepart ${index + 1}`}
+          minimumItems={0}
           disabled={isPending}
           catalogSearch
         />
