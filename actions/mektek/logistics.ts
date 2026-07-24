@@ -43,6 +43,7 @@ export type LogisticsCatalogItemInput = {
   catalogItemId: string;
   orderedQuantity: string | number;
   unitPrice?: string | number;
+  agreedUnitPrice?: string | number;
   warehouse?: CatalogWarehouse;
   note?: string;
 };
@@ -73,6 +74,7 @@ type LogisticsManualItemInput = {
   warehouse?: CatalogWarehouse;
   orderedQuantity: string | number;
   unitPrice?: string | number;
+  agreedUnitPrice?: string | number;
   note?: string;
 };
 
@@ -96,6 +98,7 @@ type NormalizedPurchaseOrderLine =
       catalogItemId: string;
       orderedQuantity: number;
       unitPrice: string | null;
+      agreedUnitPrice: string | null;
       warehouse: CatalogWarehouse | null;
       note: string | null;
     }
@@ -108,6 +111,7 @@ type NormalizedPurchaseOrderLine =
       machine: string | null;
       orderedQuantity: number;
       unitPrice: string | null;
+      agreedUnitPrice: string | null;
       warehouse: CatalogWarehouse | null;
       note: string | null;
     };
@@ -285,6 +289,7 @@ function normalizePurchaseOrderLines(
     requireManualMachine?: boolean;
     requireManualWarehouse?: boolean;
     requireManualUnitPrice?: boolean;
+    requireUnitPrice?: boolean;
     emptyError: string;
   },
 ) {
@@ -339,8 +344,10 @@ function normalizePurchaseOrderLines(
       if (options.requireManualWarehouse && !isWarehouse(item.warehouse)) {
         return { error: `Gudang tujuan item manual baris ${index + 1} wajib dipilih` } as const;
       }
-      const unitPrice = parsePositiveUnitPrice(item.unitPrice);
-      if (options.requireManualUnitPrice && !unitPrice) {
+      const manualUnitPrice = parsePositiveUnitPrice(
+        item.unitPrice ?? item.agreedUnitPrice,
+      );
+      if (options.requireManualUnitPrice && !manualUnitPrice) {
         return {
           error: `Harga item manual baris ${index + 1} wajib lebih dari Rp 0`,
         } as const;
@@ -358,7 +365,8 @@ function normalizePurchaseOrderLines(
         partNumber,
         machine: machine || null,
         orderedQuantity,
-        unitPrice,
+        unitPrice: manualUnitPrice,
+        agreedUnitPrice: agreedUnitPrice ?? manualUnitPrice,
         warehouse: isWarehouse(item.warehouse) ? item.warehouse : null,
         note,
       });
@@ -381,7 +389,8 @@ function normalizePurchaseOrderLines(
       position: index + 1,
       catalogItemId,
       orderedQuantity,
-      unitPrice: null,
+      unitPrice: agreedUnitPrice,
+      agreedUnitPrice,
       warehouse: isWarehouse(item?.warehouse) ? item.warehouse : null,
       note,
     });
