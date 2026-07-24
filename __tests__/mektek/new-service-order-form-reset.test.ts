@@ -54,7 +54,7 @@ describe("NewServiceOrderForm success reset", () => {
     expect(source).toMatch(/Pendamping 1/);
     expect(source).toMatch(/Pendamping 2/);
     expect(source).toMatch(
-      /technician\.id === selectedId \|\| !unavailableIds\.includes\(technician\.id\)/,
+      /technician\.id === selection\.id \|\| !unavailableIds\.includes\(technician\.id\)/,
     );
   });
 });

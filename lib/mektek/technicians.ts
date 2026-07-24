@@ -38,3 +38,40 @@ export function validateMektekTechnicianIds(values: readonly unknown[]): string[
   }
   return ids;
 }
+
+export type MektekTechnicianSelectionInput = {
+  id?: unknown;
+  name?: unknown;
+};
+
+export type MektekTechnicianSelection = {
+  id: string | null;
+  name: string;
+};
+
+export function normalizeMektekTechnicianSelections(
+  values: readonly MektekTechnicianSelectionInput[],
+): MektekTechnicianSelection[] {
+  const selections = values
+    .map((value) => ({
+      id: String(value?.id ?? "").trim() || null,
+      name: String(value?.name ?? "").trim().slice(0, 100),
+    }))
+    .filter((value) => value.name);
+
+  if (selections.length < 1) {
+    throw new Error("Pilih minimal 1 technician.");
+  }
+  if (selections.length > 3) {
+    throw new Error("Pilih maksimal 3 technician.");
+  }
+
+  const identities = selections.map((selection) =>
+    selection.name.toLocaleLowerCase("id-ID"),
+  );
+  if (new Set(identities).size !== identities.length) {
+    throw new Error("Setiap technician harus berbeda.");
+  }
+
+  return selections;
+}

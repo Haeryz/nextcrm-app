@@ -7,6 +7,22 @@ import {
 } from "@/lib/mektek/items";
 
 describe("normalizeMektekLineItems", () => {
+  it("preserves the selected warehouse for catalogue spareparts", () => {
+    const result = normalizeMektekLineItems({
+      sparepartItems: [
+        {
+          name: "Filter oli",
+          catalogItemId: "filter-1",
+          stockWarehouse: "REAR",
+          quantity: 2,
+          unitPrice: 100000,
+        },
+      ],
+    });
+
+    expect(result.sparepartItems[0].stockWarehouse).toBe("REAR");
+  });
+
   it("keeps new split arrays separate", () => {
     const result = normalizeMektekLineItems({
       serviceItems: [

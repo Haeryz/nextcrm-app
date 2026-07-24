@@ -22,6 +22,8 @@ import {
 } from "@/lib/mektek/items";
 import { buildMektekFinancialSummary } from "@/lib/mektek/financials";
 import { syncServiceOrderBillingSource } from "@/lib/mektek/finance-sync";
+import { syncServiceOrderStock } from "@/lib/mektek/service-order-stock-ledger";
+import { validateServiceOrderStockItems } from "@/lib/mektek/service-order-stock";
 import {
   canCreateMektekOrders,
   canManageMektekPayments,
@@ -42,7 +44,10 @@ import {
   mektekPaymentSelect,
 } from "@/lib/mektek/orders";
 import { buildMektekServiceCustomerUpsert } from "@/lib/mektek/service-customer";
-import { validateMektekTechnicianIds } from "@/lib/mektek/technicians";
+import {
+  normalizeMektekTechnicianSelections,
+  validateMektekTechnicianIds,
+} from "@/lib/mektek/technicians";
 import { parseVehicleMileageKm } from "@/lib/mektek/vehicle-mileage";
 import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/phone";
 import {
@@ -123,6 +128,7 @@ type CreateMektekServiceOrderInput = {
   /** @deprecated Use technicianIds. Retained for older callers during migration. */
   technicianId?: string;
   technicianIds?: string[];
+  technicianAssignments?: Array<{ id?: string; name?: string }>;
   phone?: string;
   address?: string;
   customerType?: "STANDARD" | "B2B";
@@ -279,11 +285,23 @@ export const createMektekServiceOrder = async (
           contactName: enteredCustomerName || null,
         };
   const customerName = companyNames.customerName;
-  let technicianIds: string[];
+  let technicianSelections: ReturnType<
+    typeof normalizeMektekTechnicianSelections
+  >;
   try {
-    technicianIds = validateMektekTechnicianIds(
-      input?.technicianIds ?? (input?.technicianId ? [input.technicianId] : []),
+    const legacyTechnicianIds = validateMektekTechnicianIds(
+      input?.technicianAssignments
+        ? input.technicianAssignments.map(
+            (assignment) => assignment.id || assignment.name,
+          )
+        : input?.technicianIds ??
+            (input?.technicianId ? [input.technicianId] : []),
     );
+    technicianSelections = input?.technicianAssignments
+      ? normalizeMektekTechnicianSelections(input.technicianAssignments)
+      : normalizeMektekTechnicianSelections(
+          legacyTechnicianIds.map((id) => ({ id, name: id })),
+        );
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Technician tidak valid" };
   }
@@ -335,24 +353,30 @@ export const createMektekServiceOrder = async (
   if (!haveRequiredMektekItemPrices(sparepartItems)) {
     return { error: "Estimated Cost wajib diisi untuk setiap sparepart item" };
   }
+  const stockValidationError = validateServiceOrderStockItems(sparepartItems);
+  if (stockValidationError) return { error: stockValidationError };
 
   const locale = normalizeTrackingLocale(input?.locale || session.user.userLanguage);
   const serviceCreatedAt = new Date();
 
   try {
     const creation = await prismadb.$transaction(async (tx) => {
+      const technicianIds = technicianSelections
+        .map((selection) => selection.id)
+        .filter((id): id is string => !!id);
       const technicianRows = await tx.mektekTechnician.findMany({
         where: { id: { in: technicianIds }, isActive: true },
         select: { id: true, name: true, role: true },
       });
       const technicianById = new Map(technicianRows.map((row) => [row.id, row]));
-      const technicians = technicianIds
-        .map((id) => technicianById.get(id))
-        .filter((row): row is NonNullable<typeof row> => !!row);
-
-      if (technicians.length !== technicianIds.length) {
-        throw new Error("INVALID_TECHNICIAN");
-      }
+      const technicians = technicianSelections.map((selection) => {
+        if (!selection.id) {
+          return { id: null, name: selection.name, role: null };
+        }
+        const row = technicianById.get(selection.id);
+        if (!row) throw new Error("INVALID_TECHNICIAN");
+        return row;
+      });
       const technician = technicians[0];
 
       const existingCatalogCustomer = await tx.catalogCustomer.findUnique({
@@ -542,6 +566,15 @@ export const createMektekServiceOrder = async (
         },
       });
 
+      await syncServiceOrderStock(tx, {
+        serviceOrderId: serviceOrder.id,
+        serviceNumber,
+        previousItems: [],
+        nextItems: sparepartItems,
+        createdBy: session.user.id,
+        reason: "Sparepart dialokasikan saat order dibuat",
+      });
+
       await tx.catalogServiceLink.upsert({
         where: {
           customerId_serviceOrderId: {
@@ -629,6 +662,7 @@ export const createMektekServiceOrder = async (
       if (error.message === "LOCKED_VOUCHER") return { error: "Voucher tidak tersedia untuk Customer ini" };
       if (error.message === "VOUCHER_MINIMUM_NOT_MET") return { error: "Minimum pembelian Voucher belum terpenuhi" };
       if (error.message === "INVALID_TECHNICIAN") return { error: "Technician yang dipilih tidak tersedia" };
+      if (error.message.startsWith("Stok ")) return { error: error.message };
     }
     return { error: "Gagal membuat Service Order" };
   }
@@ -870,6 +904,8 @@ export const searchMektekCatalogItems = async (query: string) => {
         description: true,
         partNumber: true,
         price: true,
+        frontStock: true,
+        rearStock: true,
       },
     });
 
@@ -1170,6 +1206,7 @@ export const appendMektekServiceOrderItems = async (input: {
   serviceOrderId: string;
   serviceItems?: MektekLineItemInput[];
   sparepartItems?: MektekLineItemInput[];
+  replaceSparepartItems?: boolean;
 }) => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
@@ -1182,7 +1219,11 @@ export const appendMektekServiceOrderItems = async (input: {
 
   const addedServiceItems = buildMektekStoredItems(input?.serviceItems, "service");
   const addedSparepartItems = buildMektekStoredItems(input?.sparepartItems, "sparepart");
-  if (addedServiceItems.length === 0 && addedSparepartItems.length === 0) {
+  if (
+    addedServiceItems.length === 0 &&
+    addedSparepartItems.length === 0 &&
+    !input?.replaceSparepartItems
+  ) {
     return { error: "Tambahkan minimal satu item servis atau sparepart" };
   }
 
@@ -1195,61 +1236,105 @@ export const appendMektekServiceOrderItems = async (input: {
   if (!haveRequiredMektekItemPrices(addedSparepartItems)) {
     return { error: "Estimated Cost wajib diisi untuk setiap sparepart item" };
   }
+  const stockValidationError = validateServiceOrderStockItems(addedSparepartItems);
+  if (stockValidationError) return { error: stockValidationError };
 
   try {
-    const order = await prismadb.crm_Accounts_Tasks.findFirst({
-      where: { id: serviceOrderId, ...mektekOrderWhere() },
-      select: {
-        id: true,
-        content: true,
-        tags: true,
-        taskStatus: true,
-      },
-    });
-    if (!order) return { error: "Service Order tidak ditemukan" };
-    if (!canEditMektekOrderItems(order.taskStatus)) {
-      return {
-        error:
-          order.taskStatus === "COMPLETE"
-            ? "Order Items dikunci permanen setelah Order ditutup"
-            : "Order Items dikunci selama Payment Review. Ubah kembali ke In Progress terlebih dahulu.",
-      };
-    }
-
-    const tags = parseTagsObject(order.tags);
-    const nextItems = appendMektekLineItems(tags, order.content, {
-      serviceItems: input?.serviceItems,
-      sparepartItems: input?.sparepartItems,
-    });
-    if (nextItems.items.length > 100) {
-      return { error: "Service Order maksimal berisi 100 item" };
-    }
-
-    const describeAddedItems = (label: string, items: MektekLineItem[]) =>
-      items.length
-        ? `${label}: ${items
-            .map((item) => `${item.name} (x${item.quantity})`)
-            .join(", ")}.`
-        : "";
-    const timelineDraft = [
-      describeAddedItems("Jasa ditambahkan", addedServiceItems),
-      describeAddedItems("Sparepart ditambahkan", addedSparepartItems),
-      "Rincian pekerjaan dan total tagihan telah diperbarui.",
-    ]
-      .filter(Boolean)
-      .join(" ");
-
-    await prismadb.crm_Accounts_Tasks.update({
-      where: { id: order.id },
-      data: {
-        tags: {
-          ...tags,
-          serviceItems: nextItems.serviceItems,
-          sparepartItems: nextItems.sparepartItems,
+    const outcome = await prismadb.$transaction(async (tx) => {
+      const order = await tx.crm_Accounts_Tasks.findFirst({
+        where: { id: serviceOrderId, ...mektekOrderWhere() },
+        select: {
+          id: true,
+          serviceNumber: true,
+          content: true,
+          tags: true,
+          taskStatus: true,
         },
-        updatedBy: session.user.id,
-      },
+      });
+      if (!order) return { error: "Service Order tidak ditemukan" };
+      if (!canEditMektekOrderItems(order.taskStatus)) {
+        return {
+          error:
+            order.taskStatus === "COMPLETE" ||
+            order.taskStatus === "CANCELLED"
+              ? "Order Items dikunci permanen setelah Order ditutup atau dibatalkan"
+              : "Order Items dikunci selama Payment Review. Ubah kembali ke In Progress terlebih dahulu.",
+        };
+      }
+
+      const tags = parseTagsObject(order.tags);
+      const previousItems = normalizeMektekLineItems(
+        tags,
+        order.content,
+      ).sparepartItems;
+      const appendedItems = appendMektekLineItems(tags, order.content, {
+        serviceItems: input?.serviceItems,
+        sparepartItems: input?.replaceSparepartItems
+          ? []
+          : input?.sparepartItems,
+      });
+      const nextItems = input?.replaceSparepartItems
+        ? normalizeMektekLineItems(
+            {
+              ...tags,
+              serviceItems: appendedItems.serviceItems,
+              sparepartItems: addedSparepartItems,
+            },
+            order.content,
+          )
+        : appendedItems;
+      if (nextItems.items.length > 100) {
+        return { error: "Service Order maksimal berisi 100 item" };
+      }
+
+      const describeAddedItems = (label: string, items: MektekLineItem[]) =>
+        items.length
+          ? `${label}: ${items
+              .map((item) => `${item.name} (x${item.quantity})`)
+              .join(", ")}.`
+          : "";
+      const timelineDraft = [
+        describeAddedItems("Jasa ditambahkan", addedServiceItems),
+        input?.replaceSparepartItems
+          ? "Daftar sparepart dan alokasi gudang diperbarui."
+          : describeAddedItems("Sparepart ditambahkan", addedSparepartItems),
+        "Rincian pekerjaan dan total tagihan telah diperbarui.",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      await syncServiceOrderStock(tx, {
+        serviceOrderId: order.id,
+        serviceNumber: order.serviceNumber,
+        previousItems,
+        nextItems: nextItems.sparepartItems,
+        createdBy: session.user.id,
+        reason: "Sparepart order diperbarui",
+      });
+      await tx.crm_Accounts_Tasks.update({
+        where: { id: order.id },
+        data: {
+          tags: {
+            ...tags,
+            serviceItems: nextItems.serviceItems,
+            sparepartItems: nextItems.sparepartItems,
+          },
+          updatedBy: session.user.id,
+        },
+      });
+
+      return {
+        data: {
+          addedServiceCount: addedServiceItems.length,
+          addedSparepartCount: addedSparepartItems.length,
+          serviceSubtotal: nextItems.serviceSubtotal,
+          sparepartSubtotal: nextItems.sparepartSubtotal,
+          subtotal: nextItems.subtotal,
+          timelineDraft,
+        },
+      };
     });
+    if ("error" in outcome) return outcome;
 
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
     revalidatePath("/[locale]/(routes)/mektek/customers/[id]", "page");
@@ -1257,37 +1342,53 @@ export const appendMektekServiceOrderItems = async (input: {
     revalidatePath("/[locale]/service-status/[id]", "page");
     revalidatePath("/[locale]/s/[code]", "page");
 
-    return {
-      data: {
-        addedServiceCount: addedServiceItems.length,
-        addedSparepartCount: addedSparepartItems.length,
-        serviceSubtotal: nextItems.serviceSubtotal,
-        sparepartSubtotal: nextItems.sparepartSubtotal,
-        subtotal: nextItems.subtotal,
-        timelineDraft,
-      },
-    };
+    return outcome;
   } catch (error) {
     console.log("[APPEND_MEKTEK_SERVICE_ORDER_ITEMS]", error);
+    if (error instanceof Error && error.message.startsWith("Stok ")) {
+      return { error: error.message };
+    }
     return { error: "Gagal menambahkan Service Order Items" };
   }
 };
 
 export const updateMektekServiceOrderStatus = async (input: {
   serviceOrderId: string;
-  newStatus: "ACTIVE" | "PENDING" | "AWAITING_PAYMENT" | "COMPLETE";
+  newStatus:
+    | "ACTIVE"
+    | "PENDING"
+    | "AWAITING_PAYMENT"
+    | "COMPLETE"
+    | "CANCELLED";
   locale?: string;
 }) => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
-  if (!canUpdateMektekProgress(session.user)) {
-    return { error: "Forbidden: hanya Admin atau Technician MekTek yang dapat mengubah Order Status" };
+  const newStatus = input?.newStatus;
+  const canChangeStatus =
+    newStatus === "CANCELLED"
+      ? canCreateMektekOrders(session.user)
+      : canUpdateMektekProgress(session.user);
+  if (!canChangeStatus) {
+    return {
+      error:
+        newStatus === "CANCELLED"
+          ? "Forbidden: hanya Admin atau CS MekTek yang dapat membatalkan Order"
+          : "Forbidden: hanya Admin atau Technician MekTek yang dapat mengubah Order Status",
+    };
   }
 
   const serviceOrderId = String(input?.serviceOrderId ?? "").trim();
-  const newStatus = input?.newStatus;
   if (!serviceOrderId) return { error: "Service Order ID wajib diisi" };
-  if (!["ACTIVE", "PENDING", "AWAITING_PAYMENT", "COMPLETE"].includes(newStatus)) {
+  if (
+    ![
+      "ACTIVE",
+      "PENDING",
+      "AWAITING_PAYMENT",
+      "COMPLETE",
+      "CANCELLED",
+    ].includes(newStatus)
+  ) {
     return { error: "Status tidak valid" };
   }
   if (newStatus === "COMPLETE" && !canManageMektekPayments(session.user)) {
@@ -1313,10 +1414,66 @@ export const updateMektekServiceOrderStatus = async (input: {
     if (!serviceOrder) return { error: "Service Order tidak ditemukan" };
 
     if (!canTransitionMektekOrderStatus(serviceOrder.taskStatus, newStatus)) {
-      return { error: "Status Done · Closed bersifat final dan tidak dapat dibuka kembali" };
+      return {
+        error:
+          "Order yang ditutup atau dibatalkan bersifat final; pembatalan hanya tersedia saat Pending atau In Progress",
+      };
     }
 
     const tags = parseTagsObject(serviceOrder.tags);
+    if (newStatus === "CANCELLED") {
+      await prismadb.$transaction(async (tx) => {
+        await tx.crm_Accounts_Tasks.update({
+          where: { id: serviceOrder.id },
+          data: { updatedBy: session.user.id },
+        });
+        const current = await tx.crm_Accounts_Tasks.findUniqueOrThrow({
+          where: { id: serviceOrder.id },
+          select: {
+            serviceNumber: true,
+            content: true,
+            tags: true,
+            taskStatus: true,
+          },
+        });
+        if (!canTransitionMektekOrderStatus(current.taskStatus, "CANCELLED")) {
+          throw new Error("INVALID_CANCEL_TRANSITION");
+        }
+        const currentTags = parseTagsObject(current.tags);
+        const previousItems = normalizeMektekLineItems(
+          currentTags,
+          current.content,
+        ).sparepartItems;
+        await syncServiceOrderStock(tx, {
+          serviceOrderId: serviceOrder.id,
+          serviceNumber: current.serviceNumber,
+          previousItems,
+          nextItems: [],
+          createdBy: session.user.id,
+          reason: "Stok dikembalikan karena order dibatalkan",
+        });
+        await tx.crm_Accounts_Tasks.update({
+          where: { id: serviceOrder.id },
+          data: {
+            taskStatus: "CANCELLED",
+            tags: {
+              ...currentTags,
+              stockReleasedAt: new Date().toISOString(),
+            },
+            updatedBy: session.user.id,
+          },
+        });
+      });
+
+      revalidatePath("/[locale]/(routes)/mektek", "page");
+      revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
+      revalidatePath("/[locale]/(routes)/mektek/customers/[id]", "page");
+      revalidatePath("/[locale]/customer/profile", "page");
+      revalidatePath("/[locale]/service-status/[id]", "page");
+      revalidatePath("/[locale]/s/[code]", "page");
+      return { data: { status: newStatus, balanceDue: 0 } };
+    }
+
     const whatsappMeta = parseWhatsappMeta(tags);
     const lastStatus = typeof whatsappMeta.lastStatus === "string" ? whatsappMeta.lastStatus : "";
     const summary = buildMektekFinancialSummary(
@@ -1427,6 +1584,15 @@ export const updateMektekServiceOrderStatus = async (input: {
     return { data: { status: newStatus, balanceDue: summary.balanceDue } };
   } catch (error) {
     console.log("[UPDATE_MEKTEK_SERVICE_ORDER_STATUS]", error);
+    if (
+      error instanceof Error &&
+      error.message === "INVALID_CANCEL_TRANSITION"
+    ) {
+      return {
+        error:
+          "Order hanya dapat dibatalkan saat status Pending atau In Progress",
+      };
+    }
     return { error: "Gagal memperbarui Service Order Status" };
   }
 };

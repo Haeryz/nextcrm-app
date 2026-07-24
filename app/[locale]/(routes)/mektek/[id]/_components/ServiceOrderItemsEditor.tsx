@@ -19,25 +19,24 @@ import DamageItemsInput, {
 
 interface ServiceOrderItemsEditorProps {
   serviceOrderId: string;
+  initialSparepartItems: DamageItem[];
 }
 
 export default function ServiceOrderItemsEditor({
   serviceOrderId,
+  initialSparepartItems,
 }: ServiceOrderItemsEditorProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [serviceItems, setServiceItems] = useState<DamageItem[]>([]);
-  const [sparepartItems, setSparepartItems] = useState<DamageItem[]>([]);
+  const [sparepartItems, setSparepartItems] = useState<DamageItem[]>(
+    initialSparepartItems,
+  );
   const [timelineDraft, setTimelineDraft] = useState("");
 
   const submit = () => {
     const validServiceItems = serviceItems.filter((item) => item.description.trim());
     const validSparepartItems = sparepartItems.filter((item) => item.description.trim());
-    if (validServiceItems.length === 0 && validSparepartItems.length === 0) {
-      toast.error("Tambahkan minimal satu item servis atau sparepart");
-      return;
-    }
-
     if (!haveRequiredMektekItemInputPrices(validServiceItems)) {
       toast.error(
         "Estimasi biaya wajib diisi untuk setiap deskripsi servis",
@@ -49,12 +48,20 @@ export default function ServiceOrderItemsEditor({
       toast.error("Estimasi biaya wajib diisi untuk setiap sparepart");
       return;
     }
+    const sparepartWithoutWarehouse = validSparepartItems.find(
+      (item) => item.catalogItemId && !item.stockWarehouse,
+    );
+    if (sparepartWithoutWarehouse) {
+      toast.error(`Pilih gudang untuk sparepart ${sparepartWithoutWarehouse.description}`);
+      return;
+    }
 
     startTransition(async () => {
       const result = await appendMektekServiceOrderItems({
         serviceOrderId,
         serviceItems: validServiceItems,
         sparepartItems: validSparepartItems,
+        replaceSparepartItems: true,
       });
       if (!result || "error" in result) {
         toast.error(result?.error || "Gagal menambahkan item pesanan");
@@ -62,7 +69,6 @@ export default function ServiceOrderItemsEditor({
       }
 
       setServiceItems([]);
-      setSparepartItems([]);
       setTimelineDraft(result.data.timelineDraft);
       toast.success("Item pesanan dan total pembayaran diperbarui");
       router.refresh();
@@ -90,7 +96,7 @@ export default function ServiceOrderItemsEditor({
     <div className="min-w-0 space-y-5">
       <Separator />
       <div>
-        <p className="text-sm font-semibold">Tambah servis atau sparepart</p>
+        <p className="text-sm font-semibold">Kelola servis dan sparepart</p>
         <p className="mt-1 text-xs text-muted-foreground">
           Harga baru langsung ditambahkan ke invoice dan total pembayaran akhir.
         </p>
@@ -110,9 +116,9 @@ export default function ServiceOrderItemsEditor({
         <DamageItemsInput
           items={sparepartItems}
           onChange={setSparepartItems}
-          label="Sparepart Tambahan"
+          label="Daftar Sparepart"
           addLabel="Tambah sparepart"
-          emptyMessage="Belum ada sparepart tambahan."
+          emptyMessage="Belum ada sparepart."
           descriptionPlaceholder={(index) => `Sparepart ${index + 1}`}
           disabled={isPending}
           catalogSearch
@@ -131,7 +137,7 @@ export default function ServiceOrderItemsEditor({
           ) : (
             <Plus data-icon="inline-start" />
           )}
-          Tambahkan ke pesanan
+          Simpan perubahan
         </Button>
       </div>
 

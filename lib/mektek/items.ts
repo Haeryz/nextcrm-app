@@ -6,6 +6,7 @@ export type MektekLineItemInput = {
   machine?: string;
   partNumber?: string;
   catalogPartNumber?: string;
+  stockWarehouse?: "FRONT" | "REAR";
 };
 
 export type MektekLineItemKind = "service" | "sparepart";
@@ -19,6 +20,7 @@ export type MektekLineItem = {
   machine: string | null;
   partNumber: string | null;
   catalogPartNumber: string | null;
+  stockWarehouse: "FRONT" | "REAR" | null;
   quantity: number;
   unit: "JOB" | "PCS";
   unitPrice: number;
@@ -59,8 +61,12 @@ export const mergeMektekLineItemInputs = <T extends MektekLineItemInput>(
   for (const item of items) {
     const catalogItemId = item.catalogItemId?.trim() ?? "";
     const description = item.description?.trim() ?? "";
+    const stockWarehouse =
+      item.stockWarehouse === "FRONT" || item.stockWarehouse === "REAR"
+        ? item.stockWarehouse
+        : "";
     const identity = catalogItemId
-      ? `catalog:${catalogItemId}`
+      ? `catalog:${catalogItemId}:${stockWarehouse}`
       : description
         ? `manual:${description.toLocaleLowerCase("id-ID")}`
         : "";
@@ -106,6 +112,10 @@ const toLineItem = (
   const quantity = parseQuantity(row.quantity);
   const unitPrice = parseMoney(row.unitPrice ?? row.estimatedCost);
   const total = parseMoney(row.total) || unitPrice * quantity;
+  const stockWarehouse =
+    row.stockWarehouse === "FRONT" || row.stockWarehouse === "REAR"
+      ? row.stockWarehouse
+      : null;
 
   return {
     kind,
@@ -115,6 +125,7 @@ const toLineItem = (
     machine: toStringOrNull(row.machine),
     partNumber: toStringOrNull(row.partNumber),
     catalogPartNumber: toStringOrNull(row.catalogPartNumber),
+    stockWarehouse,
     quantity,
     unit: kind === "service" ? "JOB" : "PCS",
     unitPrice,

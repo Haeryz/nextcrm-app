@@ -335,6 +335,13 @@ export default async function MektekDetailPage({ params }: Props) {
                             <p className="break-words text-xs text-muted-foreground">
                               {item.quantity} x {item.unitPrice.toLocaleString("id-ID")} IDR
                               {item.partNumber ? ` · ${item.partNumber}` : ""}
+                              {item.stockWarehouse
+                                ? ` · ${
+                                    item.stockWarehouse === "FRONT"
+                                      ? "Gudang Depan"
+                                      : "Gudang Belakang"
+                                  }`
+                                : ""}
                             </p>
                           </div>
                         ))
@@ -346,7 +353,23 @@ export default async function MektekDetailPage({ params }: Props) {
                   </div>
                 </div>
                 {canAddOrderItems && (
-                  <ServiceOrderItemsEditor serviceOrderId={order.id} />
+                  <ServiceOrderItemsEditor
+                    serviceOrderId={order.id}
+                    initialSparepartItems={normalizedItems.sparepartItems.map(
+                      (item, index) => ({
+                        clientId: `stored-sparepart-${index}`,
+                        description: item.name,
+                        estimatedCost: String(item.unitPrice),
+                        quantity: item.quantity,
+                        catalogItemId: item.catalogItemId ?? undefined,
+                        machine: item.machine ?? undefined,
+                        partNumber: item.partNumber ?? undefined,
+                        catalogPartNumber:
+                          item.catalogPartNumber ?? undefined,
+                        stockWarehouse: item.stockWarehouse ?? undefined,
+                      }),
+                    )}
+                  />
                 )}
                 {canManageOrderItems && !canAddOrderItems && (
                   <div className="break-words rounded-md border border-dashed p-3 text-xs text-muted-foreground">
@@ -416,7 +439,7 @@ export default async function MektekDetailPage({ params }: Props) {
               <CustomerTrackingLinkCard link={customerTrackingLink} />
             )}
 
-            {canUpdateProgress && (
+            {(canUpdateProgress || canManageOrderItems) && (
               <Card className="border shadow-sm">
                 <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
                   <CardTitle className="text-base">Status</CardTitle>
@@ -428,6 +451,8 @@ export default async function MektekDetailPage({ params }: Props) {
                     currentStatus={order.taskStatus ?? "ACTIVE"}
                     balanceDue={invoiceData.financials.balanceDue}
                     showCloseAction={canManagePayment}
+                    canChangeStatus={canUpdateProgress}
+                    canCancel={canManageOrderItems}
                   />
                 </CardContent>
               </Card>

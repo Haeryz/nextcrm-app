@@ -44,12 +44,23 @@ export function canTransitionMektekOrderStatus(
   currentStatus?: string | null,
   nextStatus?: string | null,
 ) {
-  return currentStatus !== "COMPLETE" || nextStatus === "COMPLETE";
+  if (currentStatus === "COMPLETE" || currentStatus === "CANCELLED") {
+    return nextStatus === currentStatus;
+  }
+  if (nextStatus === "CANCELLED") {
+    return currentStatus === "ACTIVE" || currentStatus === "PENDING";
+  }
+  return true;
 }
 
 export function isMektekPaymentAvailable(input: LifecycleInput) {
   if (!Number.isFinite(input.balanceDue) || input.balanceDue <= 0) return false;
-  if (input.taskStatus === "COMPLETE") return false;
+  if (
+    input.taskStatus === "COMPLETE" ||
+    input.taskStatus === "CANCELLED"
+  ) {
+    return false;
+  }
 
   return (
     input.taskStatus === "AWAITING_PAYMENT" ||

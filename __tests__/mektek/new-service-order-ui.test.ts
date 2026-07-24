@@ -45,10 +45,14 @@ describe("New service order form UI", () => {
     expect(formSource).toContain("Buat Order Servis");
   });
 
-  it("makes mileage and fleet number optional and supports company representatives", () => {
-    expect(formSource).toContain("Nama perusahaan");
-    expect(formSource).toContain("Nama PIC / utusan");
-    expect(formSource).toContain("Terdeteksi otomatis dari kata PT/CV");
+  it("keeps customer intake limited to the original customer fields", () => {
+    expect(formSource).toContain("Nama pelanggan");
+    expect(formSource).toContain("Nomor telepon");
+    expect(formSource).toContain("Jenis pelanggan");
+    expect(formSource).toContain("Alamat");
+    expect(formSource).not.toContain("Nama PIC / utusan");
+    expect(formSource).not.toContain('htmlFor="company-name"');
+    expect(formSource).toContain("setCustomerType(customer.customerType)");
     expect(formSource).toMatch(/htmlFor="vehicle-mileage"[\s\S]*\(opsional\)/);
     expect(formSource).toMatch(/htmlFor="vehicle-fleet-number"[\s\S]*\(opsional\)/);
   });
@@ -63,10 +67,13 @@ describe("New service order form UI", () => {
     expect(formSource).toContain("Ketik nama teknisi");
   });
 
-  it("clears stale technician selections after invalid typed input", () => {
-    expect(formSource).toMatch(
-      /onBlur=\{\(\) => \{[\s\S]*setQuery\(""\);[\s\S]*onSelect\(UNASSIGNED_TECHNICIAN\)/,
+  it("preserves manually typed technicians while still offering registered options", () => {
+    expect(formSource).toContain("<datalist");
+    expect(formSource).toContain(
+      '<option key={technician.id} value={technician.name} />',
     );
+    expect(formSource).toContain("technicianAssignments:");
+    expect(formSource).toContain("name: selection.name.trim()");
     expect(formSource).not.toMatch(
       /<TechnicianSearchInput[\s\S]*<Select\s+value=\{technicianIds\[slot\]\}/,
     );

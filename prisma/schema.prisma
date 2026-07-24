@@ -11,6 +11,7 @@ enum taskStatus {
   PENDING
   AWAITING_PAYMENT
   COMPLETE
+  CANCELLED
 }
 
 enum ActiveStatus {
@@ -73,6 +74,7 @@ enum CatalogStockMovementSource {
   MANUAL
   RECEIVING
   OUTBOUND_PO
+  SERVICE_ORDER
 }
 
 enum LogisticsPurchaseOrderFlow {

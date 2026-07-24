@@ -20,6 +20,9 @@ export type DamageItem = {
   machine?: string;
   partNumber?: string;
   catalogPartNumber?: string;
+  stockWarehouse?: "FRONT" | "REAR";
+  frontStock?: number;
+  rearStock?: number;
 };
 
 interface DamageItemsInputProps {
@@ -43,6 +46,8 @@ type CatalogSearchItem = {
   description: string;
   partNumber: string | null;
   price: number | null;
+  frontStock: number;
+  rearStock: number;
 };
 
 let nextDamageItemId = 0;
@@ -135,6 +140,12 @@ export default function DamageItemsInput({
                 machine: catalogItem.machine,
                 partNumber: catalogItem.partNumber ?? "",
                 catalogPartNumber: "",
+                stockWarehouse:
+                  catalogItem.frontStock > 0 || catalogItem.rearStock <= 0
+                    ? "FRONT"
+                    : "REAR",
+                frontStock: catalogItem.frontStock,
+                rearStock: catalogItem.rearStock,
                 description: catalogItem.description,
                 quantity: Math.max(1, Number(item.quantity) || 1),
                 estimatedCost:
@@ -258,9 +269,48 @@ export default function DamageItemsInput({
                 </div>
 
                 {item.catalogItemId && (
-                  <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                    <span>{item.machine}</span>
-                    <span>{item.partNumber || "Tanpa nomor komponen"}</span>
+                  <div className="mb-3 space-y-3 rounded-md bg-muted/40 px-3 py-2">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      <span>{item.machine}</span>
+                      <span>{item.partNumber || "Tanpa nomor komponen"}</span>
+                      {typeof item.frontStock === "number" && (
+                        <span>Gudang Depan: {item.frontStock} PCS</span>
+                      )}
+                      {typeof item.rearStock === "number" && (
+                        <span>Gudang Belakang: {item.rearStock} PCS</span>
+                      )}
+                    </div>
+                    <div className="max-w-xs space-y-1.5">
+                      <Label htmlFor={`${instanceId}-warehouse-${index}`}>
+                        Ambil stok dari
+                      </Label>
+                      <select
+                        id={`${instanceId}-warehouse-${index}`}
+                        value={item.stockWarehouse ?? ""}
+                        onChange={(event) =>
+                          updateItem(index, "stockWarehouse", event.target.value)
+                        }
+                        disabled={disabled}
+                        required
+                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="" disabled>
+                          Pilih gudang
+                        </option>
+                        <option value="FRONT">
+                          Gudang Depan
+                          {typeof item.frontStock === "number"
+                            ? ` · ${item.frontStock} PCS`
+                            : ""}
+                        </option>
+                        <option value="REAR">
+                          Gudang Belakang
+                          {typeof item.rearStock === "number"
+                            ? ` · ${item.rearStock} PCS`
+                            : ""}
+                        </option>
+                      </select>
+                    </div>
                   </div>
                 )}
 
@@ -315,6 +365,10 @@ export default function DamageItemsInput({
                                     {catalogItem.machine} ·{" "}
                                     {catalogItem.partNumber ||
                                       "Tanpa nomor komponen"}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    Depan {catalogItem.frontStock} PCS · Belakang{" "}
+                                    {catalogItem.rearStock} PCS
                                   </span>
                                 </button>
                               ))}

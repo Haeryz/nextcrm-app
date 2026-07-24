@@ -148,6 +148,7 @@ describe("MekTek order lifecycle", () => {
     expect(canEditMektekOrderItems("PENDING")).toBe(true);
     expect(canEditMektekOrderItems("AWAITING_PAYMENT")).toBe(false);
     expect(canEditMektekOrderItems("COMPLETE")).toBe(false);
+    expect(canEditMektekOrderItems("CANCELLED")).toBe(false);
   });
 
   it("treats the closed state as final", () => {
@@ -155,5 +156,12 @@ describe("MekTek order lifecycle", () => {
     expect(canTransitionMektekOrderStatus("COMPLETE", "AWAITING_PAYMENT")).toBe(false);
     expect(canTransitionMektekOrderStatus("COMPLETE", "COMPLETE")).toBe(true);
     expect(canTransitionMektekOrderStatus("AWAITING_PAYMENT", "ACTIVE")).toBe(true);
+    expect(canTransitionMektekOrderStatus("ACTIVE", "CANCELLED")).toBe(true);
+    expect(canTransitionMektekOrderStatus("PENDING", "CANCELLED")).toBe(true);
+    expect(canTransitionMektekOrderStatus("AWAITING_PAYMENT", "CANCELLED")).toBe(
+      false,
+    );
+    expect(canTransitionMektekOrderStatus("CANCELLED", "ACTIVE")).toBe(false);
+    expect(canTransitionMektekOrderStatus("CANCELLED", "CANCELLED")).toBe(true);
   });
 });

@@ -136,6 +136,7 @@ export const createMektekCatalogPurchaseIntent = async (
         machine: item.machine ?? null,
         partNumber: item.partNumber ?? null,
         catalogPartNumber: item.catalogPartNumber ?? null,
+        stockWarehouse: null,
         quantity,
         unit: "PCS",
         unitPrice: price,

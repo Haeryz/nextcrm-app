@@ -41,7 +41,6 @@ import {
   parseMoney,
 } from "@/lib/mektek/items";
 import { getMektekTodayDateInput } from "@/lib/mektek/schedule";
-import { MEKTEK_TECHNICIAN_ROLE_LABELS } from "@/lib/mektek/technicians";
 import { MAX_VEHICLE_MILEAGE_KM } from "@/lib/mektek/vehicle-mileage";
 import { inferMektekCustomerType } from "@/lib/mektek/customer-type";
 import {
@@ -54,8 +53,12 @@ import {
 } from "@/components/ui/select";
 import DamageItemsInput, { DamageItem } from "./DamageItemsInput";
 
-const UNASSIGNED_TECHNICIAN = "UNASSIGNED";
 const NEW_CUSTOMER_VEHICLE = "NEW_CUSTOMER_VEHICLE";
+
+type TechnicianSelection = {
+  id: string | null;
+  name: string;
+};
 
 type NewServiceOrderFormProps = {
   locale: string;
@@ -105,25 +108,22 @@ function OrderFormSection({
 
 function TechnicianSearchInput({
   id,
-  selectedId,
+  selection,
   technicians,
   unavailableIds,
   disabled,
-  onSelect,
+  onChange,
 }: {
   id: string;
-  selectedId: string;
+  selection: TechnicianSelection;
   technicians: MektekTechnicianOption[];
   unavailableIds: string[];
   disabled: boolean;
-  onSelect: (id: string) => void;
+  onChange: (selection: TechnicianSelection) => void;
 }) {
-  const selectedTechnician = technicians.find((item) => item.id === selectedId);
-  const [query, setQuery] = useState(selectedTechnician?.name ?? "");
-
   const availableTechnicians = technicians.filter(
     (technician) =>
-      technician.id === selectedId || !unavailableIds.includes(technician.id),
+      technician.id === selection.id || !unavailableIds.includes(technician.id),
   );
 
   return (
@@ -134,40 +134,38 @@ function TechnicianSearchInput({
         role="combobox"
         aria-autocomplete="list"
         placeholder="Ketik nama teknisi"
-        value={query}
+        value={selection.name}
         disabled={disabled}
         autoComplete="off"
         onChange={(event) => {
           const nextQuery = event.target.value;
-          setQuery(nextQuery);
           const match = availableTechnicians.find(
             (item) =>
               item.name.toLocaleLowerCase("id-ID") ===
               nextQuery.trim().toLocaleLowerCase("id-ID"),
           );
-          if (match) onSelect(match.id);
-          else if (!nextQuery.trim()) onSelect(UNASSIGNED_TECHNICIAN);
+          onChange(
+            match
+              ? { id: match.id, name: match.name }
+              : { id: null, name: nextQuery },
+          );
         }}
         onBlur={() => {
           const exactMatch = availableTechnicians.find(
             (item) =>
               item.name.toLocaleLowerCase("id-ID") ===
-              query.trim().toLocaleLowerCase("id-ID"),
+              selection.name.trim().toLocaleLowerCase("id-ID"),
           );
           if (exactMatch) {
-            onSelect(exactMatch.id);
-            setQuery(exactMatch.name);
+            onChange({ id: exactMatch.id, name: exactMatch.name });
             return;
           }
-          setQuery("");
-          onSelect(UNASSIGNED_TECHNICIAN);
+          onChange({ id: null, name: selection.name.trim() });
         }}
       />
       <datalist id={`${id}-options`}>
         {availableTechnicians.map((technician) => (
-          <option key={technician.id} value={technician.name}>
-            {MEKTEK_TECHNICIAN_ROLE_LABELS[technician.role]}
-          </option>
+          <option key={technician.id} value={technician.name} />
         ))}
       </datalist>
     </>
@@ -186,15 +184,16 @@ export default function NewServiceOrderForm({
   const [successBurstKey, setSuccessBurstKey] = useState(0);
   const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const [customerName, setCustomerName] = useState("");
-  const [companyName, setCompanyName] = useState("");
   const [vehicle, setVehicle] = useState("");
   const [vehiclePlateNumber, setVehiclePlateNumber] = useState("");
   const [vehicleFleetNumber, setVehicleFleetNumber] = useState("");
   const [vehicleMileageKm, setVehicleMileageKm] = useState("");
-  const [technicianIds, setTechnicianIds] = useState<string[]>([
-    UNASSIGNED_TECHNICIAN,
-    UNASSIGNED_TECHNICIAN,
-    UNASSIGNED_TECHNICIAN,
+  const [technicianSelections, setTechnicianSelections] = useState<
+    TechnicianSelection[]
+  >([
+    { id: null, name: "" },
+    { id: null, name: "" },
+    { id: null, name: "" },
   ]);
   const [serviceItems, setServiceItems] = useState<DamageItem[]>([
     {
@@ -294,14 +293,17 @@ export default function NewServiceOrderForm({
       return;
     }
 
-    const selectedTechnicianIds = technicianIds.filter(
-      (id) => id !== UNASSIGNED_TECHNICIAN,
+    const selectedTechnicians = technicianSelections.filter(
+      (selection) => selection.name.trim(),
     );
-    if (selectedTechnicianIds.length < 1) {
+    if (selectedTechnicians.length < 1) {
       toast.error("Pilih minimal 1 technician");
       return;
     }
-    if (new Set(selectedTechnicianIds).size !== selectedTechnicianIds.length) {
+    const technicianIdentities = selectedTechnicians.map((selection) =>
+      selection.name.trim().toLocaleLowerCase("id-ID"),
+    );
+    if (new Set(technicianIdentities).size !== technicianIdentities.length) {
       toast.error("Setiap technician harus berbeda");
       return;
     }
@@ -322,15 +324,16 @@ export default function NewServiceOrderForm({
 
       const result = await createMektekServiceOrder({
         locale,
-        customerName: customerType === "B2B" ? companyName : customerName,
-        companyName: customerType === "B2B" ? companyName : undefined,
-        contactName: customerType === "B2B" ? customerName : undefined,
+        customerName,
         vehicle,
         vehiclePlateNumber,
         vehicleFleetNumber,
         vehicleMileageKm,
         complaint: complaint || "-",
-        technicianIds: selectedTechnicianIds,
+        technicianAssignments: selectedTechnicians.map((selection) => ({
+          id: selection.id ?? undefined,
+          name: selection.name.trim(),
+        })),
         phone,
         customerType,
         address,
@@ -376,15 +379,14 @@ export default function NewServiceOrderForm({
       selectedCustomerSearchRef.current = "";
       setCustomerSearchQuery("");
       setCustomerName("");
-      setCompanyName("");
       setVehicle("");
       setVehiclePlateNumber("");
       setVehicleFleetNumber("");
       setVehicleMileageKm("");
-      setTechnicianIds([
-        UNASSIGNED_TECHNICIAN,
-        UNASSIGNED_TECHNICIAN,
-        UNASSIGNED_TECHNICIAN,
+      setTechnicianSelections([
+        { id: null, name: "" },
+        { id: null, name: "" },
+        { id: null, name: "" },
       ]);
       setServiceItems([
         {
@@ -424,8 +426,7 @@ export default function NewServiceOrderForm({
     const preferredVehicle = matchedVehicle ?? customer.vehicles[0];
     selectedCustomerSearchRef.current = customer.name;
     setCustomerSearchQuery(customer.name);
-    setCustomerName(customer.customerType === "B2B" ? "" : customer.name);
-    setCompanyName(customer.customerType === "B2B" ? customer.name : "");
+    setCustomerName(customer.name);
     setPhone(customer.phone);
     setCustomerType(customer.customerType);
     setCustomerVehicles(customer.vehicles);
@@ -471,8 +472,8 @@ export default function NewServiceOrderForm({
     toast.success("Link tracking pelanggan disalin");
   };
 
-  const selectedTechnicianCount = technicianIds.filter(
-    (id) => id !== UNASSIGNED_TECHNICIAN,
+  const selectedTechnicianCount = technicianSelections.filter(
+    (selection) => selection.name.trim(),
   ).length;
   const serviceEstimatedCost = serviceItems.reduce(
     (total, item) =>
@@ -617,53 +618,24 @@ export default function NewServiceOrderForm({
           </div>
             <div className="space-y-1.5">
               <Label htmlFor="customer-name">
-                {customerType === "B2B" ? "Nama PIC / utusan" : "Nama pelanggan"}{" "}
-                {customerType === "B2B" ? (
-                  <span className="font-normal text-muted-foreground">(opsional)</span>
-                ) : (
-                  <span className="text-destructive">*</span>
-                )}
+                Nama pelanggan <span className="text-destructive">*</span>
               </Label>
               <Input
                 id="customer-name"
-                placeholder="Contoh: Budi Santoso"
+                placeholder="Contoh: Budi Santoso atau PT Maju Jaya"
                 value={customerName}
                 onChange={(event) => {
                   const nextName = event.target.value;
-                  if (
-                    customerType === "STANDARD" &&
-                    inferMektekCustomerType(nextName) === "B2B"
-                  ) {
-                    setCompanyName(nextName);
-                    setCustomerName("");
-                    setCustomerType("B2B");
-                    return;
-                  }
                   setCustomerName(nextName);
+                  setCustomerType(
+                    inferMektekCustomerType(nextName, "STANDARD"),
+                  );
                 }}
                 disabled={isPending}
                 autoComplete="name"
-                required={customerType === "STANDARD"}
+                required
               />
             </div>
-            {customerType === "B2B" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="company-name">
-                  Nama perusahaan <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id="company-name"
-                  placeholder="Contoh: PT Maju Jaya atau CV Sumber Makmur"
-                  value={companyName}
-                  onChange={(event) => setCompanyName(event.target.value)}
-                  disabled={isPending}
-                  required
-                />
-                <p className="text-xs text-muted-foreground">
-                  Terdeteksi otomatis dari kata PT/CV, tetapi tetap dapat dipilih manual.
-                </p>
-              </div>
-            )}
             <div className="space-y-1.5">
               <Label htmlFor="customer-phone">
                 Nomor telepon <span className="text-destructive">*</span>
@@ -681,32 +653,20 @@ export default function NewServiceOrderForm({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="customer-type">Jenis pelanggan</Label>
-              <Select
-                value={customerType}
-                onValueChange={(nextValue) => {
-                  const nextCustomerType =
-                    nextValue === "B2B" ? "B2B" : "STANDARD";
-                  setCustomerType(nextCustomerType);
-                  if (nextCustomerType === "STANDARD") {
-                    setVehicleFleetNumber("");
-                    setCompanyName("");
-                  } else if (
-                    inferMektekCustomerType(customerName) === "B2B"
-                  ) {
-                    setCompanyName(customerName);
-                    setCustomerName("");
-                  }
-                }}
-                disabled={isPending}
-              >
-                <SelectTrigger id="customer-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="STANDARD">Pelanggan standar</SelectItem>
-                  <SelectItem value="B2B">Perusahaan</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                id="customer-type"
+                value={
+                  customerType === "B2B"
+                    ? "Perusahaan"
+                    : "Pelanggan standar"
+                }
+                readOnly
+                aria-readonly="true"
+              />
+              <p className="text-xs text-muted-foreground">
+                Terdeteksi otomatis dari data pelanggan yang dipilih atau nama
+                pelanggan baru.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="customer-address">
@@ -891,16 +851,19 @@ export default function NewServiceOrderForm({
                       )}
                     </Label>
                     <TechnicianSearchInput
-                      key={`${slot}-${technicianIds[slot]}`}
                       id={`technician-search-${slot}`}
-                      selectedId={technicianIds[slot]}
+                      selection={technicianSelections[slot]}
                       technicians={technicians}
-                      unavailableIds={technicianIds.filter(
-                        (_selectedId, selectedSlot) => selectedSlot !== slot,
-                      )}
+                      unavailableIds={technicianSelections
+                        .filter(
+                          (_selection, selectedSlot) =>
+                            selectedSlot !== slot,
+                        )
+                        .map((selection) => selection.id)
+                        .filter((id): id is string => !!id)}
                       disabled={isPending}
-                      onSelect={(value) =>
-                        setTechnicianIds((current) =>
+                      onChange={(value) =>
+                        setTechnicianSelections((current) =>
                           current.map((item, index) =>
                             index === slot ? value : item,
                           ),
@@ -911,7 +874,7 @@ export default function NewServiceOrderForm({
                 ),
               )}
             </div>
-          </fieldset>
+            </fieldset>
           </div>
         </OrderFormSection>
 
@@ -925,35 +888,35 @@ export default function NewServiceOrderForm({
           icon={ClipboardList}
         >
           <div className="space-y-6">
-          <DamageItemsInput
-            items={serviceItems}
-            onChange={setServiceItems}
-            label="Pekerjaan Servis"
-            helperText="Tambahkan satu baris untuk setiap keluhan atau pekerjaan yang akan dilakukan."
-            itemLabel="Pekerjaan"
-            descriptionLabel="Keluhan / pekerjaan"
-            addLabel="Tambah pekerjaan"
-            disabled={isPending}
-          />
+            <DamageItemsInput
+              items={serviceItems}
+              onChange={setServiceItems}
+              label="Pekerjaan Servis"
+              helperText="Tambahkan satu baris untuk setiap keluhan atau pekerjaan yang akan dilakukan."
+              itemLabel="Pekerjaan"
+              descriptionLabel="Keluhan / pekerjaan"
+              addLabel="Tambah pekerjaan"
+              disabled={isPending}
+            />
 
-          <Separator />
+            <Separator />
 
-          <DamageItemsInput
-            items={sparepartItems}
-            onChange={setSparepartItems}
-            label="Sparepart"
-            helperText="Opsional. Cari dari katalog atau masukkan sparepart manual jika diperlukan."
-            itemLabel="Sparepart"
-            descriptionLabel="Nama sparepart"
-            addLabel="Tambah sparepart"
-            emptyMessage="Belum ada sparepart"
-            descriptionPlaceholder={(index) =>
-              `Sparepart #${index + 1} (contoh: filter oli)`
-            }
-            minimumItems={0}
-            catalogSearch
-            disabled={isPending}
-          />
+            <DamageItemsInput
+              items={sparepartItems}
+              onChange={setSparepartItems}
+              label="Sparepart"
+              helperText="Opsional. Cari dari katalog atau masukkan sparepart manual jika diperlukan."
+              itemLabel="Sparepart"
+              descriptionLabel="Nama sparepart"
+              addLabel="Tambah sparepart"
+              emptyMessage="Belum ada sparepart"
+              descriptionPlaceholder={(index) =>
+                `Sparepart #${index + 1} (contoh: filter oli)`
+              }
+              minimumItems={0}
+              catalogSearch
+              disabled={isPending}
+            />
 
             <div className="space-y-1.5">
               <Label htmlFor="voucher-code">
