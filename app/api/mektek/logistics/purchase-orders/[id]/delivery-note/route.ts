@@ -1,4 +1,5 @@
-import type { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
+import { NextResponse, type NextRequest } from "next/server";
 
 import { renderMektekDeliveryNotePdf } from "@/actions/mektek/logistics-delivery-note-pdf";
 import { requireMektekLogisticsApiSession } from "@/lib/mektek/logistics-api";
@@ -7,6 +8,34 @@ import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+export async function POST(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const access = await requireMektekLogisticsApiSession("RECEIVING");
+  if (access.response) return access.response;
+
+  const { id } = await params;
+  const updated = await prismadb.logisticsPurchaseOrder.updateMany({
+    where: { id, flow: "RECEIVING" },
+    data: { receivingDeliveryNoteSource: "MEKTEK" },
+  });
+  if (updated.count === 0) {
+    return NextResponse.json(
+      { error: "Purchase Order Receiving tidak ditemukan" },
+      { status: 404 },
+    );
+  }
+
+  revalidatePath("/[locale]/(routes)/mektek/receiving", "page");
+  return NextResponse.json({
+    data: {
+      source: "MEKTEK",
+      pdfPath: `/api/mektek/logistics/purchase-orders/${encodeURIComponent(id)}/delivery-note?flow=receiving`,
+    },
+  });
+}
 
 export async function GET(
   request: NextRequest,

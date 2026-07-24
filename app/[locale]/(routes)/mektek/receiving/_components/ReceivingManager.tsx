@@ -6,12 +6,14 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
+  Eye,
   Loader2,
   MessageCircle,
   PackageCheck,
   Plus,
   Printer,
   ReceiptText,
+  RefreshCw,
   Trash2,
   Upload,
   UsersRound,
@@ -55,6 +57,7 @@ import {
   getLogisticsItemProgress,
   getLogisticsStatusLabel,
 } from "@/lib/mektek/logistics";
+import { cn } from "@/lib/utils";
 
 type LogisticsReceiptRow = {
   id: string;
@@ -103,6 +106,10 @@ type LogisticsPurchaseOrderRow = {
   hasDeliveryNoteImage: boolean;
   deliveryNoteImageMimeType: string | null;
   deliveryNoteImageUpdatedAt: string | null;
+  hasSupplierInvoiceImage: boolean;
+  supplierInvoiceImageMimeType: string | null;
+  supplierInvoiceImageUpdatedAt: string | null;
+  receivingDeliveryNoteSource: "SUPPLIER" | "MEKTEK" | null;
   notes: string | null;
   createdBy: string | null;
   createdAt: string;
@@ -284,6 +291,26 @@ async function uploadSupplierDeliveryNoteImage(
   }
 }
 
+async function uploadSupplierInvoiceImage(
+  purchaseOrderId: string,
+  file: File,
+) {
+  const response = await fetch(
+    `/api/mektek/logistics/purchase-orders/${encodeURIComponent(purchaseOrderId)}/supplier-invoice-image`,
+    {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": file.type },
+    },
+  );
+  const payload = (await response.json().catch(() => null)) as
+    | { error?: string }
+    | null;
+  if (!response.ok) {
+    throw new Error(payload?.error || "Gagal mengunggah Faktur supplier");
+  }
+}
+
 export default function ReceivingManager({
   pics,
   catalogItems,
@@ -296,9 +323,16 @@ export default function ReceivingManager({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const nextItemId = useRef(2);
+  const supplierInvoiceInputRef = useRef<HTMLInputElement>(null);
+  const deliveryNoteInputRef = useRef<HTMLInputElement>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [deliveryNoteFile, setDeliveryNoteFile] = useState<File | null>(null);
   const [isUploadingDeliveryNote, startUploadingDeliveryNote] = useTransition();
+  const [isUploadingSupplierInvoice, startUploadingSupplierInvoice] =
+    useTransition();
+  const [isCreatingMektekDeliveryNote, startCreatingMektekDeliveryNote] =
+    useTransition();
+  const [isSelectingDeliveryNoteSource, startSelectingDeliveryNoteSource] =
+    useTransition();
   const [createValue, setCreateValue] = useState<PurchaseOrderDraft>(() =>
     blankPurchaseOrder(),
   );
@@ -460,7 +494,6 @@ export default function ReceivingManager({
 
   const openReceipt = (purchaseOrder: LogisticsPurchaseOrderRow) => {
     setActiveReceiptPurchaseOrder(purchaseOrder);
-    setDeliveryNoteFile(null);
     setReceiptDraft({
       picId: pics[0]?.id ?? "",
       receivedAt: getCatalogInventoryLocalDateKey(),
@@ -482,24 +515,21 @@ export default function ReceivingManager({
     setReceiptItemPhotos({});
   };
 
-  const submitSupplierDeliveryNote = () => {
-    if (!activeReceiptPurchaseOrder || !deliveryNoteFile) {
-      toast.error("Gambar Surat Jalan dari supplier wajib dipilih");
-      return;
-    }
+  const selectSupplierDeliveryNote = (file: File | null) => {
+    if (!activeReceiptPurchaseOrder || !file) return;
     startUploadingDeliveryNote(async () => {
       try {
         await uploadSupplierDeliveryNoteImage(
           activeReceiptPurchaseOrder.id,
-          deliveryNoteFile,
+          file,
         );
         toast.success("Surat Jalan supplier berhasil diunggah");
-        setDeliveryNoteFile(null);
         setActiveReceiptPurchaseOrder({
           ...activeReceiptPurchaseOrder,
           hasDeliveryNoteImage: true,
-          deliveryNoteImageMimeType: deliveryNoteFile.type,
+          deliveryNoteImageMimeType: file.type,
           deliveryNoteImageUpdatedAt: new Date().toISOString(),
+          receivingDeliveryNoteSource: "SUPPLIER",
         });
         router.refresh();
       } catch (error) {
@@ -507,6 +537,104 @@ export default function ReceivingManager({
           error instanceof Error
             ? error.message
             : "Gagal mengunggah Surat Jalan supplier",
+        );
+      }
+    });
+  };
+
+  const selectSupplierInvoice = (file: File | null) => {
+    if (!activeReceiptPurchaseOrder || !file) return;
+    startUploadingSupplierInvoice(async () => {
+      try {
+        await uploadSupplierInvoiceImage(activeReceiptPurchaseOrder.id, file);
+        toast.success("Faktur supplier berhasil diunggah");
+        setActiveReceiptPurchaseOrder({
+          ...activeReceiptPurchaseOrder,
+          hasSupplierInvoiceImage: true,
+          supplierInvoiceImageMimeType: file.type,
+          supplierInvoiceImageUpdatedAt: new Date().toISOString(),
+        });
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Gagal mengunggah Faktur supplier",
+        );
+      }
+    });
+  };
+
+  const createMektekDeliveryNote = () => {
+    if (!activeReceiptPurchaseOrder) return;
+    const previewWindow = window.open("about:blank", "_blank");
+    if (previewWindow) previewWindow.opener = null;
+
+    startCreatingMektekDeliveryNote(async () => {
+      try {
+        const response = await fetch(
+          `/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note?flow=receiving`,
+          { method: "POST" },
+        );
+        const payload = (await response.json().catch(() => null)) as
+          | { data?: { pdfPath?: string }; error?: string }
+          | null;
+        if (!response.ok) {
+          throw new Error(payload?.error || "Gagal membuat Surat Jalan Mektek");
+        }
+
+        const pdfPath =
+          payload?.data?.pdfPath ||
+          `/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note?flow=receiving`;
+        setActiveReceiptPurchaseOrder({
+          ...activeReceiptPurchaseOrder,
+          receivingDeliveryNoteSource: "MEKTEK",
+        });
+        toast.success("Surat Jalan Mektek berhasil dibuat");
+        if (previewWindow) {
+          previewWindow.location.href = pdfPath;
+        } else {
+          window.open(pdfPath, "_blank", "noopener,noreferrer");
+        }
+        router.refresh();
+      } catch (error) {
+        previewWindow?.close();
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Gagal membuat Surat Jalan Mektek",
+        );
+      }
+    });
+  };
+
+  const selectExistingSupplierDeliveryNote = () => {
+    if (!activeReceiptPurchaseOrder) return;
+    startSelectingDeliveryNoteSource(async () => {
+      try {
+        const response = await fetch(
+          `/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note-image`,
+          { method: "PATCH" },
+        );
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        if (!response.ok) {
+          throw new Error(
+            payload?.error || "Gagal memilih Surat Jalan supplier",
+          );
+        }
+        setActiveReceiptPurchaseOrder({
+          ...activeReceiptPurchaseOrder,
+          receivingDeliveryNoteSource: "SUPPLIER",
+        });
+        toast.success("Surat Jalan supplier dipilih sebagai dokumen aktif");
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Gagal memilih Surat Jalan supplier",
         );
       }
     });
@@ -1586,77 +1714,299 @@ export default function ReceivingManager({
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base">Dokumen Receiving</CardTitle>
                   <p className="text-sm text-muted-foreground">
-                    Unggah Surat Jalan dari supplier. Jika supplier tidak
-                    memberikannya, buat Surat Jalan Mektek.
+                    Faktur dan Surat Jalan supplier hanya diunggah dari dokumen
+                    yang diberikan supplier. Mektek hanya membuat PDF Purchase
+                    Order dan Surat Jalan Mektek.
                   </p>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    <Button asChild type="button" variant="outline">
-                      <Link
-                        href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/pdf`}
-                        target="_blank"
-                      >
-                        <Printer data-icon="inline-start" />
-                        PDF Purchase Order
-                      </Link>
-                    </Button>
-                    <Button asChild type="button" variant="outline">
-                      <Link
-                        href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note?flow=receiving`}
-                        target="_blank"
-                      >
-                        <ReceiptText data-icon="inline-start" />
-                        Buat Surat Jalan Mektek
-                      </Link>
-                    </Button>
-                    {activeReceiptPurchaseOrder.hasDeliveryNoteImage && (
-                      <Button asChild type="button" variant="ghost">
+                <CardContent className="space-y-5">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <section className="space-y-3 rounded-lg border p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-medium">PDF Purchase Order</h4>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Dokumen resmi yang dibuat oleh Mektek.
+                          </p>
+                        </div>
+                        <Badge variant="secondary">Tersedia</Badge>
+                      </div>
+                      <Button asChild type="button" variant="outline" size="sm">
                         <Link
-                          href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note-image`}
+                          href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/pdf`}
                           target="_blank"
+                          rel="noopener noreferrer"
                         >
-                          Lihat Surat Jalan Supplier
+                          <Printer data-icon="inline-start" />
+                          Lihat PDF Purchase Order
                         </Link>
                       </Button>
-                    )}
+                    </section>
+
+                    <section className="space-y-3 rounded-lg border p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h4 className="font-medium">Faktur dari Supplier</h4>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Hanya diunggah dari dokumen yang diberikan supplier.
+                          </p>
+                        </div>
+                        <Badge
+                          variant={
+                            activeReceiptPurchaseOrder.hasSupplierInvoiceImage
+                              ? "secondary"
+                              : "outline"
+                          }
+                        >
+                          {activeReceiptPurchaseOrder.hasSupplierInvoiceImage
+                            ? "Sudah diunggah"
+                            : "Belum diunggah"}
+                        </Badge>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {activeReceiptPurchaseOrder.hasSupplierInvoiceImage && (
+                          <Button asChild type="button" size="sm">
+                            <Link
+                              href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/supplier-invoice-image`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Eye data-icon="inline-start" />
+                              Lihat Faktur
+                            </Link>
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            supplierInvoiceInputRef.current?.click()
+                          }
+                          disabled={isUploadingSupplierInvoice}
+                        >
+                          {isUploadingSupplierInvoice ? (
+                            <Loader2
+                              data-icon="inline-start"
+                              className="animate-spin"
+                            />
+                          ) : activeReceiptPurchaseOrder.hasSupplierInvoiceImage ? (
+                            <RefreshCw data-icon="inline-start" />
+                          ) : (
+                            <Upload data-icon="inline-start" />
+                          )}
+                          {activeReceiptPurchaseOrder.hasSupplierInvoiceImage
+                            ? "Ganti Faktur"
+                            : "Unggah Faktur"}
+                        </Button>
+                      </div>
+                      <input
+                        ref={supplierInvoiceInputRef}
+                        className="sr-only"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        aria-label="Pilih gambar Faktur dari supplier"
+                        onChange={(event) => {
+                          selectSupplierInvoice(event.target.files?.[0] ?? null);
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                    </section>
                   </div>
 
-                  <div className="space-y-2 rounded-lg border p-3">
-                    <Label
-                      htmlFor={`supplier-delivery-note-${activeReceiptPurchaseOrder.id}`}
-                    >
-                      Surat Jalan dari Supplier
-                    </Label>
-                    <Input
-                      id={`supplier-delivery-note-${activeReceiptPurchaseOrder.id}`}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={(event) =>
-                        setDeliveryNoteFile(event.target.files?.[0] ?? null)
-                      }
-                      disabled={isUploadingDeliveryNote}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Wajib unggah gambar JPG, PNG, atau WebP maksimal 5 MB jika
-                      supplier memberikan Surat Jalan.
-                    </p>
-                    <Button
-                      type="button"
-                      onClick={submitSupplierDeliveryNote}
-                      disabled={!deliveryNoteFile || isUploadingDeliveryNote}
-                    >
-                      {isUploadingDeliveryNote ? (
-                        <Loader2
-                          data-icon="inline-start"
-                          className="animate-spin"
+                  <Separator />
+
+                  <section className="space-y-3">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h4 className="font-medium">Pilih sumber Surat Jalan</h4>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Gunakan dokumen supplier atau buat Surat Jalan Mektek.
+                          Pilihan terakhir akan menjadi dokumen aktif.
+                        </p>
+                      </div>
+                      <Badge
+                        variant={
+                          activeReceiptPurchaseOrder.receivingDeliveryNoteSource
+                            ? "secondary"
+                            : "outline"
+                        }
+                      >
+                        {activeReceiptPurchaseOrder.receivingDeliveryNoteSource
+                          ? `Sudah diunggah / tersedia · ${
+                              activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
+                              "MEKTEK"
+                                ? "Dibuat Mektek"
+                                : "Dari supplier"
+                            }`
+                          : "Belum tersedia"}
+                      </Badge>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div
+                        className={cn(
+                          "space-y-3 rounded-lg border p-4 transition-colors",
+                          activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
+                            "SUPPLIER" &&
+                            "border-primary bg-primary/5 ring-1 ring-primary",
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h5 className="font-medium">
+                              Surat Jalan dari Supplier
+                            </h5>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Pilih ini jika supplier memberikan Surat Jalan.
+                            </p>
+                          </div>
+                          {activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
+                            "SUPPLIER" && <Badge>Dipilih</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          File supplier:{" "}
+                          {activeReceiptPurchaseOrder.hasDeliveryNoteImage
+                            ? "sudah diunggah"
+                            : "belum diunggah"}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {activeReceiptPurchaseOrder.hasDeliveryNoteImage && (
+                            <>
+                              <Button
+                                asChild
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                              >
+                                <Link
+                                  href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note-image`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <Eye data-icon="inline-start" />
+                                  Lihat Surat Jalan Supplier
+                                </Link>
+                              </Button>
+                              {activeReceiptPurchaseOrder.receivingDeliveryNoteSource !==
+                                "SUPPLIER" && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={selectExistingSupplierDeliveryNote}
+                                  disabled={isSelectingDeliveryNoteSource}
+                                >
+                                  {isSelectingDeliveryNoteSource && (
+                                    <Loader2
+                                      data-icon="inline-start"
+                                      className="animate-spin"
+                                    />
+                                  )}
+                                  Pilih dokumen ini
+                                </Button>
+                              )}
+                            </>
+                          )}
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() =>
+                              deliveryNoteInputRef.current?.click()
+                            }
+                            disabled={isUploadingDeliveryNote}
+                          >
+                            {isUploadingDeliveryNote ? (
+                              <Loader2
+                                data-icon="inline-start"
+                                className="animate-spin"
+                              />
+                            ) : (
+                              <Upload data-icon="inline-start" />
+                            )}
+                            {activeReceiptPurchaseOrder.hasDeliveryNoteImage
+                              ? "Ganti file"
+                              : "Unggah & pilih"}
+                          </Button>
+                        </div>
+                        <input
+                          ref={deliveryNoteInputRef}
+                          className="sr-only"
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          aria-label="Pilih gambar Surat Jalan dari supplier"
+                          onChange={(event) => {
+                            selectSupplierDeliveryNote(
+                              event.target.files?.[0] ?? null,
+                            );
+                            event.currentTarget.value = "";
+                          }}
                         />
-                      ) : (
-                        <Upload data-icon="inline-start" />
-                      )}
-                      Unggah Surat Jalan Supplier
-                    </Button>
-                  </div>
+                      </div>
+
+                      <div
+                        className={cn(
+                          "space-y-3 rounded-lg border p-4 transition-colors",
+                          activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
+                            "MEKTEK" &&
+                            "border-primary bg-primary/5 ring-1 ring-primary",
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h5 className="font-medium">
+                              Buat Surat Jalan Mektek
+                            </h5>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Pilih ini jika supplier tidak memberikan Surat
+                              Jalan.
+                            </p>
+                          </div>
+                          {activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
+                            "MEKTEK" && <Badge>Dipilih</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Dokumen Mektek:{" "}
+                          {activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
+                          "MEKTEK"
+                            ? "sudah tersedia"
+                            : "belum dibuat"}
+                        </p>
+                        {activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
+                        "MEKTEK" ? (
+                          <Button asChild type="button" size="sm">
+                            <Link
+                              href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note?flow=receiving`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Eye data-icon="inline-start" />
+                              Lihat Surat Jalan Mektek
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={createMektekDeliveryNote}
+                            disabled={isCreatingMektekDeliveryNote}
+                          >
+                            {isCreatingMektekDeliveryNote ? (
+                              <Loader2
+                                data-icon="inline-start"
+                                className="animate-spin"
+                              />
+                            ) : (
+                              <ReceiptText data-icon="inline-start" />
+                            )}
+                            Buat & pilih Surat Jalan Mektek
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Format upload: JPG, PNG, atau WebP · Maksimal 5 MB
+                    </p>
+                  </section>
                 </CardContent>
               </Card>
 

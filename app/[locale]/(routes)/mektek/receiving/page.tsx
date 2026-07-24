@@ -183,11 +183,19 @@ export default async function MektekReceivingPage({
             }),
           )}
           purchaseOrders={items.map(
-            ({ deliveryNoteImageData, ...purchaseOrder }) => ({
+            ({
+              deliveryNoteImageData,
+              supplierInvoiceImageData,
+              ...purchaseOrder
+            }) => ({
             ...purchaseOrder,
             hasDeliveryNoteImage: Boolean(deliveryNoteImageData),
             deliveryNoteImageUpdatedAt:
               purchaseOrder.deliveryNoteImageUpdatedAt?.toISOString() ?? null,
+            hasSupplierInvoiceImage: Boolean(supplierInvoiceImageData),
+            supplierInvoiceImageUpdatedAt:
+              purchaseOrder.supplierInvoiceImageUpdatedAt?.toISOString() ??
+              null,
             inputDate: purchaseOrder.inputDate.toISOString(),
             dueDate: purchaseOrder.dueDate.toISOString(),
             createdAt: purchaseOrder.createdAt.toISOString(),

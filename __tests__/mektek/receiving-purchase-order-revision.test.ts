@@ -52,6 +52,61 @@ describe("Receiving Purchase Order revision", () => {
     expect(imageRoute).toContain("deliveryNoteImageData");
   });
 
+  it("shows ordered Receiving document groups including supplier Faktur", () => {
+    const managerSource = read(
+      "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
+    );
+    const invoiceImageRoute = read(
+      "app/api/mektek/logistics/purchase-orders/[id]/supplier-invoice-image/route.ts",
+    );
+    const labels = [
+      "PDF Purchase Order",
+      "Faktur dari Supplier",
+      "Surat Jalan dari Supplier",
+      "Buat Surat Jalan Mektek",
+    ];
+
+    const documentSectionStart = managerSource.indexOf(
+      '<CardTitle className="text-base">Dokumen Receiving</CardTitle>',
+    );
+    const documentSection = managerSource.slice(
+      documentSectionStart,
+      managerSource.indexOf("</CardContent>", documentSectionStart),
+    );
+    const positions = labels.map((label) => documentSection.indexOf(label));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(documentSection).toContain("Lihat Faktur");
+    expect(documentSection).toContain("Ganti Faktur");
+    expect(invoiceImageRoute).toContain("supplierInvoiceImageData");
+    expect(managerSource).toContain("supplier-invoice-image");
+  });
+
+  it("persists whether the Receiving delivery note comes from supplier or Mektek", () => {
+    const schemaSource = read("prisma/schema.prisma");
+    const managerSource = read(
+      "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
+    );
+    const deliveryNoteRoute = read(
+      "app/api/mektek/logistics/purchase-orders/[id]/delivery-note/route.ts",
+    );
+    const supplierImageRoute = read(
+      "app/api/mektek/logistics/purchase-orders/[id]/delivery-note-image/route.ts",
+    );
+
+    expect(schemaSource).toContain(
+      "receivingDeliveryNoteSource LogisticsReceivingDeliveryNoteSource?",
+    );
+    expect(managerSource).toContain("Pilih sumber Surat Jalan");
+    expect(managerSource).toContain("Pilih dokumen ini");
+    expect(managerSource).toContain("Lihat Surat Jalan Mektek");
+    expect(deliveryNoteRoute).toContain('receivingDeliveryNoteSource: "MEKTEK"');
+    expect(supplierImageRoute).toContain(
+      'receivingDeliveryNoteSource: "SUPPLIER"',
+    );
+    expect(supplierImageRoute).toContain("export async function PATCH");
+  });
+
   it("renders PO prices, amounts, and a subtotal in the PDF", () => {
     const pdfSource = read(
       "actions/mektek/logistics-purchase-order-pdf.tsx",

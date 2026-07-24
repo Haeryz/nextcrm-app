@@ -27,26 +27,26 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const purchaseOrder = await prismadb.logisticsPurchaseOrder.findFirst({
     where: { id, flow: "RECEIVING" },
     select: {
-      deliveryNoteImageData: true,
-      deliveryNoteImageMimeType: true,
-      deliveryNoteImageUpdatedAt: true,
+      supplierInvoiceImageData: true,
+      supplierInvoiceImageMimeType: true,
+      supplierInvoiceImageUpdatedAt: true,
     },
   });
   if (
-    !purchaseOrder?.deliveryNoteImageData ||
-    !purchaseOrder.deliveryNoteImageMimeType
+    !purchaseOrder?.supplierInvoiceImageData ||
+    !purchaseOrder.supplierInvoiceImageMimeType
   ) {
-    return new Response("Surat Jalan supplier tidak ditemukan", {
-      status: 404,
-    });
+    return new Response("Faktur supplier tidak ditemukan", { status: 404 });
   }
 
-  const etag = `"${purchaseOrder.deliveryNoteImageUpdatedAt?.getTime() || 0}-${purchaseOrder.deliveryNoteImageData.byteLength}"`;
-  return new Response(Buffer.from(purchaseOrder.deliveryNoteImageData), {
+  const etag = `"${purchaseOrder.supplierInvoiceImageUpdatedAt?.getTime() || 0}-${purchaseOrder.supplierInvoiceImageData.byteLength}"`;
+  return new Response(Buffer.from(purchaseOrder.supplierInvoiceImageData), {
     headers: {
       "Cache-Control": "private, no-store",
-      "Content-Length": String(purchaseOrder.deliveryNoteImageData.byteLength),
-      "Content-Type": purchaseOrder.deliveryNoteImageMimeType,
+      "Content-Length": String(
+        purchaseOrder.supplierInvoiceImageData.byteLength,
+      ),
+      "Content-Type": purchaseOrder.supplierInvoiceImageMimeType,
       ETag: etag,
       "X-Content-Type-Options": "nosniff",
     },
@@ -63,7 +63,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
     declaredLength > MAX_LOGISTICS_RECEIPT_IMAGE_BYTES
   ) {
     return NextResponse.json(
-      { error: "Ukuran gambar Surat Jalan maksimal 5 MB" },
+      { error: "Ukuran gambar Faktur maksimal 5 MB" },
       { status: 413 },
     );
   }
@@ -75,7 +75,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
   );
   if ("error" in validation) {
     return NextResponse.json(
-      { error: validation.error.replace("foto kondisi barang", "gambar Surat Jalan") },
+      { error: validation.error.replace("foto kondisi barang", "gambar Faktur") },
       { status: 400 },
     );
   }
@@ -84,10 +84,9 @@ export async function PUT(request: Request, { params }: RouteContext) {
   const updated = await prismadb.logisticsPurchaseOrder.updateMany({
     where: { id, flow: "RECEIVING" },
     data: {
-      deliveryNoteImageData: Buffer.from(bytes),
-      deliveryNoteImageMimeType: validation.contentType,
-      deliveryNoteImageUpdatedAt: new Date(),
-      receivingDeliveryNoteSource: "SUPPLIER",
+      supplierInvoiceImageData: Buffer.from(bytes),
+      supplierInvoiceImageMimeType: validation.contentType,
+      supplierInvoiceImageUpdatedAt: new Date(),
     },
   });
   if (updated.count === 0) {
@@ -100,31 +99,7 @@ export async function PUT(request: Request, { params }: RouteContext) {
   revalidateReceiving();
   return NextResponse.json({
     data: {
-      imagePath: `/api/mektek/logistics/purchase-orders/${encodeURIComponent(id)}/delivery-note-image`,
+      imagePath: `/api/mektek/logistics/purchase-orders/${encodeURIComponent(id)}/supplier-invoice-image`,
     },
   });
-}
-
-export async function PATCH(_request: Request, { params }: RouteContext) {
-  const access = await requireMektekLogisticsApiSession("RECEIVING");
-  if (access.response) return access.response;
-
-  const { id } = await params;
-  const updated = await prismadb.logisticsPurchaseOrder.updateMany({
-    where: {
-      id,
-      flow: "RECEIVING",
-      deliveryNoteImageData: { not: null },
-    },
-    data: { receivingDeliveryNoteSource: "SUPPLIER" },
-  });
-  if (updated.count === 0) {
-    return NextResponse.json(
-      { error: "Surat Jalan supplier belum diunggah" },
-      { status: 400 },
-    );
-  }
-
-  revalidateReceiving();
-  return NextResponse.json({ data: { source: "SUPPLIER" } });
 }

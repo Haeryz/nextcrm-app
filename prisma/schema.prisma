@@ -97,6 +97,11 @@ enum LogisticsPurchaseOrderMode {
   CONSIGNMENT
 }
 
+enum LogisticsReceivingDeliveryNoteSource {
+  SUPPLIER
+  MEKTEK
+}
+
 enum FinanceSupplyReviewStatus {
   CLEAR
   BLOCKED
@@ -540,6 +545,10 @@ model LogisticsPurchaseOrder {
   deliveryNoteImageData       Bytes?
   deliveryNoteImageMimeType   String?
   deliveryNoteImageUpdatedAt  DateTime?
+  supplierInvoiceImageData      Bytes?
+  supplierInvoiceImageMimeType  String?
+  supplierInvoiceImageUpdatedAt DateTime?
+  receivingDeliveryNoteSource LogisticsReceivingDeliveryNoteSource?
   notes              String?
   createdBy          String?                      @db.Uuid
   createdAt          DateTime                     @default(now())

@@ -312,18 +312,22 @@ function normalizePurchaseOrderLines(
     }
     const note = boundedText(item?.note, MAX_NOTE_LEN) || null;
     const unitPriceText = compactText(item?.agreedUnitPrice);
-    const unitPrice = unitPriceText ? Number(unitPriceText) : null;
+    const agreedUnitPriceNumber = unitPriceText ? Number(unitPriceText) : null;
     if (
       options.requireUnitPrice &&
-      (unitPrice == null || !Number.isFinite(unitPrice) || unitPrice < 0)
+      (agreedUnitPriceNumber == null ||
+        !Number.isFinite(agreedUnitPriceNumber) ||
+        agreedUnitPriceNumber < 0)
     ) {
       return {
         error: `Harga satuan baris ${index + 1} wajib berupa angka 0 atau lebih`,
       } as const;
     }
     const agreedUnitPrice =
-      unitPrice != null && Number.isFinite(unitPrice) && unitPrice >= 0
-        ? unitPrice.toFixed(2)
+      agreedUnitPriceNumber != null &&
+      Number.isFinite(agreedUnitPriceNumber) &&
+      agreedUnitPriceNumber >= 0
+        ? agreedUnitPriceNumber.toFixed(2)
         : null;
 
     if (item?.source === "MANUAL") {
@@ -344,9 +348,7 @@ function normalizePurchaseOrderLines(
       if (options.requireManualWarehouse && !isWarehouse(item.warehouse)) {
         return { error: `Gudang tujuan item manual baris ${index + 1} wajib dipilih` } as const;
       }
-      const manualUnitPrice = parsePositiveUnitPrice(
-        item.unitPrice ?? item.agreedUnitPrice,
-      );
+      const manualUnitPrice = parsePositiveUnitPrice(item.unitPrice);
       if (options.requireManualUnitPrice && !manualUnitPrice) {
         return {
           error: `Harga item manual baris ${index + 1} wajib lebih dari Rp 0`,
@@ -365,8 +367,7 @@ function normalizePurchaseOrderLines(
         partNumber,
         machine: machine || null,
         orderedQuantity,
-        unitPrice: manualUnitPrice,
-        agreedUnitPrice: agreedUnitPrice ?? manualUnitPrice,
+        unitPrice: manualUnitPrice || agreedUnitPrice,
         warehouse: isWarehouse(item.warehouse) ? item.warehouse : null,
         note,
       });
@@ -390,7 +391,6 @@ function normalizePurchaseOrderLines(
       catalogItemId,
       orderedQuantity,
       unitPrice: agreedUnitPrice,
-      agreedUnitPrice,
       warehouse: isWarehouse(item?.warehouse) ? item.warehouse : null,
       note,
     });
@@ -813,7 +813,7 @@ export async function createMektekOutboundPurchaseOrder(
               partNumber: line.partNumber,
               machine: line.machine,
               orderedQuantity: line.orderedQuantity,
-              agreedUnitPrice: line.agreedUnitPrice,
+              agreedUnitPrice: line.unitPrice,
               warehouse: null,
               note: line.note,
             },
@@ -834,7 +834,7 @@ export async function createMektekOutboundPurchaseOrder(
               line.catalogItem.partNumber || line.catalogItem.catalogPartNumber,
             machine: line.catalogItem.machine,
             orderedQuantity: line.orderedQuantity,
-            agreedUnitPrice: line.agreedUnitPrice,
+            agreedUnitPrice: line.unitPrice,
             warehouse: null,
             note: line.note,
           },
