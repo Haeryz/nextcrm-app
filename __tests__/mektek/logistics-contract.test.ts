@@ -59,6 +59,25 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
     expect(receivingManager).toContain("item.warehouse ?? \"REAR\"");
   });
 
+  it("keeps purchase-order payloads serializable across the server-client boundary", () => {
+    expect(receivingPage).toMatch(
+      /price:\s+catalogItem\.price == null \? null : Number\(catalogItem\.price\)/,
+    );
+    expect(receivingPage).toContain(
+      "agreedUnitPrice: item.agreedUnitPrice?.toString() ?? null",
+    );
+    expect(actionSource).not.toContain("return { data: purchaseOrder };");
+  });
+
+  it("preserves agreed prices while normalizing purchase-order lines", () => {
+    expect(actionSource).toContain(
+      "agreedUnitPrice: agreedUnitPrice ?? manualUnitPrice",
+    );
+    expect(actionSource).toMatch(
+      /catalogItemId,\s+orderedQuantity,\s+unitPrice: agreedUnitPrice,\s+agreedUnitPrice,/,
+    );
+  });
+
   it("creates and exposes a delivery note for each outbound batch", () => {
     expect(actionSource).toContain("Nomor Surat Jalan wajib diisi");
     expect(actionSource).toContain("const reference = deliveryNoteNumber");

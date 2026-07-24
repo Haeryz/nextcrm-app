@@ -366,6 +366,7 @@ function normalizePurchaseOrderLines(
         machine: machine || null,
         orderedQuantity,
         unitPrice: manualUnitPrice || agreedUnitPrice,
+        agreedUnitPrice: agreedUnitPrice ?? manualUnitPrice,
         warehouse: isWarehouse(item.warehouse) ? item.warehouse : null,
         note,
       });
@@ -389,6 +390,7 @@ function normalizePurchaseOrderLines(
       catalogItemId,
       orderedQuantity,
       unitPrice: agreedUnitPrice,
+      agreedUnitPrice,
       warehouse: isWarehouse(item?.warehouse) ? item.warehouse : null,
       note,
     });
@@ -742,7 +744,9 @@ export async function createMektekReceivingPurchaseOrder(
     revalidatePath("/[locale]/(routes)/mektek/receiving", "page");
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
     revalidatePath("/[locale]/(routes)/mektek/items/spreadsheet", "page");
-    return { data: purchaseOrder };
+    return {
+      data: { id: purchaseOrder.id, poNumber: purchaseOrder.poNumber },
+    };
   } catch (error) {
     console.log("[CREATE_MEKTEK_RECEIVING_PO]", error);
     if (error instanceof LogisticsActionError) return { error: error.message };
@@ -848,7 +852,9 @@ export async function createMektekOutboundPurchaseOrder(
       return { ...purchaseOrder, items: createdItems };
     });
     revalidatePath("/[locale]/(routes)/mektek/logistics", "page");
-    return { data: purchaseOrder };
+    return {
+      data: { id: purchaseOrder.id, poNumber: purchaseOrder.poNumber },
+    };
   } catch (error) {
     console.log("[CREATE_MEKTEK_OUTBOUND_PO]", error);
     if (error instanceof LogisticsActionError || error instanceof Error) {

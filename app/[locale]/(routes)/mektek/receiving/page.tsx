@@ -184,6 +184,8 @@ export default async function MektekReceivingPage({
             ({ catalogPartNumber, ...catalogItem }) => ({
               ...catalogItem,
               partNumber: catalogItem.partNumber || catalogPartNumber,
+              price:
+                catalogItem.price == null ? null : Number(catalogItem.price),
             }),
           )}
           purchaseOrders={items.map(
