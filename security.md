@@ -617,3 +617,167 @@ per-instance; back with Redis for cross-instance guarantees later, as already no
 - Idempotency guard on the webhook (`payment.paidAt`) prevents double-settlement. Good.
 - Payment intent creation is gated by the unguessable token/code and rejects zero-balance
   orders. Good (still add rate limiting per item 9).
+
+---
+
+# Round 3 — Audit 2026-07-24 (Email Service: OTP, Marketing, Offers)
+
+> New surface added this pass: a full email service mirroring the WhatsApp service
+> architecture, built on the existing Resend + Prisma stack. Three use cases — signup
+> OTP, marketing batch sends, and offer batch sends — with anti-abuse controls
+> (disposable-domain blocking, mass-account-creation throttling, RFC 8058 one-click
+> unsubscribe). This section documents the new tables, rate-limit keys, disposable-domain
+> controls, unsubscribe flow, and the From-address placeholder/swap story. Nothing here is
+> a finding to fix — it is the security posture of the new code, recorded for the next
+> auditor.
+
+## New Prisma models (`prisma/schema.prisma`)
+
+- `CustomerEmailVerification` — mirrors `CustomerPhoneVerification`. One live row per
+  normalized email (`emailNormalized @unique`). Stores a SHA-256 `codeHash` (never the
+  plaintext code), 5-min `expiresAt`, `attempts` counter, single-use `consumedAt`.
+- `EmailUnsubscribeToken` — mirrors `PasswordResetToken`. Single-use, hashed-at-rest
+  (`tokenHash @unique`), 30-day TTL (emails sit in inboxes). Carries a `channel`
+  (`"marketing" | "offers" | "all"`) so one-click opt-outs can be channel-scoped.
+- `UserEmailPreference` — per-user opt-in/opt-out timestamps
+  (`marketingOptedInAt`/`marketingOptedOutAt`, `offersOptedInAt`/`offersOptedOutAt`) plus
+  a JSONB `frequencyCaps` field. Transactional sends (OTP, password reset) are **never**
+  gated here — opt-in only affects marketing/offers.
+- `EmailLog` — deliverability audit + abuse forensics. `recipientHash` = sha256(email) so
+  the table doesn't store raw addresses; indexes on `(recipientHash)`, `(userId)`,
+  `(purpose, sentAt)`, `(status, sentAt)`. Drives bounce auto-blocklisting and frequency
+  caps.
+- `MektekEmailTemplate` — admin-authored `subject` + plain-text `body` with
+  `{{variable}}` placeholders (no raw HTML — avoids stored-XSS). One-active-per-purpose
+  enforced via a partial unique index
+  `mektek_email_template_one_active_per_purpose ON (purpose) WHERE isActive = true`
+  (Prisma can't express partial unique inline, so it's a raw SQL index in the migration;
+  app code also deactivates siblings in a `$transaction` and catches `P2002`).
+- `BlockedEmailDomain` — disposable/temp domain blocklist. `domain @unique`,
+  `source` ∈ `{"seed","admin","auto-bounce"}`. Seeded at migration time from the
+  `disposable-email-domains` npm package; admins can add overrides; the Resend webhook
+  auto-adds domains after 3 bounces (see below).
+
+## Rate-limit keys
+
+All keys are prefixed and use the shared `consumeAuthRateLimit` (DB-backed, cross-instance)
+unless noted. `emailRecipientHash` = sha256(email) so the key doesn't reveal the address.
+
+| Key                                  | Limit        | Window  | Where                                                    |
+| ------------------------------------ | ------------ | ------- | -------------------------------------------------------- |
+| `email-otp:ip:<ip>`                  | 5            | 15 min  | `actions/auth/email-otp.ts` — per-IP OTP request throttle |
+| `email-otp:email:<hash>`             | 3            | 15 min  | `actions/auth/email-otp.ts` — per-email OTP throttle     |
+| `email-signup:email:<hash>`          | 3            | 24 h    | `actions/auth/register-user.ts` — mass-account throttle  |
+| `email-otp:sender:spacing` (in-mem CAS) | 1          | `EMAIL_OTP_MIN_INTERVAL_MS` (default 8s) | `lib/email/otp-send-guard.ts` — sender-wide spacing |
+| `email-otp:sender:hourly` (in-mem CAS) | `EMAIL_OTP_HOURLY_LIMIT` (default 60) | rolling 1 h | `lib/email/otp-send-guard.ts` — sender-wide cap |
+
+The sender-wide guard is a CAS loop over Postgres (atomic `compare-and-set`), so multiple
+serverless instances share one budget — same pattern as the WhatsApp OTP guard. Fail-closed:
+on any CAS anomaly the send is refused.
+
+## Anti-abuse controls
+
+- **Disposable-domain block:** `lib/email/disposable-domains.ts` `assertNotDisposable(email)`
+  throws (caller returns a generic error — never reveals which domains are blocked). The
+  `BlockedEmailDomain` table is the source of truth (admin overrides win); the vendored
+  `disposable-email-domains` set is the fast offline fallback. Applied at signup (`register-user.ts`)
+  and OTP request (`email-otp.ts`).
+- **Mass-account-creation throttle:** `email-signup:email:<hash>` 3/24h on top of the
+  existing per-IP 5/15min. Pairs with the disposable block to stop bot signups.
+- **Account-existence hiding:** `requestCustomerEmailOtp` always returns `{ success: true }`
+  regardless of whether the code was actually issued (mirrors `phone-otp.ts`). No
+  enumeration oracle.
+- **Hashed OTP at rest:** `CustomerEmailVerification.codeHash` is SHA-256; a DB dump
+  alone doesn't yield codes. 5-attempt lockout, single-use, constant-time compare.
+- **Phone-only account exclusion:** marketing/offers batches exclude users whose email
+  matches `buildPhoneAccountEmail` (`*@phone.nextcrm.local`) — synthesized emails never
+  receive marketing.
+- **Frequency caps:** batch senders check `UserEmailPreference.frequencyCaps` vs recent
+  `EmailLog` count for `(userId, purpose, status="sent")` in the cap window. Default 4/week.
+- **Opt-in enforcement:** batches only send to users with
+  `marketingOptedInAt IS NOT NULL AND marketingOptedOutAt IS NULL` (and the offers
+  equivalent). Transactional sends are never gated by preference.
+- **External API gating:** `lib/email.ts` respects `areExternalApisDisabled()`
+  (`lib/external-apis.ts`) — in prototype mode it logs to console and returns ok instead
+  of calling Resend.
+
+## Unsubscribe flow (RFC 8058 one-click compliant)
+
+1. **Issuance:** at send time, `lib/email.ts` `sendBulkEmails` calls
+   `issueUnsubscribeToken(userId, channel)` per recipient and embeds the per-recipient URL
+   in both the rendered body footer **and** the `List-Unsubscribe` header, plus
+   `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (Gmail/Yahoo bulk-sender
+   requirement, Feb 2024).
+2. **Browser confirm flow:** `app/[locale]/(routes)/unsubscribe/page.tsx` peeks (does
+   NOT consume) the token, renders a confirm card; the client posts to the
+   `unsubscribeByToken` server action (origin-gated) which consumes the token and sets the
+   opted-out timestamp. Peek-not-consume means navigating back still works.
+3. **One-click (RFC 8058) flow:** `app/api/unsubscribe/route.ts` is a POST handler that
+   accepts `application/json` or `application/x-www-form-urlencoded` bodies (or query
+   string fallback). It deliberately does **not** check `hasTrustedMutationOrigin` —
+   one-click POSTs come from mail providers with no `Origin` header, and the single-use
+   hashed token IS the proof of intent. It calls `unsubscribeByTokenInternal` (validate +
+   consume atomically), returns `410 Gone` on a bad/used token, `200` on success.
+4. **Proxy pass-through:** `proxy.ts` lets `/api/unsubscribe` and `/api/resend-webhook`
+   through without a session — the token/signature is the auth. All other new admin email
+   API routes use `requireMektekStaffApiSession` (`lib/api-guards.ts`).
+
+## Resend webhook (deliverability → auto-blocklist)
+
+`app/api/resend-webhook/route.ts` verifies the `resend-signature` header with
+HMAC-SHA256 against `RESEND_WEBHOOK_SECRET` using `crypto.timingSafeEqual` (constant-time).
+Fail-closed if the secret isn't configured. On `email.bounced`/`email.complained`/`email.failed`
+it calls `recordEmailBounce` (updates `EmailLog.status`) and, on bounce, `autoBlockDomainOnBounce`
+which auto-inserts a `BlockedEmailDomain` row with `source='auto-bounce'` after 3 bounces
+for the same domain — so future sends skip it.
+
+## From-address placeholder & future provider swap
+
+- **Placeholder today:** the user has only Gmail but plans to buy a domain + VPS later. To
+  avoid code churn when the domain arrives, all send paths go through `lib/email.ts`
+  `resolveFromAddress(purpose)`:
+  - transactional (OTP, password reset) → `RESEND_FROM_EMAIL || EMAIL_FROM`
+  - marketing/offers → `EMAIL_MARKETING_FROM`
+- **Fail-closed in production:** if the relevant From env var is missing in a production
+  environment, `lib/email.ts` throws a clear error ("Set RESEND_FROM_EMAIL /
+  EMAIL_MARKETING_FROM to your verified domain") instead of sending. No silent send from
+  an unverified domain.
+- **Dev/prototype fallback:** in non-production, falls back to Resend's `on.resend.com`
+  onboarding domain and logs a warning — sends to the account owner only, which is fine
+  for testing.
+- **Provider swappability:** `lib/email.ts` is the only file that calls `resend.emails.send`
+  (the legacy `actions/auth/password-reset.ts` path is left untouched — it predates this
+  refactor). To move to self-hosted SMTP on the future VPS (or another provider), swap the
+  client inside `lib/email.ts` only; every caller stays the same. Verified by grep — no
+  direct `resend.emails.send` calls exist outside `lib/email.ts` and the legacy
+  password-reset path.
+- **When the domain arrives:** update `RESEND_FROM_EMAIL`/`EMAIL_MARKETING_FROM` env vars
+  to the new domain, configure SPF/DKIM in Resend. No code changes.
+
+## Admin template CRUD
+
+- Server actions in `actions/mektek/email-templates.ts` gate on `ensureEmailTemplateAdmin`
+  (active admin only). Create/update run a `$transaction` that deactivates other active
+  templates with the same `purpose` before the write; a second active template for the
+  same purpose trips the partial unique index (`P2002`), caught and surfaced as a friendly
+  error (same pattern as `whatsapp-message-templates.ts`).
+- Validation in `lib/mektek/email-templates.ts` (`validateMektekEmailTemplateInput`):
+  name 1–80, subject 1–200, body 1–5000, purpose ∈ `{marketing, offers}`, isActive boolean.
+- Admin UI at `app/[locale]/(routes)/mektek/email/`, gated by `layout.tsx`
+  (`getSessionUser().isAdmin`), mirroring the WhatsApp manager. `{{var}}` placeholder
+  convention; body rendered through `renderTemplateBody` (plain-text substitution, rejects
+  unknown placeholders, no `dangerouslySetInnerHTML`).
+
+## Open / future items (non-blocking)
+
+- **Captcha** — not added. Layered rate-limit + disposable block is strong. Add
+  Cloudflare Turnstile on signup if bot-driven signup is observed.
+- **MX validation** — off by default (`EMAIL_MX_VALIDATION=false`). Enable if the
+  disposable block proves insufficient.
+- **EmailLog retention** — add a cleanup cron (e.g. 90-day window) before production scale.
+- **Higher-volume batch (v2)** — current crons send synchronously within the 60s Vercel
+  window. When volumes exceed that, move to an `EmailQueue` table drained by a separate
+  worker. Not in v1.
+- **In-memory limiter cross-instance** — `email-otp:sender:*` CAS loop is already
+  Postgres-backed (cross-instance). The per-IP/per-email `consumeAuthRateLimit` keys are
+  DB-backed too. No Redis dependency introduced this pass.

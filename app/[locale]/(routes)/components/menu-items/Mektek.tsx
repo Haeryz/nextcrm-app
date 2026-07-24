@@ -2,6 +2,7 @@ import {
   Activity,
   ClipboardList,
   CircleDollarSign,
+  Mail,
   MessageCircle,
   TicketPercent,
   Truck,
@@ -102,6 +103,12 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
       title: "WhatsApp",
       url: "/mektek/whatsapp",
       icon: MessageCircle,
+    });
+
+    items.push({
+      title: "Email",
+      url: "/mektek/email",
+      icon: Mail,
     });
   }
 

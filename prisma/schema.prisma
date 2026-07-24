@@ -268,6 +268,9 @@ model Users {
   customerProfile    CatalogCustomer?
   customerSessions   CustomerSession[]
   whatsappTemplates  MektekWhatsAppMessageTemplate[]
+  emailPreference        UserEmailPreference?
+  emailUnsubscribeTokens EmailUnsubscribeToken[]
+  emailTemplates         MektekEmailTemplate[]
 
   @@index([email])
   @@index([phoneNormalized])
@@ -1364,4 +1367,107 @@ model WhatsAppSignalKey {
 
   @@unique([sessionId, type, keyId])
   @@index([sessionId, type])
+}
+
+// One-time email OTP used to prove ownership of an email address before it can be
+// bound to an account (customer self-registration) or used for email-channel auth.
+// Mirrors CustomerPhoneVerification: one live row per email (upsert), single-use
+// via consumedAt, brute-force-bounded via attempts, code stored only as sha256 hash.
+model CustomerEmailVerification {
+  id              String    @id @default(uuid()) @db.Uuid
+  emailNormalized String    @unique
+  codeHash        String
+  expiresAt       DateTime
+  attempts        Int       @default(0)
+  consumedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([expiresAt])
+}
+
+// Single-use hashed unsubscribe link token, mirroring PasswordResetToken. Long
+// 30-day TTL because links sit in already-delivered inboxes. One row per
+// (user, channel) issuance; prior tokens for the same (user, channel) are
+// deleted before a new one is issued.
+model EmailUnsubscribeToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  channel   String    @db.VarChar(24)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// Per-user email preference. Transactional mail (OTP, password reset) is always
+// allowed and NOT gated here — this only controls marketing/offers opt-in.
+model UserEmailPreference {
+  id                  String    @id @default(uuid()) @db.Uuid
+  userId              String    @unique @db.Uuid
+  marketingOptedInAt  DateTime?
+  offersOptedInAt     DateTime?
+  marketingOptedOutAt DateTime?
+  offersOptedOutAt    DateTime?
+  frequencyCaps       Json?     @db.JsonB
+  updatedAt           DateTime  @updatedAt
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Deliverability audit + abuse forensics. recipientHash is sha256(email) so we
+// can look up by recipient without joining PII every time. One row per send.
+model EmailLog {
+  id            String    @id @default(uuid()) @db.Uuid
+  recipientHash String    @db.Char(64)
+  userId        String?   @db.Uuid
+  purpose       String    @db.VarChar(40)
+  status        String    @db.VarChar(24)
+  providerId    String?   @db.VarChar(120)
+  error         String?   @db.Text
+  sentAt        DateTime  @default(now())
+
+  @@index([recipientHash])
+  @@index([userId])
+  @@index([purpose, sentAt])
+  @@index([status, sentAt])
+}
+
+// Admin-managed marketing/offer email templates. Mirrors
+// MektekWhatsAppMessageTemplate: one-active-per-purpose enforced by a partial
+// unique index (created in the migration SQL — Prisma can't express it inline).
+model MektekEmailTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(80)
+  subject     String   @db.VarChar(200)
+  body        String   @db.Text
+  purpose     String   @db.VarChar(40)
+  isActive    Boolean  @default(false)
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy Users? @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([purpose, isActive])
+  @@index([createdById])
+  @@index([updatedAt])
+}
+
+// Disposable/temp email domain blocklist. Seeded at migration time from the
+// disposable-email-domains npm package; admins can append/remove entries, and
+// the Resend webhook auto-adds domains after repeated bounces.
+model BlockedEmailDomain {
+  id        String   @id @default(uuid()) @db.Uuid
+  domain    String   @unique @db.VarChar(180)
+  source    String   @db.VarChar(24)
+  createdAt DateTime @default(now())
+
+  @@index([domain])
+  @@index([source])
 }

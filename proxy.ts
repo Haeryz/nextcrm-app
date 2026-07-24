@@ -33,6 +33,18 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // RFC 8058 one-click unsubscribe — POSTed by mail providers (no session, no
+  // Origin). Auth is the single-use hashed unsubscribe token, consumed inside
+  // the route handler. The Resend webhook (signature-verified) is also public.
+  if (
+    path === "/api/unsubscribe" ||
+    path.startsWith("/api/unsubscribe/") ||
+    path === "/api/resend-webhook" ||
+    path.startsWith("/api/resend-webhook/")
+  ) {
+    return NextResponse.next();
+  }
+
   // Admin-only routes — check JWT token's isAdmin flag
   if (ADMIN_ONLY_PATHS.some((p) => path.startsWith(p))) {
     const token = await getToken({ req, secret: AUTH_SECRET });

@@ -11,9 +11,19 @@ import {
 import { boundedText, MAX_NAME_LEN } from "@/lib/mektek/sanitize";
 import { getClientIp } from "@/lib/rate-limit";
 import { verifyOtpCode } from "@/lib/otp";
+import { verifyEmailOtpCode } from "@/lib/email-otp";
 import { hashPassword } from "@/lib/password";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { hasTrustedMutationOrigin } from "@/lib/trusted-origin";
+import {
+  isValidEmail,
+  normalizeEmail,
+  emailRecipientHash,
+} from "@/lib/email/validation";
+import {
+  assertNotDisposable,
+  DisposableEmailError,
+} from "@/lib/email/disposable-domains";
 
 // Public registration writes a users row (+ bcrypt hash) per call. Throttle by IP
 // to blunt scripted account-creation floods.
@@ -112,6 +122,8 @@ export const registerUser = async (data: {
 export const registerCustomerUser = async (data: {
   name: string;
   phone: string;
+  email?: string;
+  emailOtpCode?: string;
   password: string;
   confirmPassword: string;
   otpCode: string;
@@ -122,10 +134,20 @@ export const registerCustomerUser = async (data: {
 
   const name = boundedText(data?.name, MAX_NAME_LEN);
   const phone = String(data?.phone ?? "").trim();
+  const rawEmail = String(data?.email ?? "").trim();
+  const emailOtpCode = String(data?.emailOtpCode ?? "").trim();
   const password = String(data?.password ?? "");
   const confirmPassword = String(data?.confirmPassword ?? "");
   const otpCode = String(data?.otpCode ?? "").trim();
   const phoneNormalized = normalizePhoneNumber(phone);
+
+  // Whichever channel is provided must be verified. Phone is still required
+  // in v1 (the storefront signup form collects it); email is optional. When
+  // email is provided, it must be valid, non-disposable, and own a verified
+  // OTP code. Mass-account-creation via throwaway emails is blunted by the
+  // per-email signup throttle below.
+  const emailProvided = rawEmail.length > 0;
+  const emailNormalized = emailProvided ? normalizeEmail(rawEmail) : null;
 
   if (!name || !phone || !password || !confirmPassword || !otpCode) {
     const missingFields = [];
@@ -135,6 +157,14 @@ export const registerCustomerUser = async (data: {
     if (!confirmPassword) missingFields.push("confirmPassword");
     if (!otpCode) missingFields.push("otpCode");
     return { error: `Field wajib belum diisi: ${missingFields.join(", ")}` };
+  }
+
+  if (emailProvided && (!emailNormalized || !isValidEmail(rawEmail))) {
+    return { error: "Email tidak valid" };
+  }
+
+  if (emailProvided && !emailOtpCode) {
+    return { error: "Field wajib belum diisi: emailOtpCode" };
   }
 
   if (!isValidPhoneNumber(phone)) {
@@ -152,6 +182,19 @@ export const registerCustomerUser = async (data: {
     return { error: "Password tidak sama" };
   }
 
+  // Block disposable/temp domains on signup. Generic error — never reveal
+  // which domains are blocked.
+  if (emailProvided && emailNormalized) {
+    try {
+      await assertNotDisposable(emailNormalized);
+    } catch (error) {
+      if (error instanceof DisposableEmailError) {
+        return { error: "Email dari domain ini tidak diizinkan" };
+      }
+      throw error;
+    }
+  }
+
   const ip = getClientIp(await headers());
   const ipLimit = await consumeAuthRateLimit(
     `register-customer:ip:${ip}`,
@@ -163,11 +206,26 @@ export const registerCustomerUser = async (data: {
     REGISTER_LIMIT,
     REGISTER_WINDOW_MS
   );
-  if (!ipLimit.ok || !phoneLimit.ok) {
+  // 3 signups per email per 24h — a mass-account-creation throttle layered on
+  // top of the existing per-IP 5/15min cap. Defeats scripted registration
+  // farms that rotate IPs but reuse a single burner email.
+  const emailSignupLimit =
+    emailProvided && emailNormalized
+      ? await consumeAuthRateLimit(
+          `email-signup:email:${emailRecipientHash(emailNormalized)}`,
+          3,
+          24 * 60 * 60 * 1000
+        )
+      : { ok: true };
+  if (!ipLimit.ok || !phoneLimit.ok || !emailSignupLimit.ok) {
     return { error: "Terlalu banyak Request. Silakan coba lagi nanti." };
   }
 
-  const email = buildPhoneAccountEmail(phoneNormalized);
+  // If the user only gave a phone, synthesize an internal email so the unique
+  // constraint on Users.email is satisfied and the account is reachable for
+  // transactional system notifications only (never marketing/offers — those
+  // are gated by UserEmailPreference, which defaults to opted-out).
+  const email = emailNormalized ?? buildPhoneAccountEmail(phoneNormalized);
 
   try {
     const existingUser = await prismadb.users.findFirst({
@@ -180,15 +238,27 @@ export const registerCustomerUser = async (data: {
     });
 
     if (existingUser) {
-      return { error: "Nomor telepon ini sudah memiliki Account" };
+      return { error: "Nomor telepon atau email ini sudah memiliki Account" };
     }
 
     // Prove ownership of the phone before binding it to an account. Without this,
     // anyone could register with a victim's number and (via the profile flow) claim
     // the victim's existing walk-in customer record, tokens, and PII.
-    const otpValid = await verifyOtpCode(phoneNormalized, otpCode);
-    if (!otpValid) {
+    const phoneOtpValid = await verifyOtpCode(phoneNormalized, otpCode);
+    if (!phoneOtpValid) {
       return { error: "Kode verifikasi salah atau kedaluwarsa" };
+    }
+
+    // Per the "whichever channel is provided" decision: if the user supplied
+    // an email, prove ownership of that inbox too before binding it.
+    if (emailProvided && emailNormalized) {
+      const emailOtpValid = await verifyEmailOtpCode(
+        emailNormalized,
+        emailOtpCode
+      );
+      if (!emailOtpValid) {
+        return { error: "Kode verifikasi email salah atau kedaluwarsa" };
+      }
     }
 
     const user = await prismadb.$transaction(async (tx) => {

@@ -8,6 +8,14 @@
     {
       "path": "/api/cron/mektek-finance-reminders",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/mektek-marketing-send",
+      "schedule": "0 3 * * 1"
+    },
+    {
+      "path": "/api/cron/mektek-offers-send",
+      "schedule": "0 3 * * 5"
     }
   ]
 }
