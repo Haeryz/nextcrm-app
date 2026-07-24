@@ -37,7 +37,8 @@ describe("Finance navigation hierarchy", () => {
     expect(navigation).toContain("renderSubItem");
   });
 
-  it("keeps Payment Faktur intentionally empty", () => {
-    expect(paymentPage).toContain("return null");
+  it("renders the implemented Payment Faktur workspace", () => {
+    expect(paymentPage).toContain("PaymentFakturManager");
+    expect(paymentPage).toContain("paymentFakturEntry.findMany");
   });
 });

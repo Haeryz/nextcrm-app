@@ -90,8 +90,9 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
             { title: "Kontrak", url: "/mektek/finance/contracts" },
             { title: "Audit Sistem", url: "/mektek/finance/audit" },
           ],
-        },
-        { title: "Payment Faktur", url: "/mektek/finance/payment-faktur" },
+            },
+            { title: "Pembayaran Pemasok", url: "/mektek/finance/payables" },
+            { title: "Payment Faktur", url: "/mektek/finance/payment-faktur" },
       ],
     });
   }

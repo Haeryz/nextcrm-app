@@ -32,6 +32,7 @@ import {
   type FinancePurchaseOrderSuggestion,
 } from "@/lib/mektek/finance-po";
 import { isFinanceDestinationBank } from "@/lib/mektek/finance-bank-accounts";
+import { parseSupplierPayableSnapshot } from "@/lib/mektek/supplier-payment";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -1238,6 +1239,156 @@ export async function requestFinanceDisbursement(input: {
   });
   revalidatePath(financePath, "layout");
   return { data: request };
+}
+
+export async function createMatchedFinanceSupplierBill(input: {
+  payableSourceId: string;
+  supplierInvoiceNumber: string;
+  billDate: string;
+  dueDate: string;
+  taxAmount?: string | number;
+  expenseCategory?: string;
+  notes?: string;
+  purchaseOrderVerified: boolean;
+  supplierInvoiceVerified: boolean;
+  goodsReceiptVerified: boolean;
+}) {
+  const access = await ensureFinanceManager();
+  if ("error" in access) return access;
+  if (
+    !input.purchaseOrderVerified ||
+    !input.supplierInvoiceVerified ||
+    !input.goodsReceiptVerified
+  ) {
+    return {
+      error: "PO, invoice pemasok, dan surat jalan wajib diverifikasi",
+    };
+  }
+
+  const payableSourceId = text(input.payableSourceId, 36);
+  const supplierInvoiceNumber = text(input.supplierInvoiceNumber, 180);
+  const billDate = dateOnly(input.billDate);
+  const dueDate = dateOnly(input.dueDate);
+  const taxAmount = money(input.taxAmount ?? 0);
+  if (
+    !payableSourceId ||
+    !supplierInvoiceNumber ||
+    !billDate ||
+    !dueDate ||
+    dueDate < billDate ||
+    !taxAmount
+  ) {
+    return { error: "Data pembayaran pemasok belum lengkap atau tidak valid" };
+  }
+
+  try {
+    const bill = await prismadb.$transaction(
+      async (tx) => {
+        const source = await tx.financePayableSource.findUnique({
+          where: { id: payableSourceId },
+        });
+        if (
+          !source ||
+          source.supplierBillId ||
+          !["UNBILLED", "NEEDS_REVIEW"].includes(source.status)
+        ) {
+          throw new Error("SOURCE_UNAVAILABLE");
+        }
+
+        const snapshot = parseSupplierPayableSnapshot(source.snapshot);
+        if (
+          !snapshot.poNumber ||
+          !source.sourceReference ||
+          !snapshot.pricingComplete ||
+          snapshot.lines.length === 0 ||
+          snapshot.expectedSubtotal === null
+        ) {
+          throw new Error("SOURCE_INCOMPLETE");
+        }
+
+        const subtotal = new Prisma.Decimal(
+          snapshot.expectedSubtotal.toFixed(2),
+        );
+        const totalAmount = subtotal.add(taxAmount);
+        const expectedSubtotal =
+          source.totalAmount == null
+            ? null
+            : new Prisma.Decimal(source.totalAmount);
+        const matchException =
+          expectedSubtotal && !expectedSubtotal.eq(subtotal)
+            ? `PO/Receiving ${expectedSubtotal.toString()} != Bill ${subtotal.toString()}`
+            : null;
+        const internalNumber = await nextDocumentNumber(tx, "BILL", billDate);
+        const created = await tx.financeSupplierBill.create({
+          data: {
+            internalNumber,
+            supplierInvoiceNumber,
+            counterpartyId: source.counterpartyId,
+            billDate,
+            dueDate,
+            subtotal,
+            taxAmount,
+            totalAmount,
+            expenseCategory: text(input.expenseCategory, 120) || null,
+            matchException,
+            notes: text(input.notes, 1000) || null,
+            requestedBy: access.current.id,
+            lines: {
+              create: snapshot.lines.map((line, index) => ({
+                position: index + 1,
+                description: line.description,
+                partNumber: line.partNumber,
+                quantity: new Prisma.Decimal(line.quantity.toFixed(3)),
+                unitCost: new Prisma.Decimal(line.unitCost.toFixed(2)),
+                lineTotal: new Prisma.Decimal(line.lineTotal.toFixed(2)),
+                sourceLineKey: line.sourceLineKey,
+              })),
+            },
+          },
+        });
+        await tx.financePayableSource.update({
+          where: { id: source.id },
+          data: { supplierBillId: created.id, status: "DRAFTED" },
+        });
+        await audit(tx, {
+          entityType: "SUPPLIER_BILL",
+          entityId: created.id,
+          action: "CREATE_THREE_WAY_MATCH_DRAFT",
+          actorId: access.current.id,
+          after: {
+            internalNumber,
+            supplierInvoiceNumber,
+            purchaseOrderNumber: snapshot.poNumber,
+            goodsReceiptNumber: source.sourceReference,
+            subtotal: subtotal.toString(),
+            taxAmount: taxAmount.toString(),
+            totalAmount: totalAmount.toString(),
+            documentsVerified: {
+              purchaseOrder: true,
+              supplierInvoice: true,
+              goodsReceipt: true,
+            },
+          },
+        });
+        return created;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+    revalidatePath(financePath, "layout");
+    return { data: bill };
+  } catch (error) {
+    console.error("[CREATE_MATCHED_FINANCE_SUPPLIER_BILL]", error);
+    if (error instanceof Error && error.message === "SOURCE_INCOMPLETE") {
+      return {
+        error:
+          "Data PO atau surat jalan belum lengkap. Lengkapi harga item di Logistics terlebih dahulu",
+      };
+    }
+    return {
+      error:
+        "Dokumen Logistics sudah dipakai, invoice duplikat, atau data tidak tersedia",
+    };
+  }
 }
 
 export async function createFinanceSupplierBill(input: {
