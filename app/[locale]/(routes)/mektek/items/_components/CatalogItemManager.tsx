@@ -99,8 +99,8 @@ function itemToInput(item: CatalogItemRow): CatalogItemInput {
     rearLocation: item.rearLocation ?? "",
     frontLocation: item.frontLocation ?? "",
     remark: item.remark ?? "",
-    initialRearStock: "",
-    initialFrontStock: "",
+    initialRearStock: String(item.rearStock),
+    initialFrontStock: String(item.frontStock),
   };
 }
 
@@ -158,7 +158,7 @@ function CatalogItemForm({
   imageSrc,
   imageDraft,
   onImageDraftChange,
-  showInitialStock,
+  stockMode,
 }: {
   value: CatalogItemInput;
   onChange: (value: CatalogItemInput) => void;
@@ -168,7 +168,7 @@ function CatalogItemForm({
   imageSrc: string | null;
   imageDraft: ImageDraft;
   onImageDraftChange: (draft: ImageDraft) => void;
-  showInitialStock: boolean;
+  stockMode: "initial" | "total";
 }) {
   const update = (key: keyof CatalogItemInput, nextValue: string) => {
     onChange({ ...value, [key]: nextValue });
@@ -208,14 +208,19 @@ function CatalogItemForm({
 
   return (
     <form
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-5"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();
       }}
     >
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Item Name">
+      <fieldset className="space-y-4 rounded-lg border p-4">
+        <legend className="px-2 text-sm font-semibold">Informasi Spare Part</legend>
+        <p className="text-xs text-muted-foreground">
+          Isi identitas utama agar spare part mudah ditemukan pada katalog dan receiving.
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Nama Spare Part">
           <Input
             aria-label="Item Name"
             value={value.itemName}
@@ -224,7 +229,7 @@ function CatalogItemForm({
             required
           />
         </Field>
-        <Field label="Machine">
+        <Field label="Mesin">
           <Input
             aria-label="Machine"
             value={value.machine}
@@ -233,7 +238,7 @@ function CatalogItemForm({
             required
           />
         </Field>
-        <Field label="Part Number">
+        <Field label="Nomor Part">
           <Input
             aria-label="Part Number"
             value={value.partNumber ?? ""}
@@ -241,7 +246,7 @@ function CatalogItemForm({
             disabled={pending}
           />
         </Field>
-        <Field label="Production Channel">
+        <Field label="Divisi Produksi">
           <Select
             value={value.productionChannel || "NONE"}
             onValueChange={(nextValue) =>
@@ -262,7 +267,7 @@ function CatalogItemForm({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Price">
+        <Field label="Harga">
           <RupiahInput
             aria-label="Price in Rupiah"
             value={value.price}
@@ -270,25 +275,7 @@ function CatalogItemForm({
             disabled={pending}
           />
         </Field>
-        <Field label="Lokasi G. Belakang">
-          <Input
-            aria-label="Lokasi Gudang Belakang"
-            value={value.rearLocation ?? ""}
-            onChange={(event) => update("rearLocation", event.target.value)}
-            disabled={pending}
-            placeholder="Contoh: 002C0601"
-          />
-        </Field>
-        <Field label="Lokasi G. Depan">
-          <Input
-            aria-label="Lokasi Gudang Depan"
-            value={value.frontLocation ?? ""}
-            onChange={(event) => update("frontLocation", event.target.value)}
-            disabled={pending}
-            placeholder="Contoh: 002D0203"
-          />
-        </Field>
-        <Field label="Remark">
+        <Field label="Catatan">
           <Input
             aria-label="Remark"
             value={value.remark ?? ""}
@@ -296,9 +283,42 @@ function CatalogItemForm({
             disabled={pending}
           />
         </Field>
-        {showInitialStock && (
-          <>
-            <Field label="Stok Awal G. Belakang">
+        </div>
+      </fieldset>
+
+      <fieldset className="space-y-4 rounded-lg border p-4">
+        <legend className="px-2 text-sm font-semibold">Lokasi dan Unit Gudang</legend>
+        <p className="text-xs text-muted-foreground">
+          {stockMode === "initial"
+            ? "Tentukan jumlah awal di setiap gudang. Nilai ini menjadi saldo awal stok."
+            : "Jumlah saat ini sudah mencakup receiving yang telah selesai. Perubahan akan dicatat sebagai koreksi stok."}
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+            <Field label="Lokasi Gudang Belakang">
+              <Input
+                aria-label="Lokasi Gudang Belakang"
+                value={value.rearLocation ?? ""}
+                onChange={(event) => update("rearLocation", event.target.value)}
+                disabled={pending}
+                placeholder="Contoh: 002C0601"
+              />
+            </Field>
+            <Field label="Lokasi Gudang Depan">
+              <Input
+                aria-label="Lokasi Gudang Depan"
+                value={value.frontLocation ?? ""}
+                onChange={(event) => update("frontLocation", event.target.value)}
+                disabled={pending}
+                placeholder="Contoh: 002D0203"
+              />
+            </Field>
+            <Field
+              label={
+                stockMode === "initial"
+                  ? "Stok Awal G. Belakang"
+                  : "Total Unit Gudang Belakang"
+              }
+            >
               <Input
                 aria-label="Stok Awal Gudang Belakang"
                 inputMode="numeric"
@@ -308,9 +328,16 @@ function CatalogItemForm({
                 }
                 disabled={pending}
                 placeholder="0"
+                required
               />
             </Field>
-            <Field label="Stok Awal G. Depan">
+            <Field
+              label={
+                stockMode === "initial"
+                  ? "Stok Awal G. Depan"
+                  : "Total Unit Gudang Depan"
+              }
+            >
               <Input
                 aria-label="Stok Awal Gudang Depan"
                 inputMode="numeric"
@@ -320,13 +347,13 @@ function CatalogItemForm({
                 }
                 disabled={pending}
                 placeholder="0"
+                required
               />
             </Field>
-          </>
-        )}
-      </div>
+        </div>
+      </fieldset>
 
-      <Field label="Catalogue Image">
+      <Field label="Foto Katalog">
         <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-3 sm:flex-row sm:items-center">
           <div className="flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-background">
             {displayedImage ? (
@@ -379,8 +406,8 @@ function CatalogItemForm({
         </div>
       </Field>
 
-      <div className="flex justify-end">
-        <Button type="submit" disabled={pending}>
+      <div className="flex justify-end border-t pt-4">
+        <Button type="submit" disabled={pending} className="w-full sm:w-auto">
           {pending && <Loader2 data-icon="inline-start" className="animate-spin" />}
           {submitLabel}
         </Button>
@@ -600,7 +627,7 @@ export default function CatalogItemManager({
             imageSrc={null}
             imageDraft={createImage}
             onImageDraftChange={setCreateImage}
-            showInitialStock
+            stockMode="initial"
           />
         </DialogContent>
       </Dialog>
@@ -608,9 +635,10 @@ export default function CatalogItemManager({
       <Dialog open={!!editingItem} onOpenChange={(open) => !open && setEditingItem(null)}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Edit Catalogue Item</DialogTitle>
+            <DialogTitle>Edit Spare Part</DialogTitle>
             <DialogDescription>
-              Perubahan langsung tersedia pada pencarian customer catalogue dan penerimaan order.
+              Perbarui informasi, lokasi, dan total unit. Jumlah unit saat ini
+              sudah termasuk receiving yang telah selesai.
             </DialogDescription>
           </DialogHeader>
           <CatalogItemForm
@@ -622,7 +650,7 @@ export default function CatalogItemManager({
             imageSrc={editingItem?.imagePath ?? null}
             imageDraft={editImage}
             onImageDraftChange={setEditImage}
-            showInitialStock={false}
+            stockMode="total"
           />
         </DialogContent>
       </Dialog>

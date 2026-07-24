@@ -68,6 +68,8 @@ type LogisticsManualItemInput = {
   catalogItemId?: string;
   partName: string;
   partNumber: string;
+  machine?: string;
+  warehouse?: CatalogWarehouse;
   orderedQuantity: string | number;
   note?: string;
 };
@@ -100,8 +102,9 @@ type NormalizedPurchaseOrderLine =
       catalogItemId: null;
       partName: string;
       partNumber: string;
+      machine: string | null;
       orderedQuantity: number;
-      warehouse: null;
+      warehouse: CatalogWarehouse | null;
       note: string | null;
     };
 
@@ -266,7 +269,12 @@ function normalizePurchaseOrderLines(
         MektekReceivingPurchaseOrderItemInput | MektekOutboundPurchaseOrderItemInput
       >
     | undefined,
-  options: { requireCatalogWarehouse: boolean; emptyError: string },
+  options: {
+    requireCatalogWarehouse: boolean;
+    requireManualMachine?: boolean;
+    requireManualWarehouse?: boolean;
+    emptyError: string;
+  },
 ) {
   if (!Array.isArray(rawItems) || rawItems.length === 0) {
     return { error: options.emptyError } as const;
@@ -292,11 +300,18 @@ function normalizePurchaseOrderLines(
       const partNumber = normalizeLogisticsReference(
         boundedText(item.partNumber, MAX_PART_NUMBER_LEN),
       );
+      const machine = boundedText(item.machine, MAX_NAME_LEN);
       if (!partName) {
         return { error: `Nama item manual baris ${index + 1} wajib diisi` } as const;
       }
       if (!partNumber) {
         return { error: `Part Number manual baris ${index + 1} wajib diisi` } as const;
+      }
+      if (options.requireManualMachine && !machine) {
+        return { error: `Machine item manual baris ${index + 1} wajib diisi` } as const;
+      }
+      if (options.requireManualWarehouse && !isWarehouse(item.warehouse)) {
+        return { error: `Gudang tujuan item manual baris ${index + 1} wajib dipilih` } as const;
       }
       const manualKey = `${partName.toLocaleLowerCase("id-ID")}::${partNumber}`;
       if (seenManual.has(manualKey)) {
@@ -309,8 +324,9 @@ function normalizePurchaseOrderLines(
         catalogItemId: null,
         partName,
         partNumber,
+        machine: machine || null,
         orderedQuantity,
-        warehouse: null,
+        warehouse: isWarehouse(item.warehouse) ? item.warehouse : null,
         note,
       });
       continue;
@@ -354,6 +370,7 @@ async function hydratePurchaseOrderLines(
           description: true,
           partNumber: true,
           catalogPartNumber: true,
+          machine: true,
           rearStock: true,
           frontStock: true,
         },
@@ -373,7 +390,12 @@ async function hydratePurchaseOrderLines(
 
 async function ensureManualReceivingCatalogItem(
   tx: Prisma.TransactionClient,
-  input: { partName: string; partNumber: string; poNumber: string },
+  input: {
+    partName: string;
+    partNumber: string;
+    machine: string;
+    poNumber: string;
+  },
 ) {
   const existing = await tx.catalogItem.findFirst({
     where: {
@@ -399,14 +421,14 @@ async function ensureManualReceivingCatalogItem(
   return tx.catalogItem.create({
     data: {
       id: `manual-receiving-${randomUUID()}`,
-      machine: "Receiving",
+      machine: input.machine,
       rowNumber: 0,
       description: input.partName,
       partNumber: input.partNumber,
       rearStock: 0,
       frontStock: 0,
       searchText: [
-        "Receiving",
+        input.machine,
         input.partName,
         input.partNumber,
       ]
@@ -601,6 +623,8 @@ export async function createMektekReceivingPurchaseOrder(
   if ("error" in header) return { error: header.error };
   const lines = normalizePurchaseOrderLines(input?.items, {
     requireCatalogWarehouse: false,
+    requireManualMachine: true,
+    requireManualWarehouse: true,
     emptyError: "Minimal satu item Receiving wajib diisi",
   });
   if ("error" in lines) return { error: lines.error };
@@ -614,6 +638,7 @@ export async function createMektekReceivingPurchaseOrder(
         const catalogItem = await ensureManualReceivingCatalogItem(tx, {
           partName: line.partName,
           partNumber: line.partNumber,
+          machine: line.machine!,
           poNumber: header.data.poNumber,
         });
         manualCatalogIds.set(line.position, catalogItem.id);
@@ -632,7 +657,9 @@ export async function createMektekReceivingPurchaseOrder(
                     position: line.position,
                     partName: line.partName,
                     partNumber: line.partNumber,
+                    machine: line.machine,
                     orderedQuantity: line.orderedQuantity,
+                    warehouse: line.warehouse,
                     note: line.note,
                   }
                 : {
@@ -643,6 +670,7 @@ export async function createMektekReceivingPurchaseOrder(
                     partNumber:
                       line.catalogItem.partNumber ||
                       line.catalogItem.catalogPartNumber,
+                    machine: line.catalogItem.machine,
                     orderedQuantity: line.orderedQuantity,
                     note: line.note,
                   },
@@ -721,6 +749,7 @@ export async function createMektekOutboundPurchaseOrder(
               position: line.position,
               partName: line.partName,
               partNumber: line.partNumber,
+              machine: line.machine,
               orderedQuantity: line.orderedQuantity,
               warehouse: null,
               note: line.note,
@@ -740,6 +769,7 @@ export async function createMektekOutboundPurchaseOrder(
             partName: line.catalogItem.description,
             partNumber:
               line.catalogItem.partNumber || line.catalogItem.catalogPartNumber,
+            machine: line.catalogItem.machine,
             orderedQuantity: line.orderedQuantity,
             warehouse: null,
             note: line.note,
@@ -835,6 +865,7 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
               source: true,
               partName: true,
               partNumber: true,
+              machine: true,
               orderedQuantity: true,
               receivedQuantity: true,
               status: true,
@@ -1069,6 +1100,7 @@ export async function recordMektekReceivingPurchaseOrderReceipt(
               source: true,
               partName: true,
               partNumber: true,
+              machine: true,
               orderedQuantity: true,
               receivedQuantity: true,
               status: true,
@@ -1094,6 +1126,7 @@ export async function recordMektekReceivingPurchaseOrderReceipt(
         const catalogItem = await ensureManualReceivingCatalogItem(tx, {
           partName: item.partName,
           partNumber: item.partNumber,
+          machine: item.machine || "Receiving",
           poNumber: purchaseOrder.poNumber,
         });
         await tx.logisticsPurchaseOrderItem.update({

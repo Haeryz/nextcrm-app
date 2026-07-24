@@ -10,20 +10,20 @@ describe("Catalogue Item form field mapping", () => {
     "utf8",
   );
 
-  it("maps Item Name, Machine, and Part Number to their correct values", () => {
+  it("maps the Indonesian item identity fields to their correct values", () => {
     expect(source).toMatch(
-      /<Field label="Item Name">[\s\S]*?value=\{value\.itemName\}[\s\S]*?update\("itemName"/,
+      /<Field label="Nama Spare Part">[\s\S]*?value=\{value\.itemName\}[\s\S]*?update\("itemName"/,
     );
     expect(source).toMatch(
-      /<Field label="Machine">[\s\S]*?value=\{value\.machine\}[\s\S]*?update\("machine"/,
+      /<Field label="Mesin">[\s\S]*?value=\{value\.machine\}[\s\S]*?update\("machine"/,
     );
     expect(source).toMatch(
-      /<Field label="Part Number">[\s\S]*?value=\{value\.partNumber[\s\S]*?update\("partNumber"/,
+      /<Field label="Nomor Part">[\s\S]*?value=\{value\.partNumber[\s\S]*?update\("partNumber"/,
     );
   });
 
   it("includes production channel and both warehouse locations", () => {
-    expect(source).toContain('label="Production Channel"');
+    expect(source).toContain('label="Divisi Produksi"');
     expect(source).toContain(
       '<SelectItem value="POWERTRAIN">Powertrain</SelectItem>',
     );
@@ -32,9 +32,13 @@ describe("Catalogue Item form field mapping", () => {
     );
     expect(source).not.toContain("jarang bergerak");
     expect(source).not.toContain("sering bergerak");
-    expect(source).toContain('label="Lokasi G. Belakang"');
-    expect(source).toContain('label="Lokasi G. Depan"');
-    expect(source).toContain('label="Stok Awal G. Belakang"');
-    expect(source).toContain('label="Stok Awal G. Depan"');
+    expect(source).toContain('label="Lokasi Gudang Belakang"');
+    expect(source).toContain('label="Lokasi Gudang Depan"');
+    expect(source).toContain('"Stok Awal G. Belakang"');
+    expect(source).toContain('"Stok Awal G. Depan"');
+    expect(source).toContain('"Total Unit Gudang Belakang"');
+    expect(source).toContain('"Total Unit Gudang Depan"');
+    expect(source).toMatch(/initialRearStock:\s*String\(item\.rearStock\)/);
+    expect(source).toMatch(/initialFrontStock:\s*String\(item\.frontStock\)/);
   });
 });

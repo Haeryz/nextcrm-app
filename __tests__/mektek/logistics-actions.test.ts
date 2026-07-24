@@ -480,6 +480,8 @@ describe("MekTek Logistics and Receiving actions", () => {
           source: "MANUAL",
           partName: "Seal Kit Custom",
           partNumber: "SK-CUSTOM-01",
+          machine: "Komatsu PC200",
+          warehouse: "FRONT",
           orderedQuantity: 3,
         },
       ],
@@ -497,6 +499,7 @@ describe("MekTek Logistics and Receiving actions", () => {
                 catalogItemId: "manual-catalog-1",
                 partName: "Seal Kit Custom",
                 partNumber: "SK-CUSTOM-01",
+                warehouse: "FRONT",
                 orderedQuantity: 3,
               }),
             ],
@@ -507,7 +510,7 @@ describe("MekTek Logistics and Receiving actions", () => {
     expect(catalogItemCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         id: expect.stringMatching(/^manual-receiving-/),
-        machine: "Receiving",
+        machine: "Komatsu PC200",
         rowNumber: 0,
         description: "Seal Kit Custom",
         partNumber: "SK-CUSTOM-01",

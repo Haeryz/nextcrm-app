@@ -79,6 +79,7 @@ type LogisticsPurchaseOrderItemRow = {
   position: number;
   partName: string;
   partNumber: string | null;
+  machine: string | null;
   orderedQuantity: number;
   receivedQuantity: number;
   warehouse: "REAR" | "FRONT" | null;
@@ -137,6 +138,8 @@ type PurchaseOrderItemDraft = {
   catalogQuery: string;
   partName: string;
   partNumber: string;
+  machine: string;
+  warehouse: "REAR" | "FRONT";
   orderedQuantity: string;
 };
 
@@ -174,6 +177,8 @@ function blankPurchaseOrderItem(clientId: string): PurchaseOrderItemDraft {
     catalogQuery: "",
     partName: "",
     partNumber: "",
+    machine: "",
+    warehouse: "REAR",
     orderedQuantity: "",
   };
 }
@@ -186,6 +191,8 @@ function toReceivingPurchaseOrderItem(
       source: "MANUAL",
       partName: item.partName,
       partNumber: item.partNumber,
+      machine: item.machine,
+      warehouse: item.warehouse,
       orderedQuantity: item.orderedQuantity,
     };
   }
@@ -422,7 +429,7 @@ export default function ReceivingManager({
             item.id,
             {
               quantity: "",
-              warehouse: "REAR",
+              warehouse: item.warehouse ?? "REAR",
               note: "",
             },
           ];
@@ -810,6 +817,7 @@ export default function ReceivingManager({
                         </div>
 
                         <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_10rem] lg:items-start">
+                          <div className="space-y-4">
                           <CatalogOrManualItemPicker
                             idPrefix={`receiving-${item.clientId}`}
                             itemNumber={index + 1}
@@ -839,6 +847,63 @@ export default function ReceivingManager({
                               updateItem(item.clientId, "partNumber", value)
                             }
                           />
+                          {item.source === "MANUAL" && (
+                            <div className="grid gap-4 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
+                              <div className="space-y-2">
+                                <Label htmlFor={`receiving-machine-${item.clientId}`}>
+                                  Mesin
+                                </Label>
+                                <Input
+                                  id={`receiving-machine-${item.clientId}`}
+                                  value={item.machine}
+                                  onChange={(event) =>
+                                    updateItem(
+                                      item.clientId,
+                                      "machine",
+                                      event.target.value,
+                                    )
+                                  }
+                                  placeholder="Contoh: Komatsu PC200"
+                                  disabled={isPending}
+                                  required
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Akan digunakan sebagai kategori mesin di katalog.
+                                </p>
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`receiving-warehouse-${item.clientId}`}>
+                                  Gudang Tujuan
+                                </Label>
+                                <Select
+                                  value={item.warehouse}
+                                  onValueChange={(value: "REAR" | "FRONT") =>
+                                    updateItem(item.clientId, "warehouse", value)
+                                  }
+                                  disabled={isPending}
+                                >
+                                  <SelectTrigger
+                                    id={`receiving-warehouse-${item.clientId}`}
+                                    aria-label="Gudang tujuan item manual"
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="REAR">
+                                      Gudang Belakang
+                                    </SelectItem>
+                                    <SelectItem value="FRONT">
+                                      Gudang Depan
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                  Otomatis menjadi tujuan awal saat barang diterima.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                          </div>
 
                           <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
                             <Label htmlFor={`logistics-qty-${item.clientId}`}>

@@ -565,6 +565,7 @@ model LogisticsPurchaseOrderItem {
   position         Int
   partName         String
   partNumber       String?
+  machine          String?
   orderedQuantity  Int
   receivedQuantity Int                              @default(0)
   warehouse        CatalogWarehouse?

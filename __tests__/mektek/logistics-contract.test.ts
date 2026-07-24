@@ -50,6 +50,15 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
     expect(receivingManager).not.toContain("Surat Jalan");
   });
 
+  it("captures Machine and the destination warehouse for manual Receiving items", () => {
+    expect(schema).toMatch(/machine\s+String\?/);
+    expect(actionSource).toContain("requireManualMachine: true");
+    expect(actionSource).toContain("requireManualWarehouse: true");
+    expect(receivingManager).toContain("receiving-machine-");
+    expect(receivingManager).toContain("Gudang Tujuan");
+    expect(receivingManager).toContain("item.warehouse ?? \"REAR\"");
+  });
+
   it("creates and exposes a delivery note for each outbound batch", () => {
     expect(actionSource).toContain("Nomor Surat Jalan wajib diisi");
     expect(actionSource).toContain("const reference = deliveryNoteNumber");

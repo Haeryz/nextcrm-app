@@ -5,12 +5,20 @@ jest.mock("@/lib/auth", () => ({ authOptions: {} }));
 const tx = {
   catalogItem: {
     create: jest.fn(),
+    findUnique: jest.fn(),
     update: jest.fn(),
   },
   catalogInventoryMonth: {
     create: jest.fn(),
   },
 };
+
+const applyCatalogStockMovement = jest.fn();
+
+jest.mock("@/lib/mektek/catalog-stock-ledger", () => ({
+  applyCatalogStockMovement: (...args: unknown[]) =>
+    applyCatalogStockMovement(...args),
+}));
 
 const catalogItemFindUnique = jest.fn();
 const catalogItemUpdate = jest.fn();
@@ -40,6 +48,11 @@ describe("catalog item inventory creation", () => {
       user: { id: "admin", isAdmin: true, userStatus: "ACTIVE" },
     });
     tx.catalogItem.create.mockResolvedValue({ id: "compressor" });
+    tx.catalogItem.update.mockResolvedValue({
+      id: "compressor",
+      rearStock: 10,
+      frontStock: 4,
+    });
     tx.catalogInventoryMonth.create.mockResolvedValue({ id: "month" });
     catalogItemFindUnique.mockResolvedValue({ id: "compressor" });
     catalogItemUpdate.mockResolvedValue({ id: "compressor" });
@@ -83,23 +96,43 @@ describe("catalog item inventory creation", () => {
     });
   });
 
-  it("updates catalogue metadata without reading or overwriting legacy quantity", async () => {
+  it("updates warehouse totals through auditable stock movements", async () => {
     const result = await updateMektekCatalogItem("compressor", {
       itemName: "Compressor Assy",
       machine: "DENSO",
       partNumber: "447220-7250",
       productionChannel: "THERMAL",
+      initialRearStock: "14",
+      initialFrontStock: "2",
     });
 
     expect(result).toEqual({ data: { id: "compressor" } });
-    expect(catalogItemFindUnique).toHaveBeenCalledWith({
-      where: { id: "compressor" },
-      select: { id: true },
-    });
-    expect(catalogItemUpdate).toHaveBeenCalledWith({
+    expect(tx.catalogItem.update).toHaveBeenCalledWith({
       where: { id: "compressor" },
       data: expect.not.objectContaining({ quantity: expect.anything() }),
-      select: { id: true },
+      select: { id: true, rearStock: true, frontStock: true },
     });
+    expect(applyCatalogStockMovement).toHaveBeenNthCalledWith(
+      1,
+      tx,
+      expect.objectContaining({
+        catalogItemId: "compressor",
+        warehouse: "REAR",
+        direction: "IN",
+        quantity: 4,
+        source: "MANUAL",
+      }),
+    );
+    expect(applyCatalogStockMovement).toHaveBeenNthCalledWith(
+      2,
+      tx,
+      expect.objectContaining({
+        catalogItemId: "compressor",
+        warehouse: "FRONT",
+        direction: "OUT",
+        quantity: 2,
+        source: "MANUAL",
+      }),
+    );
   });
 });

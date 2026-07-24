@@ -16,6 +16,7 @@ import {
   getCatalogInventoryMonthKey,
   getCatalogInventoryMonthRange,
 } from "@/lib/mektek/catalog-inventory";
+import { applyCatalogStockMovement } from "@/lib/mektek/catalog-stock-ledger";
 
 const DEFAULT_PAGE_SIZE = 24;
 
@@ -111,6 +112,8 @@ function normalizeCatalogInput(input: CatalogItemInput) {
   const price = parsePositiveInt(input.price);
   const initialRearStock = parseNonNegativeInt(input.initialRearStock);
   const initialFrontStock = parseNonNegativeInt(input.initialFrontStock);
+  const rearStockProvided = compactText(input.initialRearStock) !== "";
+  const frontStockProvided = compactText(input.initialFrontStock) !== "";
   const rawProductionChannel = compactText(input.productionChannel).toUpperCase();
   const productionChannel: CatalogProductionChannel | null =
     rawProductionChannel === "POWERTRAIN" || rawProductionChannel === "THERMAL"
@@ -141,7 +144,34 @@ function normalizeCatalogInput(input: CatalogItemInput) {
     },
     initialRearStock,
     initialFrontStock,
+    rearStockProvided,
+    frontStockProvided,
   };
+}
+
+async function adjustCatalogWarehouseStock(
+  tx: Prisma.TransactionClient,
+  input: {
+    catalogItemId: string;
+    warehouse: "REAR" | "FRONT";
+    currentStock: number;
+    targetStock: number;
+    createdBy: string;
+  },
+) {
+  const difference = input.targetStock - input.currentStock;
+  if (difference === 0) return;
+
+  await applyCatalogStockMovement(tx, {
+    catalogItemId: input.catalogItemId,
+    warehouse: input.warehouse,
+    direction: difference > 0 ? "IN" : "OUT",
+    quantity: Math.abs(difference),
+    occurredAt: new Date(),
+    note: `Koreksi total unit melalui Edit Spare Part (${input.currentStock} → ${input.targetStock})`,
+    createdBy: input.createdBy,
+    source: "MANUAL",
+  });
 }
 
 export async function listMektekCatalogItems(input?: {
@@ -323,15 +353,31 @@ export async function updateMektekCatalogItem(id: string, input: CatalogItemInpu
   if ("error" in normalized) return { error: normalized.error };
 
   try {
-    const current = await prismadb.catalogItem.findUnique({
-      where: { id: itemId },
-      select: { id: true },
-    });
-    if (!current) return { error: "Catalogue Item tidak ditemukan" };
-    const item = await prismadb.catalogItem.update({
-      where: { id: itemId },
-      data: normalized.data,
-      select: { id: true },
+    const item = await prismadb.$transaction(async (tx) => {
+      const current = await tx.catalogItem.update({
+        where: { id: itemId },
+        data: normalized.data,
+        select: { id: true, rearStock: true, frontStock: true },
+      });
+      if (normalized.rearStockProvided) {
+        await adjustCatalogWarehouseStock(tx, {
+          catalogItemId: itemId,
+          warehouse: "REAR",
+          currentStock: current.rearStock,
+          targetStock: normalized.initialRearStock,
+          createdBy: access.session.user.id,
+        });
+      }
+      if (normalized.frontStockProvided) {
+        await adjustCatalogWarehouseStock(tx, {
+          catalogItemId: itemId,
+          warehouse: "FRONT",
+          currentStock: current.frontStock,
+          targetStock: normalized.initialFrontStock,
+          createdBy: access.session.user.id,
+        });
+      }
+      return { id: current.id };
     });
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
     revalidatePath("/[locale]/(routes)/mektek/dashboard", "page");
