@@ -3,6 +3,11 @@ import { prismadb } from "../lib/prisma";
 import { syncOutboundDispatchBillingSource, syncPaidMektekPaymentToFinance, syncReceivingPayableSource, syncServiceOrderBillingSource } from "../lib/mektek/finance-sync";
 import { mektekOrderWhere } from "../lib/mektek/orders";
 
+const TRANSACTION_OPTIONS = {
+  maxWait: 15_000,
+  timeout: 30_000,
+} as const;
+
 async function main() {
   const commit = process.argv.includes("--commit");
   const [serviceOrders, paidPayments, receiptRows] = await Promise.all([
@@ -21,13 +26,13 @@ async function main() {
     console.log("No data changed. Run pnpm finance:backfill -- --commit after reviewing the counts.");
     return;
   }
-  for (const order of serviceOrders) await prismadb.$transaction((tx) => syncServiceOrderBillingSource(tx, { serviceOrderId: order.id, force: true }));
-  for (const payment of paidPayments) await prismadb.$transaction((tx) => syncPaidMektekPaymentToFinance(tx, payment.id));
+  for (const order of serviceOrders) await prismadb.$transaction((tx) => syncServiceOrderBillingSource(tx, { serviceOrderId: order.id, force: true }), TRANSACTION_OPTIONS);
+  for (const payment of paidPayments) await prismadb.$transaction((tx) => syncPaidMektekPaymentToFinance(tx, payment.id), TRANSACTION_OPTIONS);
   for (const row of logistics.values()) {
     await prismadb.$transaction(async (tx) => {
       if (row.flow === "OUTBOUND") await syncOutboundDispatchBillingSource(tx, { purchaseOrderId: row.purchaseOrderId, dispatchReference: row.reference, occurredAt: row.occurredAt });
       else await syncReceivingPayableSource(tx, { purchaseOrderId: row.purchaseOrderId, receivingReference: row.reference, occurredAt: row.occurredAt });
-    });
+    }, TRANSACTION_OPTIONS);
   }
   console.log("Finance backfill completed. All source keys are idempotent.");
 }
