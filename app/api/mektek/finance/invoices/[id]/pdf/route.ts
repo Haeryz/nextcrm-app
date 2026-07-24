@@ -3,11 +3,12 @@ import { NextResponse } from "next/server";
 import { renderFinanceInvoicePdf } from "@/actions/mektek/finance-invoice-pdf";
 import { authOptions } from "@/lib/auth";
 import { canViewMektekFinance } from "@/lib/mektek/permissions";
+import { isFinanceInvoiceSigner } from "@/lib/mektek/finance-invoice-signers";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await getServerSession(authOptions);
@@ -16,6 +17,10 @@ export async function GET(
   }
 
   const { id } = await params;
+  const requestedSigner = new URL(request.url).searchParams.get("signer");
+  const authorizedSigner = isFinanceInvoiceSigner(requestedSigner)
+    ? requestedSigner
+    : "SUYADI";
   const invoice = await prismadb.financeInvoice.findUnique({
     where: { id },
     include: {
@@ -103,6 +108,7 @@ export async function GET(
     taxAmount: Number(invoice.taxAmount),
     total: Number(invoice.netAmount),
     notes: invoice.notes,
+    authorizedSigner,
     lines,
   });
   const safeNumber = invoiceNumber.replace(/[^A-Za-z0-9_-]+/g, "-");

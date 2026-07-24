@@ -133,12 +133,25 @@ export async function createPaymentFakturEntry(input: PaymentFakturEntryInput) {
       select: { id: true },
     });
     if (!customer) return { error: "Customer tidak ditemukan" };
-    const row = await prismadb.paymentFakturEntry.create({
-      data: {
-        ...parsed.data,
-        createdBy: access.current.id,
-        updatedBy: access.current.id,
-      },
+    const row = await prismadb.$transaction(async (transaction) => {
+      const latest = await transaction.paymentFakturEntry.findFirst({
+        where: {
+          customerId: parsed.data.customerId,
+          sourceRow: { not: null },
+        },
+        orderBy: { sourceRow: "desc" },
+        select: { sourceRow: true },
+      });
+      const sourceRow = Math.max(15, (latest?.sourceRow ?? 14) + 1);
+
+      return transaction.paymentFakturEntry.create({
+        data: {
+          ...parsed.data,
+          sourceRow,
+          createdBy: access.current.id,
+          updatedBy: access.current.id,
+        },
+      });
     });
     revalidatePath(paymentFakturPath, "page");
     return { data: { id: row.id } };

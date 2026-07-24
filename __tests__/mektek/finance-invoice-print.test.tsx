@@ -31,9 +31,10 @@ describe("print-ready Finance invoice", () => {
       expect(pdfSource).toContain(label);
     }
     expect(pdfSource).toContain("logo-pt-mektek-tanjung-lestari.jpg");
+    expect(pdfSource).toContain("data.authorizedSigner");
   });
 
-  it("connects every saved invoice to the authorized PDF route", () => {
+  it("connects every saved invoice to the signer-aware PDF route", () => {
     const manager = source(
       "app/[locale]/(routes)/mektek/finance/_components/InvoiceCrudManager.tsx",
     );
@@ -43,8 +44,11 @@ describe("print-ready Finance invoice", () => {
 
     expect(manager).toContain("/api/mektek/finance/invoices/");
     expect(manager).toContain("Unduh PDF");
+    expect(manager).toContain("Pilih penandatangan invoice");
+    expect(manager).toContain("authorizedSigner");
     expect(route).toContain("canViewMektekFinance");
     expect(route).toContain("renderFinanceInvoicePdf");
     expect(route).toContain("source.snapshot");
+    expect(route).toContain("isFinanceInvoiceSigner");
   });
 });

@@ -10,7 +10,18 @@ import {
   useTransition,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -39,6 +50,14 @@ import {
 } from "@/lib/mektek/finance-po";
 import { FINANCE_DESTINATION_BANK_OPTIONS } from "@/lib/mektek/finance-bank-accounts";
 import { buildPaymentFakturPurchaseOrderAutofill } from "@/lib/mektek/payment-faktur-po";
+import {
+  paymentFakturDisplayNumber,
+  type PaymentFakturSortDirection,
+  type PaymentFakturSortKey,
+  type PaymentFakturStatusFilter,
+} from "@/lib/mektek/payment-faktur-table";
+
+import PaymentFakturTrendChart from "./PaymentFakturTrendChart";
 
 export type PaymentFakturCustomerOption = {
   id: string;
@@ -132,6 +151,9 @@ export default function PaymentFakturManager({
   page,
   pageCount,
   totalRows,
+  statusFilter,
+  sort,
+  direction,
 }: {
   customers: PaymentFakturCustomerOption[];
   sheetSearch: string;
@@ -152,6 +174,9 @@ export default function PaymentFakturManager({
   page: number;
   pageCount: number;
   totalRows: number;
+  statusFilter: PaymentFakturStatusFilter;
+  sort: PaymentFakturSortKey;
+  direction: PaymentFakturSortDirection;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -382,7 +407,7 @@ export default function PaymentFakturManager({
           </select>
           <Button onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
-            Tambah invoice
+            Tambah invoice {selectedSheetKey}
           </Button>
         </div>
       </div>
@@ -472,43 +497,112 @@ export default function PaymentFakturManager({
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full min-w-[900px] text-sm">
-          <thead className="bg-muted/60 text-xs uppercase text-muted-foreground">
-            <tr>
-              {["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"].map((month) => (
-                <th key={month} className="px-3 py-2 text-right">{month}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              {summary.monthlyTotals.map((amount, index) => (
-                <td key={index} className="whitespace-nowrap px-3 py-3 text-right font-medium">{rupiah.format(amount)}</td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <PaymentFakturTrendChart values={summary.monthlyTotals} />
 
-      <form
-        className="flex gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setQuery({ q: searchValue.trim() || null, page: null });
-        }}
-      >
-        <div className="relative max-w-xl flex-1">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            value={searchValue}
-            onChange={(event) => setSearchValue(event.target.value)}
-            placeholder="Cari invoice, kwitansi, PO, faktur pajak, atau deskripsi"
-          />
+      <div className="rounded-xl border bg-card p-3 shadow-sm">
+        <div className="mb-3 flex items-center gap-2">
+          <Filter className="h-4 w-4 text-primary" />
+          <div>
+            <p className="text-sm font-semibold">Filter dan urutkan tabel</p>
+            <p className="text-xs text-muted-foreground">
+              Kontrol hanya berlaku pada invoice di sheet {selectedSheetKey}.
+            </p>
+          </div>
         </div>
-        <Button type="submit" variant="outline" disabled={pending}>Cari</Button>
-      </form>
+        <div className="grid gap-2 lg:grid-cols-[minmax(280px,1fr)_190px_210px_auto_auto]">
+          <form
+            className="flex gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setQuery({ q: searchValue.trim() || null, page: null });
+            }}
+          >
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                value={searchValue}
+                onChange={(event) => setSearchValue(event.target.value)}
+                placeholder="Cari invoice, kwitansi, PO, faktur pajak, atau deskripsi"
+              />
+            </div>
+            <Button type="submit" variant="outline" disabled={pending}>
+              Cari
+            </Button>
+          </form>
+          <select
+            className="h-10 rounded-md border bg-background px-3 text-sm"
+            value={statusFilter}
+            onChange={(event) =>
+              setQuery({ status: event.target.value, page: null })
+            }
+            aria-label="Filter status pembayaran"
+            disabled={pending}
+          >
+            <option value="SEMUA">Semua status</option>
+            <option value="BELUM_BAYAR">Belum dibayar</option>
+            <option value="CICILAN">Cicilan</option>
+            <option value="LUNAS">Lunas</option>
+          </select>
+          <select
+            className="h-10 rounded-md border bg-background px-3 text-sm"
+            value={sort}
+            onChange={(event) =>
+              setQuery({ sort: event.target.value, page: null })
+            }
+            aria-label="Urutkan tabel berdasarkan"
+            disabled={pending}
+          >
+            <option value="number">Nomor urut</option>
+            <option value="invoiceDate">Tanggal invoice</option>
+            <option value="invoiceNumber">Nomor invoice</option>
+            <option value="grandTotal">Grand total</option>
+            <option value="paidAmount">Jumlah dibayar</option>
+            <option value="remainingAmount">Sisa pembayaran</option>
+            <option value="status">Status</option>
+          </select>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              setQuery({
+                direction: direction === "asc" ? "desc" : "asc",
+                page: null,
+              })
+            }
+            disabled={pending}
+            aria-label={
+              direction === "asc"
+                ? "Ubah menjadi urutan menurun"
+                : "Ubah menjadi urutan menaik"
+            }
+          >
+            {direction === "asc" ? (
+              <ArrowUp className="mr-2 h-4 w-4" />
+            ) : (
+              <ArrowDown className="mr-2 h-4 w-4" />
+            )}
+            {direction === "asc" ? "Menaik" : "Menurun"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => {
+              setSearchValue("");
+              setQuery({
+                q: null,
+                status: null,
+                sort: null,
+                direction: null,
+                page: null,
+              });
+            }}
+            disabled={pending}
+          >
+            Reset
+          </Button>
+        </div>
+      </div>
 
       <div className="overflow-hidden rounded-lg border">
         <div className="overflow-x-auto">
@@ -540,7 +634,13 @@ export default function PaymentFakturManager({
             <tbody className="divide-y">
               {rows.map((row, index) => (
                 <tr key={row.id} className="align-top hover:bg-muted/30">
-                  <td className="px-3 py-3 text-muted-foreground">{row.sourceRow ? row.sourceRow - 14 : (page - 1) * 50 + index + 1}</td>
+                  <td className="px-3 py-3 text-muted-foreground">
+                    {paymentFakturDisplayNumber(
+                      row.sourceRow,
+                      index,
+                      (page - 1) * 50,
+                    )}
+                  </td>
                   <td className="px-3 py-3">{row.receiptNumber || "—"}</td>
                   <td className="px-3 py-3 font-medium">{row.invoiceNumber}</td>
                   <td className="px-3 py-3">{dateLabel(row.invoiceDate)}</td>
@@ -595,9 +695,15 @@ export default function PaymentFakturManager({
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
           <form onSubmit={submit}>
             <DialogHeader>
-              <DialogTitle>{editing ? "Edit Payment Faktur" : "Tambah Payment Faktur"}</DialogTitle>
+              <DialogTitle>
+                {editing
+                  ? `Edit invoice ${editing.invoiceNumber}`
+                  : `Tambah invoice ${selectedSheetKey} nomor ${(selectedCustomer?.entryCount ?? 0) + 1}`}
+              </DialogTitle>
               <DialogDescription>
-                Kolom mengikuti sheet {selectedSheetKey}. Grand total, hutang dibayar, sisa hutang, status, dan bulan dihitung otomatis.
+                Data disimpan di dalam sheet {selectedSheetKey}, bukan sebagai
+                customer baru. Grand total, jumlah dibayar, sisa, status, dan
+                grafik bulanan dihitung otomatis.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-5 sm:grid-cols-2 lg:grid-cols-3">

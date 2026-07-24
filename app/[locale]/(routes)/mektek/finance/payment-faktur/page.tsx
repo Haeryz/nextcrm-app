@@ -1,6 +1,12 @@
 import { Prisma } from "@prisma/client";
 
 import { calculatePaymentFakturAmounts } from "@/lib/mektek/payment-faktur";
+import {
+  filterAndSortPaymentFakturRows,
+  normalizePaymentFakturDirection,
+  normalizePaymentFakturSort,
+  normalizePaymentFakturStatus,
+} from "@/lib/mektek/payment-faktur-table";
 import { prismadb } from "@/lib/prisma";
 
 import PaymentFakturManager, {
@@ -33,6 +39,9 @@ export default async function PaymentFakturPage({
     sheetQ?: string;
     q?: string;
     page?: string;
+    status?: string;
+    sort?: string;
+    direction?: string;
   }>;
 }) {
   const query = await searchParams;
@@ -73,6 +82,9 @@ export default async function PaymentFakturPage({
       ? [selected, ...visibleCustomers]
       : visibleCustomers;
   const search = String(query.q ?? "").trim().slice(0, 100);
+  const statusFilter = normalizePaymentFakturStatus(query.status);
+  const sort = normalizePaymentFakturSort(query.sort);
+  const direction = normalizePaymentFakturDirection(query.direction);
   const requestedPage = Math.max(1, Number.parseInt(query.page ?? "1", 10) || 1);
   const where = selected
     ? {
@@ -92,9 +104,8 @@ export default async function PaymentFakturPage({
       }
     : { id: "__empty__" };
 
-  const [totalRows, summaryAggregateRows, monthlyAggregateRows] = selected
+  const [summaryAggregateRows, monthlyAggregateRows] = selected
     ? await Promise.all([
-        prismadb.paymentFakturEntry.count({ where }),
         prismadb.$queryRaw<PaymentSummaryAggregate[]>(Prisma.sql`
           SELECT
             COALESCE(SUM("grandTotal"), 0) AS total,
@@ -134,15 +145,10 @@ export default async function PaymentFakturPage({
           ORDER BY month
         `),
       ])
-    : [0, [], []];
-  const pageCount = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
-  const page = Math.min(requestedPage, pageCount);
+    : [[], []];
   const entries = selected
     ? await prismadb.paymentFakturEntry.findMany({
         where,
-        orderBy: [{ invoiceDate: "desc" }, { sourceRow: "desc" }, { createdAt: "desc" }],
-        skip: (page - 1) * PAGE_SIZE,
-        take: PAGE_SIZE,
       })
     : [];
 
@@ -170,7 +176,7 @@ export default async function PaymentFakturPage({
     taxLabelPercent: Number(row.taxLabelPercent),
     entryCount: row._count.entries,
   }));
-  const rows: PaymentFakturRow[] = entries.map((row) => {
+  const allRows: PaymentFakturRow[] = entries.map((row) => {
     const amounts = calculatePaymentFakturAmounts({
       grandTotal: Number(row.grandTotal),
       transferDate: row.transferDate,
@@ -199,6 +205,18 @@ export default async function PaymentFakturPage({
       ...amounts,
     };
   });
+  const filteredRows = filterAndSortPaymentFakturRows(allRows, {
+    status: statusFilter,
+    sort,
+    direction,
+  });
+  const totalRows = filteredRows.length;
+  const pageCount = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+  const page = Math.min(requestedPage, pageCount);
+  const rows = filteredRows.slice(
+    (page - 1) * PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
 
   return (
     <PaymentFakturManager
@@ -213,6 +231,9 @@ export default async function PaymentFakturPage({
       page={page}
       pageCount={pageCount}
       totalRows={totalRows}
+      statusFilter={statusFilter}
+      sort={sort}
+      direction={direction}
     />
   );
 }

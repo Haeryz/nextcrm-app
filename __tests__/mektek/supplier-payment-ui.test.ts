@@ -44,6 +44,9 @@ describe("supplier payment Finance workspace", () => {
     expect(manager).toContain("Dokumen yang perlu diperbaiki");
     expect(manager).toContain("/mektek/finance/payables/sources/");
     expect(manager).toContain("Lihat detail dokumen");
+    expect(manager).toContain("/mektek/receiving?q=");
+    expect(manager).toContain("Periksa dokumen di Receiving");
+    expect(manager).toContain("&detail=");
     expect(detail).toContain("Dokumen yang perlu dilaporkan");
     expect(detail).toContain("Item tanpa harga");
     expect(detail).toContain("/mektek/receiving?q=");

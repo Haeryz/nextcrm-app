@@ -11,6 +11,7 @@ import {
 } from "@react-pdf/renderer";
 
 import { FINANCE_DESTINATION_BANK_OPTIONS } from "@/lib/mektek/finance-bank-accounts";
+import type { FinanceInvoiceSigner } from "@/lib/mektek/finance-invoice-signers";
 
 export type FinanceInvoicePdfData = {
   invoiceNumber: string;
@@ -27,6 +28,7 @@ export type FinanceInvoicePdfData = {
   taxAmount: number;
   total: number;
   notes: string | null;
+  authorizedSigner: FinanceInvoiceSigner;
   lines: Array<{
     description: string;
     partNumber: string | null;
@@ -403,7 +405,7 @@ function FinanceInvoiceDocument({ data }: { data: FinanceInvoicePdfData }) {
             <Text>AUTHORIZED PERSON</Text>
             <View style={styles.signatureSpace} />
             <View style={styles.signatureLine} />
-            <Text style={styles.authorized}>SUYADI</Text>
+            <Text style={styles.authorized}>{data.authorizedSigner}</Text>
             <Text style={styles.role}>Management</Text>
           </View>
         </View>

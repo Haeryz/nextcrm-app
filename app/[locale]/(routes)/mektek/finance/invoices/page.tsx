@@ -3,13 +3,28 @@ import FinanceWorkspace from "../_components/FinanceWorkspace";
 export default async function Page({
   searchParams,
 }: {
-  searchParams?: Promise<{ q?: string | string[] }>;
+  searchParams?: Promise<{
+    q?: string | string[];
+    classification?: string | string[];
+    inspect?: string | string[];
+  }>;
 }) {
-  const query = (await searchParams)?.q;
+  const resolvedSearchParams = await searchParams;
+  const query = resolvedSearchParams?.q;
+  const classification = resolvedSearchParams?.classification;
+  const inspect = resolvedSearchParams?.inspect;
   return (
     <FinanceWorkspace
       section="invoices"
       query={String(Array.isArray(query) ? query[0] ?? "" : query ?? "").slice(0, 100)}
+      classification={String(
+        Array.isArray(classification)
+          ? classification[0] ?? ""
+          : classification ?? "",
+      ).slice(0, 30)}
+      inspectInvoiceId={String(
+        Array.isArray(inspect) ? inspect[0] ?? "" : inspect ?? "",
+      ).slice(0, 100)}
     />
   );
 }

@@ -42,6 +42,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { classifyFinanceRevenueLine } from "@/lib/mektek/finance";
 import { FINANCE_DESTINATION_BANK_OPTIONS } from "@/lib/mektek/finance-bank-accounts";
 import {
+  FINANCE_INVOICE_SIGNERS,
+  type FinanceInvoiceSigner,
+} from "@/lib/mektek/finance-invoice-signers";
+import {
   shouldSearchFinancePurchaseOrders,
   type FinancePurchaseOrderSuggestion,
 } from "@/lib/mektek/finance-po";
@@ -84,6 +88,8 @@ export type FinanceInvoiceCrudRow = {
   total: number;
   balance: number;
   hasPayment: boolean;
+  classificationIssue: boolean;
+  classificationDescriptions: string[];
   sources: FinanceInvoiceSourceRow[];
 };
 
@@ -129,28 +135,65 @@ function fieldValue(form: InvoiceFormState, name: keyof InvoiceFormState) {
   return String(form[name] ?? "");
 }
 
+const invoiceFormFromRow = (
+  row: FinanceInvoiceCrudRow,
+): InvoiceFormState => ({
+  customerName: row.customerName,
+  deliveryNoteNumber: row.deliveryNoteNumber,
+  deliveryNoteDate: row.deliveryNoteDate,
+  receiptNumber: row.receiptNumber,
+  invoiceNumber: row.invoiceNumber,
+  invoiceDate: row.invoiceDate,
+  dueDate: row.dueDate,
+  purchaseOrderNumber: row.purchaseOrderNumber,
+  purchaseOrderDate: row.purchaseOrderDate,
+  description: row.description,
+  subtotal: String(row.subtotal),
+  taxRate: String(row.taxRate),
+  taxInvoiceNumber: row.taxInvoiceNumber,
+  accountDestination: row.accountDestination,
+  notes: row.notes,
+});
+
 export default function InvoiceCrudManager({
   rows,
   customerNames,
+  initialInvoiceId,
 }: {
   rows: FinanceInvoiceCrudRow[];
   customerNames: string[];
+  initialInvoiceId?: string;
 }) {
+  const initialInvoice = rows.find((row) => row.id === initialInvoiceId);
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [open, setOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<InvoiceFormState>(emptyForm);
+  const [open, setOpen] = useState(Boolean(initialInvoice));
+  const [editingId, setEditingId] = useState<string | null>(
+    initialInvoice?.id ?? null,
+  );
+  const [downloadTarget, setDownloadTarget] = useState<{
+    id: string;
+    displayNumber: string;
+  } | null>(null);
+  const [authorizedSigner, setAuthorizedSigner] =
+    useState<FinanceInvoiceSigner>("SUYADI");
+  const [form, setForm] = useState<InvoiceFormState>(() =>
+    initialInvoice ? invoiceFormFromRow(initialInvoice) : emptyForm,
+  );
   const [purchaseOrderOptions, setPurchaseOrderOptions] = useState<
     FinancePurchaseOrderSuggestion[]
   >([]);
   const [purchaseOrderSearchOpen, setPurchaseOrderSearchOpen] = useState(false);
   const [purchaseOrderSearching, setPurchaseOrderSearching] = useState(false);
   const [activePurchaseOrderIndex, setActivePurchaseOrderIndex] = useState(0);
-  const [purchaseOrderQuery, setPurchaseOrderQuery] = useState("");
+  const [purchaseOrderQuery, setPurchaseOrderQuery] = useState(
+    initialInvoice?.sources.length
+      ? ""
+      : initialInvoice?.purchaseOrderNumber ?? "",
+  );
   const [selectedInvoiceSources, setSelectedInvoiceSources] = useState<
     FinanceInvoiceSourceRow[]
-  >([]);
+  >(initialInvoice?.sources ?? []);
   const [purchaseOrderPricingWarning, setPurchaseOrderPricingWarning] =
     useState("");
   const purchaseOrderRequestId = useRef(0);
@@ -169,6 +212,7 @@ export default function InvoiceCrudManager({
       }),
     [form.description],
   );
+  const editingInvoice = rows.find((row) => row.id === editingId);
 
   const set = (name: keyof InvoiceFormState, value: string) =>
     setForm((current) => ({ ...current, [name]: value }));
@@ -428,26 +472,26 @@ export default function InvoiceCrudManager({
     setOpen(true);
   };
 
+  const openDownload = (row: Pick<FinanceInvoiceCrudRow, "id" | "displayNumber">) => {
+    setAuthorizedSigner("SUYADI");
+    setDownloadTarget(row);
+  };
+
+  const downloadInvoice = () => {
+    if (!downloadTarget) return;
+    const link = document.createElement("a");
+    const params = new URLSearchParams({ signer: authorizedSigner });
+    link.href = `/api/mektek/finance/invoices/${encodeURIComponent(downloadTarget.id)}/pdf?${params.toString()}`;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.click();
+    setDownloadTarget(null);
+  };
+
   const openEdit = (row: FinanceInvoiceCrudRow) => {
     setEditingId(row.id);
     resetPurchaseOrderSearch();
-    setForm({
-      customerName: row.customerName,
-      deliveryNoteNumber: row.deliveryNoteNumber,
-      deliveryNoteDate: row.deliveryNoteDate,
-      receiptNumber: row.receiptNumber,
-      invoiceNumber: row.invoiceNumber,
-      invoiceDate: row.invoiceDate,
-      dueDate: row.dueDate,
-      purchaseOrderNumber: row.purchaseOrderNumber,
-      purchaseOrderDate: row.purchaseOrderDate,
-      description: row.description,
-      subtotal: String(row.subtotal),
-      taxRate: String(row.taxRate),
-      taxInvoiceNumber: row.taxInvoiceNumber,
-      accountDestination: row.accountDestination,
-      notes: row.notes,
-    });
+    setForm(invoiceFormFromRow(row));
     setSelectedInvoiceSources(row.sources);
     setPurchaseOrderQuery(row.sources.length ? "" : row.purchaseOrderNumber);
     setOpen(true);
@@ -474,11 +518,10 @@ export default function InvoiceCrudManager({
         result.data &&
         "id" in result.data
       ) {
-        const link = document.createElement("a");
-        link.href = `/api/mektek/finance/invoices/${encodeURIComponent(result.data.id)}/pdf`;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        link.click();
+        openDownload({
+          id: result.data.id,
+          displayNumber: form.invoiceNumber || "Invoice baru",
+        });
       }
       toast.success(editingId ? "Invoice berhasil diperbarui" : "Invoice berhasil ditambahkan");
       setOpen(false);
@@ -558,16 +601,10 @@ export default function InvoiceCrudManager({
                         <Button
                           size="icon"
                           variant="outline"
-                          asChild
+                          onClick={() => openDownload(row)}
                           aria-label={`Unduh PDF ${row.displayNumber}`}
                         >
-                          <a
-                            href={`/api/mektek/finance/invoices/${encodeURIComponent(row.id)}/pdf`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Download className="h-4 w-4" />
-                          </a>
+                          <Download className="h-4 w-4" />
                         </Button>
                         <Button
                           size="icon"
@@ -806,6 +843,17 @@ export default function InvoiceCrudManager({
             </div>
 
             <div className="space-y-2 md:col-span-2">
+              {editingInvoice?.classificationIssue ? (
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                  <p className="font-medium">
+                    Baris invoice yang perlu diperiksa
+                  </p>
+                  <p className="mt-1">
+                    {editingInvoice.classificationDescriptions.join("; ") ||
+                      "Tidak ada deskripsi"}
+                  </p>
+                </div>
+              ) : null}
               <Label htmlFor="description">Jenis pengeluaran / deskripsi *</Label>
               <Textarea id="description" value={fieldValue(form, "description")} onChange={(event) => set("description", event.target.value)} placeholder="Jasa, spare part, rental, service, atau pekerjaan lain" />
               <p
@@ -872,6 +920,52 @@ export default function InvoiceCrudManager({
             <Button onClick={submit} disabled={isPending}>
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Simpan invoice
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(downloadTarget)}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setDownloadTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Pilih penandatangan invoice</DialogTitle>
+            <DialogDescription>
+              Pilih nama yang akan tampil sebagai pihak berwenang pada{" "}
+              {downloadTarget?.displayNumber ?? "invoice"} sebelum PDF dibuka.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="authorizedSigner">Penandatangan</Label>
+            <select
+              id="authorizedSigner"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              value={authorizedSigner}
+              onChange={(event) =>
+                setAuthorizedSigner(event.target.value as FinanceInvoiceSigner)
+              }
+            >
+              {FINANCE_INVOICE_SIGNERS.map((signer) => (
+                <option key={signer} value={signer}>
+                  {signer}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Nama terpilih akan dicetak pada bagian Authorized Person.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDownloadTarget(null)}>
+              Batal
+            </Button>
+            <Button onClick={downloadInvoice}>
+              <Download className="mr-2 h-4 w-4" />
+              Unduh PDF
             </Button>
           </DialogFooter>
         </DialogContent>

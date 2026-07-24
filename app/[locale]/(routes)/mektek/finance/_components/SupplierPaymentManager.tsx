@@ -126,6 +126,12 @@ export default function SupplierPaymentManager({
   const [notes, setNotes] = useState("");
   const [checks, setChecks] = useState(emptyChecks);
   const selected = sources.find((source) => source.id === sourceId) ?? null;
+  const receivingHref =
+    selected?.purchaseOrderId
+      ? `/${locale}/mektek/receiving?q=${encodeURIComponent(
+          selected.poNumber,
+        )}&detail=${encodeURIComponent(selected.purchaseOrderId)}`
+      : null;
   const calculated = calculateSupplierPayable(
     selected?.expectedSubtotal ?? 0,
     taxAmount,
@@ -339,6 +345,13 @@ export default function SupplierPaymentManager({
                     </label>
                   ))}
                 </div>
+                {receivingHref ? (
+                  <Button asChild type="button" size="sm" variant="outline">
+                    <Link href={receivingHref}>
+                      Periksa dokumen di Receiving
+                    </Link>
+                  </Button>
+                ) : null}
 
                 {!selected.pricingComplete ? (
                   <div className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">

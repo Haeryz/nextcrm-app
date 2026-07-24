@@ -9,6 +9,7 @@ import {
   Search,
   ShieldCheck,
 } from "lucide-react";
+import Link from "next/link";
 
 import { getFinanceOverview } from "@/actions/mektek/finance";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import {
 } from "@/lib/mektek/finance-contract-reminder-demo";
 import {
   buildFinanceRevenueSplit,
+  classifyFinanceRevenueLine,
   getContractDaysRemaining,
   parseFinanceContractPeriodEnd,
   type FinanceRevenueCategory,
@@ -77,6 +79,13 @@ type FinanceRevenueReportRow = {
   description: string;
 };
 
+type FinanceRevenueInspection = {
+  id: string;
+  invoiceNumber: string;
+  customer: string;
+  descriptions: string[];
+};
+
 async function getFinanceRevenueReport() {
   const invoices = await prismadb.financeInvoice.findMany({
     where: { status: { not: "VOID" } },
@@ -94,6 +103,7 @@ async function getFinanceRevenueReport() {
     },
   });
   const rows: FinanceRevenueReportRow[] = [];
+  const unclassifiedInvoices: FinanceRevenueInspection[] = [];
   let unclassifiedCount = 0;
   let unclassifiedSubtotal = 0;
 
@@ -108,6 +118,13 @@ async function getFinanceRevenueReport() {
     if (split.unclassified.subtotal > 0) {
       unclassifiedCount += 1;
       unclassifiedSubtotal += split.unclassified.subtotal;
+      unclassifiedInvoices.push({
+        id: invoice.id,
+        invoiceNumber:
+          invoice.invoiceNumber ?? `Draf ${invoice.draftNumber.slice(0, 8)}`,
+        customer: invoice.counterparty.legalName,
+        descriptions: split.unclassified.descriptions,
+      });
     }
     for (const category of ["sparepart", "service"] as const) {
       const bucket = split[category];
@@ -133,7 +150,12 @@ async function getFinanceRevenueReport() {
     }
   }
 
-  return { rows, unclassifiedCount, unclassifiedSubtotal };
+  return {
+    rows,
+    unclassifiedCount,
+    unclassifiedSubtotal,
+    unclassifiedInvoices,
+  };
 }
 
 type DemoData = Record<string, unknown>;
@@ -256,12 +278,17 @@ const matchesReportQuery = (
 function ReportFilter({
   query,
   placeholder = "Cari data rekap",
+  classification = "",
 }: {
   query: string;
   placeholder?: string;
+  classification?: string;
 }) {
   return (
     <form className="flex max-w-xl gap-2">
+      {classification ? (
+        <input type="hidden" name="classification" value={classification} />
+      ) : null}
       <div className="relative flex-1">
         <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
         <Input
@@ -287,20 +314,44 @@ function ReportFilter({
 function RevenueClassificationWarning({
   count,
   subtotal,
+  invoices,
 }: {
   count: number;
   subtotal: number;
+  invoices: FinanceRevenueInspection[];
 }) {
   return (
     <div className="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-      <div>
+      <div className="min-w-0 flex-1">
         <p className="font-medium">Ada jenis pengeluaran yang belum dapat dipisahkan</p>
         <p>
           {count.toLocaleString("id-ID")} invoice senilai {money(subtotal)} memuat
           deskripsi campuran atau tidak jelas. Rinci menjadi baris jasa dan spare part
           agar pendapatannya masuk otomatis tanpa salah hitung.
         </p>
+        <div className="mt-3 space-y-2">
+          {invoices.slice(0, 5).map((invoice) => (
+            <Link
+              key={invoice.id}
+              href={`../invoices?classification=unclassified&inspect=${encodeURIComponent(invoice.id)}`}
+              className="block rounded-md border border-amber-300 bg-white/70 px-3 py-2 transition hover:bg-white"
+            >
+              <span className="font-medium">
+                {invoice.invoiceNumber} · {invoice.customer}
+              </span>
+              <span className="mt-0.5 block truncate text-xs text-amber-800">
+                Deskripsi perlu diperiksa:{" "}
+                {invoice.descriptions.join("; ") || "Tidak ada deskripsi"}
+              </span>
+            </Link>
+          ))}
+        </div>
+        <Button asChild size="sm" variant="outline" className="mt-3 bg-white">
+          <Link href="../invoices?classification=unclassified">
+            Periksa semua {count.toLocaleString("id-ID")} invoice
+          </Link>
+        </Button>
       </div>
     </div>
   );
@@ -310,10 +361,14 @@ export default async function FinanceWorkspace({
   section,
   deliveryNotesPage = 1,
   query = "",
+  classification = "",
+  inspectInvoiceId = "",
 }: {
   section: FinanceSection;
   deliveryNotesPage?: number;
   query?: string;
+  classification?: string;
+  inspectInvoiceId?: string;
 }) {
   if (section === "overview") {
     const result = await getFinanceOverview();
@@ -374,7 +429,7 @@ export default async function FinanceWorkspace({
         take: 500,
         include: {
           counterparty: { select: { legalName: true } },
-          lines: { orderBy: { position: "asc" }, take: 1 },
+          lines: { orderBy: { position: "asc" } },
           sources: {
             where: { sourceType: "OUTBOUND_DISPATCH" },
             orderBy: { occurredAt: "asc" },
@@ -428,6 +483,13 @@ export default async function FinanceWorkspace({
           pricingComplete: deliveryNote.pricingComplete,
         };
       });
+      const classificationDescriptions = row.lines
+        .filter(
+          (line) =>
+            Number(line.lineTotal) > 0 &&
+            classifyFinanceRevenueLine(line) === "unclassified",
+        )
+        .map((line) => line.description);
       return {
         id: row.id,
         invoiceNumber: row.invoiceNumber ?? "",
@@ -450,20 +512,24 @@ export default async function FinanceWorkspace({
         total: Number(row.netAmount),
         balance: Math.max(0, Number(row.netAmount) - paid),
         hasPayment: row.allocations.length > 0,
+        classificationIssue: classificationDescriptions.length > 0,
+        classificationDescriptions,
         sources,
       };
-    }).filter((row) =>
-      matchesReportQuery(
-        query,
-        row.displayNumber,
-        row.customerName,
-        row.deliveryNoteNumber,
-        row.receiptNumber,
-        row.purchaseOrderNumber,
-        row.description,
-        row.taxInvoiceNumber,
-        row.status,
-      ),
+    }).filter(
+      (row) =>
+        (classification !== "unclassified" || row.classificationIssue) &&
+        matchesReportQuery(
+          query,
+          row.displayNumber,
+          row.customerName,
+          row.deliveryNoteNumber,
+          row.receiptNumber,
+          row.purchaseOrderNumber,
+          row.description,
+          row.taxInvoiceNumber,
+          row.status,
+        ),
     );
 
     return (
@@ -475,8 +541,27 @@ export default async function FinanceWorkspace({
         <ReportFilter
           query={query}
           placeholder="Cari invoice, pelanggan, SJ, PO, atau faktur pajak"
+          classification={classification}
         />
-        <InvoiceCrudManager rows={rows} customerNames={customers.map((row) => row.legalName)} />
+        {classification === "unclassified" ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+            <div>
+              <p className="font-medium">Invoice dengan deskripsi perlu diperiksa</p>
+              <p>
+                Hanya invoice dengan deskripsi campuran atau tidak jelas yang
+                ditampilkan.
+              </p>
+            </div>
+            <Button asChild size="sm" variant="outline" className="bg-white">
+              <Link href="./invoices">Tampilkan semua invoice</Link>
+            </Button>
+          </div>
+        ) : null}
+        <InvoiceCrudManager
+          rows={rows}
+          customerNames={customers.map((row) => row.legalName)}
+          initialInvoiceId={inspectInvoiceId}
+        />
       </main>
     );
   }
@@ -886,6 +971,7 @@ export default async function FinanceWorkspace({
           <RevenueClassificationWarning
             count={report.unclassifiedCount}
             subtotal={report.unclassifiedSubtotal}
+            invoices={report.unclassifiedInvoices}
           />
         ) : null}
         {rows.length ? (
@@ -965,6 +1051,7 @@ export default async function FinanceWorkspace({
           <RevenueClassificationWarning
             count={report.unclassifiedCount}
             subtotal={report.unclassifiedSubtotal}
+            invoices={report.unclassifiedInvoices}
           />
         ) : null}
         {rows.length ? (
@@ -1038,6 +1125,7 @@ export default async function FinanceWorkspace({
           <RevenueClassificationWarning
             count={report.unclassifiedCount}
             subtotal={report.unclassifiedSubtotal}
+            invoices={report.unclassifiedInvoices}
           />
         ) : null}
         {rows.length ? (

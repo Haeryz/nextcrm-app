@@ -6,6 +6,7 @@ jest.mock("@/lib/mektek/permissions", () => ({
 }));
 
 const customerFindUnique = jest.fn();
+const entryFindFirst = jest.fn();
 const entryCreate = jest.fn();
 const entryUpdate = jest.fn();
 const entryDelete = jest.fn();
@@ -22,10 +23,19 @@ jest.mock("@/lib/prisma", () => ({
     },
     paymentFakturCustomer: { findUnique: customerFindUnique },
     paymentFakturEntry: {
+      findFirst: entryFindFirst,
       create: entryCreate,
       update: entryUpdate,
       delete: entryDelete,
     },
+    $transaction: jest.fn(async (callback) =>
+      callback({
+        paymentFakturEntry: {
+          findFirst: entryFindFirst,
+          create: entryCreate,
+        },
+      }),
+    ),
   },
 }));
 
@@ -61,6 +71,7 @@ describe("Payment Faktur CRUD actions", () => {
       user: { id: "staff-id" },
     });
     customerFindUnique.mockResolvedValue({ id: "customer-id" });
+    entryFindFirst.mockResolvedValue({ sourceRow: 16 });
     entryCreate.mockResolvedValue({ id: "created-id" });
     entryUpdate.mockResolvedValue({ id: "updated-id" });
     entryDelete.mockResolvedValue({ id: "deleted-id" });
@@ -75,12 +86,24 @@ describe("Payment Faktur CRUD actions", () => {
       data: expect.objectContaining({
         invoiceNumber: "INV-DUPLICATE-ALLOWED",
         destinationBank: "Mandiri (031-00-1134863-1)",
+        sourceRow: 17,
         createdBy: "staff-id",
         updatedBy: "staff-id",
       }),
     });
     const data = entryCreate.mock.calls[0][0].data;
     expect(data.grandTotal.toNumber()).toBe(1_110_000);
+  });
+
+  it("assigns the next numbered row inside the selected customer sheet", async () => {
+    await createPaymentFakturEntry(validInput);
+
+    expect(entryFindFirst).toHaveBeenCalledWith({
+      where: { customerId: "customer-id", sourceRow: { not: null } },
+      orderBy: { sourceRow: "desc" },
+      select: { sourceRow: true },
+    });
+    expect(entryCreate.mock.calls[0][0].data.sourceRow).toBe(17);
   });
 
   it("rejects installments above the invoice total", async () => {

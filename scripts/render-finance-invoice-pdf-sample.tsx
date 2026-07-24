@@ -26,6 +26,7 @@ async function main() {
   taxAmount: 527_450,
   total: 5_322_450,
   notes: "Dokumen contoh untuk verifikasi tata letak.",
+  authorizedSigner: "SUYADI",
   lines: [
     ["RECEIVER DRYER", "51440-47857L", 1, 225_000],
     ["EXPANTION VALVE", "DI261411-0260", 1, 177_000],
