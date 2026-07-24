@@ -13,5 +13,3 @@ teknisi bisa search / ketik (bukan klik/scroll saja).
 tidak familiar sama keluhan, penulisan keluhan pada order detail itu diganti Jasa	
 di Timeline, jika tambah sparepart atau tambah jasa, jika sama dengan yang pertama kali diinput, maka hanya menambah quantity nya saja, agar tidak redundant. semisal jasa awal itu servis ac, dan diinputkan servis ac lagi maka yang bertambah ialah quantity nya saja. begitu juga dengan sparepart.	
 kalau ada perubahan tambah sparepart / tambah jasa, itu timeline nya hanya diberikan template yang hanya tinggal send, maka nanti admin nya tinggal bisa klik send agar tidak lupa.
-
-

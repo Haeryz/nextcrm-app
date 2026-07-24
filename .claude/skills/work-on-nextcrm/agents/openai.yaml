@@ -1,0 +1,4 @@
+interface:
+  display_name: "Work on nextcrm"
+  short_description: "Apply nextcrm repository operating rules"
+  default_prompt: "Use $work-on-nextcrm to make this change in nextcrm-app while following all repository-specific rules."

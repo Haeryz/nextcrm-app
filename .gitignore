@@ -56,6 +56,12 @@ backups/
 .cursor/
 .agent-os/
 .claude
+!.claude/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/work-on-nextcrm/
+!.claude/skills/work-on-nextcrm/**
 .vscode
 
 # Playwright

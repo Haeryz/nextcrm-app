@@ -13,6 +13,9 @@ import { getFinanceOverview } from "@/actions/mektek/finance";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  buildContractReminderDemo,
+} from "@/lib/mektek/finance-contract-reminder-demo";
+import {
   buildFinanceRevenueSplit,
   getContractDaysRemaining,
   parseFinanceContractPeriodEnd,
@@ -22,6 +25,7 @@ import { buildFinancePurchaseOrderDeliveryNoteSuggestion } from "@/lib/mektek/fi
 import { prismadb } from "@/lib/prisma";
 
 import MektekPagination from "../../_components/MektekPagination";
+import ContractReminderDemo from "./ContractReminderDemo";
 import InvoiceCrudManager, { type FinanceInvoiceCrudRow } from "./InvoiceCrudManager";
 
 export type FinanceSection =
@@ -1084,12 +1088,25 @@ export default async function FinanceWorkspace({
       }
       return { ...row, value, endDate, daysRemaining };
     });
+    const reminderDemo = buildContractReminderDemo([
+      ...rows.map((row) => ({
+        contractNumber: row.contractNumber,
+        customer: row.counterparty.legalName,
+        endDate: row.endDate,
+      })),
+      ...workbookContracts.map((row) => ({
+        contractNumber: workbookText(row.value.contractNumber) || "Tanpa nomor",
+        customer: workbookText(row.value.customer) || "Tanpa nama user",
+        endDate: row.endDate,
+      })),
+    ], now);
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
           title="Data kontrak mekanik all site"
           description="User, vendor, nomor kontrak, penandatangan, periode, nilai, mekanik, jam kerja, dan catatan."
         />
+        <ContractReminderDemo reminder={reminderDemo} />
         {expiringContracts.length ? (
           <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
             <div className="flex items-start gap-3">
