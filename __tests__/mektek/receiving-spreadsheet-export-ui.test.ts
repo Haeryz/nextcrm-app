@@ -1,12 +1,12 @@
 import fs from "fs";
 import path from "path";
 
-describe("Receiving spreadsheet export control", () => {
-  it("places a server-generated Excel export in the spreadsheet action toolbar", () => {
+describe("Receiving export control", () => {
+  it("places the server-generated Excel export on the consolidated Receiving page", () => {
     const source = fs.readFileSync(
       path.join(
         process.cwd(),
-        "app/[locale]/(routes)/mektek/receiving/spreadsheet/page.tsx",
+        "app/[locale]/(routes)/mektek/receiving/page.tsx",
       ),
       "utf8",
     );

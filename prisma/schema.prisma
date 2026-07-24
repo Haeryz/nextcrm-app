@@ -537,6 +537,9 @@ model LogisticsPurchaseOrder {
   supplyEndDate         DateTime?                  @db.Date
   deliveryNoteNumber String?                      @unique
   deliveryDate       DateTime?                    @db.Date
+  deliveryNoteImageData       Bytes?
+  deliveryNoteImageMimeType   String?
+  deliveryNoteImageUpdatedAt  DateTime?
   notes              String?
   createdBy          String?                      @db.Uuid
   createdAt          DateTime                     @default(now())

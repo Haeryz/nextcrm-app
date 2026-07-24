@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock3,
-  FileSpreadsheet,
   Loader2,
   MessageCircle,
   PackageCheck,
@@ -14,6 +13,7 @@ import {
   Printer,
   ReceiptText,
   Trash2,
+  Upload,
   UsersRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -82,6 +82,7 @@ type LogisticsPurchaseOrderItemRow = {
   machine: string | null;
   orderedQuantity: number;
   receivedQuantity: number;
+  agreedUnitPrice: string | null;
   warehouse: "REAR" | "FRONT" | null;
   note: string | null;
   status: "OPEN" | "CLOSED";
@@ -99,6 +100,9 @@ type LogisticsPurchaseOrderRow = {
   dueDate: string;
   poType: string;
   status: "OPEN" | "CLOSED";
+  hasDeliveryNoteImage: boolean;
+  deliveryNoteImageMimeType: string | null;
+  deliveryNoteImageUpdatedAt: string | null;
   notes: string | null;
   createdBy: string | null;
   createdAt: string;
@@ -121,14 +125,15 @@ type ReceivingManagerProps = {
     id: string;
     description: string;
     partNumber: string | null;
+    price: number | null;
     rearStock: number;
     frontStock: number;
   }>;
   purchaseOrders: LogisticsPurchaseOrderRow[];
   stats: LogisticsStats;
-  mode: "overview" | "spreadsheet";
-  spreadsheetHref?: string;
+  mode: "combined" | "spreadsheet";
   managePicsHref?: string;
+  showLegacyHistory?: boolean;
 };
 
 type PurchaseOrderItemDraft = {
@@ -141,6 +146,7 @@ type PurchaseOrderItemDraft = {
   machine: string;
   warehouse: "REAR" | "FRONT";
   orderedQuantity: string;
+  unitPrice: string;
 };
 
 type PurchaseOrderDraft = Omit<MektekReceivingPurchaseOrderInput, "items"> & {
@@ -180,6 +186,7 @@ function blankPurchaseOrderItem(clientId: string): PurchaseOrderItemDraft {
     machine: "",
     warehouse: "REAR",
     orderedQuantity: "",
+    unitPrice: "",
   };
 }
 
@@ -194,12 +201,14 @@ function toReceivingPurchaseOrderItem(
       machine: item.machine,
       warehouse: item.warehouse,
       orderedQuantity: item.orderedQuantity,
+      unitPrice: item.unitPrice,
     };
   }
   return {
     source: "CATALOG",
     catalogItemId: item.catalogItemId,
     orderedQuantity: item.orderedQuantity,
+    unitPrice: item.unitPrice,
   };
 }
 
@@ -217,6 +226,14 @@ function blankPurchaseOrder(): PurchaseOrderDraft {
       blankPurchaseOrderItem("item-1"),
     ],
   };
+}
+
+function formatRupiah(value: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 const logisticsDateFormatter = new Intl.DateTimeFormat("id-ID", {
@@ -247,19 +264,41 @@ async function uploadLogisticsReceiptImage(receiptId: string, file: File) {
   }
 }
 
+async function uploadSupplierDeliveryNoteImage(
+  purchaseOrderId: string,
+  file: File,
+) {
+  const response = await fetch(
+    `/api/mektek/logistics/purchase-orders/${encodeURIComponent(purchaseOrderId)}/delivery-note-image`,
+    {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": file.type },
+    },
+  );
+  const payload = (await response.json().catch(() => null)) as
+    | { error?: string }
+    | null;
+  if (!response.ok) {
+    throw new Error(payload?.error || "Gagal mengunggah Surat Jalan supplier");
+  }
+}
+
 export default function ReceivingManager({
   pics,
   catalogItems,
   purchaseOrders,
   stats,
   mode,
-  spreadsheetHref,
   managePicsHref,
+  showLegacyHistory = false,
 }: ReceivingManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const nextItemId = useRef(2);
   const [createOpen, setCreateOpen] = useState(false);
+  const [deliveryNoteFile, setDeliveryNoteFile] = useState<File | null>(null);
+  const [isUploadingDeliveryNote, startUploadingDeliveryNote] = useTransition();
   const [createValue, setCreateValue] = useState<PurchaseOrderDraft>(() =>
     blankPurchaseOrder(),
   );
@@ -336,7 +375,7 @@ export default function ReceivingManager({
       ...current,
       items: current.items.map((item) =>
         item.clientId === clientId
-          ? { ...item, catalogItemId: "", catalogQuery }
+          ? { ...item, catalogItemId: "", catalogQuery, unitPrice: "" }
           : item,
       ),
     }));
@@ -344,10 +383,12 @@ export default function ReceivingManager({
 
   const selectCatalogItem = (
     clientId: string,
-    catalogItem: Pick<
-      ReceivingManagerProps["catalogItems"][number],
-      "id" | "description" | "partNumber"
-    >,
+    catalogItem: {
+      id: string;
+      description: string;
+      partNumber: string | null;
+      price?: number | null;
+    },
   ) => {
     setCreateValue((current) => ({
       ...current,
@@ -357,6 +398,7 @@ export default function ReceivingManager({
               ...item,
               catalogItemId: catalogItem.id,
               catalogQuery: `${catalogItem.description} · ${catalogItem.partNumber || "Tanpa PN"}`,
+              unitPrice: catalogItem.price ? String(catalogItem.price) : "",
             }
           : item,
       ),
@@ -418,6 +460,7 @@ export default function ReceivingManager({
 
   const openReceipt = (purchaseOrder: LogisticsPurchaseOrderRow) => {
     setActiveReceiptPurchaseOrder(purchaseOrder);
+    setDeliveryNoteFile(null);
     setReceiptDraft({
       picId: pics[0]?.id ?? "",
       receivedAt: getCatalogInventoryLocalDateKey(),
@@ -437,6 +480,36 @@ export default function ReceivingManager({
       ),
     );
     setReceiptItemPhotos({});
+  };
+
+  const submitSupplierDeliveryNote = () => {
+    if (!activeReceiptPurchaseOrder || !deliveryNoteFile) {
+      toast.error("Gambar Surat Jalan dari supplier wajib dipilih");
+      return;
+    }
+    startUploadingDeliveryNote(async () => {
+      try {
+        await uploadSupplierDeliveryNoteImage(
+          activeReceiptPurchaseOrder.id,
+          deliveryNoteFile,
+        );
+        toast.success("Surat Jalan supplier berhasil diunggah");
+        setDeliveryNoteFile(null);
+        setActiveReceiptPurchaseOrder({
+          ...activeReceiptPurchaseOrder,
+          hasDeliveryNoteImage: true,
+          deliveryNoteImageMimeType: deliveryNoteFile.type,
+          deliveryNoteImageUpdatedAt: new Date().toISOString(),
+        });
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Gagal mengunggah Surat Jalan supplier",
+        );
+      }
+    });
   };
 
   const selectReceiptItemPhoto = (itemId: string, file: File | null) => {
@@ -549,10 +622,26 @@ export default function ReceivingManager({
         (item.source === "MANUAL" || !!item.catalogItemId) &&
         Number(receiptItemDrafts[item.id]?.quantity) > 0,
     ) ?? false;
+  const activePurchaseOrderTotal =
+    activeReceiptPurchaseOrder?.items.reduce(
+      (total, item) =>
+        total +
+        item.orderedQuantity * Number(item.agreedUnitPrice || 0),
+      0,
+    ) ?? 0;
   const hasInvalidCreateItems = createValue.items.some((item) =>
     item.source === "CATALOG"
-      ? !item.catalogItemId
-      : !item.partName.trim() || !item.partNumber.trim(),
+      ? !item.catalogItemId || Number(item.unitPrice) <= 0
+      : !item.partName.trim() ||
+        !item.partNumber.trim() ||
+        !item.machine.trim() ||
+        Number(item.unitPrice) <= 0,
+  );
+  const createPurchaseOrderTotal = createValue.items.reduce(
+    (total, item) =>
+      total +
+      (Number(item.orderedQuantity) || 0) * (Number(item.unitPrice) || 0),
+    0,
   );
   const activeReceivingBatches = useMemo(() => {
     if (!activeReceiptPurchaseOrder) return [];
@@ -597,7 +686,7 @@ export default function ReceivingManager({
 
   return (
     <div className="space-y-6">
-      {mode === "overview" && (
+      {mode === "combined" && (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card>
@@ -650,7 +739,7 @@ export default function ReceivingManager({
             <div>
               <h2 className="text-lg font-semibold">Purchase Order Receiving</h2>
               <p className="text-sm text-muted-foreground">
-                Buat PO baru atau buka spreadsheet untuk mencatat barang masuk.
+                Buat PO baru, kelola dokumen, dan catat barang masuk dari satu halaman.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -930,6 +1019,44 @@ export default function ReceivingManager({
                             <p className="text-xs text-muted-foreground">
                               Jumlah yang dipesan.
                             </p>
+                            <Label htmlFor={`logistics-price-${item.clientId}`}>
+                              Harga Satuan
+                            </Label>
+                            <Input
+                              id={`logistics-price-${item.clientId}`}
+                              className="h-11 bg-background font-mono text-base"
+                              type="number"
+                              inputMode="decimal"
+                              min={1}
+                              step="0.01"
+                              value={item.unitPrice}
+                              onChange={(event) =>
+                                updateItem(
+                                  item.clientId,
+                                  "unitPrice",
+                                  event.target.value,
+                                )
+                              }
+                              disabled={isPending || item.source === "CATALOG"}
+                              required
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              {item.source === "CATALOG"
+                                ? "Otomatis dari harga Catalog / Item."
+                                : "Wajib diisi untuk item manual."}
+                            </p>
+                            <Separator />
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground">
+                                Jumlah
+                              </p>
+                              <p className="font-mono font-semibold">
+                                {formatRupiah(
+                                  (Number(item.orderedQuantity) || 0) *
+                                    (Number(item.unitPrice) || 0),
+                                )}
+                              </p>
+                            </div>
                           </div>
                         </div>
                       </fieldset>
@@ -937,6 +1064,13 @@ export default function ReceivingManager({
                   })}
                 </div>
               </fieldset>
+
+              <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-4">
+                <span className="font-medium">Total Purchase Order</span>
+                <span className="font-mono text-lg font-semibold">
+                  {formatRupiah(createPurchaseOrderTotal)}
+                </span>
+              </div>
 
               <div className="space-y-1.5">
                 <Label htmlFor="logistics-notes">Catatan PO</Label>
@@ -960,19 +1094,6 @@ export default function ReceivingManager({
             </form>
           </DialogContent>
               </Dialog>
-              {spreadsheetHref && (
-                <Button
-                  asChild
-                  variant="outline"
-                  className="min-w-0 flex-1 px-2 sm:flex-none sm:px-4"
-                >
-                  <Link href={spreadsheetHref}>
-                    <FileSpreadsheet data-icon="inline-start" />
-                    <span className="sm:hidden">Spreadsheet</span>
-                    <span className="hidden sm:inline">Buka Spreadsheet PO</span>
-                  </Link>
-                </Button>
-              )}
               {managePicsHref && (
                 <Button
                   asChild
@@ -988,9 +1109,11 @@ export default function ReceivingManager({
             </div>
           </div>
 
+          {showLegacyHistory && (
+            <>
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Riwayat Purchase Order</CardTitle>
+              <CardTitle className="text-base">Daftar Purchase Order lama</CardTitle>
               <p className="text-sm text-muted-foreground">
                 Pilih Purchase Order untuk melihat detail part dan riwayat penerimaannya.
               </p>
@@ -1247,18 +1370,20 @@ export default function ReceivingManager({
               )}
             </DialogContent>
           </Dialog>
+            </>
+          )}
         </>
       )}
 
-      {mode === "spreadsheet" && (
+      {(mode === "combined" || mode === "spreadsheet") && (
         <>
           <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            Spreadsheet PO · {purchaseOrders.length} Purchase Order pada halaman ini
+            Daftar Receiving · {purchaseOrders.length} Purchase Order pada halaman ini
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Setiap PO tampil satu kali. Buka detail untuk melihat progres dan riwayat barang masuk.
+            Buka detail untuk melihat harga, progres, dokumen, dan mencatat barang masuk.
           </p>
         </CardHeader>
         <CardContent className="p-0">
@@ -1284,6 +1409,9 @@ export default function ReceivingManager({
                   <th className="min-w-40 border-b border-e px-3 py-3 text-left">Supplier / tujuan PO</th>
                   <th className="min-w-52 border-b border-e px-3 py-3 text-left">
                     Ringkasan Part
+                  </th>
+                  <th className="min-w-36 border-b border-e px-3 py-3 text-right">
+                    Total PO
                   </th>
                   <th className="min-w-24 border-b border-e px-3 py-3 text-left">Status</th>
                   <th className="min-w-24 border-b border-e px-3 py-3 text-right">
@@ -1321,6 +1449,12 @@ export default function ReceivingManager({
                   const isOverdue =
                     purchaseOrder.status === "OPEN" &&
                     purchaseOrder.dueDate.slice(0, 10) < today;
+                  const purchaseOrderTotal = purchaseOrder.items.reduce(
+                    (total, item) =>
+                      total +
+                      item.orderedQuantity * Number(item.agreedUnitPrice || 0),
+                    0,
+                  );
                   return (
                     <tr
                       key={purchaseOrder.id}
@@ -1353,6 +1487,9 @@ export default function ReceivingManager({
                             .join(", ")}
                           {purchaseOrder.items.length > 2 ? ", …" : ""}
                         </p>
+                      </td>
+                      <td className="border-e px-3 py-3 text-right font-mono font-semibold">
+                        {formatRupiah(purchaseOrderTotal)}
                       </td>
                       <td className="border-e px-3 py-3">
                         <Badge
@@ -1391,7 +1528,7 @@ export default function ReceivingManager({
                 })}
                 {purchaseOrders.length === 0 && (
                   <tr>
-                    <td colSpan={13} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={14} className="px-4 py-12 text-center text-muted-foreground">
                       Belum ada Purchase Order Logistics yang cocok dengan filter ini.
                     </td>
                   </tr>
@@ -1445,7 +1582,85 @@ export default function ReceivingManager({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/50 p-3 text-center sm:gap-3 sm:p-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Dokumen Receiving</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Unggah Surat Jalan dari supplier. Jika supplier tidak
+                    memberikannya, buat Surat Jalan Mektek.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild type="button" variant="outline">
+                      <Link
+                        href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/pdf`}
+                        target="_blank"
+                      >
+                        <Printer data-icon="inline-start" />
+                        PDF Purchase Order
+                      </Link>
+                    </Button>
+                    <Button asChild type="button" variant="outline">
+                      <Link
+                        href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note?flow=receiving`}
+                        target="_blank"
+                      >
+                        <ReceiptText data-icon="inline-start" />
+                        Buat Surat Jalan Mektek
+                      </Link>
+                    </Button>
+                    {activeReceiptPurchaseOrder.hasDeliveryNoteImage && (
+                      <Button asChild type="button" variant="ghost">
+                        <Link
+                          href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note-image`}
+                          target="_blank"
+                        >
+                          Lihat Surat Jalan Supplier
+                        </Link>
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2 rounded-lg border p-3">
+                    <Label
+                      htmlFor={`supplier-delivery-note-${activeReceiptPurchaseOrder.id}`}
+                    >
+                      Surat Jalan dari Supplier
+                    </Label>
+                    <Input
+                      id={`supplier-delivery-note-${activeReceiptPurchaseOrder.id}`}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(event) =>
+                        setDeliveryNoteFile(event.target.files?.[0] ?? null)
+                      }
+                      disabled={isUploadingDeliveryNote}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Wajib unggah gambar JPG, PNG, atau WebP maksimal 5 MB jika
+                      supplier memberikan Surat Jalan.
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={submitSupplierDeliveryNote}
+                      disabled={!deliveryNoteFile || isUploadingDeliveryNote}
+                    >
+                      {isUploadingDeliveryNote ? (
+                        <Loader2
+                          data-icon="inline-start"
+                          className="animate-spin"
+                        />
+                      ) : (
+                        <Upload data-icon="inline-start" />
+                      )}
+                      Unggah Surat Jalan Supplier
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-3 text-center sm:grid-cols-4 sm:gap-3 sm:p-4">
                 <div>
                   <p className="text-xs text-muted-foreground">QTY Order</p>
                   <p className="font-mono text-lg font-semibold tabular-nums">
@@ -1462,6 +1677,12 @@ export default function ReceivingManager({
                   <p className="text-xs text-muted-foreground">QTY Sisa</p>
                   <p className="font-mono text-lg font-semibold tabular-nums">
                     {activeProgress.remainingQuantity}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Total PO</p>
+                  <p className="font-mono text-sm font-semibold sm:text-base">
+                    {formatRupiah(activePurchaseOrderTotal)}
                   </p>
                 </div>
               </div>
@@ -1496,6 +1717,21 @@ export default function ReceivingManager({
                           </span>
                           <span>
                             Sisa <strong>{progress.remainingQuantity}</strong>
+                          </span>
+                          <span>
+                            Harga{" "}
+                            <strong>
+                              {formatRupiah(Number(item.agreedUnitPrice || 0))}
+                            </strong>
+                          </span>
+                          <span>
+                            Jumlah{" "}
+                            <strong>
+                              {formatRupiah(
+                                item.orderedQuantity *
+                                  Number(item.agreedUnitPrice || 0),
+                              )}
+                            </strong>
                           </span>
                           <Badge
                             variant={

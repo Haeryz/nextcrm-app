@@ -22,6 +22,7 @@ export type CatalogOrManualItemOption = {
   id: string;
   description: string;
   partNumber: string | null;
+  price?: number | null;
 };
 
 type CatalogOrManualItemPickerProps = {

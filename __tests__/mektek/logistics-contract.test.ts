@@ -47,7 +47,7 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
     expect(receivingManager).toContain(
       "Keterangan ini hanya berlaku untuk item ini.",
     );
-    expect(receivingManager).not.toContain("Surat Jalan");
+    expect(receivingManager).toContain("Surat Jalan dari Supplier");
   });
 
   it("captures Machine and the destination warehouse for manual Receiving items", () => {

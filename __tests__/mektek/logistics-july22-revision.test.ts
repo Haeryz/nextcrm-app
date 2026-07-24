@@ -95,7 +95,8 @@ describe("22 July Logistics revision contract", () => {
     expect(outboundManager).toContain("Nomor Surat Jalan");
     expect(outboundManager).toContain("dispatchReference");
     expect(outboundManager).toContain("PDF Surat Jalan");
-    expect(receivingManager).not.toContain("Surat Jalan");
+    expect(receivingManager).toContain("Surat Jalan dari Supplier");
+    expect(receivingManager).toContain("Buat Surat Jalan Mektek");
   });
 
   it("keeps the PO number separate and only exposes PDFs inside dispatch history", () => {

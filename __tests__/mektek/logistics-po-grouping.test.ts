@@ -34,6 +34,7 @@ describe("MekTek Purchase Order grouping", () => {
     );
     expect(receivingManager).toContain("Catat Barang Masuk");
     expect(receivingManager).toContain("Simpan Penerimaan");
-    expect(receivingManager).not.toContain("Surat Jalan");
+    expect(receivingManager).toContain("Surat Jalan dari Supplier");
+    expect(receivingManager).toContain("Buat Surat Jalan Mektek");
   });
 });

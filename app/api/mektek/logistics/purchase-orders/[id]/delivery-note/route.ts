@@ -12,12 +12,16 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const access = await requireMektekLogisticsApiSession("MONITORING_PO");
+  const isReceiving =
+    request.nextUrl.searchParams.get("flow")?.toLowerCase() === "receiving";
+  const access = isReceiving
+    ? await requireMektekLogisticsApiSession("RECEIVING")
+    : await requireMektekLogisticsApiSession("MONITORING_PO");
   if (access.response) return access.response;
   const { id } = await params;
   const reference = request.nextUrl.searchParams.get("reference")?.trim() || null;
   const limit = checkRateLimit(
-    `logistics-outbound-delivery-note:${getClientIp(request.headers)}:${id}`,
+    `logistics-delivery-note:${isReceiving ? "receiving" : "outbound"}:${getClientIp(request.headers)}:${id}`,
     20,
     10 * 60 * 1000,
   );
@@ -29,7 +33,9 @@ export async function GET(
   }
 
   const purchaseOrder = await prismadb.logisticsPurchaseOrder.findFirst({
-    where: { id, flow: "OUTBOUND" },
+    where: isReceiving
+      ? { id, flow: "RECEIVING" }
+      : { id, flow: "OUTBOUND" },
     include: {
       items: {
         orderBy: { position: "asc" },
@@ -43,9 +49,14 @@ export async function GET(
     },
   });
   if (!purchaseOrder) {
-    return new Response("Surat Jalan Monitoring PO tidak ditemukan", {
+    return new Response(
+      isReceiving
+        ? "Purchase Order Receiving tidak ditemukan"
+        : "Surat Jalan Monitoring PO tidak ditemukan",
+      {
       status: 404,
-    });
+      },
+    );
   }
 
   const batchItems = reference
@@ -58,13 +69,16 @@ export async function GET(
   if (reference && batchItems.length === 0) {
     return new Response("Batch barang keluar tidak ditemukan", { status: 404 });
   }
-  if (!reference && !purchaseOrder.deliveryNoteNumber) {
+  if (!isReceiving && !reference && !purchaseOrder.deliveryNoteNumber) {
     return new Response("Surat Jalan Monitoring PO tidak ditemukan", {
       status: 404,
     });
   }
 
-  const deliveryNoteNumber = reference || purchaseOrder.deliveryNoteNumber!;
+  const deliveryNoteNumber =
+    reference ||
+    purchaseOrder.deliveryNoteNumber ||
+    `SJ-${purchaseOrder.poNumber}`;
   const firstBatchReceipt = batchItems[0]?.receipt;
 
   const pdf = await renderMektekDeliveryNotePdf({
@@ -73,10 +87,14 @@ export async function GET(
       firstBatchReceipt?.receivedAt ||
       purchaseOrder.deliveryDate ||
       purchaseOrder.inputDate,
-    recipientName: purchaseOrder.userName,
+    recipientName: isReceiving
+      ? purchaseOrder.supplierName
+      : purchaseOrder.userName,
     projectName: purchaseOrder.projectName,
     poNumber: purchaseOrder.poNumber,
-    picName: firstBatchReceipt?.pic.name || "Logistics MekTek",
+    picName:
+      firstBatchReceipt?.pic.name ||
+      (isReceiving ? "Logistics Mektek" : "Logistics MekTek"),
     items: reference
       ? batchItems.map(({ item, receipt }) => ({
           description: item.partName,

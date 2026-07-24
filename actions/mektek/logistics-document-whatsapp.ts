@@ -35,7 +35,18 @@ export async function sendMektekLogisticsDocumentWhatsApp(
     include: { items: { orderBy: { position: "asc" } } },
   });
   if (!purchaseOrder) return { error: "Purchase Order Receiving tidak ditemukan" };
-  const pdf = Buffer.from(await renderMektekPurchaseOrderPdf(purchaseOrder));
+  const pdf = Buffer.from(
+    await renderMektekPurchaseOrderPdf({
+      ...purchaseOrder,
+      items: purchaseOrder.items.map((item) => ({
+        position: item.position,
+        partName: item.partName,
+        partNumber: item.partNumber,
+        orderedQuantity: item.orderedQuantity,
+        unitPrice: Number(item.agreedUnitPrice || 0),
+      })),
+    }),
+  );
   const result = await sendWhatsAppMessage({
     to: phone,
     message: `Purchase Order Receiving ${purchaseOrder.poNumber} dari MekTek terlampir.`,

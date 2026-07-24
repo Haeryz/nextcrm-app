@@ -21,84 +21,278 @@ export type MektekPurchaseOrderPdfData = {
     partName: string;
     partNumber?: string | null;
     orderedQuantity: number;
+    unitPrice: number;
   }>;
 };
 
+const borderColor = "#202020";
+
 const styles = StyleSheet.create({
-  page: { padding: 32, fontFamily: "Helvetica", fontSize: 9, color: "#111827" },
-  header: { flexDirection: "row", justifyContent: "space-between", borderBottomWidth: 2, borderBottomColor: "#111827", paddingBottom: 10, marginBottom: 14 },
-  brand: { fontFamily: "Helvetica-Bold", fontSize: 18 },
-  title: { fontFamily: "Helvetica-Bold", fontSize: 14, textAlign: "right" },
-  number: { marginTop: 3, color: "#475569", textAlign: "right" },
-  info: { flexDirection: "row", flexWrap: "wrap", borderWidth: 1, borderColor: "#cbd5e1", marginBottom: 14 },
-  infoCell: { width: "50%", padding: 7, borderBottomWidth: 0.5, borderBottomColor: "#e2e8f0" },
-  infoCellFull: { width: "100%" },
-  label: { fontSize: 7, color: "#64748b", marginBottom: 2 },
-  value: { fontFamily: "Helvetica-Bold" },
-  table: { borderWidth: 1, borderColor: "#94a3b8" },
-  tableHeader: { flexDirection: "row", backgroundColor: "#e2e8f0", fontFamily: "Helvetica-Bold" },
-  tableRow: { flexDirection: "row", borderTopWidth: 0.5, borderTopColor: "#cbd5e1", minHeight: 24 },
-  cell: { padding: 5 },
-  cNo: { width: "8%", textAlign: "center" },
-  cPart: { width: "52%" },
-  cNumber: { width: "25%" },
-  cQty: { width: "15%", textAlign: "right" },
-  notes: { marginTop: 14, borderWidth: 1, borderColor: "#cbd5e1", padding: 8 },
-  signatureRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 30 },
+  page: {
+    paddingHorizontal: 28,
+    paddingVertical: 24,
+    fontFamily: "Helvetica",
+    fontSize: 8.5,
+    color: "#171717",
+  },
+  companyHeader: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+    borderBottomWidth: 1.5,
+    borderBottomColor: borderColor,
+    paddingBottom: 7,
+  },
+  logoBox: {
+    width: 52,
+    height: 38,
+    borderWidth: 2,
+    borderColor: "#214c75",
+    backgroundColor: "#e4d84f",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  logoText: { fontFamily: "Helvetica-Bold", fontSize: 18, color: "#214c75" },
+  companyRow: { flexDirection: "row", alignItems: "center" },
+  companyName: { fontFamily: "Helvetica-Bold", fontSize: 13 },
+  companyMeta: { width: 245, lineHeight: 1.35 },
+  documentTitle: {
+    textAlign: "center",
+    fontFamily: "Helvetica-Bold",
+    fontSize: 13,
+    letterSpacing: 0.7,
+    marginVertical: 7,
+  },
+  headerBox: {
+    borderWidth: 1,
+    borderColor,
+    flexDirection: "row",
+    minHeight: 112,
+  },
+  supplierBox: { width: "48%", padding: 8, borderRightWidth: 1, borderColor },
+  orderBox: { width: "52%", padding: 8 },
+  bold: { fontFamily: "Helvetica-Bold" },
+  line: { flexDirection: "row", marginBottom: 4 },
+  lineLabel: { width: 75 },
+  lineSeparator: { width: 10 },
+  lineValue: { flex: 1, fontFamily: "Helvetica-Bold" },
+  metaBox: {
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor,
+    padding: 7,
+    minHeight: 52,
+  },
+  table: { borderLeftWidth: 1, borderRightWidth: 1, borderColor },
+  row: { flexDirection: "row", borderBottomWidth: 1, borderColor },
+  tableHeader: { backgroundColor: "#f2f2f2", fontFamily: "Helvetica-Bold" },
+  cell: { paddingHorizontal: 4, paddingVertical: 6 },
+  no: { width: "7%", textAlign: "center" },
+  description: { width: "35%" },
+  partNumber: { width: "17%" },
+  quantity: { width: "9%", textAlign: "right" },
+  price: { width: "15%", textAlign: "right" },
+  amount: { width: "17%", textAlign: "right" },
+  subtotalLabel: {
+    width: "83%",
+    textAlign: "center",
+    fontFamily: "Helvetica-Bold",
+  },
+  subtotalAmount: {
+    width: "17%",
+    textAlign: "right",
+    fontFamily: "Helvetica-Bold",
+  },
+  confirmation: {
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor,
+    minHeight: 178,
+    padding: 8,
+  },
+  confirmationText: { fontFamily: "Helvetica-Oblique", lineHeight: 1.35 },
+  signatureRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 46,
+  },
   signature: { width: "30%", textAlign: "center" },
-  signatureLine: { marginTop: 46, borderTopWidth: 1, borderTopColor: "#111827", paddingTop: 4 },
-  footer: { position: "absolute", left: 32, right: 32, bottom: 18, flexDirection: "row", justifyContent: "space-between", fontSize: 7, color: "#64748b" },
+  signatureLine: {
+    marginTop: 34,
+    borderBottomWidth: 1,
+    borderColor,
+    paddingBottom: 2,
+    fontFamily: "Helvetica-Bold",
+  },
+  footer: {
+    position: "absolute",
+    bottom: 10,
+    left: 28,
+    right: 28,
+    textAlign: "right",
+    fontSize: 6.5,
+    color: "#555",
+  },
 });
 
-const date = (value: Date) =>
+const formatDate = (value: Date) =>
   new Intl.DateTimeFormat("id-ID", {
     day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
+    month: "short",
+    year: "2-digit",
     timeZone: "Asia/Makassar",
   }).format(value);
 
+const formatMoney = (value: number) =>
+  new Intl.NumberFormat("id-ID", {
+    maximumFractionDigits: 0,
+  }).format(value);
+
+function InfoLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <View style={styles.line}>
+      <Text style={styles.lineLabel}>{label}</Text>
+      <Text style={styles.lineSeparator}>:</Text>
+      <Text style={styles.lineValue}>{value}</Text>
+    </View>
+  );
+}
+
 function PurchaseOrderDocument({ data }: { data: MektekPurchaseOrderPdfData }) {
+  const items = data.items.map((item) => ({
+    ...item,
+    amount: item.orderedQuantity * item.unitPrice,
+  }));
+  const subtotal = items.reduce((total, item) => total + item.amount, 0);
+
   return (
     <Document title={`Purchase Order ${data.poNumber}`}>
       <Page size="A4" style={styles.page}>
-        <View style={styles.header}>
-          <View><Text style={styles.brand}>MEKTEK</Text><Text>PT. Mektek Tanjung Lestari</Text></View>
-          <View><Text style={styles.title}>PURCHASE ORDER</Text><Text style={styles.number}>{data.poNumber}</Text></View>
-        </View>
-        <View style={styles.info}>
-          <View style={[styles.infoCell, styles.infoCellFull]}><Text style={styles.label}>Supplier / Tujuan PO</Text><Text style={styles.value}>{data.supplierName}</Text></View>
-          <View style={styles.infoCell}><Text style={styles.label}>Job Site / Project</Text><Text style={styles.value}>{data.projectName}</Text></View>
-          <View style={styles.infoCell}><Text style={styles.label}>Jenis PO</Text><Text style={styles.value}>{data.poType}</Text></View>
-          <View style={styles.infoCell}><Text style={styles.label}>Tanggal Input</Text><Text style={styles.value}>{date(data.inputDate)}</Text></View>
-          <View style={styles.infoCell}><Text style={styles.label}>Batas Waktu</Text><Text style={styles.value}>{date(data.dueDate)}</Text></View>
-        </View>
-        <View style={styles.table}>
-          <View style={styles.tableHeader} fixed>
-            <Text style={[styles.cell, styles.cNo]}>No.</Text>
-            <Text style={[styles.cell, styles.cPart]}>Part</Text>
-            <Text style={[styles.cell, styles.cNumber]}>Part Number</Text>
-            <Text style={[styles.cell, styles.cQty]}>QTY</Text>
+        <View style={styles.companyHeader}>
+          <View style={styles.companyRow}>
+            <View style={styles.logoBox}>
+              <Text style={styles.logoText}>MT</Text>
+            </View>
+            <Text style={styles.companyName}>PT. MEKTEK TANJUNG LESTARI</Text>
           </View>
-          {data.items.map((item) => (
-            <View key={`${item.position}-${item.partName}`} style={styles.tableRow} wrap={false}>
-              <Text style={[styles.cell, styles.cNo]}>{item.position}</Text>
-              <Text style={[styles.cell, styles.cPart]}>{item.partName}</Text>
-              <Text style={[styles.cell, styles.cNumber]}>{item.partNumber || "-"}</Text>
-              <Text style={[styles.cell, styles.cQty]}>{item.orderedQuantity}</Text>
+          <View style={styles.companyMeta}>
+            <Text>
+              Alamat : Jl. Jend. A. Yani RT. 01 No. 16 Mabu&apos;un, Murung
+              Pudak, Tabalong 71571
+            </Text>
+            <Text>Telp / Fax : (0526) 2023535</Text>
+            <Text>Email : mektek.ac@yahoo.com</Text>
+          </View>
+        </View>
+
+        <Text style={styles.documentTitle}>PURCHASE ORDER</Text>
+
+        <View style={styles.headerBox}>
+          <View style={styles.supplierBox}>
+            <Text style={styles.bold}>TO :</Text>
+            <Text style={[styles.bold, { marginTop: 7, fontSize: 10 }]}>
+              {data.supplierName}
+            </Text>
+            <Text style={{ marginTop: 14 }}>Project / Site:</Text>
+            <Text style={[styles.bold, { marginTop: 3 }]}>
+              {data.projectName}
+            </Text>
+          </View>
+          <View style={styles.orderBox}>
+            <InfoLine label="PO NO" value={data.poNumber} />
+            <InfoLine label="DATE" value={formatDate(data.inputDate)} />
+            <InfoLine label="DUE DATE" value={formatDate(data.dueDate)} />
+            <InfoLine label="PO TYPE" value={data.poType} />
+            <InfoLine label="VALUTA" value="IDR" />
+          </View>
+        </View>
+
+        <View style={styles.metaBox}>
+          <InfoLine label="Product" value="Spare Part / Material" />
+          <InfoLine label="Category" value={data.projectName} />
+          <InfoLine label="Remarks" value={data.notes || "-"} />
+        </View>
+
+        <View style={styles.table}>
+          <View style={[styles.row, styles.tableHeader]} fixed>
+            <Text style={[styles.cell, styles.no]}>NO</Text>
+            <Text style={[styles.cell, styles.description]}>DESCRIPTION</Text>
+            <Text style={[styles.cell, styles.partNumber]}>PART NUMBER</Text>
+            <Text style={[styles.cell, styles.quantity]}>QTY</Text>
+            <Text style={[styles.cell, styles.price]}>PRICE</Text>
+            <Text style={[styles.cell, styles.amount]}>AMOUNT</Text>
+          </View>
+          {items.map((item) => (
+            <View
+              key={`${item.position}-${item.partName}`}
+              style={styles.row}
+              wrap={false}
+            >
+              <Text style={[styles.cell, styles.no]}>{item.position}</Text>
+              <Text style={[styles.cell, styles.description]}>
+                {item.partName}
+              </Text>
+              <Text style={[styles.cell, styles.partNumber]}>
+                {item.partNumber || "-"}
+              </Text>
+              <Text style={[styles.cell, styles.quantity]}>
+                {item.orderedQuantity}
+              </Text>
+              <Text style={[styles.cell, styles.price]}>
+                Rp {formatMoney(item.unitPrice)}
+              </Text>
+              <Text style={[styles.cell, styles.amount]}>
+                {formatMoney(item.amount)}
+              </Text>
             </View>
           ))}
+          <View style={styles.row} wrap={false}>
+            <Text style={[styles.cell, styles.subtotalLabel]}>Sub Total</Text>
+            <Text style={[styles.cell, styles.subtotalAmount]}>
+              Rp {formatMoney(subtotal)}
+            </Text>
+          </View>
         </View>
-        {data.notes && <View style={styles.notes}><Text style={styles.label}>Catatan</Text><Text>{data.notes}</Text></View>}
-        <View style={styles.signatureRow} wrap={false}>
-          <View style={styles.signature}><Text>Mengetahui</Text><Text style={styles.signatureLine}>Finance Accounting</Text></View>
-          <View style={styles.signature}><Text>Disetujui</Text><Text style={styles.signatureLine}>Department Purchasing</Text></View>
-          <View style={styles.signature}><Text>Dibuat / Order oleh</Text><Text style={styles.signatureLine}>Purchasing Admin</Text></View>
+
+        <View style={styles.confirmation} wrap={false}>
+          <Text style={styles.confirmationText}>Supplier confirmation :</Text>
+          <Text style={styles.confirmationText}>
+            We acknowledge receipt of this purchase order and confirm our
+            compliance with details and other terms and conditions.
+          </Text>
+          <View style={styles.signatureRow}>
+            <View style={styles.signature}>
+              <Text>SIGNED / NAME / DATE</Text>
+              <Text style={styles.signatureLine}>SUPPLIER</Text>
+            </View>
+            <View style={styles.signature}>
+              <Text>APPROVED BY</Text>
+              <Text style={styles.signatureLine}>Finance Accounting</Text>
+            </View>
+            <View style={styles.signature}>
+              <Text>AUTHORIZED PERSON</Text>
+              <Text style={styles.signatureLine}>
+                Department Purchasing / Purchasing Admin
+              </Text>
+            </View>
+          </View>
         </View>
-        <View style={styles.footer} fixed>
-          <Text>Dokumen Purchase Order MekTek</Text>
-          <Text render={({ pageNumber, totalPages }) => `Halaman ${pageNumber} / ${totalPages}`} />
-        </View>
+
+        <Text
+          style={styles.footer}
+          fixed
+          render={({ pageNumber, totalPages }) =>
+            `Purchase Order ${data.poNumber} · Halaman ${pageNumber} / ${totalPages}`
+          }
+        />
       </Page>
     </Document>
   );

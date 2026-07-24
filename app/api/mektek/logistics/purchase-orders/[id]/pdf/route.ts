@@ -27,7 +27,16 @@ export async function GET(
     include: { items: { orderBy: { position: "asc" } } },
   });
   if (!purchaseOrder) return new Response("Purchase Order tidak ditemukan", { status: 404 });
-  const pdf = await renderMektekPurchaseOrderPdf(purchaseOrder);
+  const pdf = await renderMektekPurchaseOrderPdf({
+    ...purchaseOrder,
+    items: purchaseOrder.items.map((item) => ({
+      position: item.position,
+      partName: item.partName,
+      partNumber: item.partNumber,
+      orderedQuantity: item.orderedQuantity,
+      unitPrice: Number(item.agreedUnitPrice || 0),
+    })),
+  });
   const filename = purchaseOrder.poNumber.replace(/[^A-Za-z0-9_-]+/g, "-");
 
   return new Response(pdf.buffer as ArrayBuffer, {

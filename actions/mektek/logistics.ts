@@ -42,7 +42,7 @@ const MEKTEK_COMPANY_NAME = "PT. Mektek Tanjung Lestari";
 export type LogisticsCatalogItemInput = {
   catalogItemId: string;
   orderedQuantity: string | number;
-  agreedUnitPrice?: string | number;
+  unitPrice?: string | number;
   warehouse?: CatalogWarehouse;
   note?: string;
 };
@@ -72,7 +72,7 @@ type LogisticsManualItemInput = {
   machine?: string;
   warehouse?: CatalogWarehouse;
   orderedQuantity: string | number;
-  agreedUnitPrice?: string | number;
+  unitPrice?: string | number;
   note?: string;
 };
 
@@ -95,7 +95,7 @@ type NormalizedPurchaseOrderLine =
       position: number;
       catalogItemId: string;
       orderedQuantity: number;
-      agreedUnitPrice: string | null;
+      unitPrice: string | null;
       warehouse: CatalogWarehouse | null;
       note: string | null;
     }
@@ -107,7 +107,7 @@ type NormalizedPurchaseOrderLine =
       partNumber: string;
       machine: string | null;
       orderedQuantity: number;
-      agreedUnitPrice: string | null;
+      unitPrice: string | null;
       warehouse: CatalogWarehouse | null;
       note: string | null;
     };
@@ -189,6 +189,13 @@ function parsePositiveInteger(value: unknown) {
   if (!/^\d+$/.test(text)) return null;
   const parsed = Number(text);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parsePositiveUnitPrice(value: unknown) {
+  const text = compactText(value);
+  if (!/^\d{1,16}(?:\.\d{1,2})?$/.test(text)) return null;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed.toFixed(2) : null;
 }
 
 function parseDateOnly(value: unknown) {
@@ -277,7 +284,7 @@ function normalizePurchaseOrderLines(
     requireCatalogWarehouse: boolean;
     requireManualMachine?: boolean;
     requireManualWarehouse?: boolean;
-    requireUnitPrice?: boolean;
+    requireManualUnitPrice?: boolean;
     emptyError: string;
   },
 ) {
@@ -332,6 +339,12 @@ function normalizePurchaseOrderLines(
       if (options.requireManualWarehouse && !isWarehouse(item.warehouse)) {
         return { error: `Gudang tujuan item manual baris ${index + 1} wajib dipilih` } as const;
       }
+      const unitPrice = parsePositiveUnitPrice(item.unitPrice);
+      if (options.requireManualUnitPrice && !unitPrice) {
+        return {
+          error: `Harga item manual baris ${index + 1} wajib lebih dari Rp 0`,
+        } as const;
+      }
       const manualKey = `${partName.toLocaleLowerCase("id-ID")}::${partNumber}`;
       if (seenManual.has(manualKey)) {
         return { error: "Item manual yang sama tidak boleh diduplikasi" } as const;
@@ -345,7 +358,7 @@ function normalizePurchaseOrderLines(
         partNumber,
         machine: machine || null,
         orderedQuantity,
-        agreedUnitPrice,
+        unitPrice,
         warehouse: isWarehouse(item.warehouse) ? item.warehouse : null,
         note,
       });
@@ -368,7 +381,7 @@ function normalizePurchaseOrderLines(
       position: index + 1,
       catalogItemId,
       orderedQuantity,
-      agreedUnitPrice,
+      unitPrice: null,
       warehouse: isWarehouse(item?.warehouse) ? item.warehouse : null,
       note,
     });
@@ -379,6 +392,7 @@ function normalizePurchaseOrderLines(
 async function hydratePurchaseOrderLines(
   tx: Prisma.TransactionClient,
   lines: NormalizedPurchaseOrderLine[],
+  requireCatalogPrice = false,
 ) {
   const catalogIds = lines.flatMap((line) =>
     line.source === "CATALOG" ? [line.catalogItemId] : [],
@@ -394,6 +408,7 @@ async function hydratePurchaseOrderLines(
           machine: true,
           rearStock: true,
           frontStock: true,
+          price: true,
         },
       })
     : [];
@@ -404,6 +419,14 @@ async function hydratePurchaseOrderLines(
     const catalogItem = byId.get(line.catalogItemId);
     if (!catalogItem) {
       throw new LogisticsActionError("Terdapat item Catalog yang tidak ditemukan");
+    }
+    if (
+      requireCatalogPrice &&
+      (catalogItem.price === null || catalogItem.price <= 0)
+    ) {
+      throw new LogisticsActionError(
+        `Harga Catalog untuk ${catalogItem.description} belum diisi`,
+      );
     }
     return { ...line, catalogItem };
   });
@@ -416,6 +439,7 @@ async function ensureManualReceivingCatalogItem(
     partNumber: string;
     machine: string;
     poNumber: string;
+    unitPrice?: string;
   },
 ) {
   const existing = await tx.catalogItem.findFirst({
@@ -446,6 +470,9 @@ async function ensureManualReceivingCatalogItem(
       rowNumber: 0,
       description: input.partName,
       partNumber: input.partNumber,
+      price: input.unitPrice
+        ? Math.round(Number(input.unitPrice))
+        : undefined,
       rearStock: 0,
       frontStock: 0,
       searchText: [
@@ -646,13 +673,14 @@ export async function createMektekReceivingPurchaseOrder(
     requireCatalogWarehouse: false,
     requireManualMachine: true,
     requireManualWarehouse: true,
+    requireManualUnitPrice: true,
     emptyError: "Minimal satu item Receiving wajib diisi",
   });
   if ("error" in lines) return { error: lines.error };
 
   try {
     const purchaseOrder = await prismadb.$transaction(async (tx) => {
-      const hydrated = await hydratePurchaseOrderLines(tx, lines.data);
+      const hydrated = await hydratePurchaseOrderLines(tx, lines.data, true);
       const manualCatalogIds = new Map<number, string>();
       for (const line of hydrated) {
         if (line.source !== "MANUAL") continue;
@@ -661,6 +689,7 @@ export async function createMektekReceivingPurchaseOrder(
           partNumber: line.partNumber,
           machine: line.machine!,
           poNumber: header.data.poNumber,
+          unitPrice: line.unitPrice!,
         });
         manualCatalogIds.set(line.position, catalogItem.id);
       }
@@ -680,7 +709,7 @@ export async function createMektekReceivingPurchaseOrder(
                     partNumber: line.partNumber,
                     machine: line.machine,
                     orderedQuantity: line.orderedQuantity,
-                    agreedUnitPrice: line.agreedUnitPrice,
+                    agreedUnitPrice: line.unitPrice,
                     warehouse: line.warehouse,
                     note: line.note,
                   }
@@ -694,7 +723,7 @@ export async function createMektekReceivingPurchaseOrder(
                       line.catalogItem.catalogPartNumber,
                     machine: line.catalogItem.machine,
                     orderedQuantity: line.orderedQuantity,
-                    agreedUnitPrice: line.agreedUnitPrice,
+                    agreedUnitPrice: line.catalogItem.price,
                     note: line.note,
                   },
             ),

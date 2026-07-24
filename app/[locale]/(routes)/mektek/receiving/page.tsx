@@ -1,9 +1,18 @@
 import Link from "next/link";
+import { Download } from "lucide-react";
 
 import { listMektekReceivingPurchaseOrders } from "@/actions/mektek/logistics";
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { authOptions } from "@/lib/auth";
 import { canManageMektekLogistics } from "@/lib/mektek/permissions";
 import { getPaginationItems } from "@/lib/pagination";
@@ -20,6 +29,14 @@ function readPageParam(searchParams: Record<string, string | string[] | undefine
   const value = searchParams.page;
   const page = Array.isArray(value) ? value[0] : value;
   return Math.max(Number(page) || 1, 1);
+}
+
+function readSearchParam(
+  searchParams: Record<string, string | string[] | undefined>,
+  key: string,
+) {
+  const value = searchParams[key];
+  return (Array.isArray(value) ? value[0] : value)?.trim() || "";
 }
 
 export default async function MektekReceivingPage({
@@ -45,10 +62,15 @@ export default async function MektekReceivingPage({
   }
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
+  const query = readSearchParam(resolvedSearchParams, "q");
+  const rawStatus = readSearchParam(resolvedSearchParams, "status").toUpperCase();
+  const status = rawStatus === "OPEN" || rawStatus === "CLOSED" ? rawStatus : "";
   const [result, pics, catalogItems] = await Promise.all([
     listMektekReceivingPurchaseOrders({
+      query,
+      status,
       page: readPageParam(resolvedSearchParams),
-      pageSize: 10,
+      pageSize: 20,
     }),
     prismadb.logisticsPic.findMany({
       where: { isActive: true },
@@ -62,6 +84,7 @@ export default async function MektekReceivingPage({
         description: true,
         partNumber: true,
         catalogPartNumber: true,
+        price: true,
         rearStock: true,
         frontStock: true,
       },
@@ -85,7 +108,18 @@ export default async function MektekReceivingPage({
 
   const { items, stats, totalCount, totalPages } = result.data;
   const paginationItems = getPaginationItems(result.data.page, totalPages);
-  const pageHref = (targetPage: number) => `/${locale}/mektek/receiving?page=${targetPage}`;
+  const queryString = new URLSearchParams();
+  if (query) queryString.set("q", query);
+  if (status) queryString.set("status", status);
+  const exportQuery = queryString.toString();
+  const exportHref = `/api/mektek/receiving/purchase-orders/export${
+    exportQuery ? `?${exportQuery}` : ""
+  }`;
+  const pageHref = (targetPage: number) => {
+    const paramsForPage = new URLSearchParams(queryString);
+    paramsForPage.set("page", String(targetPage));
+    return `/${locale}/mektek/receiving?${paramsForPage.toString()}`;
+  };
 
   return (
     <Container
@@ -93,6 +127,53 @@ export default async function MektekReceivingPage({
       description="Kelola PO ke supplier dan catat barang masuk ke Catalog / Item"
     >
       <div className="flex flex-col gap-6">
+        <div className="flex justify-end">
+          <Button asChild type="button">
+            <Link
+              href={exportHref}
+              title="Export seluruh Purchase Order sesuai filter aktif"
+            >
+              <Download data-icon="inline-start" />
+              Export Excel
+            </Link>
+          </Button>
+        </div>
+
+        <Card>
+          <CardContent className="p-4">
+            <form
+              action={`/${locale}/mektek/receiving`}
+              className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_180px_auto_auto]"
+            >
+              <Input
+                name="q"
+                type="search"
+                placeholder="Cari PO, supplier, project, atau item..."
+                defaultValue={query}
+                aria-label="Cari data Receiving"
+              />
+              <Select name="status" defaultValue={status || "ALL"}>
+                <SelectTrigger aria-label="Filter status Receiving">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Semua status</SelectItem>
+                  <SelectItem value="OPEN">Open</SelectItem>
+                  <SelectItem value="CLOSED">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button type="submit" variant="outline">
+                Filter
+              </Button>
+              {(query || status) && (
+                <Button asChild type="button" variant="ghost">
+                  <Link href={`/${locale}/mektek/receiving`}>Reset Filter</Link>
+                </Button>
+              )}
+            </form>
+          </CardContent>
+        </Card>
+
         <ReceivingManager
           pics={pics}
           catalogItems={catalogItems.map(
@@ -101,14 +182,19 @@ export default async function MektekReceivingPage({
               partNumber: catalogItem.partNumber || catalogPartNumber,
             }),
           )}
-          purchaseOrders={items.map((purchaseOrder) => ({
+          purchaseOrders={items.map(
+            ({ deliveryNoteImageData, ...purchaseOrder }) => ({
             ...purchaseOrder,
+            hasDeliveryNoteImage: Boolean(deliveryNoteImageData),
+            deliveryNoteImageUpdatedAt:
+              purchaseOrder.deliveryNoteImageUpdatedAt?.toISOString() ?? null,
             inputDate: purchaseOrder.inputDate.toISOString(),
             dueDate: purchaseOrder.dueDate.toISOString(),
             createdAt: purchaseOrder.createdAt.toISOString(),
             updatedAt: purchaseOrder.updatedAt.toISOString(),
             items: purchaseOrder.items.map((item) => ({
               ...item,
+              agreedUnitPrice: item.agreedUnitPrice?.toString() ?? null,
               createdAt: item.createdAt.toISOString(),
               updatedAt: item.updatedAt.toISOString(),
               receipts: item.receipts.map((receipt) => ({
@@ -117,10 +203,10 @@ export default async function MektekReceivingPage({
                 createdAt: receipt.createdAt.toISOString(),
               })),
             })),
-          }))}
+            }),
+          )}
           stats={stats}
-          mode="overview"
-          spreadsheetHref={`/${locale}/mektek/receiving/spreadsheet`}
+          mode="combined"
           managePicsHref={
             session?.user?.isAdmin
               ? `/${locale}/mektek/receiving/pics`
