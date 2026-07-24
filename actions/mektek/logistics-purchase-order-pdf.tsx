@@ -67,7 +67,7 @@ function PurchaseOrderDocument({ data }: { data: MektekPurchaseOrderPdfData }) {
           <View><Text style={styles.title}>PURCHASE ORDER</Text><Text style={styles.number}>{data.poNumber}</Text></View>
         </View>
         <View style={styles.info}>
-          <View style={[styles.infoCell, styles.infoCellFull]}><Text style={styles.label}>Supplier</Text><Text style={styles.value}>{data.supplierName}</Text></View>
+          <View style={[styles.infoCell, styles.infoCellFull]}><Text style={styles.label}>Supplier / Tujuan PO</Text><Text style={styles.value}>{data.supplierName}</Text></View>
           <View style={styles.infoCell}><Text style={styles.label}>Job Site / Project</Text><Text style={styles.value}>{data.projectName}</Text></View>
           <View style={styles.infoCell}><Text style={styles.label}>Jenis PO</Text><Text style={styles.value}>{data.poType}</Text></View>
           <View style={styles.infoCell}><Text style={styles.label}>Tanggal Input</Text><Text style={styles.value}>{date(data.inputDate)}</Text></View>

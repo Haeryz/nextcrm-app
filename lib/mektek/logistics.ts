@@ -28,6 +28,36 @@ export function normalizeLogisticsReference(value: unknown) {
     .toUpperCase();
 }
 
+export function calculateLogisticsPurchaseOrderTotal(
+  items: Array<{
+    orderedQuantity: string | number;
+    agreedUnitPrice: string | number;
+  }>,
+) {
+  if (!items.length) return { total: null, pricingComplete: false } as const;
+
+  let total = 0;
+  for (const item of items) {
+    const quantityText = String(item.orderedQuantity).trim();
+    const unitPriceText = String(item.agreedUnitPrice).trim();
+    const quantity = Number(quantityText);
+    const unitPrice = Number(unitPriceText);
+    if (
+      !quantityText ||
+      !unitPriceText ||
+      !Number.isFinite(quantity) ||
+      quantity <= 0 ||
+      !Number.isFinite(unitPrice) ||
+      unitPrice < 0
+    ) {
+      return { total: null, pricingComplete: false } as const;
+    }
+    total += quantity * unitPrice;
+  }
+
+  return { total, pricingComplete: true } as const;
+}
+
 export function buildAutomaticDeliveryNoteNumber(poNumber: string) {
   return normalizeLogisticsReference(
     boundedText(`SJ-${poNumber.trim()}`, MAX_DELIVERY_NOTE_NUMBER_LENGTH),

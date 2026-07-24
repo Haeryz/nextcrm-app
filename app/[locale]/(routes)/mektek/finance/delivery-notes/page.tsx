@@ -9,11 +9,16 @@ export default async function Page({ searchParams }: PageProps) {
   const pageValue = resolved?.page;
   const requestedPage = Array.isArray(pageValue) ? pageValue[0] : pageValue;
   const deliveryNotesPage = Math.max(Number(requestedPage) || 1, 1);
+  const queryValue = resolved?.q;
+  const query = String(
+    Array.isArray(queryValue) ? queryValue[0] ?? "" : queryValue ?? "",
+  ).slice(0, 100);
 
   return (
     <FinanceWorkspace
       section="delivery-notes"
       deliveryNotesPage={deliveryNotesPage}
+      query={query}
     />
   );
 }

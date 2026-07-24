@@ -1,4 +1,5 @@
 import {
+  calculateLogisticsPurchaseOrderTotal,
   getLogisticsItemProgress,
   getLogisticsPurchaseOrderStatus,
   normalizeLogisticsReference,
@@ -6,6 +7,24 @@ import {
 } from "@/lib/mektek/logistics";
 
 describe("MekTek logistics purchase order progress", () => {
+  it("calculates the PO total from every item quantity and unit price", () => {
+    expect(
+      calculateLogisticsPurchaseOrderTotal([
+        { orderedQuantity: "2", agreedUnitPrice: "150000" },
+        { orderedQuantity: "3", agreedUnitPrice: "50000" },
+      ]),
+    ).toEqual({ total: 450_000, pricingComplete: true });
+  });
+
+  it("does not present a partial PO total when an item price is missing", () => {
+    expect(
+      calculateLogisticsPurchaseOrderTotal([
+        { orderedQuantity: "2", agreedUnitPrice: "150000" },
+        { orderedQuantity: "3", agreedUnitPrice: "" },
+      ]),
+    ).toEqual({ total: null, pricingComplete: false });
+  });
+
   it("keeps an unreceived or partially received item open", () => {
     expect(
       getLogisticsItemProgress({ orderedQuantity: 10, receivedQuantity: 0 }),

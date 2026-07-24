@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { authOptions } from "@/lib/auth";
 import { canManageMektekFinance } from "@/lib/mektek/permissions";
+import { isFinanceDestinationBank } from "@/lib/mektek/finance-bank-accounts";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -14,6 +15,7 @@ export type PaymentFakturEntryInput = {
   invoiceNumber: string;
   invoiceDate?: string;
   purchaseOrderNumber?: string;
+  destinationBank?: string;
   deliveryDate?: string;
   description: string;
   subtotal: number | string;
@@ -77,6 +79,7 @@ function parseInput(input: PaymentFakturEntryInput) {
   const installment1 = money(input.installment1 ?? 0);
   const installment2 = money(input.installment2 ?? 0);
   const installment3 = money(input.installment3 ?? 0);
+  const destinationBank = text(input.destinationBank, 180);
 
   if (!customerId) return { error: "Customer wajib dipilih" } as const;
   if (!invoiceNumber) return { error: "Nomor invoice wajib diisi" } as const;
@@ -86,6 +89,9 @@ function parseInput(input: PaymentFakturEntryInput) {
   if (transferDate === undefined) return { error: "Tanggal transfer tidak valid" } as const;
   if (!subtotal || !taxAmount || !installment1 || !installment2 || !installment3) {
     return { error: "Nilai uang tidak valid" } as const;
+  }
+  if (destinationBank && !isFinanceDestinationBank(destinationBank)) {
+    return { error: "Rekening tujuan tidak valid" } as const;
   }
   const grandTotal = subtotal.add(taxAmount);
   if (grandTotal.lte(0)) return { error: "Grand total harus lebih dari 0" } as const;
@@ -100,6 +106,7 @@ function parseInput(input: PaymentFakturEntryInput) {
       invoiceNumber,
       invoiceDate,
       purchaseOrderNumber: text(input.purchaseOrderNumber, 1000) || null,
+      destinationBank: destinationBank || null,
       deliveryDate,
       description,
       subtotal,

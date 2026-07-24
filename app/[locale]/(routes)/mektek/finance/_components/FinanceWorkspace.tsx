@@ -6,12 +6,15 @@ import {
   FileCheck2,
   Landmark,
   ReceiptText,
+  Search,
   ShieldCheck,
 } from "lucide-react";
 
 import { getFinanceOverview } from "@/actions/mektek/finance";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   buildContractReminderDemo,
 } from "@/lib/mektek/finance-contract-reminder-demo";
@@ -239,6 +242,48 @@ function Header({ title, description }: { title: string; description: string }) 
   );
 }
 
+const matchesReportQuery = (
+  query: string,
+  ...values: Array<unknown>
+) => {
+  const normalized = query.trim().toLocaleLowerCase("id-ID");
+  if (!normalized) return true;
+  return values.some((value) =>
+    String(value ?? "").toLocaleLowerCase("id-ID").includes(normalized),
+  );
+};
+
+function ReportFilter({
+  query,
+  placeholder = "Cari data rekap",
+}: {
+  query: string;
+  placeholder?: string;
+}) {
+  return (
+    <form className="flex max-w-xl gap-2">
+      <div className="relative flex-1">
+        <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+        <Input
+          name="q"
+          type="search"
+          defaultValue={query}
+          className="pl-9"
+          placeholder={placeholder}
+        />
+      </div>
+      <Button type="submit" variant="outline">
+        Filter
+      </Button>
+      {query ? (
+        <Button type="submit" name="q" value="" variant="ghost">
+          Reset
+        </Button>
+      ) : null}
+    </form>
+  );
+}
+
 function RevenueClassificationWarning({
   count,
   subtotal,
@@ -264,9 +309,11 @@ function RevenueClassificationWarning({
 export default async function FinanceWorkspace({
   section,
   deliveryNotesPage = 1,
+  query = "",
 }: {
   section: FinanceSection;
   deliveryNotesPage?: number;
+  query?: string;
 }) {
   if (section === "overview") {
     const result = await getFinanceOverview();
@@ -405,13 +452,29 @@ export default async function FinanceWorkspace({
         hasPayment: row.allocations.length > 0,
         sources,
       };
-    });
+    }).filter((row) =>
+      matchesReportQuery(
+        query,
+        row.displayNumber,
+        row.customerName,
+        row.deliveryNoteNumber,
+        row.receiptNumber,
+        row.purchaseOrderNumber,
+        row.description,
+        row.taxInvoiceNumber,
+        row.status,
+      ),
+    );
 
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
           title="Rekap invoice"
           description="Tambah, lihat, ubah, dan hapus data invoice sesuai format kerja akuntansi."
+        />
+        <ReportFilter
+          query={query}
+          placeholder="Cari invoice, pelanggan, SJ, PO, atau faktur pajak"
         />
         <InvoiceCrudManager rows={rows} customerNames={customers.map((row) => row.legalName)} />
       </main>
@@ -420,9 +483,22 @@ export default async function FinanceWorkspace({
 
   if (section === "delivery-notes") {
     const deliveryNotesPageSize = 100;
-    const workbookCount = await prismadb.financeDemoRow.count({
+    const rawWorkbookCount = await prismadb.financeDemoRow.count({
       where: { sheetKey: "delivery_notes" },
     });
+    const matchingWorkbookRows = query
+      ? (
+          await prismadb.financeDemoRow.findMany({
+            where: { sheetKey: "delivery_notes" },
+            orderBy: { sourceRow: "asc" },
+            take: 5000,
+            select: { id: true, sourceRow: true, data: true },
+          })
+        ).filter((row) =>
+          matchesReportQuery(query, JSON.stringify(row.data)),
+        )
+      : null;
+    const workbookCount = matchingWorkbookRows?.length ?? rawWorkbookCount;
     const deliveryNotesTotalPages = Math.max(
       1,
       Math.ceil(workbookCount / deliveryNotesPageSize),
@@ -431,13 +507,18 @@ export default async function FinanceWorkspace({
       Math.max(deliveryNotesPage, 1),
       deliveryNotesTotalPages,
     );
-    const workbookRows = await prismadb.financeDemoRow.findMany({
-      where: { sheetKey: "delivery_notes" },
-      orderBy: { sourceRow: "asc" },
-      skip: (currentDeliveryNotesPage - 1) * deliveryNotesPageSize,
-      take: deliveryNotesPageSize,
-      select: { id: true, sourceRow: true, data: true },
-    });
+    const workbookRows = matchingWorkbookRows
+      ? matchingWorkbookRows.slice(
+          (currentDeliveryNotesPage - 1) * deliveryNotesPageSize,
+          currentDeliveryNotesPage * deliveryNotesPageSize,
+        )
+      : await prismadb.financeDemoRow.findMany({
+          where: { sheetKey: "delivery_notes" },
+          orderBy: { sourceRow: "asc" },
+          skip: (currentDeliveryNotesPage - 1) * deliveryNotesPageSize,
+          take: deliveryNotesPageSize,
+          select: { id: true, sourceRow: true, data: true },
+        });
     const rows = workbookRows.map((row) => {
       const value = demoData(row.data);
       return {
@@ -454,12 +535,25 @@ export default async function FinanceWorkspace({
         taxAmount: value.taxAmount,
         total: value.total,
       };
-    });
+    }).filter((row) =>
+      matchesReportQuery(
+        query,
+        row.company,
+        row.deliveryNoteNumber,
+        row.invoiceNumber,
+        row.purchaseOrderNumber,
+        row.description,
+      ),
+    );
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
           title="Rekap surat jalan"
           description={`${workbookCount.toLocaleString("id-ID")} baris sesuai sheet "rekap SJ ( dari Logistik)" pada workbook Accounting.`}
+        />
+        <ReportFilter
+          query={query}
+          placeholder="Cari perusahaan, nomor SJ, invoice, atau PO"
         />
         {rows.length ? (
           <>
@@ -508,6 +602,7 @@ export default async function FinanceWorkspace({
               totalCount={workbookCount}
               pageSize={deliveryNotesPageSize}
               itemLabel="baris"
+              query={query ? { q: query } : undefined}
             />
           </>
         ) : <Empty>Belum ada data pada sheet rekap surat jalan workbook Accounting.</Empty>}
@@ -545,7 +640,14 @@ export default async function FinanceWorkspace({
           totalReceivable === 0 ? "" : balance === 0 ? "LUNAS" : "BELUM LUNAS"
         ),
       };
-    });
+    }).filter((row) =>
+      matchesReportQuery(
+        query,
+        row.number,
+        row.customer,
+        row.notes,
+      ),
+    );
     const monthlyTotals = Object.fromEntries(
       months.map(([key]) => [
         key,
@@ -560,6 +662,10 @@ export default async function FinanceWorkspace({
         <Header
           title="Rekapitulasi invoice jasa & part"
           description='Struktur laporan sesuai sheet "rek. penapatan inv. jasa & part" pada workbook Accounting.'
+        />
+        <ReportFilter
+          query={query}
+          placeholder="Cari perusahaan atau status piutang"
         />
         {receivableRows.length ? (
           <>
@@ -752,12 +858,29 @@ export default async function FinanceWorkspace({
 
   if (section === "spare-parts") {
     const report = await getFinanceRevenueReport();
-    const rows = report.rows.filter((row) => row.category === "sparepart");
+    const rows = report.rows.filter(
+      (row) =>
+        row.category === "sparepart" &&
+        matchesReportQuery(
+          query,
+          row.customer,
+          row.deliveryNoteNumber,
+          row.receiptNumber,
+          row.invoiceNumber,
+          row.purchaseOrderNumber,
+          row.taxInvoiceNumber,
+          row.description,
+        ),
+    );
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
           title="Pendapatan spare part"
           description="Terbentuk otomatis dari baris spare part pada rekap invoice, termasuk invoice campuran."
+        />
+        <ReportFilter
+          query={query}
+          placeholder="Cari pelanggan, invoice, SJ, PO, atau faktur pajak"
         />
         {report.unclassifiedCount > 0 ? (
           <RevenueClassificationWarning
@@ -815,12 +938,28 @@ export default async function FinanceWorkspace({
 
   if (section === "services") {
     const report = await getFinanceRevenueReport();
-    const rows = report.rows.filter((row) => row.category === "service");
+    const rows = report.rows.filter(
+      (row) =>
+        row.category === "service" &&
+        matchesReportQuery(
+          query,
+          row.customer,
+          row.receiptNumber,
+          row.invoiceNumber,
+          row.purchaseOrderNumber,
+          row.taxInvoiceNumber,
+          row.description,
+        ),
+    );
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
           title="Pendapatan jasa"
           description="Terbentuk otomatis dari baris jasa pada rekap invoice, termasuk invoice campuran."
+        />
+        <ReportFilter
+          query={query}
+          placeholder="Cari pelanggan, invoice, PO, atau keterangan"
         />
         {report.unclassifiedCount > 0 ? (
           <RevenueClassificationWarning
@@ -884,7 +1023,9 @@ export default async function FinanceWorkspace({
       current.ppn += row.taxAmount;
       totals.set(row.customer, current);
     }
-    const rows = [...totals.entries()].sort(([a], [b]) => a.localeCompare(b, "id"));
+    const rows = [...totals.entries()]
+      .filter(([customer]) => matchesReportQuery(query, customer))
+      .sort(([a], [b]) => a.localeCompare(b, "id"));
 
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
@@ -892,6 +1033,7 @@ export default async function FinanceWorkspace({
           title="Rekap pendapatan jasa & suku cadang"
           description="Rekap otomatis dari baris invoice; invoice campuran dibagi menurut nilai setiap baris."
         />
+        <ReportFilter query={query} placeholder="Cari pelanggan" />
         {report.unclassifiedCount > 0 ? (
           <RevenueClassificationWarning
             count={report.unclassifiedCount}

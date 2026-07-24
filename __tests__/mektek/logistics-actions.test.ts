@@ -208,11 +208,13 @@ describe("MekTek Logistics and Receiving actions", () => {
         {
           catalogItemId: "catalog-1",
           orderedQuantity: 3,
+          agreedUnitPrice: 150_000,
           note: "Unit A",
         },
         {
           catalogItemId: "catalog-2",
           orderedQuantity: 2,
+          agreedUnitPrice: 50_000,
         },
       ],
     });
@@ -235,6 +237,7 @@ describe("MekTek Logistics and Receiving actions", () => {
         catalogItemId: "catalog-1",
         warehouse: null,
         orderedQuantity: 3,
+        agreedUnitPrice: "150000.00",
       }),
     });
     expect(applyCatalogStockMovement).not.toHaveBeenCalled();
@@ -249,8 +252,16 @@ describe("MekTek Logistics and Receiving actions", () => {
       dueDate: "2026-07-20",
       poType: "Normal",
       items: [
-        { catalogItemId: "catalog-1", orderedQuantity: 1 },
-        { catalogItemId: "catalog-1", orderedQuantity: 1 },
+        {
+          catalogItemId: "catalog-1",
+          orderedQuantity: 1,
+          agreedUnitPrice: 100_000,
+        },
+        {
+          catalogItemId: "catalog-1",
+          orderedQuantity: 1,
+          agreedUnitPrice: 100_000,
+        },
       ],
     });
 
@@ -275,6 +286,7 @@ describe("MekTek Logistics and Receiving actions", () => {
           partName: "Bracket Custom",
           partNumber: "BR-CUSTOM-01",
           orderedQuantity: 2,
+          agreedUnitPrice: 75_000,
           note: "Pesanan non-Catalog",
         },
       ],
@@ -289,6 +301,7 @@ describe("MekTek Logistics and Receiving actions", () => {
         partName: "Bracket Custom",
         partNumber: "BR-CUSTOM-01",
         orderedQuantity: 2,
+        agreedUnitPrice: "75000.00",
       }),
     });
     expect(applyCatalogStockMovement).not.toHaveBeenCalled();

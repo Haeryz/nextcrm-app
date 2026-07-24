@@ -1,6 +1,14 @@
 "use client";
 
-import { FormEvent, useMemo, useState, useTransition } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +19,7 @@ import {
   updatePaymentFakturEntry,
   type PaymentFakturEntryInput,
 } from "@/actions/mektek/payment-faktur";
+import { searchFinancePurchaseOrders } from "@/actions/mektek/finance";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +33,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  shouldSearchFinancePurchaseOrders,
+  type FinancePurchaseOrderSuggestion,
+} from "@/lib/mektek/finance-po";
+import { FINANCE_DESTINATION_BANK_OPTIONS } from "@/lib/mektek/finance-bank-accounts";
+import { buildPaymentFakturPurchaseOrderAutofill } from "@/lib/mektek/payment-faktur-po";
 
 export type PaymentFakturCustomerOption = {
   id: string;
@@ -40,6 +55,7 @@ export type PaymentFakturRow = {
   invoiceNumber: string;
   invoiceDate: string | null;
   purchaseOrderNumber: string | null;
+  destinationBank: string | null;
   deliveryDate: string | null;
   description: string;
   subtotal: number;
@@ -60,6 +76,7 @@ type FormState = {
   invoiceNumber: string;
   invoiceDate: string;
   purchaseOrderNumber: string;
+  destinationBank: string;
   deliveryDate: string;
   description: string;
   subtotal: string;
@@ -76,6 +93,7 @@ const emptyForm: FormState = {
   invoiceNumber: "",
   invoiceDate: "",
   purchaseOrderNumber: "",
+  destinationBank: "",
   deliveryDate: "",
   description: "",
   subtotal: "",
@@ -144,6 +162,14 @@ export default function PaymentFakturManager({
   const [form, setForm] = useState<FormState>(emptyForm);
   const [searchValue, setSearchValue] = useState(search);
   const [sheetSearchValue, setSheetSearchValue] = useState(sheetSearch);
+  const [purchaseOrderOptions, setPurchaseOrderOptions] = useState<
+    FinancePurchaseOrderSuggestion[]
+  >([]);
+  const [purchaseOrderSearchOpen, setPurchaseOrderSearchOpen] = useState(false);
+  const [purchaseOrderSearching, setPurchaseOrderSearching] = useState(false);
+  const [activePurchaseOrderIndex, setActivePurchaseOrderIndex] = useState(0);
+  const purchaseOrderRequestId = useRef(0);
+  const skipPurchaseOrderSearch = useRef("");
   const selectedCustomer = customers.find((row) => row.id === selectedCustomerId);
   const calculatedTotal =
     (Number(form.subtotal) || 0) + (Number(form.taxAmount) || 0);
@@ -168,15 +194,20 @@ export default function PaymentFakturManager({
   const openCreate = () => {
     setEditing(null);
     setForm(emptyForm);
+    setPurchaseOrderOptions([]);
+    setPurchaseOrderSearchOpen(false);
     setDialogOpen(true);
   };
   const openEdit = (row: PaymentFakturRow) => {
     setEditing(row);
+    setPurchaseOrderOptions([]);
+    setPurchaseOrderSearchOpen(false);
     setForm({
       receiptNumber: row.receiptNumber ?? "",
       invoiceNumber: row.invoiceNumber,
       invoiceDate: row.invoiceDate ?? "",
       purchaseOrderNumber: row.purchaseOrderNumber ?? "",
+      destinationBank: row.destinationBank ?? "",
       deliveryDate: row.deliveryDate ?? "",
       description: row.description,
       subtotal: String(row.subtotal),
@@ -188,6 +219,84 @@ export default function PaymentFakturManager({
       installment3: row.installment3 ? String(row.installment3) : "",
     });
     setDialogOpen(true);
+  };
+  const applyPurchaseOrder = useCallback(
+    (option: FinancePurchaseOrderSuggestion) => {
+      const autofill = buildPaymentFakturPurchaseOrderAutofill(
+        option,
+        selectedCustomer?.taxLabelPercent ?? 0,
+      );
+      skipPurchaseOrderSearch.current = option.poNumber;
+      setForm((current) => ({
+        ...current,
+        purchaseOrderNumber: autofill.purchaseOrderNumber,
+        deliveryDate: autofill.deliveryDate || current.deliveryDate,
+        description: autofill.description || current.description,
+        subtotal: autofill.subtotal ?? current.subtotal,
+        taxAmount: autofill.taxAmount ?? current.taxAmount,
+      }));
+      setPurchaseOrderSearchOpen(false);
+      setActivePurchaseOrderIndex(0);
+      if (!option.pricingComplete) {
+        toast.warning(
+          "Harga PO belum lengkap. Total dan PPN perlu diisi manual.",
+        );
+      }
+    },
+    [selectedCustomer?.taxLabelPercent],
+  );
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const query = form.purchaseOrderNumber.trim();
+    if (skipPurchaseOrderSearch.current === query) {
+      skipPurchaseOrderSearch.current = "";
+      return;
+    }
+    if (!shouldSearchFinancePurchaseOrders(query)) return;
+
+    const requestId = ++purchaseOrderRequestId.current;
+    const timer = window.setTimeout(async () => {
+      setPurchaseOrderSearching(true);
+      const result = await searchFinancePurchaseOrders({ query });
+      if (requestId !== purchaseOrderRequestId.current) return;
+      setPurchaseOrderSearching(false);
+      if ("error" in result) {
+        setPurchaseOrderOptions([]);
+        setPurchaseOrderSearchOpen(false);
+        toast.error(result.error);
+        return;
+      }
+      setPurchaseOrderOptions(result.data);
+      setActivePurchaseOrderIndex(0);
+      setPurchaseOrderSearchOpen(true);
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [dialogOpen, form.purchaseOrderNumber]);
+
+  const handlePurchaseOrderKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
+    if (!purchaseOrderSearchOpen || purchaseOrderOptions.length === 0) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActivePurchaseOrderIndex(
+        (current) => (current + 1) % purchaseOrderOptions.length,
+      );
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActivePurchaseOrderIndex(
+        (current) =>
+          (current - 1 + purchaseOrderOptions.length) %
+          purchaseOrderOptions.length,
+      );
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      applyPurchaseOrder(purchaseOrderOptions[activePurchaseOrderIndex]);
+    } else if (event.key === "Escape") {
+      setPurchaseOrderSearchOpen(false);
+    }
   };
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -411,6 +520,7 @@ export default function PaymentFakturManager({
                 <th className="px-3 py-3">Invoice</th>
                 <th className="px-3 py-3">Tanggal invoice</th>
                 <th className="px-3 py-3">No. PO</th>
+                <th className="px-3 py-3">Bank tujuan</th>
                 <th className="px-3 py-3">Tanggal pengiriman</th>
                 <th className="px-3 py-3">Deskripsi</th>
                 <th className="px-3 py-3 text-right">Total</th>
@@ -435,6 +545,7 @@ export default function PaymentFakturManager({
                   <td className="px-3 py-3 font-medium">{row.invoiceNumber}</td>
                   <td className="px-3 py-3">{dateLabel(row.invoiceDate)}</td>
                   <td className="max-w-52 px-3 py-3">{row.purchaseOrderNumber || "—"}</td>
+                  <td className="max-w-56 px-3 py-3">{row.destinationBank || "—"}</td>
                   <td className="px-3 py-3">{dateLabel(row.deliveryDate)}</td>
                   <td className="max-w-72 px-3 py-3">{row.description}</td>
                   <td className="whitespace-nowrap px-3 py-3 text-right">{rupiah.format(row.subtotal)}</td>
@@ -461,7 +572,7 @@ export default function PaymentFakturManager({
                 </tr>
               ))}
               {!rows.length && (
-                <tr><td colSpan={19} className="px-4 py-12 text-center text-muted-foreground">Tidak ada data yang cocok.</td></tr>
+                <tr><td colSpan={20} className="px-4 py-12 text-center text-muted-foreground">Tidak ada data yang cocok.</td></tr>
               )}
             </tbody>
           </table>
@@ -494,7 +605,6 @@ export default function PaymentFakturManager({
                 ["Nomor kwitansi", "receiptNumber", "text"],
                 ["Nomor invoice *", "invoiceNumber", "text"],
                 ["Tanggal invoice", "invoiceDate", "date"],
-                ["Nomor PO", "purchaseOrderNumber", "text"],
                 ["Tanggal pengiriman", "deliveryDate", "date"],
                 ["Nomor faktur pajak", "taxInvoiceNumber", "text"],
                 ["Total sebelum PPN *", "subtotal", "number"],
@@ -517,6 +627,142 @@ export default function PaymentFakturManager({
                   />
                 </div>
               ))}
+              <div className="space-y-2">
+                <Label htmlFor="paymentFakturDestinationBank">
+                  Rekening tujuan
+                </Label>
+                <select
+                  id="paymentFakturDestinationBank"
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  value={form.destinationBank}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      destinationBank: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">Pilih rekening tujuan</option>
+                  {FINANCE_DESTINATION_BANK_OPTIONS.map((bank) => (
+                    <option key={bank} value={bank}>
+                      {bank}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="paymentFakturPurchaseOrderNumber">
+                  Nomor PO Logistics
+                </Label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="paymentFakturPurchaseOrderNumber"
+                    className="pl-9 pr-9"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={purchaseOrderSearchOpen}
+                    aria-controls="payment-faktur-purchase-order-options"
+                    aria-activedescendant={
+                      purchaseOrderSearchOpen && purchaseOrderOptions.length
+                        ? `payment-faktur-purchase-order-option-${purchaseOrderOptions[activePurchaseOrderIndex]?.id}`
+                        : undefined
+                    }
+                    autoComplete="off"
+                    value={form.purchaseOrderNumber}
+                    onChange={(event) => {
+                      skipPurchaseOrderSearch.current = "";
+                      if (
+                        !shouldSearchFinancePurchaseOrders(event.target.value)
+                      ) {
+                        purchaseOrderRequestId.current += 1;
+                        setPurchaseOrderOptions([]);
+                        setPurchaseOrderSearchOpen(false);
+                        setPurchaseOrderSearching(false);
+                      }
+                      setForm((current) => ({
+                        ...current,
+                        purchaseOrderNumber: event.target.value,
+                      }));
+                    }}
+                    onFocus={() => {
+                      if (
+                        shouldSearchFinancePurchaseOrders(
+                          form.purchaseOrderNumber,
+                        ) &&
+                        purchaseOrderOptions.length
+                      ) {
+                        setPurchaseOrderSearchOpen(true);
+                      }
+                    }}
+                    onBlur={() =>
+                      window.setTimeout(
+                        () => setPurchaseOrderSearchOpen(false),
+                        100,
+                      )
+                    }
+                    onKeyDown={handlePurchaseOrderKeyDown}
+                    placeholder="Ketik minimal 3 karakter nomor PO"
+                  />
+                  {purchaseOrderSearching && (
+                    <Loader2 className="pointer-events-none absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                  {purchaseOrderSearchOpen && (
+                    <div
+                      id="payment-faktur-purchase-order-options"
+                      role="listbox"
+                      className="absolute z-50 mt-1 max-h-72 w-full min-w-80 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+                    >
+                      {purchaseOrderOptions.length ? (
+                        purchaseOrderOptions.map((option, index) => (
+                          <button
+                            key={option.id}
+                            id={`payment-faktur-purchase-order-option-${option.id}`}
+                            type="button"
+                            role="option"
+                            aria-selected={index === activePurchaseOrderIndex}
+                            className={`flex w-full items-start justify-between gap-3 rounded-sm px-3 py-2 text-left text-sm ${
+                              index === activePurchaseOrderIndex
+                                ? "bg-accent text-accent-foreground"
+                                : "hover:bg-accent hover:text-accent-foreground"
+                            }`}
+                            onMouseDown={(event) => event.preventDefault()}
+                            onMouseEnter={() =>
+                              setActivePurchaseOrderIndex(index)
+                            }
+                            onClick={() => applyPurchaseOrder(option)}
+                          >
+                            <span>
+                              <span className="block font-mono font-medium">
+                                {option.poNumber}
+                              </span>
+                              <span className="block text-xs text-muted-foreground">
+                                {option.customerName}
+                                {option.projectName
+                                  ? ` · ${option.projectName}`
+                                  : ""}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {option.pricingComplete
+                                ? rupiah.format(Number(option.subtotal))
+                                : "Harga belum lengkap"}
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-3 py-2 text-sm text-muted-foreground">
+                          Nomor PO Logistics tidak ditemukan
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Pilih rekomendasi untuk mengisi tanggal pengiriman, deskripsi,
+                  total, dan PPN secara otomatis.
+                </p>
+              </div>
               <div className="space-y-2 sm:col-span-2 lg:col-span-3">
                 <Label htmlFor="description">Deskripsi *</Label>
                 <Textarea id="description" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} />

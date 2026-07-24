@@ -9,7 +9,14 @@ import {
   useTransition,
 } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Download,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -33,7 +40,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { classifyFinanceRevenueLine } from "@/lib/mektek/finance";
-import type { FinancePurchaseOrderSuggestion } from "@/lib/mektek/finance-po";
+import { FINANCE_DESTINATION_BANK_OPTIONS } from "@/lib/mektek/finance-bank-accounts";
+import {
+  shouldSearchFinancePurchaseOrders,
+  type FinancePurchaseOrderSuggestion,
+} from "@/lib/mektek/finance-po";
 
 export type FinanceInvoiceSourceRow = {
   id: string;
@@ -320,7 +331,7 @@ export default function InvoiceCrudManager({
   useEffect(() => {
     if (!open) return;
     const query = purchaseOrderQuery.trim();
-    if (!query) return;
+    if (!shouldSearchFinancePurchaseOrders(query)) return;
 
     const requestId = ++purchaseOrderRequestId.current;
     const timer = window.setTimeout(async () => {
@@ -367,7 +378,7 @@ export default function InvoiceCrudManager({
   const changePurchaseOrderNumber = (value: string) => {
     setPurchaseOrderPricingWarning("");
     setPurchaseOrderQuery(value);
-    if (!value.trim()) {
+    if (!shouldSearchFinancePurchaseOrders(value)) {
       purchaseOrderRequestId.current += 1;
       setPurchaseOrderOptions([]);
       setPurchaseOrderSearchOpen(false);
@@ -457,6 +468,18 @@ export default function InvoiceCrudManager({
         toast.error(result.error);
         return;
       }
+      if (
+        !editingId &&
+        "data" in result &&
+        result.data &&
+        "id" in result.data
+      ) {
+        const link = document.createElement("a");
+        link.href = `/api/mektek/finance/invoices/${encodeURIComponent(result.data.id)}/pdf`;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.click();
+      }
       toast.success(editingId ? "Invoice berhasil diperbarui" : "Invoice berhasil ditambahkan");
       setOpen(false);
       router.refresh();
@@ -532,6 +555,20 @@ export default function InvoiceCrudManager({
                     <td className="p-3 text-right font-medium">{idr.format(row.balance)}</td>
                     <td className="p-3">
                       <div className="flex justify-end gap-2">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          asChild
+                          aria-label={`Unduh PDF ${row.displayNumber}`}
+                        >
+                          <a
+                            href={`/api/mektek/finance/invoices/${encodeURIComponent(row.id)}/pdf`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Download className="h-4 w-4" />
+                          </a>
+                        </Button>
                         <Button
                           size="icon"
                           variant="outline"
@@ -642,7 +679,8 @@ export default function InvoiceCrudManager({
                   }
                   onFocus={() => {
                     if (
-                      purchaseOrderQuery.trim()
+                      shouldSearchFinancePurchaseOrders(purchaseOrderQuery) &&
+                      purchaseOrderOptions.length
                     ) {
                       setPurchaseOrderSearchOpen(true);
                     }
@@ -718,7 +756,7 @@ export default function InvoiceCrudManager({
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Pilih rekomendasi atau ketik nomor PO lengkap. Semua Surat Jalan
+                Ketik minimal 3 karakter lalu pilih rekomendasi. Semua Surat Jalan
                 yang belum ditagih dari PO tersebut akan ditambahkan dan dapat
                 dihapus satu per satu.
               </p>
@@ -805,8 +843,22 @@ export default function InvoiceCrudManager({
               <Input id="taxInvoiceNumber" value={fieldValue(form, "taxInvoiceNumber")} onChange={(event) => set("taxInvoiceNumber", event.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="accountDestination">Rekening tujuan</Label>
-              <Input id="accountDestination" value={fieldValue(form, "accountDestination")} onChange={(event) => set("accountDestination", event.target.value)} />
+              <Label htmlFor="accountDestination">Bank / rekening tujuan</Label>
+              <select
+                id="accountDestination"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                value={fieldValue(form, "accountDestination")}
+                onChange={(event) =>
+                  set("accountDestination", event.target.value)
+                }
+              >
+                <option value="">Pilih rekening tujuan</option>
+                {FINANCE_DESTINATION_BANK_OPTIONS.map((bank) => (
+                  <option key={bank} value={bank}>
+                    {bank}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-2 md:col-span-2">

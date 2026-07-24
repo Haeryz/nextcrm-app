@@ -689,7 +689,7 @@ export default function ReceivingManager({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="logistics-supplier">Supplier</Label>
+                  <Label htmlFor="logistics-supplier">Supplier / tujuan PO</Label>
                   <Input
                     id="logistics-supplier"
                     value={createValue.supplierName}
@@ -1281,7 +1281,7 @@ export default function ReceivingManager({
                     PO No. User
                   </th>
                   <th className="min-w-28 border-b border-e px-3 py-3 text-left">PO Type</th>
-                  <th className="min-w-40 border-b border-e px-3 py-3 text-left">Supplier</th>
+                  <th className="min-w-40 border-b border-e px-3 py-3 text-left">Supplier / tujuan PO</th>
                   <th className="min-w-52 border-b border-e px-3 py-3 text-left">
                     Ringkasan Part
                   </th>
@@ -1438,7 +1438,7 @@ export default function ReceivingManager({
                   </Badge>
                 </div>
                 <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">Supplier</p>
+                  <p className="text-xs text-muted-foreground">Supplier / tujuan PO</p>
                   <p className="mt-1 font-medium">
                     {activeReceiptPurchaseOrder.supplierName}
                   </p>

@@ -42,6 +42,7 @@ const MEKTEK_COMPANY_NAME = "PT. Mektek Tanjung Lestari";
 export type LogisticsCatalogItemInput = {
   catalogItemId: string;
   orderedQuantity: string | number;
+  agreedUnitPrice?: string | number;
   warehouse?: CatalogWarehouse;
   note?: string;
 };
@@ -71,6 +72,7 @@ type LogisticsManualItemInput = {
   machine?: string;
   warehouse?: CatalogWarehouse;
   orderedQuantity: string | number;
+  agreedUnitPrice?: string | number;
   note?: string;
 };
 
@@ -93,6 +95,7 @@ type NormalizedPurchaseOrderLine =
       position: number;
       catalogItemId: string;
       orderedQuantity: number;
+      agreedUnitPrice: string | null;
       warehouse: CatalogWarehouse | null;
       note: string | null;
     }
@@ -104,6 +107,7 @@ type NormalizedPurchaseOrderLine =
       partNumber: string;
       machine: string | null;
       orderedQuantity: number;
+      agreedUnitPrice: string | null;
       warehouse: CatalogWarehouse | null;
       note: string | null;
     };
@@ -273,6 +277,7 @@ function normalizePurchaseOrderLines(
     requireCatalogWarehouse: boolean;
     requireManualMachine?: boolean;
     requireManualWarehouse?: boolean;
+    requireUnitPrice?: boolean;
     emptyError: string;
   },
 ) {
@@ -294,6 +299,20 @@ function normalizePurchaseOrderLines(
       } as const;
     }
     const note = boundedText(item?.note, MAX_NOTE_LEN) || null;
+    const unitPriceText = compactText(item?.agreedUnitPrice);
+    const unitPrice = unitPriceText ? Number(unitPriceText) : null;
+    if (
+      options.requireUnitPrice &&
+      (unitPrice == null || !Number.isFinite(unitPrice) || unitPrice < 0)
+    ) {
+      return {
+        error: `Harga satuan baris ${index + 1} wajib berupa angka 0 atau lebih`,
+      } as const;
+    }
+    const agreedUnitPrice =
+      unitPrice != null && Number.isFinite(unitPrice) && unitPrice >= 0
+        ? unitPrice.toFixed(2)
+        : null;
 
     if (item?.source === "MANUAL") {
       const partName = boundedText(item.partName, MAX_NAME_LEN);
@@ -326,6 +345,7 @@ function normalizePurchaseOrderLines(
         partNumber,
         machine: machine || null,
         orderedQuantity,
+        agreedUnitPrice,
         warehouse: isWarehouse(item.warehouse) ? item.warehouse : null,
         note,
       });
@@ -348,6 +368,7 @@ function normalizePurchaseOrderLines(
       position: index + 1,
       catalogItemId,
       orderedQuantity,
+      agreedUnitPrice,
       warehouse: isWarehouse(item?.warehouse) ? item.warehouse : null,
       note,
     });
@@ -659,6 +680,7 @@ export async function createMektekReceivingPurchaseOrder(
                     partNumber: line.partNumber,
                     machine: line.machine,
                     orderedQuantity: line.orderedQuantity,
+                    agreedUnitPrice: line.agreedUnitPrice,
                     warehouse: line.warehouse,
                     note: line.note,
                   }
@@ -672,6 +694,7 @@ export async function createMektekReceivingPurchaseOrder(
                       line.catalogItem.catalogPartNumber,
                     machine: line.catalogItem.machine,
                     orderedQuantity: line.orderedQuantity,
+                    agreedUnitPrice: line.agreedUnitPrice,
                     note: line.note,
                   },
             ),
@@ -703,6 +726,7 @@ export async function createMektekOutboundPurchaseOrder(
   if ("error" in header) return { error: header.error };
   const lines = normalizePurchaseOrderLines(input?.items, {
     requireCatalogWarehouse: false,
+    requireUnitPrice: true,
     emptyError: "Minimal satu item wajib diisi",
   });
   if ("error" in lines) return { error: lines.error };
@@ -751,6 +775,7 @@ export async function createMektekOutboundPurchaseOrder(
               partNumber: line.partNumber,
               machine: line.machine,
               orderedQuantity: line.orderedQuantity,
+              agreedUnitPrice: line.agreedUnitPrice,
               warehouse: null,
               note: line.note,
             },
@@ -771,6 +796,7 @@ export async function createMektekOutboundPurchaseOrder(
               line.catalogItem.partNumber || line.catalogItem.catalogPartNumber,
             machine: line.catalogItem.machine,
             orderedQuantity: line.orderedQuantity,
+            agreedUnitPrice: line.agreedUnitPrice,
             warehouse: null,
             note: line.note,
           },

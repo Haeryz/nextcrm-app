@@ -1,9 +1,19 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { buildFinancePurchaseOrderSuggestion } from "@/lib/mektek/finance-po";
+import {
+  buildFinancePurchaseOrderSuggestion,
+  MIN_FINANCE_PURCHASE_ORDER_QUERY_LENGTH,
+  shouldSearchFinancePurchaseOrders,
+} from "@/lib/mektek/finance-po";
 
 describe("Finance invoice PO autocomplete", () => {
+  it("opens PO suggestions from three typed characters", () => {
+    expect(MIN_FINANCE_PURCHASE_ORDER_QUERY_LENGTH).toBe(3);
+    expect(shouldSearchFinancePurchaseOrders("12")).toBe(false);
+    expect(shouldSearchFinancePurchaseOrders(" 123 ")).toBe(true);
+  });
+
   it("maps an outbound Logistics PO into invoice fields and totals its priced items", () => {
     expect(
       buildFinancePurchaseOrderSuggestion({

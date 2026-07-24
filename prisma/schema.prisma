@@ -709,6 +709,7 @@ model PaymentFakturEntry {
   invoiceNumber         String
   invoiceDate           DateTime?              @db.Date
   purchaseOrderNumber   String?
+  destinationBank       String?
   deliveryDate          DateTime?              @db.Date
   description           String
   subtotal              Decimal                @default(0) @db.Decimal(18, 2)

@@ -42,6 +42,7 @@ const validInput = {
   invoiceNumber: "INV-DUPLICATE-ALLOWED",
   invoiceDate: "2026-07-01",
   purchaseOrderNumber: "PO-001",
+  destinationBank: "Mandiri (031-00-1134863-1)",
   deliveryDate: "2026-07-02",
   description: "SERVICE AC",
   subtotal: 1_000_000,
@@ -73,6 +74,7 @@ describe("Payment Faktur CRUD actions", () => {
     expect(entryCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
         invoiceNumber: "INV-DUPLICATE-ALLOWED",
+        destinationBank: "Mandiri (031-00-1134863-1)",
         createdBy: "staff-id",
         updatedBy: "staff-id",
       }),
@@ -91,6 +93,16 @@ describe("Payment Faktur CRUD actions", () => {
       error: "Jumlah cicilan tidak boleh melebihi grand total",
     });
     expect(entryUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a destination account outside the configured dropdown", async () => {
+    const result = await createPaymentFakturEntry({
+      ...validInput,
+      destinationBank: "Bank lain 123",
+    });
+
+    expect(result).toEqual({ error: "Rekening tujuan tidak valid" });
+    expect(entryCreate).not.toHaveBeenCalled();
   });
 
   it("deletes the requested ledger row", async () => {

@@ -28,8 +28,10 @@ import {
 import {
   buildFinancePurchaseOrderDeliveryNoteSuggestion,
   buildFinancePurchaseOrderSuggestion,
+  shouldSearchFinancePurchaseOrders,
   type FinancePurchaseOrderSuggestion,
 } from "@/lib/mektek/finance-po";
+import { isFinanceDestinationBank } from "@/lib/mektek/finance-bank-accounts";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -498,7 +500,7 @@ export async function searchFinancePurchaseOrders(input: {
   if ("error" in access && access.error) return { error: access.error };
   const query = text(input?.query, 80);
   const invoiceId = text(input?.invoiceId, 36);
-  if (!query) return { data: [] };
+  if (!shouldSearchFinancePurchaseOrders(query)) return { data: [] };
 
   const purchaseOrders = await prismadb.logisticsPurchaseOrder.findMany({
     where: {
@@ -617,6 +619,7 @@ function parseInvoiceEntry(input: FinanceInvoiceEntryInput) {
   const description = text(input.description, 5000);
   const subtotal = money(input.subtotal);
   const rawTaxRate = Number(String(input.taxRate ?? 11).replace(",", "."));
+  const accountDestination = text(input.accountDestination, 180);
 
   if (!customerName || !normalizedName) return { error: "Nama customer wajib diisi" } as const;
   if (!invoiceNumber) return { error: "Nomor invoice wajib diisi" } as const;
@@ -628,6 +631,12 @@ function parseInvoiceEntry(input: FinanceInvoiceEntryInput) {
   if (!subtotal || subtotal.lte(0)) return { error: "Nilai sebelum pajak harus lebih dari 0" } as const;
   if (!Number.isFinite(rawTaxRate) || rawTaxRate < 0 || rawTaxRate > 100) {
     return { error: "PPN harus berada di antara 0 dan 100 persen" } as const;
+  }
+  if (
+    accountDestination &&
+    !isFinanceDestinationBank(accountDestination)
+  ) {
+    return { error: "Rekening tujuan tidak valid" } as const;
   }
 
   const taxRate = new Prisma.Decimal((rawTaxRate / 100).toFixed(6));
@@ -651,7 +660,7 @@ function parseInvoiceEntry(input: FinanceInvoiceEntryInput) {
       taxAmount,
       total,
       taxInvoiceNumber: text(input.taxInvoiceNumber, 100) || null,
-      accountDestination: text(input.accountDestination, 180) || null,
+      accountDestination: accountDestination || null,
       notes: text(input.notes, 1000) || null,
       sourceIds:
         input.sourceIds === undefined

@@ -49,6 +49,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { getCatalogInventoryLocalDateKey } from "@/lib/mektek/catalog-inventory";
 import {
+  calculateLogisticsPurchaseOrderTotal,
   getLogisticsItemProgress,
   getLogisticsStatusLabel,
 } from "@/lib/mektek/logistics";
@@ -99,6 +100,7 @@ type OutboundPurchaseOrder = {
     partName: string;
     partNumber: string | null;
     orderedQuantity: number;
+    agreedUnitPrice: string | null;
     receivedQuantity: number;
     warehouse: "REAR" | "FRONT" | null;
     note: string | null;
@@ -124,6 +126,7 @@ type ItemDraft = {
   partName: string;
   partNumber: string;
   orderedQuantity: string;
+  agreedUnitPrice: string;
   note: string;
 };
 
@@ -163,6 +166,12 @@ const dateFormatter = new Intl.DateTimeFormat("id-ID", {
   timeZone: "UTC",
 });
 
+const currencyFormatter = new Intl.NumberFormat("id-ID", {
+  style: "currency",
+  currency: "IDR",
+  maximumFractionDigits: 2,
+});
+
 function formatDate(value: string | null) {
   return value ? dateFormatter.format(new Date(value)) : "-";
 }
@@ -193,6 +202,7 @@ function blankItemDraft(clientId: string): ItemDraft {
     partName: "",
     partNumber: "",
     orderedQuantity: "",
+    agreedUnitPrice: "",
     note: "",
   };
 }
@@ -206,6 +216,7 @@ function toOutboundPurchaseOrderItem(
       partName: item.partName,
       partNumber: item.partNumber,
       orderedQuantity: item.orderedQuantity,
+      agreedUnitPrice: item.agreedUnitPrice,
       note: item.note,
     };
   }
@@ -213,6 +224,7 @@ function toOutboundPurchaseOrderItem(
     source: "CATALOG",
     catalogItemId: item.catalogItemId,
     orderedQuantity: item.orderedQuantity,
+    agreedUnitPrice: item.agreedUnitPrice,
     note: item.note,
   };
 }
@@ -247,6 +259,10 @@ export default function OutboundLogisticsManager({
   const [draft, setDraft] = useState<OutboundDraft>(() => blankDraft());
   const [activePurchaseOrder, setActivePurchaseOrder] =
     useState<OutboundPurchaseOrder | null>(null);
+  const draftPricing = useMemo(
+    () => calculateLogisticsPurchaseOrderTotal(draft.items),
+    [draft.items],
+  );
   const [dispatchDraft, setDispatchDraft] = useState({
     picId: pics[0]?.id ?? "",
     dispatchedAt: getCatalogInventoryLocalDateKey(),
@@ -312,6 +328,7 @@ export default function OutboundLogisticsManager({
               ...blankItemDraft(clientId),
               source,
               orderedQuantity: item.orderedQuantity,
+              agreedUnitPrice: item.agreedUnitPrice,
               note: item.note,
             }
           : item,
@@ -501,7 +518,15 @@ export default function OutboundLogisticsManager({
   ];
   const hasInvalidCreateItems = draft.items.some((item) => {
     const quantity = Number(item.orderedQuantity);
+    const unitPrice = Number(item.agreedUnitPrice);
     if (!Number.isSafeInteger(quantity) || quantity <= 0) return true;
+    if (
+      !item.agreedUnitPrice.trim() ||
+      !Number.isFinite(unitPrice) ||
+      unitPrice < 0
+    ) {
+      return true;
+    }
     return item.source === "CATALOG"
       ? !item.catalogItemId
       : !item.partName.trim() || !item.partNumber.trim();
@@ -517,6 +542,14 @@ export default function OutboundLogisticsManager({
           };
         },
         { orderedQuantity: 0, receivedQuantity: 0, remainingQuantity: 0 },
+      )
+    : null;
+  const activePricing = activePurchaseOrder
+    ? calculateLogisticsPurchaseOrderTotal(
+        activePurchaseOrder.items.map((item) => ({
+          orderedQuantity: item.orderedQuantity,
+          agreedUnitPrice: item.agreedUnitPrice ?? "",
+        })),
       )
     : null;
   const hasSelectedDispatchItems =
@@ -809,7 +842,7 @@ export default function OutboundLogisticsManager({
                               </div>
 
                               <div className="space-y-4 p-4">
-                                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_10rem] lg:items-start">
+                                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_9rem_12rem] lg:items-start">
                                   <CatalogOrManualItemPicker
                                     idPrefix={`outbound-${item.clientId}`}
                                     itemNumber={index + 1}
@@ -865,6 +898,40 @@ export default function OutboundLogisticsManager({
                                       Total kebutuhan User.
                                     </p>
                                   </div>
+
+                                  <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                                    <Label htmlFor={`outbound-price-${item.clientId}`}>
+                                      Harga satuan
+                                    </Label>
+                                    <Input
+                                      id={`outbound-price-${item.clientId}`}
+                                      className="h-11 bg-background font-mono text-base"
+                                      type="number"
+                                      inputMode="decimal"
+                                      min={0}
+                                      step="0.01"
+                                      value={item.agreedUnitPrice}
+                                      onChange={(event) =>
+                                        updateItem(
+                                          item.clientId,
+                                          "agreedUnitPrice",
+                                          event.target.value,
+                                        )
+                                      }
+                                      disabled={isPending}
+                                      required
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      Total baris:{" "}
+                                      {item.orderedQuantity &&
+                                      item.agreedUnitPrice
+                                        ? currencyFormatter.format(
+                                            Number(item.orderedQuantity) *
+                                              Number(item.agreedUnitPrice),
+                                          )
+                                        : "Belum lengkap"}
+                                    </p>
+                                  </div>
                                 </div>
 
                                 <div className="space-y-1.5">
@@ -897,6 +964,19 @@ export default function OutboundLogisticsManager({
                         })}
                       </div>
                     </fieldset>
+                    <div className="flex flex-col gap-1 rounded-lg border bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-medium">Total harga Purchase Order</p>
+                        <p className="text-xs text-muted-foreground">
+                          Dihitung dari quantity dikali harga satuan seluruh item.
+                        </p>
+                      </div>
+                      <p className="font-mono text-xl font-semibold">
+                        {draftPricing.pricingComplete && draftPricing.total != null
+                          ? currencyFormatter.format(draftPricing.total)
+                          : "Belum lengkap"}
+                      </p>
+                    </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="outbound-notes">Catatan PO</Label>
                       <Textarea
@@ -1066,7 +1146,7 @@ export default function OutboundLogisticsManager({
 
           {activePurchaseOrder && activeProgress && (
             <div className="space-y-5">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="rounded-lg bg-muted/50 p-3">
                   <p className="text-xs text-muted-foreground">User / PT</p>
                   <p className="mt-1 font-medium">{activePurchaseOrder.userName}</p>
@@ -1104,6 +1184,15 @@ export default function OutboundLogisticsManager({
                   <p className="text-xs text-muted-foreground">QTY Sisa</p>
                   <p className="mt-1 font-mono text-lg font-semibold tabular-nums">
                     {activeProgress.remainingQuantity}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3">
+                  <p className="text-xs text-muted-foreground">Total harga PO</p>
+                  <p className="mt-1 font-mono text-lg font-semibold tabular-nums">
+                    {activePricing?.pricingComplete &&
+                    activePricing.total != null
+                      ? currencyFormatter.format(activePricing.total)
+                      : "Belum lengkap"}
                   </p>
                 </div>
               </div>
@@ -1151,6 +1240,16 @@ export default function OutboundLogisticsManager({
                                 Sisa{" "}
                                 <strong className="font-mono">
                                   {progress.remainingQuantity}
+                                </strong>
+                              </span>
+                              <span>
+                                Harga{" "}
+                                <strong className="font-mono">
+                                  {item.agreedUnitPrice != null
+                                    ? currencyFormatter.format(
+                                        Number(item.agreedUnitPrice),
+                                      )
+                                    : "Belum diisi"}
                                 </strong>
                               </span>
                               <Badge

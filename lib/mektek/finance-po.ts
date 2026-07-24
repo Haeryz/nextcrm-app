@@ -17,6 +17,12 @@ export type FinancePurchaseOrderSource = {
   }>;
 };
 
+export const MIN_FINANCE_PURCHASE_ORDER_QUERY_LENGTH = 3;
+
+export function shouldSearchFinancePurchaseOrders(query: string) {
+  return query.trim().length >= MIN_FINANCE_PURCHASE_ORDER_QUERY_LENGTH;
+}
+
 export type FinancePurchaseOrderSuggestion = {
   id: string;
   poNumber: string;
