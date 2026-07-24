@@ -66,4 +66,22 @@ describe("supplier payment Finance workspace", () => {
       "purchaseOrder.id === initialPurchaseOrderId",
     );
   });
+
+  it("renders the three source documents inline without requiring a download", () => {
+    const manager = source(
+      "app/[locale]/(routes)/mektek/finance/_components/SupplierPaymentManager.tsx",
+    );
+    const page = source(
+      "app/[locale]/(routes)/mektek/finance/payables/page.tsx",
+    );
+
+    expect(manager).toContain("InlineDocumentPreview");
+    expect(manager).toContain("<iframe");
+    expect(manager).toContain("<Image");
+    expect(manager).toContain("Pratinjau dokumen");
+    expect(manager).toContain("supplierInvoiceImageAvailable");
+    expect(manager).toContain("deliveryNoteImageAvailable");
+    expect(page).toContain("supplierInvoiceImageUpdatedAt");
+    expect(page).toContain("deliveryNoteImageUpdatedAt");
+  });
 });

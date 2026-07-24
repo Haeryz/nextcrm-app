@@ -41,8 +41,36 @@ export default async function SupplierPaymentsPage() {
     }),
   ]);
 
-  const sources: SupplierPaymentSource[] = payableSources.map((source) => {
-    const snapshot = parseSupplierPayableSnapshot(source.snapshot);
+  const parsedPayableSources = payableSources.map((source) => ({
+    source,
+    snapshot: parseSupplierPayableSnapshot(source.snapshot),
+  }));
+  const purchaseOrderIds = parsedPayableSources.flatMap(({ snapshot }) =>
+    snapshot.purchaseOrderId ? [snapshot.purchaseOrderId] : [],
+  );
+  const purchaseOrderDocuments =
+    purchaseOrderIds.length > 0
+      ? await prismadb.logisticsPurchaseOrder.findMany({
+          where: { id: { in: purchaseOrderIds }, flow: "RECEIVING" },
+          select: {
+            id: true,
+            supplierInvoiceImageUpdatedAt: true,
+            deliveryNoteImageUpdatedAt: true,
+          },
+        })
+      : [];
+  const documentsByPurchaseOrderId = new Map(
+    purchaseOrderDocuments.map((purchaseOrder) => [
+      purchaseOrder.id,
+      purchaseOrder,
+    ]),
+  );
+
+  const sources: SupplierPaymentSource[] = parsedPayableSources.map(
+    ({ source, snapshot }) => {
+      const documents = snapshot.purchaseOrderId
+        ? documentsByPurchaseOrderId.get(snapshot.purchaseOrderId)
+        : undefined;
     return {
       id: source.id,
       purchaseOrderId: snapshot.purchaseOrderId,
@@ -52,6 +80,12 @@ export default async function SupplierPaymentsPage() {
       poNumber: snapshot.poNumber,
       projectName: snapshot.projectName,
       pricingComplete: snapshot.pricingComplete,
+      supplierInvoiceImageAvailable: Boolean(
+        documents?.supplierInvoiceImageUpdatedAt,
+      ),
+      deliveryNoteImageAvailable: Boolean(
+        documents?.deliveryNoteImageUpdatedAt,
+      ),
       expectedSubtotal: snapshot.expectedSubtotal,
       pricingIssues: snapshot.pricingIssues,
       lines: snapshot.lines.map((line) => ({
@@ -62,7 +96,8 @@ export default async function SupplierPaymentsPage() {
         lineTotal: line.lineTotal,
       })),
     };
-  });
+    },
+  );
 
   const rows: SupplierPaymentRow[] = supplierBills.map((bill) => {
     const source = bill.sources[0];

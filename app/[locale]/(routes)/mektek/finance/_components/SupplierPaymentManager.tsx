@@ -1,12 +1,14 @@
 "use client";
 
 import { FormEvent, useMemo, useState, useTransition } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   AlertTriangle,
   Calculator,
   CheckCircle2,
   ClipboardCheck,
+  ExternalLink,
   Loader2,
   Send,
 } from "lucide-react";
@@ -40,6 +42,8 @@ export type SupplierPaymentSource = {
   poNumber: string;
   projectName: string;
   pricingComplete: boolean;
+  supplierInvoiceImageAvailable: boolean;
+  deliveryNoteImageAvailable: boolean;
   expectedSubtotal: number | null;
   pricingIssues: Array<{
     description: string;
@@ -107,6 +111,66 @@ const emptyChecks = {
   goodsReceipt: false,
 };
 
+function InlineDocumentPreview({
+  title,
+  reference,
+  href,
+  available,
+  kind,
+  unavailableMessage,
+}: {
+  title: string;
+  reference: string;
+  href: string;
+  available: boolean;
+  kind: "pdf" | "image";
+  unavailableMessage: string;
+}) {
+  return (
+    <div className="overflow-hidden rounded-xl border bg-muted/20">
+      <div className="border-b bg-background px-4 py-3">
+        <p className="font-medium">{title}</p>
+        <p className="truncate text-xs text-muted-foreground">{reference}</p>
+      </div>
+      {available ? (
+        <>
+          <div className="relative h-[420px] bg-white">
+            {kind === "pdf" ? (
+              <iframe
+                title={`Pratinjau ${title}`}
+                src={href}
+                className="h-full w-full border-0"
+                loading="lazy"
+              />
+            ) : (
+              <Image
+                src={href}
+                alt={`Pratinjau ${title} ${reference}`}
+                fill
+                unoptimized
+                sizes="(min-width: 1024px) 33vw, 100vw"
+                className="object-contain"
+              />
+            )}
+          </div>
+          <div className="border-t bg-background p-3">
+            <Button asChild type="button" size="sm" variant="outline">
+              <Link href={href} target="_blank" rel="noreferrer">
+                Buka ukuran penuh
+                <ExternalLink className="ml-2 size-3.5" />
+              </Link>
+            </Button>
+          </div>
+        </>
+      ) : (
+        <div className="flex h-[420px] items-center justify-center p-6 text-center text-sm text-muted-foreground">
+          {unavailableMessage}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SupplierPaymentManager({
   sources,
   rows,
@@ -132,6 +196,14 @@ export default function SupplierPaymentManager({
           selected.poNumber,
         )}&detail=${encodeURIComponent(selected.purchaseOrderId)}`
       : null;
+  const sourceDocumentHref = (
+    document: "purchase-order" | "supplier-invoice" | "delivery-note",
+  ) =>
+    selected
+      ? `/api/mektek/finance/payables/sources/${encodeURIComponent(
+          selected.id,
+        )}/documents/${document}`
+      : "";
   const calculated = calculateSupplierPayable(
     selected?.expectedSubtotal ?? 0,
     taxAmount,
@@ -345,6 +417,41 @@ export default function SupplierPaymentManager({
                     </label>
                   ))}
                 </div>
+                <section className="space-y-3">
+                  <div>
+                    <h3 className="font-semibold">Pratinjau dokumen</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Periksa isi ketiga dokumen langsung sebelum mencentang
+                      pencocokan.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-3">
+                    <InlineDocumentPreview
+                      title="Purchase Order"
+                      reference={selected.poNumber}
+                      href={sourceDocumentHref("purchase-order")}
+                      available={Boolean(selected.purchaseOrderId)}
+                      kind="pdf"
+                      unavailableMessage="Purchase Order tidak ditemukan."
+                    />
+                    <InlineDocumentPreview
+                      title="Invoice Pemasok"
+                      reference={invoiceNumber || selected.poNumber}
+                      href={sourceDocumentHref("supplier-invoice")}
+                      available={selected.supplierInvoiceImageAvailable}
+                      kind="image"
+                      unavailableMessage="Gambar invoice pemasok belum diunggah oleh Logistics."
+                    />
+                    <InlineDocumentPreview
+                      title="Surat Jalan / Tanda Terima"
+                      reference={selected.receivingReference}
+                      href={sourceDocumentHref("delivery-note")}
+                      available={selected.deliveryNoteImageAvailable}
+                      kind="image"
+                      unavailableMessage="Gambar Surat Jalan belum diunggah oleh Logistics."
+                    />
+                  </div>
+                </section>
                 {receivingHref ? (
                   <Button asChild type="button" size="sm" variant="outline">
                     <Link href={receivingHref}>
