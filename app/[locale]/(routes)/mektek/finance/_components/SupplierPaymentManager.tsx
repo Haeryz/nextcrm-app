@@ -10,6 +10,7 @@ import {
   ClipboardCheck,
   ExternalLink,
   Loader2,
+  ZoomIn,
   Send,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
@@ -116,15 +117,15 @@ function InlineDocumentPreview({
   reference,
   href,
   available,
-  kind,
   unavailableMessage,
+  recoveryHref,
 }: {
   title: string;
   reference: string;
   href: string;
   available: boolean;
-  kind: "pdf" | "image";
   unavailableMessage: string;
+  recoveryHref?: string | null;
 }) {
   return (
     <div className="overflow-hidden rounded-xl border bg-muted/20">
@@ -134,25 +135,28 @@ function InlineDocumentPreview({
       </div>
       {available ? (
         <>
-          <div className="relative h-[420px] bg-white">
-            {kind === "pdf" ? (
-              <iframe
-                title={`Pratinjau ${title}`}
-                src={href}
-                className="h-full w-full border-0"
-                loading="lazy"
-              />
-            ) : (
+          <Link
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="group relative block h-[420px] overflow-hidden bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            aria-label={`Buka ${title} ${reference} ukuran penuh`}
+          >
               <Image
                 src={href}
                 alt={`Pratinjau ${title} ${reference}`}
                 fill
                 unoptimized
                 sizes="(min-width: 1024px) 33vw, 100vw"
-                className="object-contain"
+                className="object-contain transition-transform duration-200 group-hover:scale-[1.015]"
               />
-            )}
-          </div>
+            <span className="absolute inset-0 flex items-center justify-center bg-slate-950/0 transition group-hover:bg-slate-950/15">
+              <span className="flex translate-y-2 items-center gap-2 rounded-full bg-slate-950/85 px-3 py-2 text-xs font-medium text-white opacity-0 shadow-lg transition group-hover:translate-y-0 group-hover:opacity-100">
+                <ZoomIn className="size-4" />
+                Klik untuk memperbesar
+              </span>
+            </span>
+          </Link>
           <div className="border-t bg-background p-3">
             <Button asChild type="button" size="sm" variant="outline">
               <Link href={href} target="_blank" rel="noreferrer">
@@ -163,8 +167,13 @@ function InlineDocumentPreview({
           </div>
         </>
       ) : (
-        <div className="flex h-[420px] items-center justify-center p-6 text-center text-sm text-muted-foreground">
-          {unavailableMessage}
+        <div className="flex h-[420px] flex-col items-center justify-center gap-4 p-6 text-center text-sm text-muted-foreground">
+          <p>{unavailableMessage}</p>
+          {recoveryHref ? (
+            <Button asChild type="button" size="sm" variant="outline">
+              <Link href={recoveryHref}>Buka Receiving</Link>
+            </Button>
+          ) : null}
         </div>
       )}
     </div>
@@ -372,21 +381,28 @@ export default function SupplierPaymentManager({
                       key: "purchaseOrder" as const,
                       title: "Purchase Order",
                       value: selected.poNumber,
+                      available: Boolean(selected.purchaseOrderId),
                     },
                     {
                       key: "supplierInvoice" as const,
                       title: "Invoice Pemasok",
                       value: invoiceNumber || "Masukkan nomor invoice",
+                      available: selected.supplierInvoiceImageAvailable,
                     },
                     {
                       key: "goodsReceipt" as const,
                       title: "Surat Jalan / Tanda Terima",
                       value: selected.receivingReference,
+                      available: selected.deliveryNoteImageAvailable,
                     },
                   ].map((document) => (
                     <label
                       key={document.key}
-                      className={`flex cursor-pointer gap-3 rounded-xl border p-4 transition ${
+                      className={`flex gap-3 rounded-xl border p-4 transition ${
+                        document.available
+                          ? "cursor-pointer"
+                          : "cursor-not-allowed opacity-70"
+                      } ${
                         checks[document.key]
                           ? "border-emerald-500/60 bg-emerald-500/5"
                           : "hover:border-primary/40"
@@ -396,6 +412,7 @@ export default function SupplierPaymentManager({
                         type="checkbox"
                         className="mt-1 size-4 accent-emerald-600"
                         checked={checks[document.key]}
+                        disabled={!document.available}
                         onChange={(event) =>
                           setChecks((current) => ({
                             ...current,
@@ -413,6 +430,11 @@ export default function SupplierPaymentManager({
                         <span className="mt-1 block truncate text-xs text-muted-foreground">
                           {document.value}
                         </span>
+                        {!document.available ? (
+                          <span className="mt-1 block text-xs font-medium text-amber-600">
+                            Dokumen belum tersedia dari Logistics
+                          </span>
+                        ) : null}
                       </span>
                     </label>
                   ))}
@@ -431,24 +453,24 @@ export default function SupplierPaymentManager({
                       reference={selected.poNumber}
                       href={sourceDocumentHref("purchase-order")}
                       available={Boolean(selected.purchaseOrderId)}
-                      kind="pdf"
                       unavailableMessage="Purchase Order tidak ditemukan."
+                      recoveryHref={receivingHref}
                     />
                     <InlineDocumentPreview
                       title="Invoice Pemasok"
                       reference={invoiceNumber || selected.poNumber}
                       href={sourceDocumentHref("supplier-invoice")}
                       available={selected.supplierInvoiceImageAvailable}
-                      kind="image"
                       unavailableMessage="Gambar invoice pemasok belum diunggah oleh Logistics."
+                      recoveryHref={receivingHref}
                     />
                     <InlineDocumentPreview
                       title="Surat Jalan / Tanda Terima"
                       reference={selected.receivingReference}
                       href={sourceDocumentHref("delivery-note")}
                       available={selected.deliveryNoteImageAvailable}
-                      kind="image"
                       unavailableMessage="Gambar Surat Jalan belum diunggah oleh Logistics."
+                      recoveryHref={receivingHref}
                     />
                   </div>
                 </section>

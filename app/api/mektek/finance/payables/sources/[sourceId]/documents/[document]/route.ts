@@ -1,8 +1,8 @@
 import type { NextRequest } from "next/server";
 
-import { renderMektekPurchaseOrderPdf } from "@/actions/mektek/logistics-purchase-order-pdf";
 import { authOptions } from "@/lib/auth";
 import { canViewMektekFinance } from "@/lib/mektek/permissions";
+import { renderPurchaseOrderPreviewSvg } from "@/lib/mektek/purchase-order-preview-svg";
 import { parseSupplierPayableSnapshot } from "@/lib/mektek/supplier-payment";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
@@ -62,7 +62,7 @@ export async function GET(
 
   const safePoNumber = safeDocumentName(purchaseOrder.poNumber);
   if (document === "purchase-order") {
-    const pdf = await renderMektekPurchaseOrderPdf({
+    const svg = renderPurchaseOrderPreviewSvg({
       ...purchaseOrder,
       items: purchaseOrder.items.map((item) => ({
         position: item.position,
@@ -72,11 +72,13 @@ export async function GET(
         unitPrice: Number(item.agreedUnitPrice || 0),
       })),
     });
-    return new Response(pdf.buffer as ArrayBuffer, {
+    return new Response(svg, {
       headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="purchase-order-${safePoNumber}.pdf"`,
+        "Content-Type": "image/svg+xml; charset=utf-8",
+        "Content-Disposition": `inline; filename="purchase-order-${safePoNumber}.svg"`,
         "Cache-Control": "private, no-store",
+        "Content-Security-Policy":
+          "default-src 'none'; style-src 'unsafe-inline'; sandbox",
         "X-Content-Type-Options": "nosniff",
       },
     });
