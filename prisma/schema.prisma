@@ -749,6 +749,43 @@ model PaymentFakturEntry {
   @@index([purchaseOrderNumber])
 }
 
+model MektekSupplierDebtEntry {
+  id                    String    @id @default(uuid()) @db.Uuid
+  sheetKey              String
+  sourceRow             Int
+  number                String?
+  purchaseOrderDate     DateTime? @db.Date
+  purchaseOrderNumber   String?
+  goodsReceiptDate      DateTime? @db.Date
+  receivedBy            String?
+  deliveryNoteNumber    String?
+  invoiceDate           DateTime? @db.Date
+  invoiceNumber         String?
+  taxInvoiceNumber      String?
+  dueDate               DateTime? @db.Date
+  partNumber            String?
+  description           String
+  quantity              Decimal   @default(0) @db.Decimal(18, 3)
+  unitPrice             Decimal   @default(0) @db.Decimal(18, 2)
+  amount                Decimal   @default(0) @db.Decimal(18, 2)
+  grandTotal            Decimal   @default(0) @db.Decimal(18, 2)
+  partsEntryDate        DateTime? @db.Date
+  paymentDate           DateTime? @db.Date
+  paymentAmount         Decimal   @default(0) @db.Decimal(18, 2)
+  pbkDate               DateTime? @db.Date
+  accountCode           String?
+  createdBy             String?   @db.Uuid
+  updatedBy             String?   @db.Uuid
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([sheetKey, sourceRow])
+  @@index([sheetKey, invoiceDate])
+  @@index([purchaseOrderNumber])
+  @@index([deliveryNoteNumber])
+  @@index([invoiceNumber])
+}
+
 model FinanceContract {
   id               String                @id @default(uuid()) @db.Uuid
   counterpartyId   String                @db.Uuid

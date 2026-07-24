@@ -42,6 +42,8 @@ export type SupplierDebtMonthlySummary = {
 };
 
 export type SupplierDebtDetailEntry = {
+  id?: string;
+  isManual?: boolean;
   sourceRow: number;
   number: string | null;
   purchaseOrderDate: string | null;

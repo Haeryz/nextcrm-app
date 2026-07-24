@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 
 import snapshot from "@/lib/mektek/generated/supplier-debt-report-2026.snapshot.json";
+import { parseSupplierDebtEntryInput } from "@/lib/mektek/supplier-debt-entry";
 import {
   extractSupplierDebtWorkbook,
   supplierDebtStatus,
@@ -177,5 +178,55 @@ describe("Supplier debt status", () => {
     expect(supplierDebtStatus(100, 0)).toBe("BELUM_BAYAR");
     expect(supplierDebtStatus(100, 40)).toBe("CICILAN");
     expect(supplierDebtStatus(100, 100)).toBe("LUNAS");
+  });
+});
+
+describe("Supplier debt manual row input", () => {
+  it("calculates amount and grand total when the user leaves them empty", () => {
+    const result = parseSupplierDebtEntryInput({
+      sheetKey: "ALVINDO",
+      purchaseOrderNumber: "PO-2026-001",
+      deliveryNoteNumber: "SJ-2026-001",
+      description: "Kompresor",
+      quantity: "2",
+      unitPrice: "150000",
+      paymentAmount: "50000",
+      invoiceDate: "2026-07-24",
+    });
+
+    expect(result).not.toHaveProperty("error");
+    if ("data" in result && result.data) {
+      expect(result.data.amount.toNumber()).toBe(300_000);
+      expect(result.data.grandTotal.toNumber()).toBe(300_000);
+      expect(result.data.paymentAmount.toNumber()).toBe(50_000);
+    }
+  });
+
+  it("requires a PO, delivery note, or invoice reference", () => {
+    expect(
+      parseSupplierDebtEntryInput({
+        sheetKey: "ALVINDO",
+        description: "Kompresor",
+        quantity: 1,
+        unitPrice: 100_000,
+      }),
+    ).toEqual({
+      error: "Isi minimal Nomor PO, Nomor SJ, atau Nomor invoice",
+    });
+  });
+
+  it("rejects payment above the row grand total", () => {
+    expect(
+      parseSupplierDebtEntryInput({
+        sheetKey: "ALVINDO",
+        invoiceNumber: "INV-OVERPAY",
+        description: "Kompresor",
+        quantity: 1,
+        unitPrice: 100_000,
+        paymentAmount: 120_000,
+      }),
+    ).toEqual({
+      error: "Nominal bayar tidak boleh melebihi grand total",
+    });
   });
 });

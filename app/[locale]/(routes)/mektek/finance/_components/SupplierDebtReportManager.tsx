@@ -10,8 +10,11 @@ import {
   FileSpreadsheet,
   Filter,
   Search,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 
+import { deleteSupplierDebtEntry } from "@/actions/mektek/supplier-debt-report";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +28,7 @@ import type {
 } from "@/lib/mektek/supplier-debt-report";
 
 import PaymentFakturTrendChart from "./PaymentFakturTrendChart";
+import SupplierDebtEntryDialog from "./SupplierDebtEntryDialog";
 
 type ReportView = "overview" | "recap" | "detail";
 
@@ -177,6 +181,19 @@ export default function SupplierDebtReportManager({
       sort: null,
       direction: null,
       page: null,
+    });
+  };
+
+  const deleteManualEntry = (row: SupplierDebtDetailEntry) => {
+    if (!row.id || !window.confirm("Hapus baris hutang pemasok ini?")) return;
+    startTransition(async () => {
+      const result = await deleteSupplierDebtEntry(row.id!);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Baris hutang pemasok berhasil dihapus");
+      router.refresh();
     });
   };
 
@@ -467,6 +484,7 @@ export default function SupplierDebtReportManager({
             eyebrow="Analitik hutang"
             title="Pergerakan hutang bulanan"
             description="Nilai hutang pemasok berdasarkan periode pada rekap workbook."
+            variant="market"
           />
           {filterPanel}
           <div className="overflow-hidden rounded-lg border">
@@ -558,20 +576,28 @@ export default function SupplierDebtReportManager({
                   : ""}
               </p>
             </div>
-            <select
-              className="h-10 min-w-72 rounded-md border bg-background px-3 text-sm"
-              value={selectedSheetKey ?? ""}
-              onChange={(event) =>
-                setQuery({ sheet: event.target.value, page: null })
-              }
-              disabled={pending}
-            >
-              {sheets.map((sheet) => (
-                <option key={sheet.sheetKey} value={sheet.sheetKey}>
-                  {sheet.sheetKey} — {sheet.supplierName} ({sheet.entryCount})
-                </option>
-              ))}
-            </select>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <select
+                className="h-10 min-w-72 rounded-md border bg-background px-3 text-sm"
+                value={selectedSheetKey ?? ""}
+                onChange={(event) =>
+                  setQuery({ sheet: event.target.value, page: null })
+                }
+                disabled={pending}
+              >
+                {sheets.map((sheet) => (
+                  <option key={sheet.sheetKey} value={sheet.sheetKey}>
+                    {sheet.sheetKey} — {sheet.supplierName} ({sheet.entryCount})
+                  </option>
+                ))}
+              </select>
+              {selectedSheet && selectedSheetKey && (
+                <SupplierDebtEntryDialog
+                  sheetKey={selectedSheetKey}
+                  supplierName={selectedSheet.supplierName}
+                />
+              )}
+            </div>
           </div>
 
           <div className="rounded-lg border bg-card">
@@ -662,11 +688,12 @@ export default function SupplierDebtReportManager({
             eyebrow="Analitik hutang"
             title="Pergerakan invoice bulanan"
             description="Nilai invoice berdasarkan tanggal invoice pada sheet pemasok aktif."
+            variant="market"
           />
           {filterPanel}
           <div className="overflow-hidden rounded-lg border">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[2500px] text-sm">
+              <table className="w-full min-w-[2640px] text-sm">
                 <thead className="bg-muted/60 text-left text-xs uppercase text-muted-foreground">
                   <tr>
                     <th className="px-3 py-3">No.</th>
@@ -692,11 +719,17 @@ export default function SupplierDebtReportManager({
                     <th className="px-3 py-3">Kode akun</th>
                     <th className="px-3 py-3 text-right">Sisa</th>
                     <th className="px-3 py-3">Status</th>
+                    <th className="sticky right-0 bg-muted/95 px-3 py-3 text-right">
+                      Aksi
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {detailRows.map((row) => (
-                    <tr key={row.sourceRow} className="align-top hover:bg-muted/30">
+                    <tr
+                      key={row.id ?? row.sourceRow}
+                      className="align-top hover:bg-muted/30"
+                    >
                       <td className="px-3 py-3 text-muted-foreground">
                         {row.number || "—"}
                       </td>
@@ -756,12 +789,35 @@ export default function SupplierDebtReportManager({
                           </Badge>
                         )}
                       </td>
+                      <td className="sticky right-0 bg-background px-3 py-2 text-right">
+                        {row.isManual && row.id && selectedSheet && selectedSheetKey ? (
+                          <div className="flex justify-end gap-1">
+                            <SupplierDebtEntryDialog
+                              sheetKey={selectedSheetKey}
+                              supplierName={selectedSheet.supplierName}
+                              entry={row}
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => deleteManualEntry(row)}
+                              disabled={pending}
+                              aria-label="Hapus baris"
+                            >
+                              <Trash2 className="h-4 w-4 text-rose-600" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <Badge variant="outline">Impor</Badge>
+                        )}
+                      </td>
                     </tr>
                   ))}
                   {!detailRows.length && (
                     <tr>
                       <td
-                        colSpan={23}
+                        colSpan={24}
                         className="px-4 py-12 text-center text-muted-foreground"
                       >
                         Tidak ada data yang cocok pada sheet ini.
