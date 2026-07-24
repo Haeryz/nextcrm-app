@@ -1530,18 +1530,20 @@ export default function ReceivingManager({
               <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="border-b border-e px-3 py-3 text-center">No</th>
+                  <th className="min-w-40 border-b border-e px-3 py-3 text-left">
+                    Supplier / Tujuan PO
+                  </th>
+                  <th className="min-w-36 border-b border-e px-3 py-3 text-left">
+                    No PO
+                  </th>
                   <th className="min-w-44 border-b border-e px-3 py-3 text-left">
-                    Job Site / Project
+                    Job Site
                   </th>
                   <th className="min-w-32 border-b border-e px-3 py-3 text-left">
                     Tanggal Input
                   </th>
                   <th className="min-w-32 border-b border-e px-3 py-3 text-left">Due Date</th>
-                  <th className="min-w-36 border-b border-e px-3 py-3 text-left">
-                    PO No. User
-                  </th>
                   <th className="min-w-28 border-b border-e px-3 py-3 text-left">PO Type</th>
-                  <th className="min-w-40 border-b border-e px-3 py-3 text-left">Supplier / tujuan PO</th>
                   <th className="min-w-52 border-b border-e px-3 py-3 text-left">
                     Ringkasan Part
                   </th>
@@ -1598,6 +1600,10 @@ export default function ReceivingManager({
                       <td className="border-e px-3 py-3 text-center font-mono tabular-nums">
                         {index + 1}
                       </td>
+                      <td className="border-e px-3 py-3">{purchaseOrder.supplierName}</td>
+                      <td className="border-e px-3 py-3 font-mono font-medium">
+                        {purchaseOrder.poNumber}
+                      </td>
                       <td className="border-e px-3 py-3">{purchaseOrder.projectName}</td>
                       <td className="border-e px-3 py-3">{formatDate(purchaseOrder.inputDate)}</td>
                       <td className="border-e px-3 py-3">
@@ -1606,11 +1612,7 @@ export default function ReceivingManager({
                           {isOverdue && <Badge variant="destructive">Terlambat</Badge>}
                         </div>
                       </td>
-                      <td className="border-e px-3 py-3 font-mono font-medium">
-                        {purchaseOrder.poNumber}
-                      </td>
                       <td className="border-e px-3 py-3">{purchaseOrder.poType}</td>
-                      <td className="border-e px-3 py-3">{purchaseOrder.supplierName}</td>
                       <td className="border-e px-3 py-3">
                         <p className="font-medium">
                           {purchaseOrder.items.length} part
