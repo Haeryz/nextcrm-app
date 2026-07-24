@@ -63,6 +63,10 @@ export default async function MektekReceivingPage({
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const query = readSearchParam(resolvedSearchParams, "q");
+  const initialPurchaseOrderId = readSearchParam(
+    resolvedSearchParams,
+    "detail",
+  );
   const rawStatus = readSearchParam(resolvedSearchParams, "status").toUpperCase();
   const status = rawStatus === "OPEN" || rawStatus === "CLOSED" ? rawStatus : "";
   const [result, pics, catalogItems] = await Promise.all([
@@ -215,6 +219,7 @@ export default async function MektekReceivingPage({
           )}
           stats={stats}
           mode="combined"
+          initialPurchaseOrderId={initialPurchaseOrderId || undefined}
           managePicsHref={
             session?.user?.isAdmin
               ? `/${locale}/mektek/receiving/pics`

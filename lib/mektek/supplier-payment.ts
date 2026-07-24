@@ -14,6 +14,14 @@ export type SupplierPayableSnapshot = {
   lines: SupplierPayableLine[];
   pricingComplete: boolean;
   expectedSubtotal: number | null;
+  pricingIssues: SupplierPayablePricingIssue[];
+};
+
+export type SupplierPayablePricingIssue = {
+  description: string;
+  partNumber: string | null;
+  quantity: number;
+  reason: "MISSING_UNIT_COST";
 };
 
 const cleanText = (value: unknown) =>
@@ -34,6 +42,7 @@ export function parseSupplierPayableSnapshot(
       : {};
   const rawItems = Array.isArray(record.items) ? record.items : [];
   let pricingComplete = rawItems.length > 0;
+  const pricingIssues: SupplierPayablePricingIssue[] = [];
 
   const lines = rawItems.flatMap((value): SupplierPayableLine[] => {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -44,6 +53,14 @@ export function parseSupplierPayableSnapshot(
     const description = cleanText(item.description ?? item.name);
     const quantity = finiteNonNegative(item.quantity);
     const unitCost = finiteNonNegative(item.unitCost ?? item.unitPrice);
+    if (description && quantity !== null && quantity > 0 && unitCost === null) {
+      pricingIssues.push({
+        description,
+        partNumber: cleanText(item.partNumber) || null,
+        quantity,
+        reason: "MISSING_UNIT_COST",
+      });
+    }
     if (!description || quantity === null || quantity <= 0 || unitCost === null) {
       pricingComplete = false;
       return [];
@@ -72,6 +89,7 @@ export function parseSupplierPayableSnapshot(
     lines,
     pricingComplete,
     expectedSubtotal,
+    pricingIssues,
   };
 }
 

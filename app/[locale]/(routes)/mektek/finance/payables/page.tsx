@@ -45,6 +45,7 @@ export default async function SupplierPaymentsPage() {
     const snapshot = parseSupplierPayableSnapshot(source.snapshot);
     return {
       id: source.id,
+      purchaseOrderId: snapshot.purchaseOrderId,
       supplierName: source.counterparty.legalName,
       receivingReference: source.sourceReference,
       receivedAt: dateOnly(source.occurredAt),
@@ -52,6 +53,7 @@ export default async function SupplierPaymentsPage() {
       projectName: snapshot.projectName,
       pricingComplete: snapshot.pricingComplete,
       expectedSubtotal: snapshot.expectedSubtotal,
+      pricingIssues: snapshot.pricingIssues,
       lines: snapshot.lines.map((line) => ({
         description: line.description,
         partNumber: line.partNumber,

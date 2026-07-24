@@ -98,7 +98,6 @@ type NormalizedPurchaseOrderLine =
       catalogItemId: string;
       orderedQuantity: number;
       unitPrice: string | null;
-      agreedUnitPrice: string | null;
       warehouse: CatalogWarehouse | null;
       note: string | null;
     }
@@ -111,7 +110,6 @@ type NormalizedPurchaseOrderLine =
       machine: string | null;
       orderedQuantity: number;
       unitPrice: string | null;
-      agreedUnitPrice: string | null;
       warehouse: CatalogWarehouse | null;
       note: string | null;
     };

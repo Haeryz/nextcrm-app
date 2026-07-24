@@ -181,7 +181,18 @@ export async function syncReceivingPayableSource(
         items,
       },
     },
-    update: {},
+    update: {
+      counterpartyId: counterparty.id,
+      occurredAt: input.occurredAt,
+      subtotal: total,
+      totalAmount: total,
+      snapshot: {
+        purchaseOrderId: purchaseOrder.id,
+        poNumber: purchaseOrder.poNumber,
+        projectName: purchaseOrder.projectName,
+        items,
+      },
+    },
   });
 }
 

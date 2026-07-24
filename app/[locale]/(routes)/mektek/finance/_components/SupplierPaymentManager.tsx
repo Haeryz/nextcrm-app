@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   Calculator,
@@ -9,7 +10,7 @@ import {
   Loader2,
   Send,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
@@ -32,6 +33,7 @@ import { calculateSupplierPayable } from "@/lib/mektek/supplier-payment";
 
 export type SupplierPaymentSource = {
   id: string;
+  purchaseOrderId: string | null;
   supplierName: string;
   receivingReference: string;
   receivedAt: string;
@@ -39,6 +41,11 @@ export type SupplierPaymentSource = {
   projectName: string;
   pricingComplete: boolean;
   expectedSubtotal: number | null;
+  pricingIssues: Array<{
+    description: string;
+    partNumber: string | null;
+    quantity: number;
+  }>;
   lines: Array<{
     description: string;
     partNumber: string | null;
@@ -108,6 +115,7 @@ export default function SupplierPaymentManager({
   rows: SupplierPaymentRow[];
 }) {
   const router = useRouter();
+  const { locale = "id" } = useParams<{ locale?: string }>();
   const [pending, startTransition] = useTransition();
   const [sourceId, setSourceId] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
@@ -335,12 +343,43 @@ export default function SupplierPaymentManager({
                 {!selected.pricingComplete ? (
                   <div className="flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
                     <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="font-medium">Harga PO belum lengkap</p>
                       <p className="text-muted-foreground">
-                        Lengkapi harga setiap item pada Monitoring PO sebelum
-                        tagihan ini dapat dihitung dan disimpan.
+                        Dokumen yang perlu diperbaiki: PO{" "}
+                        <strong>{selected.poNumber}</strong> dari{" "}
+                        <strong>{selected.supplierName}</strong>, Surat Jalan{" "}
+                        <strong>{selected.receivingReference}</strong>.
                       </p>
+                      {selected.pricingIssues.length ? (
+                        <p className="mt-2 text-muted-foreground">
+                          Item tanpa harga:{" "}
+                          {selected.pricingIssues
+                            .map(
+                              (issue) =>
+                                `${issue.description}${
+                                  issue.partNumber
+                                    ? ` (${issue.partNumber})`
+                                    : ""
+                                }`,
+                            )
+                            .join(", ")}
+                          .
+                        </p>
+                      ) : null}
+                      <Button
+                        asChild
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="mt-3 bg-background"
+                      >
+                        <Link
+                          href={`/${locale}/mektek/finance/payables/sources/${selected.id}`}
+                        >
+                          Lihat detail dokumen
+                        </Link>
+                      </Button>
                     </div>
                   </div>
                 ) : (

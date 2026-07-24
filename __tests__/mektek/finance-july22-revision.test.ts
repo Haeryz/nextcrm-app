@@ -15,7 +15,7 @@ describe("July 22 Finance and Logistics revision", () => {
     expect(manager).toContain("Total harga Purchase Order");
     expect(manager).toContain("calculateLogisticsPurchaseOrderTotal");
     expect(action).toContain("requireUnitPrice: true");
-    expect(action).toContain("agreedUnitPrice: line.agreedUnitPrice");
+    expect(action).toContain("agreedUnitPrice: line.unitPrice");
   });
 
   it("filters Accounting recaps and keeps the existing Payment Faktur filter", () => {

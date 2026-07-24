@@ -141,6 +141,7 @@ type ReceivingManagerProps = {
   mode: "combined" | "spreadsheet";
   managePicsHref?: string;
   showLegacyHistory?: boolean;
+  initialPurchaseOrderId?: string;
 };
 
 type PurchaseOrderItemDraft = {
@@ -319,6 +320,7 @@ export default function ReceivingManager({
   mode,
   managePicsHref,
   showLegacyHistory = false,
+  initialPurchaseOrderId,
 }: ReceivingManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -337,7 +339,12 @@ export default function ReceivingManager({
     blankPurchaseOrder(),
   );
   const [activeReceiptPurchaseOrder, setActiveReceiptPurchaseOrder] =
-    useState<LogisticsPurchaseOrderRow | null>(null);
+    useState<LogisticsPurchaseOrderRow | null>(
+      () =>
+        purchaseOrders.find(
+          (purchaseOrder) => purchaseOrder.id === initialPurchaseOrderId,
+        ) ?? null,
+    );
   const [activePurchaseOrder, setActivePurchaseOrder] =
     useState<LogisticsPurchaseOrderRow | null>(null);
   const [receiptDraft, setReceiptDraft] = useState({

@@ -32,4 +32,35 @@ describe("supplier payment Finance workspace", () => {
       expect(manager).toContain(label);
     }
   });
+
+  it("links an incomplete price warning to its exact document detail", () => {
+    const manager = source(
+      "app/[locale]/(routes)/mektek/finance/_components/SupplierPaymentManager.tsx",
+    );
+    const detail = source(
+      "app/[locale]/(routes)/mektek/finance/payables/sources/[sourceId]/page.tsx",
+    );
+
+    expect(manager).toContain("Dokumen yang perlu diperbaiki");
+    expect(manager).toContain("/mektek/finance/payables/sources/");
+    expect(manager).toContain("Lihat detail dokumen");
+    expect(detail).toContain("Dokumen yang perlu dilaporkan");
+    expect(detail).toContain("Item tanpa harga");
+    expect(detail).toContain("/mektek/receiving?q=");
+    expect(detail).toContain("Lihat Purchase Order");
+    expect(detail).toContain("Lihat Invoice Pemasok");
+    expect(detail).toContain("Lihat Surat Jalan");
+    expect(detail).toContain("&detail=");
+
+    const receivingPage = source(
+      "app/[locale]/(routes)/mektek/receiving/page.tsx",
+    );
+    const receivingManager = source(
+      "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
+    );
+    expect(receivingPage).toContain("initialPurchaseOrderId");
+    expect(receivingManager).toContain(
+      "purchaseOrder.id === initialPurchaseOrderId",
+    );
+  });
 });

@@ -52,6 +52,7 @@ describe("supplier payment three-document matching", () => {
       ],
       pricingComplete: true,
       expectedSubtotal: 49_525_000,
+      pricingIssues: [],
     });
   });
 
@@ -73,6 +74,14 @@ describe("supplier payment three-document matching", () => {
       expect.objectContaining({
         pricingComplete: false,
         expectedSubtotal: null,
+        pricingIssues: [
+          {
+            description: "ITEM TANPA HARGA",
+            partNumber: null,
+            quantity: 1,
+            reason: "MISSING_UNIT_COST",
+          },
+        ],
       }),
     );
   });
