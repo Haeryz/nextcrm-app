@@ -20,12 +20,11 @@ import {
   buildContractReminderDemo,
 } from "@/lib/mektek/finance-contract-reminder-demo";
 import {
-  buildFinanceRevenueSplit,
   classifyFinanceRevenueLine,
   getContractDaysRemaining,
   parseFinanceContractPeriodEnd,
-  type FinanceRevenueCategory,
 } from "@/lib/mektek/finance";
+import { buildFinanceSynchronizedRecaps } from "@/lib/mektek/finance-recaps";
 import { buildFinancePurchaseOrderDeliveryNoteSuggestion } from "@/lib/mektek/finance-po";
 import { prismadb } from "@/lib/prisma";
 
@@ -61,24 +60,6 @@ const date = (value: Date | null | undefined) =>
 const dateInput = (value: Date | null | undefined) =>
   value ? value.toISOString().slice(0, 10) : "";
 
-type FinanceRevenueReportRow = {
-  key: string;
-  category: Exclude<FinanceRevenueCategory, "unclassified">;
-  customer: string;
-  deliveryNoteNumber: string;
-  deliveryNoteDate: Date | null;
-  receiptNumber: string;
-  invoiceNumber: string;
-  invoiceDate: Date | null;
-  purchaseOrderNumber: string;
-  purchaseOrderDate: Date | null;
-  subtotal: number;
-  taxAmount: number;
-  total: number;
-  taxInvoiceNumber: string;
-  description: string;
-};
-
 type FinanceRevenueInspection = {
   id: string;
   invoiceNumber: string;
@@ -86,10 +67,10 @@ type FinanceRevenueInspection = {
   descriptions: string[];
 };
 
-async function getFinanceRevenueReport() {
+async function getFinanceSynchronizedReport() {
   const invoices = await prismadb.financeInvoice.findMany({
-    where: { status: { not: "VOID" } },
     orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
+    take: 5000,
     include: {
       counterparty: { select: { legalName: true } },
       lines: {
@@ -100,62 +81,67 @@ async function getFinanceRevenueReport() {
           lineTotal: true,
         },
       },
+      allocations: {
+        where: { receipt: { status: "POSTED" } },
+        select: { amount: true },
+      },
+      sources: {
+        where: { sourceType: "OUTBOUND_DISPATCH" },
+        orderBy: { occurredAt: "asc" },
+        select: {
+          id: true,
+          sourceReference: true,
+          occurredAt: true,
+          subtotal: true,
+          snapshot: true,
+        },
+      },
     },
   });
-  const rows: FinanceRevenueReportRow[] = [];
-  const unclassifiedInvoices: FinanceRevenueInspection[] = [];
-  let unclassifiedCount = 0;
-  let unclassifiedSubtotal = 0;
 
-  for (const invoice of invoices) {
-    const split = buildFinanceRevenueSplit({
+  return buildFinanceSynchronizedRecaps(
+    invoices.map((invoice) => ({
+      id: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      draftNumber: invoice.draftNumber,
+      status: invoice.status,
+      customer: invoice.counterparty.legalName,
+      invoiceDate: dateInput(invoice.invoiceDate) || null,
+      deliveryNoteNumber: invoice.deliveryNoteNumber,
+      deliveryNoteDate: dateInput(invoice.deliveryNoteDate) || null,
+      receiptNumber: invoice.receiptNumber,
+      purchaseOrderNumber: invoice.purchaseOrderNumber,
+      purchaseOrderDate: dateInput(invoice.purchaseOrderDate) || null,
+      taxInvoiceNumber: invoice.taxInvoiceNumber,
+      subtotal: Number(invoice.subtotal),
       taxAmount: Number(invoice.taxAmount),
+      netAmount: Number(invoice.netAmount),
+      paidAmount: invoice.allocations.reduce(
+        (total, allocation) => total + Number(allocation.amount),
+        0,
+      ),
       lines: invoice.lines.map((line) => ({
-        ...line,
+        kind: line.kind,
+        description: line.description,
         lineTotal: Number(line.lineTotal),
       })),
-    });
-    if (split.unclassified.subtotal > 0) {
-      unclassifiedCount += 1;
-      unclassifiedSubtotal += split.unclassified.subtotal;
-      unclassifiedInvoices.push({
-        id: invoice.id,
-        invoiceNumber:
-          invoice.invoiceNumber ?? `Draf ${invoice.draftNumber.slice(0, 8)}`,
-        customer: invoice.counterparty.legalName,
-        descriptions: split.unclassified.descriptions,
-      });
-    }
-    for (const category of ["sparepart", "service"] as const) {
-      const bucket = split[category];
-      if (bucket.subtotal <= 0) continue;
-      rows.push({
-        key: `${invoice.id}:${category}`,
-        category,
-        customer: invoice.counterparty.legalName,
-        deliveryNoteNumber: invoice.deliveryNoteNumber ?? "",
-        deliveryNoteDate: invoice.deliveryNoteDate,
-        receiptNumber: invoice.receiptNumber ?? "",
-        invoiceNumber:
-          invoice.invoiceNumber ?? `Draf ${invoice.draftNumber.slice(0, 8)}`,
-        invoiceDate: invoice.invoiceDate,
-        purchaseOrderNumber: invoice.purchaseOrderNumber ?? "",
-        purchaseOrderDate: invoice.purchaseOrderDate,
-        subtotal: bucket.subtotal,
-        taxAmount: bucket.taxAmount,
-        total: bucket.total,
-        taxInvoiceNumber: invoice.taxInvoiceNumber ?? "",
-        description: bucket.descriptions.join("; "),
-      });
-    }
-  }
-
-  return {
-    rows,
-    unclassifiedCount,
-    unclassifiedSubtotal,
-    unclassifiedInvoices,
-  };
+      deliveryNotes: invoice.sources.map((source) => {
+        const deliveryNote =
+          buildFinancePurchaseOrderDeliveryNoteSuggestion(source);
+        const subtotal = Number(deliveryNote.subtotal);
+        return {
+          id: deliveryNote.id,
+          number: deliveryNote.number,
+          date: deliveryNote.date || null,
+          description: deliveryNote.description,
+          subtotal:
+            deliveryNote.pricingComplete && Number.isFinite(subtotal)
+              ? subtotal
+              : null,
+        };
+      }),
+    })),
+  );
 }
 
 type DemoData = Record<string, unknown>;
@@ -538,6 +524,17 @@ export default async function FinanceWorkspace({
           title="Rekap invoice"
           description="Tambah, lihat, ubah, dan hapus data invoice sesuai format kerja akuntansi."
         />
+        <div className="flex items-start gap-3 rounded-lg border border-emerald-300 bg-emerald-50 p-4 text-sm text-emerald-950">
+          <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">Sinkronisasi rekap aktif</p>
+            <p>
+              Perubahan invoice otomatis diterapkan ke Rekap Surat Jalan,
+              Rekapitulasi Invoice Jasa & Part, Pendapatan Spare Part,
+              Pendapatan Jasa, dan Rekap Jasa & Part.
+            </p>
+          </div>
+        </div>
         <ReportFilter
           query={query}
           placeholder="Cari invoice, pelanggan, SJ, PO, atau faktur pajak"
@@ -568,59 +565,8 @@ export default async function FinanceWorkspace({
 
   if (section === "delivery-notes") {
     const deliveryNotesPageSize = 100;
-    const rawWorkbookCount = await prismadb.financeDemoRow.count({
-      where: { sheetKey: "delivery_notes" },
-    });
-    const matchingWorkbookRows = query
-      ? (
-          await prismadb.financeDemoRow.findMany({
-            where: { sheetKey: "delivery_notes" },
-            orderBy: { sourceRow: "asc" },
-            take: 5000,
-            select: { id: true, sourceRow: true, data: true },
-          })
-        ).filter((row) =>
-          matchesReportQuery(query, JSON.stringify(row.data)),
-        )
-      : null;
-    const workbookCount = matchingWorkbookRows?.length ?? rawWorkbookCount;
-    const deliveryNotesTotalPages = Math.max(
-      1,
-      Math.ceil(workbookCount / deliveryNotesPageSize),
-    );
-    const currentDeliveryNotesPage = Math.min(
-      Math.max(deliveryNotesPage, 1),
-      deliveryNotesTotalPages,
-    );
-    const workbookRows = matchingWorkbookRows
-      ? matchingWorkbookRows.slice(
-          (currentDeliveryNotesPage - 1) * deliveryNotesPageSize,
-          currentDeliveryNotesPage * deliveryNotesPageSize,
-        )
-      : await prismadb.financeDemoRow.findMany({
-          where: { sheetKey: "delivery_notes" },
-          orderBy: { sourceRow: "asc" },
-          skip: (currentDeliveryNotesPage - 1) * deliveryNotesPageSize,
-          take: deliveryNotesPageSize,
-          select: { id: true, sourceRow: true, data: true },
-        });
-    const rows = workbookRows.map((row) => {
-      const value = demoData(row.data);
-      return {
-        id: row.id,
-        company: workbookText(value.company),
-        deliveryNoteNumber: workbookText(value.deliveryNoteNumber),
-        deliveryNoteDate: workbookDate(value.deliveryNoteDate),
-        invoiceNumber: workbookText(value.invoiceNumber),
-        invoiceDate: workbookDate(value.invoiceDate),
-        purchaseOrderNumber: workbookText(value.purchaseOrderNumber),
-        purchaseOrderDate: workbookDate(value.purchaseOrderDate),
-        description: workbookText(value.description),
-        subtotal: value.subtotal,
-        taxAmount: value.taxAmount,
-        total: value.total,
-      };
-    }).filter((row) =>
+    const synchronizedReport = await getFinanceSynchronizedReport();
+    const matchingRows = synchronizedReport.deliveryNotes.filter((row) =>
       matchesReportQuery(
         query,
         row.company,
@@ -630,11 +576,24 @@ export default async function FinanceWorkspace({
         row.description,
       ),
     );
+    const synchronizedCount = matchingRows.length;
+    const deliveryNotesTotalPages = Math.max(
+      1,
+      Math.ceil(synchronizedCount / deliveryNotesPageSize),
+    );
+    const currentDeliveryNotesPage = Math.min(
+      Math.max(deliveryNotesPage, 1),
+      deliveryNotesTotalPages,
+    );
+    const rows = matchingRows.slice(
+      (currentDeliveryNotesPage - 1) * deliveryNotesPageSize,
+      currentDeliveryNotesPage * deliveryNotesPageSize,
+    );
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
           title="Rekap surat jalan"
-          description={`${workbookCount.toLocaleString("id-ID")} baris sesuai sheet "rekap SJ ( dari Logistik)" pada workbook Accounting.`}
+          description={`${synchronizedCount.toLocaleString("id-ID")} baris otomatis dari invoice dan Surat Jalan Logistics yang terhubung.`}
         />
         <ReportFilter
           query={query}
@@ -665,11 +624,11 @@ export default async function FinanceWorkspace({
                       <tr key={row.id} className="border-t">
                         <td className="p-3">{row.company}</td>
                         <td className="p-3 font-medium">{row.deliveryNoteNumber}</td>
-                        <td className="p-3">{row.deliveryNoteDate}</td>
+                        <td className="p-3">{workbookDate(row.deliveryNoteDate)}</td>
                         <td className="p-3">{row.invoiceNumber}</td>
-                        <td className="p-3">{row.invoiceDate}</td>
+                        <td className="p-3">{workbookDate(row.invoiceDate)}</td>
                         <td className="p-3">{row.purchaseOrderNumber}</td>
-                        <td className="p-3">{row.purchaseOrderDate}</td>
+                        <td className="p-3">{workbookDate(row.purchaseOrderDate)}</td>
                         <td className="max-w-[320px] truncate p-3" title={row.description}>{row.description}</td>
                         <td className="p-3 text-right">{workbookMoney(row.subtotal)}</td>
                         <td className="p-3 text-right">{workbookMoney(row.taxAmount)}</td>
@@ -684,48 +643,25 @@ export default async function FinanceWorkspace({
               basePath="/mektek/finance/delivery-notes"
               page={currentDeliveryNotesPage}
               totalPages={deliveryNotesTotalPages}
-              totalCount={workbookCount}
+              totalCount={synchronizedCount}
               pageSize={deliveryNotesPageSize}
               itemLabel="baris"
               query={query ? { q: query } : undefined}
             />
           </>
-        ) : <Empty>Belum ada data pada sheet rekap surat jalan workbook Accounting.</Empty>}
+        ) : <Empty>Belum ada Surat Jalan yang terhubung ke invoice.</Empty>}
       </main>
     );
   }
 
   if (section === "receivables") {
-    const rows = await prismadb.financeDemoRow.findMany({
-      where: { sheetKey: "invoice_receivables" },
-      orderBy: { sourceRow: "asc" },
-      take: 500,
-      select: { id: true, sourceRow: true, data: true },
-    });
+    const synchronizedReport = await getFinanceSynchronizedReport();
     const months = [
       ["jan", "Jan"], ["feb", "Feb"], ["mar", "Mar"], ["apr", "Apr"],
       ["may", "Mei"], ["jun", "Jun"], ["jul", "Jul"], ["aug", "Agu"],
       ["sep", "Sep"], ["oct", "Okt"], ["nov", "Nov"], ["dec", "Des"],
     ] as const;
-    const receivableRows = rows.map((row) => {
-      const value = demoData(row.data);
-      const monthly = demoData(value.months);
-      const totalReceivable = demoNumber(value.totalReceivable);
-      const balance = demoNumber(value.balance);
-      const workbookNotes = workbookText(value.notes);
-      return {
-        id: row.id,
-        number: workbookText(value.number) || String(row.sourceRow - 9),
-        customer: workbookText(value.customer),
-        totalReceivable,
-        paid: demoNumber(value.paid),
-        balance,
-        monthly,
-        notes: workbookNotes || (
-          totalReceivable === 0 ? "" : balance === 0 ? "LUNAS" : "BELUM LUNAS"
-        ),
-      };
-    }).filter((row) =>
+    const receivableRows = synchronizedReport.receivables.filter((row) =>
       matchesReportQuery(
         query,
         row.number,
@@ -742,11 +678,29 @@ export default async function FinanceWorkspace({
         ),
       ]),
     );
+    const monthlyPaidTotals = Object.fromEntries(
+      months.map(([key]) => [
+        key,
+        receivableRows.reduce(
+          (total, row) => total + demoNumber(row.monthlyPaid[key]),
+          0,
+        ),
+      ]),
+    );
+    const monthlyBalanceTotals = Object.fromEntries(
+      months.map(([key]) => [
+        key,
+        receivableRows.reduce(
+          (total, row) => total + demoNumber(row.monthlyBalance[key]),
+          0,
+        ),
+      ]),
+    );
     return (
       <main className="space-y-6 px-4 pb-8 sm:px-6">
         <Header
           title="Rekapitulasi invoice jasa & part"
-          description='Struktur laporan sesuai sheet "rek. penapatan inv. jasa & part" pada workbook Accounting.'
+          description="Terbentuk otomatis dari rekap invoice dan pembayaran yang sudah diposting."
         />
         <ReportFilter
           query={query}
@@ -926,8 +880,16 @@ export default async function FinanceWorkspace({
                               ? "—"
                               : money(monthlyTotals[key])}
                           </td>
-                          <td className="p-3 text-right">—</td>
-                          <td className="p-3 text-right">—</td>
+                          <td className="p-3 text-right">
+                            {demoNumber(monthlyPaidTotals[key]) === 0
+                              ? "—"
+                              : money(monthlyPaidTotals[key])}
+                          </td>
+                          <td className="p-3 text-right">
+                            {demoNumber(monthlyBalanceTotals[key]) === 0
+                              ? "—"
+                              : money(monthlyBalanceTotals[key])}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -936,14 +898,14 @@ export default async function FinanceWorkspace({
               </div>
             </section>
           </>
-        ) : <Empty>Data rekapitulasi invoice jasa & part belum diimpor.</Empty>}
+        ) : <Empty>Belum ada invoice aktif untuk direkap.</Empty>}
       </main>
     );
   }
 
   if (section === "spare-parts") {
-    const report = await getFinanceRevenueReport();
-    const rows = report.rows.filter(
+    const report = await getFinanceSynchronizedReport();
+    const rows = report.revenueRows.filter(
       (row) =>
         row.category === "sparepart" &&
         matchesReportQuery(
@@ -1000,12 +962,12 @@ export default async function FinanceWorkspace({
                       <tr key={row.key} className="border-t">
                         <td className="p-3 font-medium">{row.customer}</td>
                         <td className="p-3">{row.deliveryNoteNumber || "—"}</td>
-                        <td className="p-3">{date(row.deliveryNoteDate)}</td>
+                        <td className="p-3">{workbookDate(row.deliveryNoteDate)}</td>
                         <td className="p-3">{row.receiptNumber || "—"}</td>
                         <td className="p-3">{row.invoiceNumber}</td>
-                        <td className="p-3">{date(row.invoiceDate)}</td>
+                        <td className="p-3">{workbookDate(row.invoiceDate)}</td>
                         <td className="p-3">{row.purchaseOrderNumber || "—"}</td>
-                        <td className="p-3">{date(row.purchaseOrderDate)}</td>
+                        <td className="p-3">{workbookDate(row.purchaseOrderDate)}</td>
                         <td className="p-3 text-right">{money(row.subtotal)}</td>
                         <td className="p-3 text-right">{money(row.taxAmount)}</td>
                         <td className="p-3 text-right font-semibold">{money(row.total)}</td>
@@ -1023,8 +985,8 @@ export default async function FinanceWorkspace({
   }
 
   if (section === "services") {
-    const report = await getFinanceRevenueReport();
-    const rows = report.rows.filter(
+    const report = await getFinanceSynchronizedReport();
+    const rows = report.revenueRows.filter(
       (row) =>
         row.category === "service" &&
         matchesReportQuery(
@@ -1080,9 +1042,9 @@ export default async function FinanceWorkspace({
                         <td className="p-3 font-medium">{row.customer}</td>
                         <td className="p-3">{row.receiptNumber || "—"}</td>
                         <td className="p-3">{row.invoiceNumber}</td>
-                        <td className="p-3">{date(row.invoiceDate)}</td>
+                        <td className="p-3">{workbookDate(row.invoiceDate)}</td>
                         <td className="p-3">{row.purchaseOrderNumber || "—"}</td>
-                        <td className="p-3">{date(row.purchaseOrderDate)}</td>
+                        <td className="p-3">{workbookDate(row.purchaseOrderDate)}</td>
                         <td className="p-3 text-right">{money(row.subtotal)}</td>
                         <td className="p-3 text-right">{money(row.taxAmount)}</td>
                         <td className="p-3 text-right font-semibold">{money(row.total)}</td>
@@ -1101,9 +1063,9 @@ export default async function FinanceWorkspace({
   }
 
   if (section === "revenue") {
-    const report = await getFinanceRevenueReport();
+    const report = await getFinanceSynchronizedReport();
     const totals = new Map<string, { jasa: number; sukuCadang: number; ppn: number }>();
-    for (const row of report.rows) {
+    for (const row of report.revenueRows) {
       const current = totals.get(row.customer) ?? { jasa: 0, sukuCadang: 0, ppn: 0 };
       if (row.category === "sparepart") current.sukuCadang += row.subtotal;
       else current.jasa += row.subtotal;

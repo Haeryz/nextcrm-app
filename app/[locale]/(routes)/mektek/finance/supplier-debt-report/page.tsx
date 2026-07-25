@@ -1,4 +1,9 @@
 import snapshot from "@/lib/mektek/generated/supplier-debt-report-2026.snapshot.json";
+import {
+  applySupplierDebtPayments,
+  supplierDebtDueState,
+  supplierDepositBalance,
+} from "@/lib/mektek/supplier-debt-ledger";
 import type {
   SupplierDebtDetailEntry,
   SupplierDebtOverviewRow,
@@ -34,6 +39,12 @@ const searchable = (values: unknown[], search: string) =>
       .toLocaleLowerCase("id-ID")
       .includes(search),
   );
+
+const supplierKey = (value: string) =>
+  value
+    .toLocaleLowerCase("id-ID")
+    .replace(/\b(pt|cv|toko)\b/g, "")
+    .replace(/[^a-z0-9]/g, "");
 
 const compareValues = (left: unknown, right: unknown) => {
   if (typeof left === "number" && typeof right === "number") {
@@ -96,17 +107,29 @@ export default async function SupplierDebtReportPage({
     report.detailSheets.find((sheet) => sheet.sheetKey === query.sheet) ??
     report.detailSheets[0] ??
     null;
-  const persistedEntries = await prismadb.mektekSupplierDebtEntry.findMany({
-    orderBy: [{ sheetKey: "asc" }, { sourceRow: "asc" }],
-  });
-  const manualEntries = persistedEntries.map((row) => {
+  const [persistedEntries, persistedTransactions] = await Promise.all([
+    prismadb.mektekSupplierDebtEntry.findMany({
+      orderBy: [{ sheetKey: "asc" }, { sourceRow: "asc" }],
+    }),
+    prismadb.mektekSupplierDebtTransaction.findMany({
+      orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
+    }),
+  ]);
+  const ledgerTransactions = persistedTransactions.map((transaction) => ({
+    sheetKey: transaction.sheetKey,
+    sourceRow: transaction.sourceRow,
+    kind: transaction.kind,
+    paymentSource: transaction.paymentSource,
+    amount: Number(transaction.amount),
+  }));
+  const persistedRows = persistedEntries.map((row) => {
     const grandTotal = Number(row.grandTotal);
     const paymentAmount = Number(row.paymentAmount);
     return {
       sheetKey: row.sheetKey,
       entry: {
         id: row.id,
-        isManual: true,
+        isManual: row.sourceRow >= 1_000_001,
         sourceRow: row.sourceRow,
         number: row.number,
         purchaseOrderDate: dateOnly(row.purchaseOrderDate),
@@ -134,13 +157,43 @@ export default async function SupplierDebtReportPage({
       } satisfies SupplierDebtDetailEntry,
     };
   });
-  const selectedManualEntries = manualEntries
-    .filter((row) => row.sheetKey === selectedSheet?.sheetKey)
-    .map((row) => row.entry);
-  const selectedEntries = [
-    ...(selectedSheet?.entries ?? []),
-    ...selectedManualEntries,
-  ];
+  const persistedByKey = new Map(
+    persistedRows.map((row) => [
+      `${row.sheetKey}:${row.entry.sourceRow}`,
+      row.entry,
+    ]),
+  );
+  const entriesBySheet = new Map(
+    report.detailSheets.map((sheet) => {
+      const importedRows = sheet.entries.map(
+        (entry) =>
+          persistedByKey.get(`${sheet.sheetKey}:${entry.sourceRow}`) ?? entry,
+      );
+      const manualRows = persistedRows
+        .filter(
+          (row) => row.sheetKey === sheet.sheetKey && row.entry.isManual,
+        )
+        .map((row) => row.entry);
+      return [
+        sheet.sheetKey,
+        [...importedRows, ...manualRows].map((entry) => ({
+          ...entry,
+          ...applySupplierDebtPayments(
+            entry,
+            ledgerTransactions,
+            sheet.sheetKey,
+            entry.sourceRow,
+          ),
+        })),
+      ] as const;
+    }),
+  );
+  const allEntries = Array.from(entriesBySheet.entries()).flatMap(
+    ([sheetKey, entries]) => entries.map((entry) => ({ sheetKey, entry })),
+  );
+  const manualEntries = allEntries.filter((row) => row.entry.isManual);
+  const selectedEntries =
+    (selectedSheet && entriesBySheet.get(selectedSheet.sheetKey)) ?? [];
   const manualRecapEntries: SupplierDebtRecapEntry[] = manualEntries.map(
     ({ sheetKey, entry }, index) => {
       const sheet = report.detailSheets.find((candidate) => candidate.sheetKey === sheetKey);
@@ -166,22 +219,103 @@ export default async function SupplierDebtReportPage({
       };
     },
   );
-  const combinedRecapEntries = [...report.recap.entries, ...manualRecapEntries];
-  const manualRemaining = manualEntries.reduce(
-    (total, row) => total + row.entry.remainingAmount,
-    0,
-  );
+  const originalInvoiceTotals = new Map<
+    string,
+    { grandTotal: number; paymentAmount: number }
+  >();
+  const currentInvoiceTotals = new Map<
+    string,
+    { grandTotal: number; paymentAmount: number }
+  >();
+  const addInvoiceTotal = (
+    target: Map<string, { grandTotal: number; paymentAmount: number }>,
+    key: string,
+    entry: SupplierDebtDetailEntry,
+  ) => {
+    const current = target.get(key) ?? { grandTotal: 0, paymentAmount: 0 };
+    current.grandTotal += entry.grandTotal;
+    current.paymentAmount += entry.paymentAmount;
+    target.set(key, current);
+  };
+  for (const sheet of report.detailSheets) {
+    for (const originalEntry of sheet.entries) {
+      if (!originalEntry.invoiceNumber) continue;
+      const key = `${supplierKey(sheet.supplierName)}:${originalEntry.invoiceNumber.toLocaleLowerCase("id-ID")}`;
+      addInvoiceTotal(originalInvoiceTotals, key, originalEntry);
+      const currentEntry = entriesBySheet
+        .get(sheet.sheetKey)
+        ?.find((entry) => entry.sourceRow === originalEntry.sourceRow);
+      if (currentEntry) addInvoiceTotal(currentInvoiceTotals, key, currentEntry);
+    }
+  }
+  const adjustedImportedRecap = report.recap.entries.map((entry) => {
+    const key = `${supplierKey(entry.supplierName)}:${entry.invoiceNumber.toLocaleLowerCase("id-ID")}`;
+    const original = originalInvoiceTotals.get(key);
+    const current = currentInvoiceTotals.get(key);
+    const nominal = Math.max(
+      entry.nominal +
+        ((current?.grandTotal ?? original?.grandTotal ?? 0) -
+          (original?.grandTotal ?? 0)),
+      0,
+    );
+    return {
+      ...entry,
+      nominal,
+      totalPayment: Math.min(
+        nominal,
+        Math.max(
+          entry.totalPayment +
+            ((current?.paymentAmount ?? original?.paymentAmount ?? 0) -
+              (original?.paymentAmount ?? 0)),
+          0,
+        ),
+      ),
+    };
+  });
+  const combinedRecapEntries = [...adjustedImportedRecap, ...manualRecapEntries];
+  const overviewWithLedger = report.overview.rows.map((row) => {
+    const rowKey = supplierKey(row.supplierName);
+    const sheet = report.detailSheets.find((candidate) => {
+      const keys = [
+        supplierKey(candidate.sheetKey),
+        supplierKey(candidate.supplierName),
+      ];
+      return keys.some(
+        (key) =>
+          key.length >= 4 &&
+          (key.includes(rowKey) || rowKey.includes(key)),
+      );
+    });
+    if (!sheet) return row;
+    const originalRemaining = sheet.entries.reduce(
+      (total, entry) => total + entry.remainingAmount,
+      0,
+    );
+    const currentRemaining = (entriesBySheet.get(sheet.sheetKey) ?? []).reduce(
+      (total, entry) => total + entry.remainingAmount,
+      0,
+    );
+    const remainingDelta = currentRemaining - originalRemaining;
+    return {
+      ...row,
+      remainingDebt: Math.max(row.remainingDebt + remainingDelta, 0),
+      remainingReceivable:
+        row.remainingReceivable +
+        supplierDepositBalance(ledgerTransactions, sheet.sheetKey),
+      dueAmount: Math.max(row.dueAmount + remainingDelta, 0),
+    };
+  });
 
   const overviewSummary = {
-    total: report.overview.rows.reduce(
+    total: overviewWithLedger.reduce(
       (total, row) => total + row.remainingDebt,
       0,
-    ) + manualRemaining,
-    paid: report.overview.rows.reduce(
+    ),
+    paid: overviewWithLedger.reduce(
       (total, row) => total + row.remainingReceivable,
       0,
     ),
-    remaining: report.overview.rows.reduce(
+    remaining: overviewWithLedger.reduce(
       (total, row) => total + row.dueAmount,
       0,
     ),
@@ -230,7 +364,7 @@ export default async function SupplierDebtReportPage({
       ).length,
   };
 
-  const overviewRows = report.overview.rows
+  const overviewRows = overviewWithLedger
     .filter(
       (row) =>
         !normalizedSearch ||
@@ -320,16 +454,71 @@ export default async function SupplierDebtReportPage({
     }
   }
   const recapMonthlySummary = report.recap.monthlySummary.map((row) => ({ ...row }));
+  const adjustMonthlySummary = (
+    month: number,
+    entry: Pick<
+      SupplierDebtDetailEntry,
+      "grandTotal" | "paymentAmount" | "remainingAmount"
+    >,
+    direction: 1 | -1,
+  ) => {
+    const target = recapMonthlySummary[month - 1];
+    if (!target) return;
+    target.debtValue += entry.grandTotal * direction;
+    target.paidValue += entry.paymentAmount * direction;
+    target.remainingDebt += entry.remainingAmount * direction;
+  };
+  for (const sheet of report.detailSheets) {
+    for (const originalEntry of sheet.entries) {
+      const currentEntry = entriesBySheet
+        .get(sheet.sheetKey)
+        ?.find((entry) => entry.sourceRow === originalEntry.sourceRow);
+      if (!currentEntry) continue;
+      const originalMonth = originalEntry.invoiceDate
+        ? Number(originalEntry.invoiceDate.slice(5, 7))
+        : 0;
+      const currentMonth = currentEntry.invoiceDate
+        ? Number(currentEntry.invoiceDate.slice(5, 7))
+        : 0;
+      adjustMonthlySummary(originalMonth, originalEntry, -1);
+      adjustMonthlySummary(currentMonth, currentEntry, 1);
+    }
+  }
   for (const row of manualEntries) {
     const month = row.entry.invoiceDate
       ? Number(row.entry.invoiceDate.slice(5, 7))
       : 0;
-    const target = recapMonthlySummary[month - 1];
-    if (!target) continue;
-    target.debtValue += row.entry.grandTotal;
-    target.paidValue += row.entry.paymentAmount;
-    target.remainingDebt += row.entry.remainingAmount;
+    adjustMonthlySummary(month, row.entry, 1);
   }
+  const dueAlertSummary = selectedEntries.reduce(
+    (summary, entry) => {
+      const dueState = supplierDebtDueState(
+        entry.dueDate,
+        entry.status,
+        new Date(),
+      );
+      if (dueState === "OVERDUE") summary.overdue += 1;
+      if (dueState === "DUE_SOON") summary.dueSoon += 1;
+      return summary;
+    },
+    { overdue: 0, dueSoon: 0 },
+  );
+  const selectedDepositBalance = selectedSheet
+    ? supplierDepositBalance(ledgerTransactions, selectedSheet.sheetKey)
+    : 0;
+  const recentTransactions = persistedTransactions
+    .filter((transaction) => transaction.sheetKey === selectedSheet?.sheetKey)
+    .slice(0, 10)
+    .map((transaction) => ({
+      id: transaction.id,
+      sourceRow: transaction.sourceRow,
+      kind: transaction.kind,
+      paymentSource: transaction.paymentSource,
+      amount: Number(transaction.amount),
+      transactionDate: dateOnly(transaction.transactionDate) ?? "",
+      reference: transaction.reference,
+      note: transaction.note,
+    }));
 
   return (
     <SupplierDebtReportManager
@@ -358,15 +547,16 @@ export default async function SupplierDebtReportPage({
         bankAccount: sheet.bankAccount,
         bankAccountName: sheet.bankAccountName,
         bankName: sheet.bankName,
-        entryCount:
-          sheet.entries.length +
-          manualEntries.filter((row) => row.sheetKey === sheet.sheetKey).length,
+        entryCount: entriesBySheet.get(sheet.sheetKey)?.length ?? 0,
       }))}
       selectedSheetKey={selectedSheet?.sheetKey ?? null}
       detailRows={
         view === "detail" ? detailRows.slice(start, start + PAGE_SIZE) : []
       }
       detailSummary={detailSummary}
+      depositBalance={selectedDepositBalance}
+      dueAlertSummary={dueAlertSummary}
+      recentTransactions={recentTransactions}
       monthlyTotals={monthlyTotals}
       search={search}
       status={status}

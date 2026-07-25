@@ -37,7 +37,7 @@ describe("22 July Logistics revision contract", () => {
 
   it("separates outbound Monitoring PO from inbound Receiving", () => {
     expect(schema).toContain("enum LogisticsPurchaseOrderFlow");
-    expect(schema).toContain("flow               LogisticsPurchaseOrderFlow");
+    expect(schema).toMatch(/flow\s+LogisticsPurchaseOrderFlow/);
     expect(logisticsActions).toContain('flow: "OUTBOUND"');
     expect(logisticsActions).toContain('flow: "RECEIVING"');
     expect(receivingPage).toContain("Receiving");

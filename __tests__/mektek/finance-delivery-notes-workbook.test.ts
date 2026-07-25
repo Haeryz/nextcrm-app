@@ -36,12 +36,17 @@ describe("Rekap Surat Jalan workbook fidelity", () => {
     expect(workspaceSource).not.toContain('>Sumber</th>');
   });
 
-  it("keeps workbook row order and paginates without hiding the older rows", () => {
-    expect(workspaceSource).toContain('orderBy: { sourceRow: "asc" }');
+  it("paginates the live invoice-derived delivery-note projection", () => {
     expect(workspaceSource).toContain(
-      "skip: (currentDeliveryNotesPage - 1) * deliveryNotesPageSize",
+      "const synchronizedReport = await getFinanceSynchronizedReport()",
     );
-    expect(workspaceSource).toContain("take: deliveryNotesPageSize");
+    expect(workspaceSource).toContain(
+      "const matchingRows = synchronizedReport.deliveryNotes.filter",
+    );
+    expect(workspaceSource).toContain("const rows = matchingRows.slice(");
+    expect(workspaceSource).toContain(
+      "(currentDeliveryNotesPage - 1) * deliveryNotesPageSize",
+    );
   });
 
   it("expands merged Excel cells before mapping a visual row", () => {

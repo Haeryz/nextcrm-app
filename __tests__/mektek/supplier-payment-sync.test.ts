@@ -47,6 +47,7 @@ describe("Receiving PO to Finance payable synchronization", () => {
       expect.objectContaining({
         where: { sourceKey: "RECEIVING:po-id:SJ-001" },
         update: expect.objectContaining({
+          occurredAt: new Date("2026-07-24T00:00:00.000Z"),
           subtotal: expect.objectContaining({ toNumber: expect.any(Function) }),
           totalAmount: expect.objectContaining({ toNumber: expect.any(Function) }),
           snapshot: expect.objectContaining({

@@ -144,7 +144,7 @@ export default function SupplierDebtEntryDialog({
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState(() => draftFromEntry(entry));
-  const isEdit = Boolean(entry?.id);
+  const isEdit = Boolean(entry);
 
   const update = (key: DraftKey, value: string) =>
     setDraft((current) => ({ ...current, [key]: value }));
@@ -159,8 +159,8 @@ export default function SupplierDebtEntryDialog({
     const input: SupplierDebtEntryInput = { sheetKey, ...draft };
     startTransition(async () => {
       const result =
-        isEdit && entry?.id
-          ? await updateSupplierDebtEntry(entry.id, input)
+        isEdit && entry
+          ? await updateSupplierDebtEntry(entry.id, entry.sourceRow, input)
           : await createSupplierDebtEntry(input);
       if (result.error) {
         toast.error(result.error);

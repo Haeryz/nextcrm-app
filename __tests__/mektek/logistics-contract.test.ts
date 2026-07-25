@@ -29,7 +29,7 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
 
   it("separates inbound Receiving from outbound Monitoring PO", () => {
     expect(schema).toContain("enum LogisticsPurchaseOrderFlow");
-    expect(schema).toContain("flow               LogisticsPurchaseOrderFlow");
+    expect(schema).toMatch(/flow\s+LogisticsPurchaseOrderFlow/);
     expect(actionSource).toContain("listMektekReceivingPurchaseOrders");
     expect(actionSource).toContain("listMektekOutboundPurchaseOrders");
     expect(receivingPage).toContain("listMektekReceivingPurchaseOrders");

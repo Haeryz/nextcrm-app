@@ -66,6 +66,7 @@ export type SupplierPaymentRow = {
   supplierName: string;
   supplierInvoiceNumber: string;
   receivingReference: string;
+  receivedAt: string;
   poNumber: string;
   billDate: string;
   dueDate: string;
@@ -358,7 +359,7 @@ export default function SupplierPaymentManager({
                   {sources.map((source) => (
                     <option key={source.id} value={source.id}>
                       {source.supplierName} · {source.poNumber} ·{" "}
-                      {source.receivingReference}
+                      {source.receivingReference} · {dateLabel(source.receivedAt)}
                     </option>
                   ))}
                 </select>
@@ -392,7 +393,7 @@ export default function SupplierPaymentManager({
                     {
                       key: "goodsReceipt" as const,
                       title: "Surat Jalan / Tanda Terima",
-                      value: selected.receivingReference,
+                      value: `${selected.receivingReference} · Tanggal terima: ${dateLabel(selected.receivedAt)}`,
                       available: selected.deliveryNoteImageAvailable,
                     },
                   ].map((document) => (
@@ -438,6 +439,25 @@ export default function SupplierPaymentManager({
                       </span>
                     </label>
                   ))}
+                </div>
+                <div className="grid gap-4 rounded-xl border border-emerald-300 bg-emerald-50/70 p-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="supplier-logistics-received-at">
+                      Tanggal terima Logistics
+                    </Label>
+                    <Input
+                      id="supplier-logistics-received-at"
+                      type="date"
+                      value={selected.receivedAt}
+                      readOnly
+                      aria-readonly="true"
+                      className="bg-background font-medium"
+                    />
+                  </div>
+                  <div className="self-end text-sm text-emerald-900">
+                    Diisi oleh Logistics saat barang diterima dan disinkronkan
+                    otomatis. Finance tidak perlu menginput ulang.
+                  </div>
                 </div>
                 <section className="space-y-3">
                   <div>
@@ -689,7 +709,8 @@ export default function SupplierPaymentManager({
               <table className="w-full min-w-[980px] text-sm">
                 <thead className="border-y bg-muted/50 text-left">
                   <tr>
-                    <th className="p-3 pl-6">Tanggal</th>
+                    <th className="p-3 pl-6">Tanggal invoice</th>
+                    <th className="p-3">Tanggal terima</th>
                     <th className="p-3">Nama Supplier</th>
                     <th className="p-3">No. Invoice / No. SJ</th>
                     <th className="p-3">No. PO</th>
@@ -705,6 +726,12 @@ export default function SupplierPaymentManager({
                         {dateLabel(row.billDate)}
                         <p className="mt-1 text-xs text-muted-foreground">
                           {row.internalNumber}
+                        </p>
+                      </td>
+                      <td className="p-3 align-top">
+                        {row.receivedAt ? dateLabel(row.receivedAt) : "—"}
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Dari Logistics
                         </p>
                       </td>
                       <td className="p-3 align-top font-medium">

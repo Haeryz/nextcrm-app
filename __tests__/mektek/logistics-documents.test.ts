@@ -55,6 +55,7 @@ describe("MekTek Logistics documents", () => {
     expect(deliveryNotePdf).toContain("DESCRIPTION");
     expect(deliveryNotePdf).toContain("PART NUMBER");
     expect(deliveryNotePdf).toContain("QTY");
+    expect(deliveryNotePdf).toContain("Tanggal terima:");
   });
 
   it("limits Receiving documents to its PO PDF and required signatures", () => {

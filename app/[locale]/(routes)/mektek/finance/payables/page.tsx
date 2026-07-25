@@ -29,6 +29,7 @@ export default async function SupplierPaymentsPage() {
         sources: {
           select: {
             sourceReference: true,
+            occurredAt: true,
             snapshot: true,
           },
           take: 1,
@@ -112,6 +113,7 @@ export default async function SupplierPaymentsPage() {
       supplierName: bill.counterparty.legalName,
       supplierInvoiceNumber: bill.supplierInvoiceNumber,
       receivingReference: source?.sourceReference ?? "",
+      receivedAt: source ? dateOnly(source.occurredAt) : "",
       poNumber: snapshot.poNumber,
       billDate: dateOnly(bill.billDate),
       dueDate: dateOnly(bill.dueDate),

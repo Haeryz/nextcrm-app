@@ -40,6 +40,19 @@ describe("Rekapitulasi invoice jasa & part workbook fidelity", () => {
     expect(workspaceSource).toContain("Total bulanan");
   });
 
+  it("derives the recap from live invoices and posted payments", () => {
+    expect(workspaceSource).toContain(
+      "const synchronizedReport = await getFinanceSynchronizedReport()",
+    );
+    expect(workspaceSource).toContain(
+      "const receivableRows = synchronizedReport.receivables.filter",
+    );
+    expect(workspaceSource).toContain('receipt: { status: "POSTED" }');
+    expect(workspaceSource).not.toContain(
+      'where: { sheetKey: "invoice_receivables" }',
+    );
+  });
+
   it("uses the worksheet purpose instead of calling it rekap piutang", () => {
     expect(menuSource).toContain("Rekapitulasi Invoice Jasa & Part");
     expect(menuSource).not.toContain("Rekap Piutang Invoice");

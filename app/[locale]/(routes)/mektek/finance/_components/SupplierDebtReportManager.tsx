@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useState, useTransition } from "react";
+import { FormEvent, useEffect, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDown,
   ArrowUp,
+  BellRing,
   ChevronLeft,
   ChevronRight,
   FileSpreadsheet,
@@ -26,9 +27,11 @@ import type {
   SupplierDebtRecapEntry,
   SupplierDebtStatus,
 } from "@/lib/mektek/supplier-debt-report";
+import { supplierDebtDueState } from "@/lib/mektek/supplier-debt-ledger";
 
 import PaymentFakturTrendChart from "./PaymentFakturTrendChart";
 import SupplierDebtEntryDialog from "./SupplierDebtEntryDialog";
+import SupplierDebtTransactionDialog from "./SupplierDebtTransactionDialog";
 
 type ReportView = "overview" | "recap" | "detail";
 
@@ -116,6 +119,9 @@ export default function SupplierDebtReportManager({
   selectedSheetKey,
   detailRows,
   detailSummary,
+  depositBalance,
+  dueAlertSummary,
+  recentTransactions,
   monthlyTotals,
   search,
   status,
@@ -141,6 +147,18 @@ export default function SupplierDebtReportManager({
   selectedSheetKey: string | null;
   detailRows: SupplierDebtDetailEntry[];
   detailSummary: Summary;
+  depositBalance: number;
+  dueAlertSummary: { overdue: number; dueSoon: number };
+  recentTransactions: Array<{
+    id: string;
+    sourceRow: number | null;
+    kind: "DEPOSIT" | "PAYMENT";
+    paymentSource: "CASH" | "DEPOSIT" | null;
+    amount: number;
+    transactionDate: string;
+    reference: string | null;
+    note: string | null;
+  }>;
   monthlyTotals: number[];
   search: string;
   status: "SEMUA" | SupplierDebtStatus;
@@ -158,6 +176,18 @@ export default function SupplierDebtReportManager({
   const selectedSheet = sheets.find(
     (sheet) => sheet.sheetKey === selectedSheetKey,
   );
+  const selectedSupplierName = selectedSheet?.supplierName;
+  useEffect(() => {
+    const totalAlerts = dueAlertSummary.overdue + dueAlertSummary.dueSoon;
+    if (!selectedSupplierName || totalAlerts === 0) return;
+    toast.warning(
+      `${selectedSupplierName}: ${dueAlertSummary.overdue} lewat jatuh tempo, ${dueAlertSummary.dueSoon} segera jatuh tempo`,
+    );
+  }, [
+    dueAlertSummary.dueSoon,
+    dueAlertSummary.overdue,
+    selectedSupplierName,
+  ]);
 
   const setQuery = (updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -640,11 +670,8 @@ export default function SupplierDebtReportManager({
             </div>
           </div>
 
-          {selectedSheet &&
-            (selectedSheet.bankAccount ||
-              selectedSheet.bankName ||
-              selectedSheet.phone) && (
-              <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          {selectedSheet && (
+              <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
                 <div>
                   <p className="text-xs uppercase text-muted-foreground">
                     Kontak
@@ -669,8 +696,84 @@ export default function SupplierDebtReportManager({
                     {selectedSheet.bankAccountName || "—"}
                   </p>
                 </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">
+                    Saldo deposit
+                  </p>
+                  <p className="font-semibold text-sky-700">
+                    {rupiah.format(depositBalance)}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Sisa dana yang belum digunakan
+                  </p>
+                </div>
               </div>
             )}
+
+          {(dueAlertSummary.overdue > 0 || dueAlertSummary.dueSoon > 0) && (
+            <div className="flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950">
+              <BellRing className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="font-semibold">Perhatian jatuh tempo</p>
+                <p className="text-sm">
+                  {dueAlertSummary.overdue} tagihan telah lewat jatuh tempo dan{" "}
+                  {dueAlertSummary.dueSoon} tagihan akan jatuh tempo dalam 7 hari.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {recentTransactions.length > 0 && (
+            <details className="rounded-lg border bg-card">
+              <summary className="cursor-pointer px-4 py-3 text-sm font-semibold">
+                Riwayat deposit & pembayaran ({recentTransactions.length})
+              </summary>
+              <div className="overflow-x-auto border-t">
+                <table className="w-full min-w-[760px] text-sm">
+                  <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2">Tanggal</th>
+                      <th className="px-3 py-2">Jenis</th>
+                      <th className="px-3 py-2">Sumber</th>
+                      <th className="px-3 py-2">Referensi</th>
+                      <th className="px-3 py-2">Catatan</th>
+                      <th className="px-3 py-2 text-right">Nominal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {recentTransactions.map((transaction) => (
+                      <tr key={transaction.id}>
+                        <td className="px-3 py-2">
+                          {dateLabel(transaction.transactionDate)}
+                        </td>
+                        <td className="px-3 py-2">
+                          {transaction.kind === "DEPOSIT"
+                            ? "Deposit"
+                            : "Pembayaran"}
+                        </td>
+                        <td className="px-3 py-2">
+                          {transaction.paymentSource === "DEPOSIT"
+                            ? "Saldo deposit"
+                            : transaction.paymentSource === "CASH"
+                              ? "Kas / transfer"
+                              : "—"}
+                        </td>
+                        <td className="px-3 py-2">
+                          {transaction.reference || "—"}
+                        </td>
+                        <td className="max-w-80 px-3 py-2">
+                          {transaction.note || "—"}
+                        </td>
+                        <td className="px-3 py-2 text-right font-medium">
+                          {rupiah.format(transaction.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
 
           <SummaryCards
             items={[
@@ -725,10 +828,21 @@ export default function SupplierDebtReportManager({
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {detailRows.map((row) => (
+                  {detailRows.map((row) => {
+                    const dueState = supplierDebtDueState(
+                      row.dueDate,
+                      row.status,
+                    );
+                    return (
                     <tr
                       key={row.id ?? row.sourceRow}
-                      className="align-top hover:bg-muted/30"
+                      className={
+                        dueState === "OVERDUE"
+                          ? "align-top bg-rose-50 hover:bg-rose-100/70"
+                          : dueState === "DUE_SOON"
+                            ? "align-top bg-amber-50 hover:bg-amber-100/70"
+                            : "align-top hover:bg-muted/30"
+                      }
                     >
                       <td className="px-3 py-3 text-muted-foreground">
                         {row.number || "—"}
@@ -749,7 +863,24 @@ export default function SupplierDebtReportManager({
                       <td className="max-w-56 break-all px-3 py-3">
                         {row.taxInvoiceNumber || "—"}
                       </td>
-                      <td className="px-3 py-3">{dateLabel(row.dueDate)}</td>
+                      <td className="px-3 py-3">
+                        <span className="whitespace-nowrap">
+                          {dateLabel(row.dueDate)}
+                        </span>
+                        {dueState !== "NONE" && (
+                          <Badge
+                            className={
+                              dueState === "OVERDUE"
+                                ? "mt-1 block w-fit bg-rose-600 text-white hover:bg-rose-600"
+                                : "mt-1 block w-fit bg-amber-500 text-white hover:bg-amber-500"
+                            }
+                          >
+                            {dueState === "OVERDUE"
+                              ? "Lewat jatuh tempo"
+                              : "Segera jatuh tempo"}
+                          </Badge>
+                        )}
+                      </td>
                       <td className="px-3 py-3">{row.partNumber || "—"}</td>
                       <td className="max-w-80 px-3 py-3">
                         {row.description || "—"}
@@ -790,30 +921,59 @@ export default function SupplierDebtReportManager({
                         )}
                       </td>
                       <td className="sticky right-0 bg-background px-3 py-2 text-right">
-                        {row.isManual && row.id && selectedSheet && selectedSheetKey ? (
+                        {selectedSheet && selectedSheetKey ? (
                           <div className="flex justify-end gap-1">
+                            <SupplierDebtTransactionDialog
+                              kind="DEPOSIT"
+                              sheetKey={selectedSheetKey}
+                              sourceRow={row.sourceRow}
+                              invoiceLabel={
+                                row.invoiceNumber ??
+                                row.purchaseOrderNumber ??
+                                row.deliveryNoteNumber ??
+                                `Baris ${row.number ?? row.sourceRow}`
+                              }
+                              remainingAmount={row.remainingAmount}
+                              depositBalance={depositBalance}
+                            />
+                            <SupplierDebtTransactionDialog
+                              kind="PAYMENT"
+                              sheetKey={selectedSheetKey}
+                              sourceRow={row.sourceRow}
+                              invoiceLabel={
+                                row.invoiceNumber ??
+                                row.purchaseOrderNumber ??
+                                row.deliveryNoteNumber ??
+                                `Baris ${row.number ?? row.sourceRow}`
+                              }
+                              remainingAmount={row.remainingAmount}
+                              depositBalance={depositBalance}
+                            />
                             <SupplierDebtEntryDialog
                               sheetKey={selectedSheetKey}
                               supplierName={selectedSheet.supplierName}
                               entry={row}
                             />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => deleteManualEntry(row)}
-                              disabled={pending}
-                              aria-label="Hapus baris"
-                            >
-                              <Trash2 className="h-4 w-4 text-rose-600" />
-                            </Button>
+                            {row.isManual && row.id && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => deleteManualEntry(row)}
+                                disabled={pending}
+                                aria-label="Hapus baris"
+                              >
+                                <Trash2 className="h-4 w-4 text-rose-600" />
+                              </Button>
+                            )}
                           </div>
                         ) : (
                           <Badge variant="outline">Impor</Badge>
                         )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {!detailRows.length && (
                     <tr>
                       <td

@@ -190,6 +190,11 @@ function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
           React.createElement(View, { style: styles.signatureSpace }),
           React.createElement(View, { style: styles.signatureLine }),
           React.createElement(Text, { style: styles.signatureLabel }, "Nama & tanda tangan"),
+          React.createElement(
+            Text,
+            { style: styles.signatureLabel },
+            `Tanggal terima: ${dateFormatter.format(data.receivedAt)}`,
+          ),
         ),
         React.createElement(
           View,

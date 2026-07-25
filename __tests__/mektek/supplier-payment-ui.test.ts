@@ -35,6 +35,22 @@ describe("supplier payment Finance workspace", () => {
     }
   });
 
+  it("shows the Logistics receiving date as read-only synchronized data", () => {
+    const manager = source(
+      "app/[locale]/(routes)/mektek/finance/_components/SupplierPaymentManager.tsx",
+    );
+    const page = source(
+      "app/[locale]/(routes)/mektek/finance/payables/page.tsx",
+    );
+
+    expect(manager).toContain("Tanggal terima Logistics");
+    expect(manager).toContain("selected.receivedAt");
+    expect(manager).toContain("readOnly");
+    expect(manager).toContain("Tanggal terima:");
+    expect(page).toContain("occurredAt: true");
+    expect(page).toContain("receivedAt: dateOnly(source.occurredAt)");
+  });
+
   it("links an incomplete price warning to its exact document detail", () => {
     const manager = source(
       "app/[locale]/(routes)/mektek/finance/_components/SupplierPaymentManager.tsx",
