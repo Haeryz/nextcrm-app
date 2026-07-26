@@ -35,6 +35,7 @@ import { buildFinancePurchaseOrderDeliveryNoteSuggestion } from "@/lib/mektek/fi
 import { prismadb } from "@/lib/prisma";
 
 import MektekPagination from "../../_components/MektekPagination";
+import ContractCrudManager from "./ContractCrudManager";
 import ContractReminderDemo from "./ContractReminderDemo";
 import InvoiceCrudManager, { type FinanceInvoiceCrudRow } from "./InvoiceCrudManager";
 
@@ -1274,12 +1275,13 @@ export default async function FinanceWorkspace({
   }
 
   if (section === "contracts") {
-    const [rows, workbookRows] = await Promise.all([
+    const [rows, workbookRows, contractCustomers] = await Promise.all([
       prismadb.financeContract.findMany({
         orderBy: { endDate: "asc" },
         take: 100,
         include: {
           counterparty: { select: { legalName: true } },
+          lines: { orderBy: { position: "asc" } },
           _count: { select: { lines: true, purchaseOrders: true } },
         },
       }),
@@ -1289,7 +1291,39 @@ export default async function FinanceWorkspace({
         take: 500,
         select: { id: true, data: true },
       }),
+      prismadb.financeCounterparty.findMany({
+        where: { isActive: true, role: { in: ["CUSTOMER", "BOTH"] } },
+        orderBy: { legalName: "asc" },
+        select: { legalName: true },
+      }),
     ]);
+    // supersedesId has no declared relation, so the chain is resolved here.
+    const contractIds = rows.map((row) => row.id);
+    const predecessorIds = [
+      ...new Set(
+        rows.flatMap((row) => (row.supersedesId ? [row.supersedesId] : [])),
+      ),
+    ];
+    const [successors, predecessors] = await Promise.all([
+      contractIds.length
+        ? prismadb.financeContract.findMany({
+            where: { supersedesId: { in: contractIds } },
+            select: { supersedesId: true },
+          })
+        : [],
+      predecessorIds.length
+        ? prismadb.financeContract.findMany({
+            where: { id: { in: predecessorIds } },
+            select: { id: true, contractNumber: true },
+          })
+        : [],
+    ]);
+    const renewedIds = new Set(
+      successors.flatMap((row) => (row.supersedesId ? [row.supersedesId] : [])),
+    );
+    const predecessorNumbers = new Map(
+      predecessors.map((row) => [row.id, row.contractNumber]),
+    );
     const now = new Date();
     const expiringContracts = rows.flatMap((row) => {
       const daysRemaining = getContractDaysRemaining(row.endDate, now);
@@ -1435,52 +1469,40 @@ export default async function FinanceWorkspace({
             </div>
           </div>
         ) : null}
-        {rows.length ? (
-          <div className="grid gap-3 lg:grid-cols-2">
-            {rows.map((row) => (
-              <Card
-                key={row.id}
-                className={
-                  row.status === "ACTIVE" &&
-                  getContractDaysRemaining(row.endDate, now) >= 0 &&
-                  getContractDaysRemaining(row.endDate, now) <= 7
-                    ? "border-amber-400 bg-amber-50"
-                    : undefined
-                }
-              >
-                <CardContent className="p-5">
-                  <div className="flex justify-between gap-3">
-                    <div>
-                      <p className="font-semibold">{row.contractNumber}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {row.counterparty.legalName} · {contractTypeLabel[row.type] ?? row.type}
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <Badge variant="outline">{statusLabel[row.status] ?? row.status}</Badge>
-                      {row.status === "ACTIVE" &&
-                      getContractDaysRemaining(row.endDate, now) >= 0 &&
-                      getContractDaysRemaining(row.endDate, now) <= 7 ? (
-                        <Badge variant="destructive">
-                          {getContractDaysRemaining(row.endDate, now) === 0
-                            ? "Berakhir hari ini"
-                            : `${getContractDaysRemaining(row.endDate, now)} hari lagi`}
-                        </Badge>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                    <div><p className="text-muted-foreground">Periode</p><p>{date(row.startDate)} – {date(row.endDate)}</p></div>
-                    <div>
-                      <p className="text-muted-foreground">Cakupan</p>
-                      <p>{row._count.lines} item · {row._count.purchaseOrders} PO</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : workbookRows.length ? null : <Empty>Belum ada kontrak.</Empty>}
+        <ContractCrudManager
+          rows={rows.map((row) => ({
+            id: row.id,
+            contractNumber: row.contractNumber,
+            customerName: row.counterparty.legalName,
+            type: row.type,
+            status: row.status,
+            version: row.version,
+            supersedesNumber: row.supersedesId
+              ? predecessorNumbers.get(row.supersedesId) ?? ""
+              : "",
+            hasSuccessor: renewedIds.has(row.id),
+            projectName: row.projectName ?? "",
+            siteName: row.siteName ?? "",
+            startDate: dateInput(row.startDate),
+            endDate: dateInput(row.endDate),
+            contractValue: Number(row.contractValue ?? 0),
+            notes: row.notes ?? "",
+            lineCount: row._count.lines,
+            purchaseOrderCount: row._count.purchaseOrders,
+            daysRemaining: getContractDaysRemaining(row.endDate, now),
+            lines: row.lines.map((line) => ({
+              itemName: line.itemName,
+              partNumber: line.partNumber ?? "",
+              quantity:
+                line.contractedQuantity == null
+                  ? ""
+                  : String(line.contractedQuantity),
+              unitPrice:
+                line.unitPrice == null ? "" : String(Number(line.unitPrice)),
+            })),
+          }))}
+          customers={contractCustomers.map((customer) => customer.legalName)}
+        />
       </main>
     );
   }

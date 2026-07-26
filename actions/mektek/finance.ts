@@ -59,6 +59,10 @@ const money = (value: unknown) => {
 const numberValue = (value: Prisma.Decimal | number | string | null | undefined) =>
   Number(value ?? 0);
 
+const isPrismaUniqueError = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === "P2002";
+
 const financePath = "/[locale]/(routes)/mektek/finance";
 
 async function ensureFinanceManager(approval = false) {
@@ -303,6 +307,392 @@ export async function activateFinanceContract(contractId: string) {
   });
   revalidatePath(financePath, "layout");
   return { data: contract };
+}
+
+export type FinanceContractEntryInput = {
+  customerName: string;
+  contractNumber: string;
+  type: FinanceContractType;
+  projectName?: string;
+  siteName?: string;
+  startDate: string;
+  endDate: string;
+  contractValue?: number | string;
+  notes?: string;
+  lines?: Array<{
+    itemName: string;
+    partNumber?: string;
+    quantity?: number | string;
+    unitPrice?: number | string;
+  }>;
+};
+
+const FINANCE_CONTRACT_TYPES: FinanceContractType[] = [
+  "SERVICE",
+  "SPARE_PART",
+  "RENTAL",
+  "CONSIGNMENT",
+  "MIXED",
+  "OTHER",
+];
+
+function parseContractEntry(input: FinanceContractEntryInput) {
+  const customerName = text(input.customerName, 180);
+  const normalizedName = normalizeFinanceKey(customerName);
+  const contractNumber = text(input.contractNumber, 160);
+  const startDate = dateOnly(input.startDate);
+  const endDate = dateOnly(input.endDate);
+
+  if (!customerName || !normalizedName) {
+    return { error: "Nama pelanggan wajib diisi" } as const;
+  }
+  if (!contractNumber) return { error: "Nomor kontrak wajib diisi" } as const;
+  if (!FINANCE_CONTRACT_TYPES.includes(input.type)) {
+    return { error: "Jenis kontrak tidak valid" } as const;
+  }
+  if (!startDate) return { error: "Tanggal mulai tidak valid" } as const;
+  if (!endDate) return { error: "Tanggal berakhir tidak valid" } as const;
+  if (endDate < startDate) {
+    return { error: "Tanggal berakhir tidak boleh mendahului tanggal mulai" } as const;
+  }
+
+  const rawLines = (input.lines ?? []).filter(
+    (line) => text(line?.itemName, 300) || String(line?.unitPrice ?? "").trim(),
+  );
+  const lines = rawLines.map((line, index) => {
+    const rawQuantity = Number(String(line.quantity ?? "").replace(",", "."));
+    return {
+      position: index + 1,
+      catalogItemId: null,
+      itemName: text(line.itemName, 300),
+      partNumber: text(line.partNumber, 120) || null,
+      itemKey: normalizeFinanceKey(line.partNumber || line.itemName),
+      contractedQuantity:
+        Number.isFinite(rawQuantity) && rawQuantity > 0
+          ? Math.trunc(rawQuantity)
+          : null,
+      unitPrice: money(line.unitPrice),
+    };
+  });
+  if (lines.some((line) => !line.itemName)) {
+    return { error: "Nama item kontrak wajib diisi" } as const;
+  }
+  if (input.type === "CONSIGNMENT" && lines.length === 0) {
+    return {
+      error: "Kontrak Consignment wajib memiliki item dan batas suplai",
+    } as const;
+  }
+
+  return {
+    data: {
+      customerName,
+      normalizedName,
+      contractNumber,
+      type: input.type,
+      projectName: text(input.projectName, 180) || null,
+      siteName: text(input.siteName, 180) || null,
+      startDate,
+      endDate,
+      contractValue: money(input.contractValue),
+      notes: text(input.notes, 1500) || null,
+      lines,
+    },
+  } as const;
+}
+
+export async function createFinanceContractEntry(
+  input: FinanceContractEntryInput,
+) {
+  const access = await ensureFinanceManager();
+  if ("error" in access) return access;
+  const parsed = parseContractEntry(input);
+  if ("error" in parsed) return parsed;
+  const value = parsed.data;
+
+  try {
+    const contract = await prismadb.$transaction(async (tx) => {
+      const counterparty = await tx.financeCounterparty.upsert({
+        where: { normalizedName: value.normalizedName },
+        create: {
+          legalName: value.customerName,
+          normalizedName: value.normalizedName,
+          role: "CUSTOMER",
+          isActive: true,
+        },
+        update: { isActive: true },
+      });
+      const created = await tx.financeContract.create({
+        data: {
+          counterpartyId: counterparty.id,
+          contractNumber: value.contractNumber,
+          normalizedNumber: normalizeFinanceKey(value.contractNumber),
+          type: value.type,
+          projectName: value.projectName,
+          siteName: value.siteName,
+          startDate: value.startDate,
+          endDate: value.endDate,
+          contractValue: value.contractValue,
+          notes: value.notes,
+          createdBy: access.current.id,
+          lines: { create: value.lines },
+        },
+        include: { counterparty: true, lines: true },
+      });
+      await audit(tx, {
+        entityType: "CONTRACT",
+        entityId: created.id,
+        action: "CREATE",
+        actorId: access.current.id,
+        after: {
+          contractNumber: value.contractNumber,
+          customerName: value.customerName,
+          type: value.type,
+          lineCount: value.lines.length,
+        },
+      });
+      return created;
+    });
+    revalidatePath(financePath, "layout");
+    return { data: contract };
+  } catch (error) {
+    console.error("[CREATE_FINANCE_CONTRACT_ENTRY]", error);
+    if (isPrismaUniqueError(error)) {
+      return { error: "Nomor kontrak sudah terdaftar untuk pelanggan ini" };
+    }
+    return { error: "Kontrak gagal disimpan" };
+  }
+}
+
+export async function updateFinanceContractEntry(
+  contractId: string,
+  input: FinanceContractEntryInput,
+) {
+  const access = await ensureFinanceManager();
+  if ("error" in access) return access;
+  const id = text(contractId, 36);
+  if (!id) return { error: "Kontrak tidak valid" };
+  const parsed = parseContractEntry(input);
+  if ("error" in parsed) return parsed;
+  const value = parsed.data;
+
+  try {
+    const contract = await prismadb.$transaction(async (tx) => {
+      const existing = await tx.financeContract.findUnique({
+        where: { id },
+        include: { counterparty: { select: { legalName: true } } },
+      });
+      if (!existing) throw new Error("CONTRACT_NOT_FOUND");
+      const counterparty = await tx.financeCounterparty.upsert({
+        where: { normalizedName: value.normalizedName },
+        create: {
+          legalName: value.customerName,
+          normalizedName: value.normalizedName,
+          role: "CUSTOMER",
+          isActive: true,
+        },
+        update: { isActive: true },
+      });
+      const updated = await tx.financeContract.update({
+        where: { id },
+        data: {
+          counterpartyId: counterparty.id,
+          contractNumber: value.contractNumber,
+          normalizedNumber: normalizeFinanceKey(value.contractNumber),
+          type: value.type,
+          projectName: value.projectName,
+          siteName: value.siteName,
+          startDate: value.startDate,
+          endDate: value.endDate,
+          contractValue: value.contractValue,
+          notes: value.notes,
+          lines: { deleteMany: {}, create: value.lines },
+        },
+        include: { counterparty: true, lines: true },
+      });
+      await audit(tx, {
+        entityType: "CONTRACT",
+        entityId: id,
+        action: "UPDATE",
+        actorId: access.current.id,
+        before: {
+          contractNumber: existing.contractNumber,
+          customerName: existing.counterparty.legalName,
+          type: existing.type,
+        },
+        after: {
+          contractNumber: value.contractNumber,
+          customerName: value.customerName,
+          type: value.type,
+        },
+      });
+      return updated;
+    });
+    revalidatePath(financePath, "layout");
+    return { data: contract };
+  } catch (error) {
+    console.error("[UPDATE_FINANCE_CONTRACT_ENTRY]", error);
+    if (error instanceof Error && error.message === "CONTRACT_NOT_FOUND") {
+      return { error: "Kontrak tidak ditemukan" };
+    }
+    if (isPrismaUniqueError(error)) {
+      return { error: "Nomor kontrak sudah terdaftar untuk pelanggan ini" };
+    }
+    return { error: "Kontrak gagal diperbarui" };
+  }
+}
+
+export async function deleteFinanceContractEntry(contractId: string) {
+  const access = await ensureFinanceManager();
+  if ("error" in access) return access;
+  const id = text(contractId, 36);
+  if (!id) return { error: "Kontrak tidak valid" };
+
+  try {
+    await prismadb.$transaction(async (tx) => {
+      const existing = await tx.financeContract.findUnique({
+        where: { id },
+        select: {
+          contractNumber: true,
+          _count: { select: { invoices: true, purchaseOrders: true } },
+        },
+      });
+      if (!existing) throw new Error("CONTRACT_NOT_FOUND");
+      if (existing._count.invoices > 0 || existing._count.purchaseOrders > 0) {
+        throw new Error("CONTRACT_IN_USE");
+      }
+      await tx.financeContract.delete({ where: { id } });
+      await audit(tx, {
+        entityType: "CONTRACT",
+        entityId: id,
+        action: "DELETE",
+        actorId: access.current.id,
+        before: { contractNumber: existing.contractNumber },
+      });
+    });
+    revalidatePath(financePath, "layout");
+    return { data: { id } };
+  } catch (error) {
+    console.error("[DELETE_FINANCE_CONTRACT_ENTRY]", error);
+    if (error instanceof Error && error.message === "CONTRACT_NOT_FOUND") {
+      return { error: "Kontrak tidak ditemukan" };
+    }
+    if (error instanceof Error && error.message === "CONTRACT_IN_USE") {
+      return {
+        error:
+          "Kontrak sudah dipakai pada invoice atau Purchase Order dan tidak dapat dihapus",
+      };
+    }
+    return { error: "Kontrak gagal dihapus" };
+  }
+}
+
+/**
+ * Closes a finished contract and opens its successor for the next period,
+ * carrying the agreed items over so the renewal does not have to be retyped.
+ */
+export async function renewFinanceContract(
+  contractId: string,
+  input: { startDate: string; endDate: string; contractNumber?: string },
+) {
+  const access = await ensureFinanceManager();
+  if ("error" in access) return access;
+  const id = text(contractId, 36);
+  if (!id) return { error: "Kontrak tidak valid" };
+  const startDate = dateOnly(input?.startDate);
+  const endDate = dateOnly(input?.endDate);
+  if (!startDate) return { error: "Tanggal mulai tidak valid" };
+  if (!endDate) return { error: "Tanggal berakhir tidak valid" };
+  if (endDate < startDate) {
+    return { error: "Tanggal berakhir tidak boleh mendahului tanggal mulai" };
+  }
+
+  try {
+    const renewal = await prismadb.$transaction(async (tx) => {
+      const existing = await tx.financeContract.findUnique({
+        where: { id },
+        include: { lines: { orderBy: { position: "asc" } } },
+      });
+      if (!existing) throw new Error("CONTRACT_NOT_FOUND");
+      if (existing.status === "DRAFT") throw new Error("CONTRACT_NOT_STARTED");
+
+      const successor = await tx.financeContract.findFirst({
+        where: { supersedesId: existing.id },
+        select: { id: true },
+      });
+      if (successor) throw new Error("CONTRACT_ALREADY_RENEWED");
+
+      const contractNumber =
+        text(input.contractNumber, 160) || existing.contractNumber;
+      const created = await tx.financeContract.create({
+        data: {
+          counterpartyId: existing.counterpartyId,
+          contractNumber,
+          normalizedNumber: normalizeFinanceKey(contractNumber),
+          type: existing.type,
+          status: "DRAFT",
+          version: existing.version + 1,
+          supersedesId: existing.id,
+          projectName: existing.projectName,
+          siteName: existing.siteName,
+          startDate,
+          endDate,
+          contractValue: existing.contractValue,
+          ownerId: existing.ownerId,
+          notes: existing.notes,
+          createdBy: access.current.id,
+          lines: {
+            create: existing.lines.map((line) => ({
+              position: line.position,
+              catalogItemId: line.catalogItemId,
+              itemName: line.itemName,
+              partNumber: line.partNumber,
+              itemKey: line.itemKey,
+              contractedQuantity: line.contractedQuantity,
+              unitPrice: line.unitPrice,
+              notes: line.notes,
+            })),
+          },
+        },
+        include: { counterparty: true, lines: true },
+      });
+      if (existing.status === "ACTIVE") {
+        await tx.financeContract.update({
+          where: { id: existing.id },
+          data: { status: "TERMINATED" },
+        });
+      }
+      await audit(tx, {
+        entityType: "CONTRACT",
+        entityId: created.id,
+        action: "RENEW",
+        actorId: access.current.id,
+        before: {
+          contractNumber: existing.contractNumber,
+          version: existing.version,
+        },
+        after: { contractNumber, version: created.version },
+        metadata: { supersedesId: existing.id },
+      });
+      return created;
+    });
+    revalidatePath(financePath, "layout");
+    return { data: renewal };
+  } catch (error) {
+    console.error("[RENEW_FINANCE_CONTRACT]", error);
+    if (error instanceof Error && error.message === "CONTRACT_NOT_FOUND") {
+      return { error: "Kontrak tidak ditemukan" };
+    }
+    if (error instanceof Error && error.message === "CONTRACT_NOT_STARTED") {
+      return { error: "Kontrak draf belum dapat diperpanjang" };
+    }
+    if (error instanceof Error && error.message === "CONTRACT_ALREADY_RENEWED") {
+      return { error: "Kontrak ini sudah memiliki kontrak lanjutan" };
+    }
+    if (isPrismaUniqueError(error)) {
+      return { error: "Nomor kontrak lanjutan sudah terdaftar" };
+    }
+    return { error: "Kontrak lanjutan gagal dibuat" };
+  }
 }
 
 export async function createFinanceQuote(input: {
