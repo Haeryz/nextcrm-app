@@ -56,6 +56,20 @@ describe("Finance invoice PO autocomplete", () => {
         "Project: Site A\n1. Jasa servis × 2\n2. Filter (FLT-01) × 3",
       subtotal: "450000",
       pricingComplete: true,
+      items: [
+        {
+          description: "Jasa servis",
+          partNumber: "",
+          quantity: "2",
+          unitPrice: "150000",
+        },
+        {
+          description: "Filter",
+          partNumber: "FLT-01",
+          quantity: "3",
+          unitPrice: "50000",
+        },
+      ],
       deliveryNotes: [],
       totalDeliveryNoteCount: 0,
     });

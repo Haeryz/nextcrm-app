@@ -467,6 +467,7 @@ export default async function FinanceWorkspace({
           description: deliveryNote.description,
           subtotal: deliveryNote.subtotal,
           pricingComplete: deliveryNote.pricingComplete,
+          items: deliveryNote.items,
         };
       });
       const classificationDescriptions = row.lines
@@ -490,6 +491,12 @@ export default async function FinanceWorkspace({
         purchaseOrderNumber: row.purchaseOrderNumber ?? "",
         purchaseOrderDate: dateInput(row.purchaseOrderDate),
         description: row.lines[0]?.description ?? "",
+        items: row.lines.map((line) => ({
+          description: line.description,
+          partNumber: line.partNumber ?? "",
+          quantity: String(Number(line.quantity)),
+          unitPrice: String(Number(line.unitPrice)),
+        })),
         subtotal: Number(row.subtotal),
         taxRate: Number(row.taxRate) * 100,
         taxInvoiceNumber: row.taxInvoiceNumber ?? "",

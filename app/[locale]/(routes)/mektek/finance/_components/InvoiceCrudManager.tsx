@@ -64,6 +64,14 @@ export type FinanceInvoiceSourceRow = {
   description: string;
   subtotal: string;
   pricingComplete: boolean;
+  items: FinanceInvoiceItemRow[];
+};
+
+export type FinanceInvoiceItemRow = {
+  description: string;
+  partNumber: string;
+  quantity: string;
+  unitPrice: string;
 };
 
 export type FinanceInvoiceCrudRow = {
@@ -80,6 +88,7 @@ export type FinanceInvoiceCrudRow = {
   purchaseOrderNumber: string;
   purchaseOrderDate: string;
   description: string;
+  items: FinanceInvoiceItemRow[];
   subtotal: number;
   taxRate: number;
   taxInvoiceNumber: string;
@@ -93,10 +102,37 @@ export type FinanceInvoiceCrudRow = {
   sources: FinanceInvoiceSourceRow[];
 };
 
-type InvoiceFormState = Omit<FinanceInvoiceEntryInput, "subtotal" | "taxRate"> & {
+type InvoiceFormState = Omit<
+  FinanceInvoiceEntryInput,
+  "subtotal" | "taxRate" | "items"
+> & {
   subtotal: string;
   taxRate: string;
+  items: FinanceInvoiceItemRow[];
 };
+
+const emptyItem: FinanceInvoiceItemRow = {
+  description: "",
+  partNumber: "",
+  quantity: "1",
+  unitPrice: "",
+};
+
+/** Sum of qty × unit price across the filled-in item rows. */
+function sumInvoiceItems(items: FinanceInvoiceItemRow[]) {
+  return items.reduce((total, item) => {
+    const quantity = Number(String(item.quantity).replace(",", "."));
+    const unitPrice = Number(String(item.unitPrice).replace(",", "."));
+    if (!Number.isFinite(quantity) || !Number.isFinite(unitPrice)) return total;
+    return total + quantity * unitPrice;
+  }, 0);
+}
+
+const hasInvoiceItems = (items: FinanceInvoiceItemRow[]) =>
+  items.some(
+    (item) =>
+      item.description.trim() || String(item.unitPrice).trim(),
+  );
 
 const emptyForm: InvoiceFormState = {
   customerName: "",
@@ -109,6 +145,7 @@ const emptyForm: InvoiceFormState = {
   purchaseOrderNumber: "",
   purchaseOrderDate: "",
   description: "",
+  items: [{ ...emptyItem }],
   subtotal: "",
   taxRate: "11",
   taxInvoiceNumber: "",
@@ -148,6 +185,7 @@ const invoiceFormFromRow = (
   purchaseOrderNumber: row.purchaseOrderNumber,
   purchaseOrderDate: row.purchaseOrderDate,
   description: row.description,
+  items: row.items.length ? row.items.map((item) => ({ ...item })) : [{ ...emptyItem }],
   subtotal: String(row.subtotal),
   taxRate: String(row.taxRate),
   taxInvoiceNumber: row.taxInvoiceNumber,
@@ -197,13 +235,22 @@ export default function InvoiceCrudManager({
   const [purchaseOrderPricingWarning, setPurchaseOrderPricingWarning] =
     useState("");
   const purchaseOrderRequestId = useRef(0);
+  // Item rows drive the pre-PPN value whenever they are filled in; the manual
+  // subtotal field stays as a fallback for invoices without a line breakdown.
+  const itemsProvided = useMemo(() => hasInvoiceItems(form.items), [form.items]);
+  const itemsSubtotal = useMemo(
+    () => sumInvoiceItems(form.items),
+    [form.items],
+  );
+  const effectiveSubtotal = itemsProvided
+    ? itemsSubtotal
+    : Number(form.subtotal || 0);
   const totalPreview = useMemo(() => {
-    const subtotal = Number(form.subtotal || 0);
     const rate = Number(form.taxRate || 0);
-    return Number.isFinite(subtotal) && Number.isFinite(rate)
-      ? subtotal * (1 + rate / 100)
+    return Number.isFinite(effectiveSubtotal) && Number.isFinite(rate)
+      ? effectiveSubtotal * (1 + rate / 100)
       : 0;
-  }, [form.subtotal, form.taxRate]);
+  }, [effectiveSubtotal, form.taxRate]);
   const revenueCategory = useMemo(
     () =>
       classifyFinanceRevenueLine({
@@ -216,6 +263,30 @@ export default function InvoiceCrudManager({
 
   const set = (name: keyof InvoiceFormState, value: string) =>
     setForm((current) => ({ ...current, [name]: value }));
+
+  const setItem = (
+    index: number,
+    name: keyof FinanceInvoiceItemRow,
+    value: string,
+  ) =>
+    setForm((current) => ({
+      ...current,
+      items: current.items.map((item, position) =>
+        position === index ? { ...item, [name]: value } : item,
+      ),
+    }));
+
+  const addItem = () =>
+    setForm((current) => ({
+      ...current,
+      items: [...current.items, { ...emptyItem }],
+    }));
+
+  const removeItem = (index: number) =>
+    setForm((current) => {
+      const items = current.items.filter((_, position) => position !== index);
+      return { ...current, items: items.length ? items : [{ ...emptyItem }] };
+    });
 
   const resetPurchaseOrderSearch = () => {
     purchaseOrderRequestId.current += 1;
@@ -240,6 +311,7 @@ export default function InvoiceCrudManager({
           purchaseOrderNumber: "",
           purchaseOrderDate: "",
           description: "",
+          items: [{ ...emptyItem }],
           subtotal: "",
         }));
         setPurchaseOrderPricingWarning("");
@@ -275,8 +347,15 @@ export default function InvoiceCrudManager({
         )
         .join("\n\n");
 
+      // Every billable line from the selected Surat Jalan becomes an editable
+      // invoice item, so the pre-PPN value is calculated from qty × price.
+      const aggregatedItems = sources.flatMap((source) => source.items ?? []);
+
       setForm((current) => ({
         ...current,
+        items: aggregatedItems.length
+          ? aggregatedItems.map((item) => ({ ...item }))
+          : current.items,
         customerName: sources[0].customerName,
         deliveryNoteNumber: deliveryNoteNumbers.join(", "),
         deliveryNoteDate:
@@ -334,6 +413,7 @@ export default function InvoiceCrudManager({
             description: deliveryNote.description,
             subtotal: deliveryNote.subtotal,
             pricingComplete: deliveryNote.pricingComplete,
+            items: deliveryNote.items,
           }));
         const byId = new Map(
           [...selectedInvoiceSources, ...additions].map((source) => [
@@ -358,6 +438,9 @@ export default function InvoiceCrudManager({
         dueDate: option.dueDate,
         purchaseOrderDate: option.purchaseOrderDate,
         description: option.description,
+        items: option.items.length
+          ? option.items.map((item) => ({ ...item }))
+          : current.items,
         subtotal: option.subtotal,
       }));
       setPurchaseOrderPricingWarning(
@@ -501,7 +584,10 @@ export default function InvoiceCrudManager({
     startTransition(async () => {
       const input: FinanceInvoiceEntryInput = {
         ...form,
-        subtotal: form.subtotal,
+        // The server recomputes the pre-PPN value from the items when they are
+        // present, so only send them when the user actually filled them in.
+        items: itemsProvided ? form.items : undefined,
+        subtotal: itemsProvided ? String(itemsSubtotal) : form.subtotal,
         taxRate: form.taxRate,
         sourceIds: selectedInvoiceSources.map((source) => source.id),
       };
@@ -871,10 +957,122 @@ export default function InvoiceCrudManager({
               </p>
             </div>
 
+            <div className="space-y-2 md:col-span-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label>Rincian item (qty &amp; harga)</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                  Tambah item
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Isi rincian agar qty dan total harga tampil di PDF invoice. Nilai
+                sebelum PPN dihitung otomatis dari qty × harga satuan.
+              </p>
+              <div className="space-y-2">
+                {form.items.map((item, index) => {
+                  const quantity = Number(String(item.quantity).replace(",", "."));
+                  const unitPrice = Number(String(item.unitPrice).replace(",", "."));
+                  const lineTotal =
+                    Number.isFinite(quantity) && Number.isFinite(unitPrice)
+                      ? quantity * unitPrice
+                      : 0;
+                  return (
+                    <div
+                      key={index}
+                      className="grid gap-2 rounded-md border p-2 md:grid-cols-[minmax(0,3fr)_minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1.2fr)_auto] md:items-end"
+                    >
+                      <div className="space-y-1">
+                        <Label className="text-xs" htmlFor={`item-description-${index}`}>
+                          Deskripsi
+                        </Label>
+                        <Input
+                          id={`item-description-${index}`}
+                          value={item.description}
+                          onChange={(event) =>
+                            setItem(index, "description", event.target.value)
+                          }
+                          placeholder="Nama jasa atau spare part"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs" htmlFor={`item-part-${index}`}>
+                          Part number
+                        </Label>
+                        <Input
+                          id={`item-part-${index}`}
+                          value={item.partNumber}
+                          onChange={(event) =>
+                            setItem(index, "partNumber", event.target.value)
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs" htmlFor={`item-quantity-${index}`}>
+                          Qty
+                        </Label>
+                        <Input
+                          id={`item-quantity-${index}`}
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          value={item.quantity}
+                          onChange={(event) =>
+                            setItem(index, "quantity", event.target.value)
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs" htmlFor={`item-unit-price-${index}`}>
+                          Harga satuan
+                        </Label>
+                        <Input
+                          id={`item-unit-price-${index}`}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={item.unitPrice}
+                          onChange={(event) =>
+                            setItem(index, "unitPrice", event.target.value)
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center gap-2 md:flex-col md:items-end">
+                        <span className="text-xs text-muted-foreground">
+                          {idr.format(lineTotal)}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeItem(index)}
+                          disabled={form.items.length === 1}
+                        >
+                          Hapus
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="subtotal">Nilai sebelum PPN (IDR) *</Label>
-              <Input id="subtotal" type="number" min="0" step="0.01" value={form.subtotal} onChange={(event) => set("subtotal", event.target.value)} />
-              {purchaseOrderPricingWarning && (
+              <Input
+                id="subtotal"
+                type="number"
+                min="0"
+                step="0.01"
+                value={itemsProvided ? String(itemsSubtotal) : form.subtotal}
+                onChange={(event) => set("subtotal", event.target.value)}
+                readOnly={itemsProvided}
+              />
+              {itemsProvided && (
+                <p className="text-xs text-muted-foreground">
+                  Dihitung otomatis dari rincian item.
+                </p>
+              )}
+              {purchaseOrderPricingWarning && !itemsProvided && (
                 <p className="text-xs text-amber-700">
                   {purchaseOrderPricingWarning}
                 </p>

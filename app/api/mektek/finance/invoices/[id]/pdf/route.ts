@@ -84,15 +84,23 @@ export async function GET(
       }];
     });
   });
-  const lines = sourceLines.length
-    ? sourceLines
-    : invoice.lines.map((line) => ({
-        description: line.description,
-        partNumber: line.partNumber,
-        quantity: Number(line.quantity),
-        unitPrice: Number(line.unitPrice),
-        lineTotal: Number(line.lineTotal),
-      }));
+  const invoiceLines = invoice.lines.map((line) => ({
+    description: line.description,
+    partNumber: line.partNumber,
+    quantity: Number(line.quantity),
+    unitPrice: Number(line.unitPrice),
+    lineTotal: Number(line.lineTotal),
+  }));
+  // Legacy manual invoices stored a single synthetic line holding the whole
+  // pre-PPN value (qty 1, no part number). Those carry no per-item detail, so
+  // the Surat Jalan snapshot is the better source. Anything else means the
+  // invoice has real line items — including edits — and must win.
+  const hasItemDetail =
+    invoiceLines.length > 1 ||
+    (invoiceLines.length === 1 &&
+      (invoiceLines[0].quantity !== 1 || Boolean(invoiceLines[0].partNumber)));
+  const lines =
+    hasItemDetail || sourceLines.length === 0 ? invoiceLines : sourceLines;
   const pdf = await renderFinanceInvoicePdf({
     invoiceNumber,
     customerName: invoice.counterparty.legalName,

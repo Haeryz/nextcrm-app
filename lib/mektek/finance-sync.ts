@@ -48,6 +48,7 @@ export async function syncOutboundDispatchBillingSource(
         orderBy: { position: "asc" },
         include: {
           receipts: { where: { receivingReference: input.dispatchReference } },
+          catalogItem: { select: { price: true } },
         },
       },
     },
@@ -74,7 +75,12 @@ export async function syncOutboundDispatchBillingSource(
       description: item.partName,
       partNumber: item.partNumber,
       quantity,
-      unitPrice: item.agreedUnitPrice?.toString() ?? null,
+      // Monitoring PO deliberately captures no prices, so the Catalog price is
+      // the billing rate for outbound dispatches.
+      unitPrice:
+        item.agreedUnitPrice?.toString() ??
+        item.catalogItem?.price?.toString() ??
+        null,
     }];
   });
   const priced = items.every((item) => item.unitPrice != null);

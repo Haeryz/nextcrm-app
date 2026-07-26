@@ -472,6 +472,13 @@ export async function createFinanceInvoiceDraft(sourceIds: string[]) {
   }
 }
 
+export type FinanceInvoiceItemInput = {
+  description: string;
+  partNumber?: string;
+  quantity: number | string;
+  unitPrice: number | string;
+};
+
 export type FinanceInvoiceEntryInput = {
   customerName: string;
   deliveryNoteNumber?: string;
@@ -489,7 +496,75 @@ export type FinanceInvoiceEntryInput = {
   accountDestination?: string;
   notes?: string;
   sourceIds?: string[];
+  items?: FinanceInvoiceItemInput[];
 };
+
+const MAX_INVOICE_ITEMS = 200;
+
+type ParsedInvoiceItem = {
+  position: number;
+  kind: string;
+  description: string;
+  partNumber: string | null;
+  quantity: Prisma.Decimal;
+  unitPrice: Prisma.Decimal;
+  lineTotal: Prisma.Decimal;
+};
+
+/**
+ * Normalizes the invoice line items. Returns `null` when the caller did not
+ * supply any items, which keeps the legacy single-line behaviour intact for
+ * older clients that only post a lump `subtotal`.
+ */
+function parseInvoiceItems(
+  items: FinanceInvoiceItemInput[] | undefined,
+):
+  | { error: string }
+  | { data: null }
+  | { data: { lines: ParsedInvoiceItem[]; subtotal: Prisma.Decimal } } {
+  if (!Array.isArray(items)) return { data: null };
+  const filled = items.filter(
+    (item) =>
+      text(item?.description, 500) ||
+      String(item?.quantity ?? "").trim() ||
+      String(item?.unitPrice ?? "").trim(),
+  );
+  if (filled.length === 0) return { data: null };
+  if (filled.length > MAX_INVOICE_ITEMS) {
+    return { error: `Maksimal ${MAX_INVOICE_ITEMS} item dalam satu invoice` };
+  }
+
+  const lines: ParsedInvoiceItem[] = [];
+  let subtotal = new Prisma.Decimal(0);
+  for (const [index, item] of filled.entries()) {
+    const description = text(item?.description, 500);
+    if (!description) {
+      return { error: `Deskripsi item baris ${index + 1} wajib diisi` };
+    }
+    const rawQuantity = Number(String(item?.quantity ?? "").replace(",", "."));
+    if (!Number.isFinite(rawQuantity) || rawQuantity <= 0) {
+      return { error: `Qty baris ${index + 1} harus lebih dari 0` };
+    }
+    const rawUnitPrice = Number(String(item?.unitPrice ?? "").replace(",", "."));
+    if (!Number.isFinite(rawUnitPrice) || rawUnitPrice < 0) {
+      return { error: `Harga satuan baris ${index + 1} tidak valid` };
+    }
+    const quantity = new Prisma.Decimal(rawQuantity.toFixed(3));
+    const unitPrice = new Prisma.Decimal(rawUnitPrice.toFixed(2));
+    const lineTotal = quantity.mul(unitPrice).toDecimalPlaces(2);
+    subtotal = subtotal.add(lineTotal);
+    lines.push({
+      position: index + 1,
+      kind: classifyFinanceRevenueLine({ kind: "MANUAL", description }),
+      description,
+      partNumber: text(item?.partNumber, 120) || null,
+      quantity,
+      unitPrice,
+      lineTotal,
+    });
+  }
+  return { data: { lines, subtotal } };
+}
 
 export async function searchFinancePurchaseOrders(input: {
   query?: string;
@@ -528,6 +603,9 @@ export async function searchFinancePurchaseOrders(input: {
           partNumber: true,
           orderedQuantity: true,
           agreedUnitPrice: true,
+          // Fallback price source for Purchase Orders created before the
+          // agreed unit price was persisted on OUTBOUND lines.
+          catalogItem: { select: { price: true } },
         },
       },
     },
@@ -592,6 +670,7 @@ export async function searchFinancePurchaseOrders(input: {
           description: "",
           subtotal: "",
           pricingComplete: false,
+          items: [],
           deliveryNotes: [],
           totalDeliveryNoteCount: 0,
         });
@@ -688,7 +767,14 @@ export async function searchFinancePurchaseOrders(input: {
     .slice(0, 8)
     .map((purchaseOrder) =>
       buildFinancePurchaseOrderSuggestion(
-        purchaseOrder,
+        {
+          ...purchaseOrder,
+          items: purchaseOrder.items.map((item) => ({
+            ...item,
+            agreedUnitPrice:
+              item.agreedUnitPrice ?? item.catalogItem?.price ?? null,
+          })),
+        },
         deliveryNotesByPurchaseOrder.get(purchaseOrder.id) ?? [],
         deliveryNoteCountByPurchaseOrder.get(purchaseOrder.id) ?? 0,
       ),
@@ -706,7 +792,12 @@ function parseInvoiceEntry(input: FinanceInvoiceEntryInput) {
   const deliveryNoteDate = input.deliveryNoteDate ? dateOnly(input.deliveryNoteDate) : null;
   const purchaseOrderDate = input.purchaseOrderDate ? dateOnly(input.purchaseOrderDate) : null;
   const description = text(input.description, 5000);
-  const subtotal = money(input.subtotal);
+  const parsedItems = parseInvoiceItems(input.items);
+  if ("error" in parsedItems) return parsedItems as { error: string };
+  const items = parsedItems.data;
+  // When line items are supplied they are the source of truth for the
+  // pre-PPN value, so the client never has to keep a lump sum in sync.
+  const subtotal = items ? items.subtotal : money(input.subtotal);
   const rawTaxRate = Number(String(input.taxRate ?? 11).replace(",", "."));
   const accountDestination = text(input.accountDestination, 180);
 
@@ -748,6 +839,7 @@ function parseInvoiceEntry(input: FinanceInvoiceEntryInput) {
       taxRate,
       taxAmount,
       total,
+      items: items?.lines ?? null,
       taxInvoiceNumber: text(input.taxInvoiceNumber, 100) || null,
       accountDestination: accountDestination || null,
       notes: text(input.notes, 1000) || null,
@@ -875,7 +967,7 @@ export async function createFinanceInvoiceEntry(input: FinanceInvoiceEntryInput)
           requestedBy: access.current.id,
           issuedAt: new Date(),
           lines: {
-            create: {
+            create: value.items ?? {
               position: 1,
               kind: classifyFinanceRevenueLine({
                 kind: "MANUAL",
@@ -984,7 +1076,7 @@ export async function updateFinanceInvoiceEntry(
           notes: value.notes,
           lines: {
             deleteMany: {},
-            create: {
+            create: value.items ?? {
               position: 1,
               kind: classifyFinanceRevenueLine({
                 kind: "MANUAL",
