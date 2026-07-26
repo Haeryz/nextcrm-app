@@ -104,10 +104,9 @@ export async function GET(
     });
   }
 
-  const deliveryNoteNumber =
-    reference ||
-    purchaseOrder.deliveryNoteNumber ||
-    `SJ-${purchaseOrder.poNumber}`;
+  const deliveryNoteNumber = isReceiving
+    ? null
+    : reference || purchaseOrder.deliveryNoteNumber || `SJ-${purchaseOrder.poNumber}`;
   const firstBatchReceipt = batchItems[0]?.receipt;
 
   const pdf = await renderMektekDeliveryNotePdf({
@@ -138,7 +137,7 @@ export async function GET(
           note: item.note,
         })),
   });
-  const filename = deliveryNoteNumber.replace(/[^A-Za-z0-9_-]+/g, "-");
+  const filename = (deliveryNoteNumber || purchaseOrder.poNumber).replace(/[^A-Za-z0-9_-]+/g, "-");
   return new Response(pdf.buffer as ArrayBuffer, {
     headers: {
       "Content-Type": "application/pdf",

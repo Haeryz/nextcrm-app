@@ -104,7 +104,7 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
   });
 
   it("creates and exposes a delivery note for each outbound batch", () => {
-    expect(actionSource).toContain("Nomor Surat Jalan wajib diisi");
+    expect(actionSource).toContain("buildOutboundDeliveryNoteNumber");
     expect(actionSource).toContain("const reference = deliveryNoteNumber");
     expect(actionSource).toContain("recordMektekOutboundPurchaseOrderDispatch");
     expect(outboundManager).toContain("Nomor Surat Jalan");

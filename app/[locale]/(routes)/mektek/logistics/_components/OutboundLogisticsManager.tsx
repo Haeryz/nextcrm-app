@@ -4,6 +4,7 @@ import {
   Camera,
   CheckCircle2,
   Clock3,
+  Copy,
   Download,
   Eye,
   FileSpreadsheet,
@@ -17,7 +18,7 @@ import {
   Truck,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import {
@@ -216,12 +217,6 @@ function blankItemDraft(clientId: string): ItemDraft {
   };
 }
 
-function buildAutoDeliveryNoteNumber(poNumber: string, dispatchedAt: string) {
-  const safePo = (poNumber || "PO").trim().replace(/\s+/g, "-").toUpperCase();
-  const datePart = (dispatchedAt || "").replace(/-/g, "");
-  return `SJ-${safePo}${datePart ? `-${datePart}` : ""}`;
-}
-
 function toOutboundPurchaseOrderItem(
   item: ItemDraft,
 ): MektekOutboundPurchaseOrderItemInput {
@@ -256,6 +251,31 @@ function blankDraft(): OutboundDraft {
   };
 }
 
+const OUTBOUND_DRAFT_STORAGE_KEY = "mektek:outbound-po-draft";
+
+function restoreOutboundDraft(): {
+  draft: OutboundDraft;
+  nextId: number;
+} {
+  const blank = blankDraft();
+  if (typeof window === "undefined") return { draft: blank, nextId: 2 };
+  try {
+    const stored = window.sessionStorage.getItem(OUTBOUND_DRAFT_STORAGE_KEY);
+    if (!stored) return { draft: blank, nextId: 2 };
+    const parsed = JSON.parse(stored) as OutboundDraft;
+    if (!parsed || !Array.isArray(parsed.items) || parsed.items.length === 0) {
+      return { draft: blank, nextId: 2 };
+    }
+    const maxId = parsed.items.reduce((max, item) => {
+      const match = item.clientId.match(/^outbound-item-(\d+)$/);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 1);
+    return { draft: parsed, nextId: maxId + 1 };
+  } catch {
+    return { draft: blank, nextId: 2 };
+  }
+}
+
 export default function OutboundLogisticsManager({
   pics,
   purchaseOrders,
@@ -264,13 +284,15 @@ export default function OutboundLogisticsManager({
   mode,
 }: OutboundLogisticsManagerProps) {
   const router = useRouter();
-  const nextItemId = useRef(2);
+  const nextItemId = useRef(restoreOutboundDraft().nextId);
   const conditionCameraInputRef = useRef<HTMLInputElement>(null);
   const conditionGalleryInputRef = useRef<HTMLInputElement>(null);
   const customerPoInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
   const [createOpen, setCreateOpen] = useState(false);
-  const [draft, setDraft] = useState<OutboundDraft>(() => blankDraft());
+  const [draft, setDraft] = useState<OutboundDraft>(
+    () => restoreOutboundDraft().draft,
+  );
   const [customerPoFile, setCustomerPoFile] = useState<File | null>(null);
   const [customerPoError, setCustomerPoError] = useState<string | null>(null);
   const [activePurchaseOrder, setActivePurchaseOrder] =
@@ -278,7 +300,6 @@ export default function OutboundLogisticsManager({
   const [dispatchDraft, setDispatchDraft] = useState({
     picId: pics[0]?.id ?? "",
     dispatchedAt: getCatalogInventoryLocalDateKey(),
-    deliveryNoteNumber: "",
   });
   const [dispatchItemDrafts, setDispatchItemDrafts] = useState<
     Record<string, DispatchItemDraft>
@@ -301,6 +322,29 @@ export default function OutboundLogisticsManager({
       ),
     [draft.items],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const firstItem = draft.items[0];
+    const isBlank =
+      draft.items.length === 1 &&
+      !draft.poNumber &&
+      !draft.userName &&
+      !draft.projectName &&
+      (!firstItem || (!firstItem.catalogItemId && !firstItem.partName));
+    if (isBlank) {
+      window.sessionStorage.removeItem(OUTBOUND_DRAFT_STORAGE_KEY);
+    } else {
+      try {
+        window.sessionStorage.setItem(
+          OUTBOUND_DRAFT_STORAGE_KEY,
+          JSON.stringify(draft),
+        );
+      } catch {
+        // storage full or unavailable
+      }
+    }
+  }, [draft]);
   let exportRangeError: string | null = null;
   try {
     getLogisticsPoExportRange(exportMonth, exportMonth);
@@ -416,8 +460,21 @@ export default function OutboundLogisticsManager({
     }
     startTransition(async () => {
       const result = await createMektekOutboundPurchaseOrder({
-        ...draft,
-        items: draft.items.map(toOutboundPurchaseOrderItem),
+        poNumber: draft.poNumber.trim(),
+        userName: draft.userName.trim(),
+        projectName: draft.projectName.trim(),
+        inputDate: draft.inputDate,
+        dueDate: draft.dueDate,
+        poType: draft.poType,
+        notes: (draft.notes ?? "").trim(),
+        items: draft.items.map((item) =>
+          toOutboundPurchaseOrderItem({
+            ...item,
+            partName: item.partName.trim(),
+            partNumber: item.partNumber.trim(),
+            note: item.note.trim(),
+          }),
+        ),
       });
       if (!result || "error" in result) {
         toast.error(result?.error || "Gagal membuat Monitoring PO");
@@ -435,6 +492,9 @@ export default function OutboundLogisticsManager({
         );
       }
       toast.success(`Monitoring PO ${result.data.poNumber} berhasil dibuat`);
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(OUTBOUND_DRAFT_STORAGE_KEY);
+      }
       nextItemId.current = 2;
       setDraft(blankDraft());
       setCustomerPoFile(null);
@@ -449,7 +509,6 @@ export default function OutboundLogisticsManager({
     setDispatchDraft({
       picId: pics[0]?.id ?? "",
       dispatchedAt: getCatalogInventoryLocalDateKey(),
-      deliveryNoteNumber: "",
     });
     setDispatchItemDrafts(
       Object.fromEntries(
@@ -461,6 +520,36 @@ export default function OutboundLogisticsManager({
     );
     setDispatchImage(null);
     setDispatchImageError(null);
+  };
+
+  const duplicatePurchaseOrder = (purchaseOrder: OutboundPurchaseOrder) => {
+    const items = purchaseOrder.items.map((item, index) => ({
+      clientId: `outbound-item-${index + 1}`,
+      source: item.source,
+      catalogItemId: item.catalogItemId ?? "",
+      catalogQuery:
+        item.source === "CATALOG" && item.catalogItemId
+          ? `${item.partName} · ${item.partNumber || "Tanpa PN"}`
+          : "",
+      partName: item.partName,
+      partNumber: item.partNumber ?? "",
+      orderedQuantity: String(item.orderedQuantity),
+      note: item.note ?? "",
+    }));
+    nextItemId.current = items.length + 1;
+    setDraft({
+      poNumber: "",
+      userName: purchaseOrder.userName,
+      projectName: purchaseOrder.projectName,
+      inputDate: getCatalogInventoryLocalDateKey(),
+      dueDate: getCatalogInventoryLocalDateKey(),
+      poType: purchaseOrder.poType,
+      notes: purchaseOrder.notes ?? "",
+      items,
+    });
+    setCustomerPoFile(null);
+    setCustomerPoError(null);
+    setCreateOpen(true);
   };
 
   const updateDispatchItem = <K extends keyof DispatchItemDraft>(
@@ -514,11 +603,8 @@ export default function OutboundLogisticsManager({
     startTransition(async () => {
       const result = await recordMektekOutboundPurchaseOrderDispatch({
         purchaseOrderId: activePurchaseOrder.id,
-        ...dispatchDraft,
-        deliveryNoteNumber: buildAutoDeliveryNoteNumber(
-          activePurchaseOrder.poNumber,
-          dispatchDraft.dispatchedAt,
-        ),
+        picId: dispatchDraft.picId,
+        dispatchedAt: dispatchDraft.dispatchedAt,
         items,
       });
       if (!result || "error" in result) {
@@ -1114,7 +1200,7 @@ export default function OutboundLogisticsManager({
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-wrap justify-end gap-2">
                         {purchaseOrder.hasCustomerPoImage && (
                           <Button
                             type="button"
@@ -1133,6 +1219,17 @@ export default function OutboundLogisticsManager({
                             </a>
                           </Button>
                         )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => duplicatePurchaseOrder(purchaseOrder)}
+                          aria-label={`Duplikat ${purchaseOrder.poNumber}`}
+                          title="Duplikat PO"
+                        >
+                          <Copy data-icon="inline-start" />
+                          <span className="hidden sm:inline">Duplikat</span>
+                        </Button>
                         <Button type="button" variant="outline" size="sm" onClick={() => openPurchaseOrder(purchaseOrder)}>
                           <ReceiptText data-icon="inline-start" /> Detail
                         </Button>
@@ -1142,8 +1239,27 @@ export default function OutboundLogisticsManager({
                 ))}
                 {purchaseOrders.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">
-                      Belum ada Monitoring PO yang cocok dengan filter.
+                    <td colSpan={10} className="px-4 py-12 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <Truck className="size-8 text-muted-foreground" aria-hidden="true" />
+                        <div>
+                          <p className="text-sm font-medium">Belum ada Monitoring PO</p>
+                          <p className="text-xs text-muted-foreground">
+                            Buat PO pengiriman pertama untuk mulai mencatat Barang Keluar.
+                          </p>
+                        </div>
+                        {mode === "overview" && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => setCreateOpen(true)}
+                            disabled={isPending}
+                          >
+                            <Plus data-icon="inline-start" />
+                            Buat PO Pengiriman
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -1317,15 +1433,14 @@ export default function OutboundLogisticsManager({
                       <Label htmlFor="outbound-delivery-note-number">
                         Nomor Surat Jalan
                       </Label>
-                      <Input
+                      <div
                         id="outbound-delivery-note-number"
-                        value={buildAutoDeliveryNoteNumber(activePurchaseOrder.poNumber, dispatchDraft.dispatchedAt)}
-                        readOnly
-                        disabled={isPending}
-                        aria-readonly
-                      />
+                        className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm text-muted-foreground"
+                      >
+                        Dibuat otomatis saat disimpan
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        Dibuat otomatis berdasarkan PO No. dan tanggal pengiriman.
+                        Format YYMMNN (tahun-bulan-urutan), unik per bulan.
                       </p>
                     </div>
                     <div className="space-y-1.5">

@@ -11,6 +11,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "./components/app-sidebar";
+import { CommandPalette } from "./components/command-palette";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
 
 export const metadata: Metadata = {
@@ -78,8 +79,15 @@ export default async function AppLayout({
   return (
     <SidebarProvider defaultOpen={sidebarOpen}>
       <AppSidebar session={session} />
-      <SidebarInset>
-        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
+      <SidebarInset className="h-svh overflow-hidden">
+        <CommandPalette user={session?.user ?? null} locale={locale} />
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:border focus:ring-2 focus:ring-ring"
+        >
+          Lompat ke konten utama
+        </a>
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
           <SidebarTrigger
             aria-label="Buka menu navigasi"
             className="size-9 shrink-0"
@@ -90,10 +98,10 @@ export default async function AppLayout({
             </p>
           </div>
         </header>
-        <div className="flex flex-col flex-grow overflow-y-auto h-full w-full min-w-0">
-          <div className="flex-grow py-5 w-full min-w-0">
-            <div className="w-full px-4 min-w-0">
-              {children} 
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto w-full min-w-0">
+          <div className="w-full min-w-0 py-5">
+            <div id="main-content" className="w-full min-w-0 px-4">
+              {children}
             </div>
           </div>
         </div>

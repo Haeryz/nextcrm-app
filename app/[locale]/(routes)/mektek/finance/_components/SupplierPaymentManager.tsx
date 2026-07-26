@@ -45,6 +45,7 @@ export type SupplierPaymentSource = {
   pricingComplete: boolean;
   supplierInvoiceImageAvailable: boolean;
   deliveryNoteImageAvailable: boolean;
+  signedPoImageAvailable: boolean;
   expectedSubtotal: number | null;
   pricingIssues: Array<{
     description: string;
@@ -382,7 +383,7 @@ export default function SupplierPaymentManager({
                       key: "purchaseOrder" as const,
                       title: "Purchase Order",
                       value: selected.poNumber,
-                      available: Boolean(selected.purchaseOrderId),
+                      available: selected.signedPoImageAvailable,
                     },
                     {
                       key: "supplierInvoice" as const,
@@ -472,8 +473,8 @@ export default function SupplierPaymentManager({
                       title="Purchase Order"
                       reference={selected.poNumber}
                       href={sourceDocumentHref("purchase-order")}
-                      available={Boolean(selected.purchaseOrderId)}
-                      unavailableMessage="Purchase Order tidak ditemukan."
+                      available={selected.signedPoImageAvailable}
+                      unavailableMessage="PO yang ditandatangani belum diunggah oleh Receiving."
                       recoveryHref={receivingHref}
                     />
                     <InlineDocumentPreview

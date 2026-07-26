@@ -1,4 +1,8 @@
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
+import {
+  LiveFilterSelect,
+  LiveSearchInput,
+} from "@/app/[locale]/(routes)/mektek/_components/live-filters";
 import Link from "next/link";
 
 import { listMektekCatalogInventoryItems } from "@/actions/mektek/catalog-inventory";
@@ -7,14 +11,6 @@ import { canManageMektekCatalog } from "@/lib/mektek/permissions";
 import { getServerSession } from "@/lib/session";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { getExistingCatalogImagePath } from "@/lib/catalog-images";
 import { getPaginationItems } from "@/lib/pagination";
 import CatalogItemManager from "./_components/CatalogItemManager";
@@ -75,11 +71,13 @@ export default async function MektekCatalogItemsPage({
   if (query) queryString.set("q", query);
   if (machine) queryString.set("machine", machine);
   if (productionChannel) queryString.set("channel", productionChannel);
+  const itemsBase = `/${locale}/mektek/items`;
+  const currentQuery = queryString.toString();
 
   const pageHref = (targetPage: number) => {
     const paramsForPage = new URLSearchParams(queryString);
     paramsForPage.set("page", String(targetPage));
-    return `/${locale}/mektek/items?${paramsForPage.toString()}`;
+    return `${itemsBase}?${paramsForPage.toString()}`;
   };
 
   return (
@@ -90,35 +88,41 @@ export default async function MektekCatalogItemsPage({
       <div className="flex flex-col gap-6">
         <Card className="sticky top-0 z-30">
           <CardContent className="p-4">
-            <form
-              action={`/${locale}/mektek/items`}
-              className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_180px_190px_auto_auto]"
-            >
-              <Input
-                name="q"
-                placeholder="Cari Item Name, Machine, Part Number, atau lokasi"
+            <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_190px_auto]">
+              <LiveSearchInput
+                basePath={itemsBase}
+                currentQuery={currentQuery}
+                paramName="q"
                 defaultValue={query}
+                placeholder="Cari Item Name, Machine, Part Number, atau lokasi"
+                ariaLabel="Cari Catalog Item"
               />
-              <Input name="machine" placeholder="Machine" defaultValue={machine} />
-              <Select name="channel" defaultValue={productionChannel || "ALL"}>
-                <SelectTrigger aria-label="Filter Production Channel">
-                  <SelectValue placeholder="Production Channel" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Semua channel</SelectItem>
-                  <SelectItem value="POWERTRAIN">Powertrain</SelectItem>
-                  <SelectItem value="THERMAL">Thermal</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button type="submit" variant="outline" className="w-full lg:w-auto">
-                Filter
-              </Button>
+              <LiveSearchInput
+                basePath={itemsBase}
+                currentQuery={currentQuery}
+                paramName="machine"
+                defaultValue={machine}
+                placeholder="Machine"
+                ariaLabel="Filter Machine"
+              />
+              <LiveFilterSelect
+                basePath={itemsBase}
+                currentQuery={currentQuery}
+                paramName="channel"
+                defaultValue={productionChannel}
+                ariaLabel="Filter Production Channel"
+                options={[
+                  { value: "ALL", label: "Semua channel" },
+                  { value: "POWERTRAIN", label: "Powertrain" },
+                  { value: "THERMAL", label: "Thermal" },
+                ]}
+              />
               {(query || machine || productionChannel) && (
                 <Button asChild type="button" variant="ghost" className="w-full lg:w-auto">
-                  <Link href={`/${locale}/mektek/items`}>Reset Filter</Link>
+                  <Link href={itemsBase}>Reset Filter</Link>
                 </Button>
               )}
-            </form>
+            </div>
           </CardContent>
         </Card>
 

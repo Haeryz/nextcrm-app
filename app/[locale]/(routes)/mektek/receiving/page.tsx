@@ -3,16 +3,12 @@ import { Download } from "lucide-react";
 
 import { listMektekReceivingPurchaseOrders } from "@/actions/mektek/logistics";
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
+import {
+  LiveFilterSelect,
+  LiveSearchInput,
+} from "@/app/[locale]/(routes)/mektek/_components/live-filters";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { authOptions } from "@/lib/auth";
 import { canManageMektekLogistics } from "@/lib/mektek/permissions";
 import { getPaginationItems } from "@/lib/pagination";
@@ -125,6 +121,9 @@ export default async function MektekReceivingPage({
     return `/${locale}/mektek/receiving?${paramsForPage.toString()}`;
   };
 
+  const receivingBase = `/${locale}/mektek/receiving`;
+  const currentQuery = queryString.toString();
+
   return (
     <Container
       title="Receiving"
@@ -145,36 +144,33 @@ export default async function MektekReceivingPage({
 
         <Card className="sticky top-0 z-30">
           <CardContent className="p-4">
-            <form
-              action={`/${locale}/mektek/receiving`}
-              className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_180px_auto_auto]"
-            >
-              <Input
-                name="q"
-                type="search"
-                placeholder="Cari PO, supplier, project, atau item..."
+            <div className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_180px_auto]">
+              <LiveSearchInput
+                basePath={receivingBase}
+                currentQuery={currentQuery}
+                paramName="q"
                 defaultValue={query}
-                aria-label="Cari data Receiving"
+                placeholder="Cari PO, supplier, project, atau item..."
+                ariaLabel="Cari data Receiving"
               />
-              <Select name="status" defaultValue={status || "ALL"}>
-                <SelectTrigger aria-label="Filter status Receiving">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Semua status</SelectItem>
-                  <SelectItem value="OPEN">Open</SelectItem>
-                  <SelectItem value="CLOSED">Closed</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button type="submit" variant="outline">
-                Filter
-              </Button>
+              <LiveFilterSelect
+                basePath={receivingBase}
+                currentQuery={currentQuery}
+                paramName="status"
+                defaultValue={status}
+                ariaLabel="Filter status Receiving"
+                options={[
+                  { value: "ALL", label: "Semua status" },
+                  { value: "OPEN", label: "Open" },
+                  { value: "CLOSED", label: "Closed" },
+                ]}
+              />
               {(query || status) && (
                 <Button asChild type="button" variant="ghost">
-                  <Link href={`/${locale}/mektek/receiving`}>Reset Filter</Link>
+                  <Link href={receivingBase}>Reset Filter</Link>
                 </Button>
               )}
-            </form>
+            </div>
           </CardContent>
         </Card>
 

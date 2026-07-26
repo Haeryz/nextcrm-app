@@ -11,7 +11,7 @@ import {
 } from "@react-pdf/renderer";
 
 export type MektekDeliveryNoteData = {
-  deliveryNoteNumber: string;
+  deliveryNoteNumber: string | null;
   receivedAt: Date;
   recipientName: string;
   projectName: string;
@@ -142,12 +142,18 @@ function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
       React.createElement(
         View,
         { style: styles.documentBar },
-        React.createElement(
-          View,
-          { style: { flexDirection: "row", alignItems: "baseline" } },
-          React.createElement(Text, { style: styles.documentTitle }, "SURAT JALAN : "),
-          React.createElement(Text, { style: styles.documentNumber }, data.deliveryNoteNumber),
-        ),
+        data.deliveryNoteNumber
+          ? React.createElement(
+              View,
+              { style: { flexDirection: "row", alignItems: "baseline" } },
+              React.createElement(Text, { style: styles.documentTitle }, "SURAT JALAN : "),
+              React.createElement(Text, { style: styles.documentNumber }, data.deliveryNoteNumber),
+            )
+          : React.createElement(
+              View,
+              { style: { flexDirection: "row", alignItems: "baseline" } },
+              React.createElement(Text, { style: styles.documentTitle }, "SURAT JALAN TANDA TERIMA"),
+            ),
         React.createElement(
           Text,
           { style: styles.documentDate },

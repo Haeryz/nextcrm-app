@@ -2,7 +2,6 @@ import type { NextRequest } from "next/server";
 
 import { authOptions } from "@/lib/auth";
 import { canViewMektekFinance } from "@/lib/mektek/permissions";
-import { renderPurchaseOrderPreviewSvg } from "@/lib/mektek/purchase-order-preview-svg";
 import { parseSupplierPayableSnapshot } from "@/lib/mektek/supplier-payment";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
@@ -52,7 +51,18 @@ export async function GET(
 
   const purchaseOrder = await prismadb.logisticsPurchaseOrder.findFirst({
     where: { id: snapshot.purchaseOrderId, flow: "RECEIVING" },
-    include: { items: { orderBy: { position: "asc" } } },
+    select: {
+      poNumber: true,
+      signedPoImageData: true,
+      signedPoImageMimeType: true,
+      signedPoImageUpdatedAt: true,
+      supplierInvoiceImageData: true,
+      supplierInvoiceImageMimeType: true,
+      supplierInvoiceImageUpdatedAt: true,
+      deliveryNoteImageData: true,
+      deliveryNoteImageMimeType: true,
+      deliveryNoteImageUpdatedAt: true,
+    },
   });
   if (!purchaseOrder) {
     return new Response("Purchase Order Receiving tidak ditemukan", {
@@ -62,23 +72,25 @@ export async function GET(
 
   const safePoNumber = safeDocumentName(purchaseOrder.poNumber);
   if (document === "purchase-order") {
-    const svg = renderPurchaseOrderPreviewSvg({
-      ...purchaseOrder,
-      items: purchaseOrder.items.map((item) => ({
-        position: item.position,
-        partName: item.partName,
-        partNumber: item.partNumber,
-        orderedQuantity: item.orderedQuantity,
-        unitPrice: Number(item.agreedUnitPrice || 0),
-      })),
-    });
-    return new Response(svg, {
+    if (!purchaseOrder.signedPoImageData || !purchaseOrder.signedPoImageMimeType) {
+      return new Response(
+        "PO yang ditandatangani belum diunggah oleh Receiving",
+        { status: 404 },
+      );
+    }
+    const extension =
+      purchaseOrder.signedPoImageMimeType === "image/png"
+        ? "png"
+        : purchaseOrder.signedPoImageMimeType === "image/webp"
+          ? "webp"
+          : "jpg";
+    return new Response(Buffer.from(purchaseOrder.signedPoImageData), {
       headers: {
-        "Content-Type": "image/svg+xml; charset=utf-8",
-        "Content-Disposition": `inline; filename="purchase-order-${safePoNumber}.svg"`,
+        "Content-Type": purchaseOrder.signedPoImageMimeType,
+        "Content-Length": String(purchaseOrder.signedPoImageData.byteLength),
+        "Content-Disposition": `inline; filename="po-ttd-${safePoNumber}.${extension}"`,
         "Cache-Control": "private, no-store",
-        "Content-Security-Policy":
-          "default-src 'none'; style-src 'unsafe-inline'; sandbox",
+        ETag: `"${purchaseOrder.signedPoImageUpdatedAt?.getTime() || 0}-${purchaseOrder.signedPoImageData.byteLength}"`,
         "X-Content-Type-Options": "nosniff",
       },
     });

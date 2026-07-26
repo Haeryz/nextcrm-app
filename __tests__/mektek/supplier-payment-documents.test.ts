@@ -12,8 +12,8 @@ describe("Finance supplier-payment document inspection", () => {
 
     expect(route).toContain("canViewMektekFinance");
     expect(route).toContain("financePayableSource.findUnique");
-    expect(route).toContain("renderPurchaseOrderPreviewSvg");
-    expect(route).toContain('"Content-Type": "image/svg+xml; charset=utf-8"');
+    expect(route).toContain("signedPoImageData");
+    expect(route).toContain("signedPoImageMimeType");
     expect(route).toContain("supplierInvoiceImageData");
     expect(route).toContain("deliveryNoteImageData");
     expect(route).toContain('"Cache-Control": "private, no-store"');

@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
   ChevronRight,
   Clock3,
+  Copy,
   Eye,
   Loader2,
   MessageCircle,
@@ -242,6 +243,31 @@ function blankPurchaseOrder(): PurchaseOrderDraft {
   };
 }
 
+const RECEIVING_DRAFT_STORAGE_KEY = "mektek:receiving-po-draft";
+
+function restoreReceivingDraft(): {
+  draft: PurchaseOrderDraft;
+  nextId: number;
+} {
+  const blank = blankPurchaseOrder();
+  if (typeof window === "undefined") return { draft: blank, nextId: 2 };
+  try {
+    const stored = window.sessionStorage.getItem(RECEIVING_DRAFT_STORAGE_KEY);
+    if (!stored) return { draft: blank, nextId: 2 };
+    const parsed = JSON.parse(stored) as PurchaseOrderDraft;
+    if (!parsed || !Array.isArray(parsed.items) || parsed.items.length === 0) {
+      return { draft: blank, nextId: 2 };
+    }
+    const maxId = parsed.items.reduce((max, item) => {
+      const match = item.clientId.match(/^item-(\d+)$/);
+      return match ? Math.max(max, Number(match[1])) : max;
+    }, 1);
+    return { draft: parsed, nextId: maxId + 1 };
+  } catch {
+    return { draft: blank, nextId: 2 };
+  }
+}
+
 function formatRupiah(value: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
@@ -374,7 +400,7 @@ export default function ReceivingManager({
 }: ReceivingManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const nextItemId = useRef(2);
+  const nextItemId = useRef(restoreReceivingDraft().nextId);
   const supplierInvoiceInputRef = useRef<HTMLInputElement>(null);
   const deliveryNoteInputRef = useRef<HTMLInputElement>(null);
   const mektekDeliveryNoteInputRef = useRef<HTMLInputElement>(null);
@@ -390,8 +416,8 @@ export default function ReceivingManager({
     useTransition();
   const [isSelectingDeliveryNoteSource, startSelectingDeliveryNoteSource] =
     useTransition();
-  const [createValue, setCreateValue] = useState<PurchaseOrderDraft>(() =>
-    blankPurchaseOrder(),
+  const [createValue, setCreateValue] = useState<PurchaseOrderDraft>(
+    () => restoreReceivingDraft().draft,
   );
   const [activeReceiptPurchaseOrder, setActiveReceiptPurchaseOrder] =
     useState<LogisticsPurchaseOrderRow | null>(
@@ -427,6 +453,30 @@ export default function ReceivingManager({
       ),
     [createValue.items],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const firstItem = createValue.items[0];
+    const isBlank =
+      createValue.items.length === 1 &&
+      !createValue.poNumber &&
+      !createValue.supplierName &&
+      !createValue.projectName &&
+      (!firstItem ||
+        (!firstItem.catalogItemId && !firstItem.partName));
+    if (isBlank) {
+      window.sessionStorage.removeItem(RECEIVING_DRAFT_STORAGE_KEY);
+    } else {
+      try {
+        window.sessionStorage.setItem(
+          RECEIVING_DRAFT_STORAGE_KEY,
+          JSON.stringify(createValue),
+        );
+      } catch {
+        // storage full or unavailable
+      }
+    }
+  }, [createValue]);
 
   const updateCreateValue = <K extends keyof PurchaseOrderDraft>(
     key: K,
@@ -539,14 +589,30 @@ export default function ReceivingManager({
   const submitPurchaseOrder = () => {
     startTransition(async () => {
       const result = await createMektekReceivingPurchaseOrder({
-        ...createValue,
-        items: createValue.items.map(toReceivingPurchaseOrderItem),
+        poNumber: createValue.poNumber.trim(),
+        supplierName: createValue.supplierName.trim(),
+        projectName: createValue.projectName.trim(),
+        inputDate: createValue.inputDate,
+        dueDate: createValue.dueDate,
+        poType: createValue.poType,
+        notes: (createValue.notes ?? "").trim(),
+        items: createValue.items.map((item) =>
+          toReceivingPurchaseOrderItem({
+            ...item,
+            partName: item.partName.trim(),
+            partNumber: item.partNumber.trim(),
+            machine: item.machine.trim(),
+          }),
+        ),
       });
       if (!result || "error" in result) {
         toast.error(result?.error || "Gagal membuat Purchase Order");
         return;
       }
       toast.success(`Purchase Order ${result.data.poNumber} berhasil dibuat`);
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem(RECEIVING_DRAFT_STORAGE_KEY);
+      }
       nextItemId.current = 2;
       setCreateValue(blankPurchaseOrder());
       setCreateOpen(false);
@@ -575,6 +641,36 @@ export default function ReceivingManager({
       ),
     );
     setReceiptItemPhotos({});
+  };
+
+  const duplicatePurchaseOrder = (purchaseOrder: LogisticsPurchaseOrderRow) => {
+    const items = purchaseOrder.items.map((item, index) => ({
+      clientId: `item-${index + 1}`,
+      source: item.source,
+      catalogItemId: item.catalogItemId ?? "",
+      catalogQuery:
+        item.source === "CATALOG" && item.catalogItemId
+          ? `${item.partName} · ${item.partNumber || "Tanpa PN"}`
+          : "",
+      partName: item.partName,
+      partNumber: item.partNumber ?? "",
+      machine: item.machine ?? "",
+      warehouse: item.warehouse ?? "REAR",
+      orderedQuantity: String(item.orderedQuantity),
+      unitPrice: item.agreedUnitPrice ?? "",
+    }));
+    nextItemId.current = items.length + 1;
+    setCreateValue({
+      poNumber: "",
+      supplierName: purchaseOrder.supplierName,
+      projectName: purchaseOrder.projectName,
+      inputDate: getCatalogInventoryLocalDateKey(),
+      dueDate: getCatalogInventoryLocalDateKey(),
+      poType: purchaseOrder.poType,
+      notes: purchaseOrder.notes ?? "",
+      items,
+    });
+    setCreateOpen(true);
   };
 
   const selectSupplierDeliveryNote = (file: File | null) => {
@@ -1334,15 +1430,21 @@ export default function ReceivingManager({
                     );
 
                     return (
-                      <Button
+                      <div
                         key={purchaseOrder.id}
-                        type="button"
-                        variant="ghost"
-                        className="h-auto w-full justify-start rounded-none px-4 py-4 text-left whitespace-normal"
+                        role="button"
+                        tabIndex={0}
+                        className="flex w-full cursor-pointer items-center gap-3 rounded-none px-4 py-4 text-left transition-colors hover:bg-muted/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                         onClick={() => setActivePurchaseOrder(purchaseOrder)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setActivePurchaseOrder(purchaseOrder);
+                          }
+                        }}
                         aria-label={`Lihat detail Purchase Order ${purchaseOrder.poNumber}`}
                       >
-                        <div className="grid w-full gap-3 sm:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_auto_auto] sm:items-center">
+                        <div className="grid w-full gap-3 sm:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_auto_auto_auto] sm:items-center">
                           <div className="min-w-0">
                             <p className="truncate font-mono font-semibold">
                               {purchaseOrder.poNumber}
@@ -1371,16 +1473,46 @@ export default function ReceivingManager({
                               {purchaseOrder.items.length} part · {totalRemaining}/{totalOrdered} sisa
                             </span>
                           </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="shrink-0"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              duplicatePurchaseOrder(purchaseOrder);
+                            }}
+                            aria-label={`Duplikat Purchase Order ${purchaseOrder.poNumber}`}
+                            title="Duplikat PO"
+                          >
+                            <Copy data-icon="inline-start" />
+                            <span className="hidden sm:inline">Duplikat</span>
+                          </Button>
                           <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                         </div>
-                      </Button>
+                      </div>
                     );
                   })}
                 </div>
               ) : (
-                <p className="p-8 text-center text-sm text-muted-foreground">
-                  Belum ada Purchase Order Logistics.
-                </p>
+                <div className="flex flex-col items-center gap-3 p-8 text-center">
+                  <PackageCheck className="size-8 text-muted-foreground" aria-hidden="true" />
+                  <div>
+                    <p className="text-sm font-medium">Belum ada Purchase Order Logistics</p>
+                    <p className="text-xs text-muted-foreground">
+                      Buat PO pertama untuk mulai mencatat barang masuk dari supplier.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setCreateOpen(true)}
+                    disabled={isPending}
+                  >
+                    <Plus data-icon="inline-start" />
+                    Buat Purchase Order
+                  </Button>
+                </div>
               )}
             </CardContent>
           </Card>

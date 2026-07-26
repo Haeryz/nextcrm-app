@@ -153,11 +153,13 @@ describe("22 July Logistics revision contract", () => {
   });
 
   it("moves export and created-PO filters into the Monitoring PO page", () => {
-    expect(logisticsPage).toContain('name="q"');
-    expect(logisticsPage).toContain('name="status"');
+    expect(logisticsPage).toContain('paramName="q"');
+    expect(logisticsPage).toContain('paramName="status"');
     expect(logisticsPage).toContain("Reset Filter");
     expect(logisticsPage).toContain("query,");
     expect(logisticsPage).toContain("status,");
+    expect(logisticsPage).toContain("LiveSearchInput");
+    expect(logisticsPage).toContain("LiveFilterSelect");
     expect(outboundManager).toContain("Export Excel Monitoring PO");
     expect(outboundManager).not.toContain("spreadsheetHref");
   });

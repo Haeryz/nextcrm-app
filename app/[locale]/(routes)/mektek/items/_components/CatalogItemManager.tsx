@@ -600,8 +600,18 @@ export default function CatalogItemManager({
             </div>
           ))}
           {items.length === 0 && (
-            <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-              Tidak ada Catalogue Item yang cocok dengan Filter ini.
+            <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
+              <ImagePlus className="size-8 text-muted-foreground" aria-hidden="true" />
+              <div>
+                <p className="text-sm font-medium">Belum ada Catalogue Item</p>
+                <p className="text-xs text-muted-foreground">
+                  Tambahkan spare part pertama untuk mulai mengelola stok.
+                </p>
+              </div>
+              <Button type="button" size="sm" onClick={openCreate} disabled={isPending}>
+                <Plus data-icon="inline-start" />
+                Tambah Spare Part
+              </Button>
             </div>
           )}
         </div>

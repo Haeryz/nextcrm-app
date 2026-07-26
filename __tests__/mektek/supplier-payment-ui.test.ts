@@ -104,10 +104,12 @@ describe("supplier payment Finance workspace", () => {
     expect(manager).toContain("Pratinjau dokumen");
     expect(manager).toContain("supplierInvoiceImageAvailable");
     expect(manager).toContain("deliveryNoteImageAvailable");
+    expect(manager).toContain("signedPoImageAvailable");
     expect(page).toContain("supplierInvoiceImageUpdatedAt");
     expect(page).toContain("deliveryNoteImageUpdatedAt");
-    expect(route).toContain("renderPurchaseOrderPreviewSvg");
-    expect(route).toContain('"Content-Type": "image/svg+xml; charset=utf-8"');
+    expect(page).toContain("signedPoImageUpdatedAt");
+    expect(route).toContain("signedPoImageData");
+    expect(route).toContain("signedPoImageMimeType");
   });
 
   it("renders the Purchase Order as a safe image document", () => {

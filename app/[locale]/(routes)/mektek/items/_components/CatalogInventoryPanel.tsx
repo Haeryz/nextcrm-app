@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import {
+  AlertTriangle,
   ArrowUpDown,
   Download,
   History,
@@ -507,14 +508,14 @@ export default function CatalogInventoryPanel({
           </div>
         </CardHeader>
         <CardContent className="min-w-0 p-0">
-          <div className="overflow-x-auto">
+          <div className="max-h-[70vh] overflow-auto">
             <table className="min-w-max border-collapse text-sm">
               <caption className="sr-only">
                 Kartu stok sparepart {monthLabel(month)} dengan stok masuk harian dan saldo dua gudang
               </caption>
-              <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+              <thead className="sticky top-0 z-20 bg-muted text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="sticky left-0 z-20 min-w-56 border-b border-e bg-muted px-3 py-3 text-left">
+                  <th className="sticky left-0 z-30 min-w-56 border-b border-e bg-muted px-3 py-3 text-left">
                     Item
                   </th>
                   <th className="min-w-28 border-b border-e px-3 py-3 text-left">Channel</th>
@@ -570,6 +571,15 @@ export default function CatalogInventoryPanel({
                         <p className="text-xs text-muted-foreground">
                           {inventory.machine} · {inventory.partNumber || "Tanpa part number"}
                         </p>
+                        {isLowStock && (
+                          <span
+                            className="mt-1 inline-flex items-center gap-1 rounded-md bg-orange-100 px-1.5 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900/40 dark:text-orange-200"
+                            title={`Total stok akhir ${totalClosingStock} di bawah ambang ${LOW_STOCK_THRESHOLD}`}
+                          >
+                            <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+                            Stok Rendah
+                          </span>
+                        )}
                         {inventory.openingStockEditable && (
                           <Button
                             type="button"
@@ -675,8 +685,30 @@ export default function CatalogInventoryPanel({
                 })}
                 {filteredItems.length === 0 && (
                   <tr>
-                    <td colSpan={daysInMonth + 13} className="px-4 py-10 text-center text-muted-foreground">
-                      Tidak ada item yang cocok dengan filter spreadsheet ini.
+                    <td colSpan={daysInMonth + 13} className="px-4 py-10 text-center">
+                      <p className="text-sm text-muted-foreground">
+                        {items.length === 0
+                          ? "Belum ada Catalogue Item pada bulan ini."
+                          : "Tidak ada item yang cocok dengan filter spreadsheet ini."}
+                      </p>
+                      {items.length > 0 && hasActiveFilters && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="mt-3"
+                          onClick={() => {
+                            setQuery("");
+                            setProductionChannel("");
+                            setMovementCategory("");
+                            setQuantityField("TOTAL_CLOSING_STOCK");
+                            setQuantityOperator("LT");
+                            setQuantityValue("");
+                          }}
+                        >
+                          Reset Filter
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 )}

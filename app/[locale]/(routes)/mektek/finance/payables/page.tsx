@@ -57,6 +57,7 @@ export default async function SupplierPaymentsPage() {
             id: true,
             supplierInvoiceImageUpdatedAt: true,
             deliveryNoteImageUpdatedAt: true,
+            signedPoImageUpdatedAt: true,
           },
         })
       : [];
@@ -86,6 +87,9 @@ export default async function SupplierPaymentsPage() {
       ),
       deliveryNoteImageAvailable: Boolean(
         documents?.deliveryNoteImageUpdatedAt,
+      ),
+      signedPoImageAvailable: Boolean(
+        documents?.signedPoImageUpdatedAt,
       ),
       expectedSubtotal: snapshot.expectedSubtotal,
       pricingIssues: snapshot.pricingIssues,

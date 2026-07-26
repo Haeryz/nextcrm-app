@@ -135,7 +135,6 @@ export type MektekOutboundDispatchInput = {
   purchaseOrderId: string;
   picId: string;
   dispatchedAt: string;
-  deliveryNoteNumber: string;
   items: Array<{
     purchaseOrderItemId: string;
     quantity: string | number;
@@ -881,9 +880,6 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
   const purchaseOrderId = compactText(input?.purchaseOrderId);
   const picId = compactText(input?.picId);
   const dispatchedAt = parseDateOnly(input?.dispatchedAt);
-  const deliveryNoteNumber = normalizeLogisticsReference(
-    boundedText(input?.deliveryNoteNumber, MAX_DELIVERY_NOTE_NUMBER_LEN),
-  );
   const rawItems = Array.isArray(input?.items) ? input.items : [];
   const items = rawItems.map((item) => ({
     purchaseOrderItemId: compactText(item?.purchaseOrderItemId),
@@ -894,7 +890,6 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
   if (!purchaseOrderId) return { error: "Purchase Order wajib dipilih" };
   if (!picId) return { error: "PIC wajib dipilih" };
   if (!dispatchedAt) return { error: "Tanggal Keluar tidak valid" };
-  if (!deliveryNoteNumber) return { error: "Nomor Surat Jalan wajib diisi" };
   if (items.length === 0) return { error: "Pilih minimal satu item yang dikirim" };
   if (
     items.some(
@@ -959,20 +954,10 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
           "Tanggal Keluar tidak boleh sebelum Tanggal Input PO",
         );
       }
-      const existingDeliveryNote = await tx.logisticsReceipt.findFirst({
-        where: {
-          receivingReference: {
-            equals: deliveryNoteNumber,
-            mode: "insensitive",
-          },
-        },
-        select: { id: true },
-      });
-      if (existingDeliveryNote) {
-        throw new LogisticsActionError(
-          `Nomor Surat Jalan ${deliveryNoteNumber} sudah digunakan`,
-        );
-      }
+      const deliveryNoteNumber = await buildOutboundDeliveryNoteNumber(
+        tx,
+        dispatchedAt,
+      );
       const byId = new Map(purchaseOrder.items.map((item) => [item.id, item]));
       const validated = items.map((inputItem) => {
         const item = byId.get(inputItem.purchaseOrderItemId);
@@ -1133,6 +1118,49 @@ function buildReceivingReference(poNumber: string) {
   const day = getCatalogInventoryLocalDateKey().replaceAll("-", "");
   return normalizeLogisticsReference(
     `RCV-${poNumber}-${day}-${randomUUID().slice(0, 8)}`,
+  );
+}
+
+function formatOutboundDeliveryNotePrefix(date: Date): string {
+  const year = date.getUTCFullYear() % 100;
+  const month = date.getUTCMonth() + 1;
+  return `${String(year).padStart(2, "0")}${String(month).padStart(2, "0")}`;
+}
+
+async function buildOutboundDeliveryNoteNumber(
+  tx: Prisma.TransactionClient,
+  dispatchedAt: Date,
+): Promise<string> {
+  const prefix = formatOutboundDeliveryNotePrefix(dispatchedAt);
+  const existing = await tx.logisticsReceipt.findMany({
+    where: {
+      receivingReference: { startsWith: prefix },
+      purchaseOrderItem: { purchaseOrder: { flow: "OUTBOUND" } },
+    },
+    select: { receivingReference: true },
+  });
+  let maxSequence = 0;
+  for (const row of existing) {
+    const tail = row.receivingReference.slice(prefix.length);
+    const parsed = Number.parseInt(tail, 10);
+    if (Number.isFinite(parsed) && parsed > maxSequence) {
+      maxSequence = parsed;
+    }
+  }
+  let attempt = maxSequence + 1;
+  for (let guard = 0; guard < 100; guard += 1) {
+    const candidate = `${prefix}${String(attempt).padStart(2, "0")}`;
+    const collision = await tx.logisticsReceipt.findFirst({
+      where: {
+        receivingReference: { equals: candidate, mode: "insensitive" },
+      },
+      select: { id: true },
+    });
+    if (!collision) return candidate;
+    attempt += 1;
+  }
+  throw new LogisticsActionError(
+    "Gagal membuat nomor Surat Jalan unik, coba lagi",
   );
 }
 

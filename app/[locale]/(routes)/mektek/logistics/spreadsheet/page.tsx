@@ -2,16 +2,12 @@ import Link from "next/link";
 
 import { listMektekOutboundPurchaseOrders } from "@/actions/mektek/logistics";
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
+import {
+  LiveFilterSelect,
+  LiveSearchInput,
+} from "@/app/[locale]/(routes)/mektek/_components/live-filters";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { authOptions } from "@/lib/auth";
 import { canManageMektekLogistics } from "@/lib/mektek/permissions";
 import { getPaginationItems } from "@/lib/pagination";
@@ -133,6 +129,9 @@ export default async function MektekLogisticsSpreadsheetPage({
     }),
   );
 
+  const spreadsheetBase = `/${locale}/mektek/logistics/spreadsheet`;
+  const currentQuery = baseParams.toString();
+
   return (
     <Container
       title="Spreadsheet Monitoring PO"
@@ -142,22 +141,33 @@ export default async function MektekLogisticsSpreadsheetPage({
         <div><Button asChild variant="outline"><Link href={`/${locale}/mektek/logistics`}>Kembali ke Monitoring PO</Link></Button></div>
         <Card className="sticky top-0 z-30">
           <CardContent className="p-4">
-            <form
-              action={`/${locale}/mektek/logistics/spreadsheet`}
-              className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_180px_auto_auto]"
-            >
-              <Input name="q" type="search" defaultValue={query} placeholder="Cari PO, Surat Jalan, User, project, atau item" aria-label="Cari Monitoring PO" />
-              <Select name="status" defaultValue={status || "ALL"}>
-                <SelectTrigger aria-label="Filter status Monitoring PO"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">Semua status</SelectItem>
-                  <SelectItem value="OPEN">Open</SelectItem>
-                  <SelectItem value="CLOSED">Closed</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button type="submit" variant="outline">Filter</Button>
-              {(query || status) && <Button asChild type="button" variant="ghost"><Link href={`/${locale}/mektek/logistics/spreadsheet`}>Reset Filter</Link></Button>}
-            </form>
+            <div className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_180px_auto]">
+              <LiveSearchInput
+                basePath={spreadsheetBase}
+                currentQuery={currentQuery}
+                paramName="q"
+                defaultValue={query}
+                placeholder="Cari PO, Surat Jalan, User, project, atau item"
+                ariaLabel="Cari Monitoring PO"
+              />
+              <LiveFilterSelect
+                basePath={spreadsheetBase}
+                currentQuery={currentQuery}
+                paramName="status"
+                defaultValue={status}
+                ariaLabel="Filter status Monitoring PO"
+                options={[
+                  { value: "ALL", label: "Semua status" },
+                  { value: "OPEN", label: "Open" },
+                  { value: "CLOSED", label: "Closed" },
+                ]}
+              />
+              {(query || status) && (
+                <Button asChild type="button" variant="ghost">
+                  <Link href={spreadsheetBase}>Reset Filter</Link>
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
         <OutboundLogisticsManager

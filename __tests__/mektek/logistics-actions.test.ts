@@ -23,6 +23,7 @@ const purchaseOrderItemUpdateMany = jest.fn();
 const purchaseOrderItemCount = jest.fn();
 const receiptCreate = jest.fn();
 const receiptFindFirst = jest.fn();
+const receiptFindMany = jest.fn();
 const logisticsPicFindFirst = jest.fn();
 const catalogItemFindMany = jest.fn();
 const catalogItemFindFirst = jest.fn();
@@ -50,6 +51,7 @@ const transactionClient = {
   logisticsReceipt: {
     create: receiptCreate,
     findFirst: receiptFindFirst,
+    findMany: receiptFindMany,
   },
   logisticsPic: { findFirst: logisticsPicFindFirst },
   catalogItem: {
@@ -129,6 +131,7 @@ describe("MekTek Logistics and Receiving actions", () => {
       partNumber: "SK-CUSTOM-01",
     });
     receiptFindFirst.mockResolvedValue(null);
+    receiptFindMany.mockResolvedValue([]);
     supplyAllocationFindMany.mockResolvedValue([]);
     supplyAllocationCreate.mockResolvedValue({ id: "allocation-1" });
     supplyAllocationUpdateMany.mockResolvedValue({ count: 0 });
@@ -331,7 +334,6 @@ describe("MekTek Logistics and Receiving actions", () => {
       purchaseOrderId: "outbound-1",
       picId: "pic-1",
       dispatchedAt: "2026-07-12",
-      deliveryNoteNumber: "sj-0001",
       items: [
         {
           purchaseOrderItemId: "outbound-item-1",
@@ -346,7 +348,7 @@ describe("MekTek Logistics and Receiving actions", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           purchaseOrderStatus: "OPEN",
-          dispatchReference: "SJ-0001",
+          dispatchReference: "260701",
           itemProgresses: [
             expect.objectContaining({
               orderedQuantity: 10,
@@ -359,7 +361,7 @@ describe("MekTek Logistics and Receiving actions", () => {
     );
     expect(receiptCreate).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        receivingReference: "SJ-0001",
+        receivingReference: "260701",
         quantity: 5,
         warehouse: "REAR",
         note: "Dikirim sebagian",
@@ -383,24 +385,7 @@ describe("MekTek Logistics and Receiving actions", () => {
     });
   });
 
-  it("requires a unique Surat Jalan number for every outbound batch", async () => {
-    const missing = await recordMektekOutboundPurchaseOrderDispatch({
-      purchaseOrderId: "outbound-1",
-      picId: "pic-1",
-      dispatchedAt: "2026-07-12",
-      deliveryNoteNumber: "",
-      items: [
-        {
-          purchaseOrderItemId: "outbound-item-1",
-          quantity: 1,
-          warehouse: "REAR",
-        },
-      ],
-    });
-
-    expect(missing).toEqual({ error: "Nomor Surat Jalan wajib diisi" });
-    expect(transaction).not.toHaveBeenCalled();
-
+  it("auto-generates a sequential YYMMNN delivery note number unique per month", async () => {
     purchaseOrderFindUnique.mockResolvedValue({
       id: "outbound-1",
       poNumber: "PO-OUT-001",
@@ -417,13 +402,17 @@ describe("MekTek Logistics and Receiving actions", () => {
         },
       ],
     });
-    receiptFindFirst.mockResolvedValueOnce({ id: "existing-receipt" });
 
-    const duplicate = await recordMektekOutboundPurchaseOrderDispatch({
+    receiptFindMany.mockResolvedValueOnce([
+      { receivingReference: "260701" },
+      { receivingReference: "260702" },
+      { receivingReference: "260704" },
+    ]);
+
+    const result = await recordMektekOutboundPurchaseOrderDispatch({
       purchaseOrderId: "outbound-1",
       picId: "pic-1",
       dispatchedAt: "2026-07-12",
-      deliveryNoteNumber: "SJ-0001",
       items: [
         {
           purchaseOrderItemId: "outbound-item-1",
@@ -433,10 +422,47 @@ describe("MekTek Logistics and Receiving actions", () => {
       ],
     });
 
-    expect(duplicate).toEqual({
-      error: "Nomor Surat Jalan SJ-0001 sudah digunakan",
+    expect(result).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          dispatchReference: "260705",
+        }),
+      }),
+    );
+    expect(receiptCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        receivingReference: "260705",
+      }),
     });
-    expect(receiptCreate).not.toHaveBeenCalled();
+  });
+
+  it("still requires a valid Surat Jalan flow when transaction validation fails", async () => {
+    purchaseOrderFindUnique.mockResolvedValue({
+      id: "outbound-1",
+      poNumber: "PO-OUT-001",
+      flow: "OUTBOUND",
+      inputDate: new Date("2026-07-01T00:00:00.000Z"),
+      items: [
+        {
+          id: "outbound-item-1",
+          catalogItemId: "catalog-1",
+          source: "CATALOG",
+          orderedQuantity: 10,
+          receivedQuantity: 0,
+          status: "OPEN",
+        },
+      ],
+    });
+
+    const missing = await recordMektekOutboundPurchaseOrderDispatch({
+      purchaseOrderId: "outbound-1",
+      picId: "pic-1",
+      dispatchedAt: "2026-07-12",
+      items: [],
+    });
+
+    expect(missing).toEqual({ error: "Pilih minimal satu item yang dikirim" });
+    expect(transaction).not.toHaveBeenCalled();
   });
 
   it("creates a Receiving PO from Catalog snapshots without changing stock", async () => {
