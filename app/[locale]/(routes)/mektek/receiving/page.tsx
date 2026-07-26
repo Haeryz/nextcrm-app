@@ -143,7 +143,7 @@ export default async function MektekReceivingPage({
           </Button>
         </div>
 
-        <Card>
+        <Card className="sticky top-0 z-30">
           <CardContent className="p-4">
             <form
               action={`/${locale}/mektek/receiving`}
@@ -192,16 +192,25 @@ export default async function MektekReceivingPage({
             ({
               deliveryNoteImageData,
               supplierInvoiceImageData,
+              mektekDeliveryNoteImageData,
+              signedPoImageData,
               ...purchaseOrder
             }) => ({
             ...purchaseOrder,
             hasDeliveryNoteImage: Boolean(deliveryNoteImageData),
             deliveryNoteImageUpdatedAt:
               purchaseOrder.deliveryNoteImageUpdatedAt?.toISOString() ?? null,
+            hasMektekDeliveryNoteImage: Boolean(mektekDeliveryNoteImageData),
+            mektekDeliveryNoteImageUpdatedAt:
+              purchaseOrder.mektekDeliveryNoteImageUpdatedAt?.toISOString() ??
+              null,
             hasSupplierInvoiceImage: Boolean(supplierInvoiceImageData),
             supplierInvoiceImageUpdatedAt:
               purchaseOrder.supplierInvoiceImageUpdatedAt?.toISOString() ??
               null,
+            hasSignedPoImage: Boolean(signedPoImageData),
+            signedPoImageUpdatedAt:
+              purchaseOrder.signedPoImageUpdatedAt?.toISOString() ?? null,
             inputDate: purchaseOrder.inputDate.toISOString(),
             dueDate: purchaseOrder.dueDate.toISOString(),
             createdAt: purchaseOrder.createdAt.toISOString(),

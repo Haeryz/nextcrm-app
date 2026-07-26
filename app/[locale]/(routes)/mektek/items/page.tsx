@@ -88,7 +88,7 @@ export default async function MektekCatalogItemsPage({
       description="Master sparepart terintegrasi dengan Monitoring PO, Receiving, dan inventory"
     >
       <div className="flex flex-col gap-6">
-        <Card>
+        <Card className="sticky top-0 z-30">
           <CardContent className="p-4">
             <form
               action={`/${locale}/mektek/items`}

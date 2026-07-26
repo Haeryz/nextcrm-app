@@ -110,9 +110,9 @@ describe("22 July Logistics revision contract", () => {
   });
 
   it("uses the requested three approval roles on Receiving purchase orders", () => {
-    expect(purchaseOrderPdf).toContain("Finance Accounting");
-    expect(purchaseOrderPdf).toContain("Department Purchasing");
-    expect(purchaseOrderPdf).toContain("Purchasing Admin");
+    expect(purchaseOrderPdf).toContain("Dept. FA");
+    expect(purchaseOrderPdf).toContain("Dept. Purch");
+    expect(purchaseOrderPdf).toContain("Purchasing Adm.");
   });
 
   it("restores Catalog item creation while retaining inventory mutation", () => {

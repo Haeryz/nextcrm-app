@@ -1,6 +1,8 @@
 import React from "react";
+import { resolve } from "node:path";
 import {
   Document,
+  Image,
   Page,
   StyleSheet,
   Text,
@@ -27,6 +29,11 @@ export type MektekPurchaseOrderPdfData = {
 
 const borderColor = "#202020";
 
+const logoPath = resolve(
+  process.cwd(),
+  "public/images/logo-pt-mektek-tanjung-lestari.jpg",
+);
+
 const styles = StyleSheet.create({
   page: {
     paddingHorizontal: 28,
@@ -43,17 +50,12 @@ const styles = StyleSheet.create({
     borderBottomColor: borderColor,
     paddingBottom: 7,
   },
-  logoBox: {
+  logo: {
     width: 52,
     height: 38,
-    borderWidth: 2,
-    borderColor: "#214c75",
-    backgroundColor: "#e4d84f",
-    alignItems: "center",
-    justifyContent: "center",
+    objectFit: "contain",
     marginRight: 10,
   },
-  logoText: { fontFamily: "Helvetica-Bold", fontSize: 18, color: "#214c75" },
   companyRow: { flexDirection: "row", alignItems: "center" },
   companyName: { fontFamily: "Helvetica-Bold", fontSize: 13 },
   companyMeta: { width: 245, lineHeight: 1.35 },
@@ -178,9 +180,8 @@ function PurchaseOrderDocument({ data }: { data: MektekPurchaseOrderPdfData }) {
       <Page size="A4" style={styles.page}>
         <View style={styles.companyHeader}>
           <View style={styles.companyRow}>
-            <View style={styles.logoBox}>
-              <Text style={styles.logoText}>MT</Text>
-            </View>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            <Image style={styles.logo} src={logoPath} />
             <Text style={styles.companyName}>PT. MEKTEK TANJUNG LESTARI</Text>
           </View>
           <View style={styles.companyMeta}>
@@ -271,17 +272,15 @@ function PurchaseOrderDocument({ data }: { data: MektekPurchaseOrderPdfData }) {
           <View style={styles.signatureRow}>
             <View style={styles.signature}>
               <Text>SIGNED / NAME / DATE</Text>
-              <Text style={styles.signatureLine}>SUPPLIER</Text>
+              <Text style={styles.signatureLine}>Dept. FA</Text>
             </View>
             <View style={styles.signature}>
               <Text>APPROVED BY</Text>
-              <Text style={styles.signatureLine}>Finance Accounting</Text>
+              <Text style={styles.signatureLine}>Dept. Purch</Text>
             </View>
             <View style={styles.signature}>
               <Text>AUTHORIZED PERSON</Text>
-              <Text style={styles.signatureLine}>
-                Department Purchasing / Purchasing Admin
-              </Text>
+              <Text style={styles.signatureLine}>Purchasing Adm.</Text>
             </View>
           </View>
         </View>

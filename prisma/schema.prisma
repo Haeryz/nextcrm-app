@@ -460,6 +460,7 @@ model CatalogItem {
 
   inventoryMonths CatalogInventoryMonth[]
   stockMovements  CatalogStockMovement[]
+  consignmentSites CatalogConsignmentSite[]
   logisticsItems  LogisticsPurchaseOrderItem[]
 
   @@index([machine])
@@ -495,17 +496,39 @@ model CatalogStockMovement {
   quantity         Int
   occurredAt       DateTime
   note             String?
+  counterpartyName String?
+  consignmentSiteId String?                   @db.Uuid
   source           CatalogStockMovementSource @default(MANUAL)
   sourceId         String?
   createdBy        String?                    @db.Uuid
   createdAt        DateTime                   @default(now())
 
-  item           CatalogItem           @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
-  inventoryMonth CatalogInventoryMonth @relation(fields: [inventoryMonthId], references: [id], onDelete: Cascade)
+  item           CatalogItem            @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  inventoryMonth CatalogInventoryMonth  @relation(fields: [inventoryMonthId], references: [id], onDelete: Cascade)
+  consignmentSite CatalogConsignmentSite? @relation(fields: [consignmentSiteId], references: [id], onDelete: SetNull)
 
   @@unique([source, sourceId])
   @@index([catalogItemId, occurredAt])
   @@index([inventoryMonthId])
+  @@index([consignmentSiteId])
+}
+
+model CatalogConsignmentSite {
+  id            String   @id @default(uuid()) @db.Uuid
+  catalogItemId String
+  siteName      String
+  projectKey    String?
+  stock         Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  item       CatalogItem            @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  movements  CatalogStockMovement[]
+
+  @@unique([catalogItemId, siteName])
+  @@index([catalogItemId])
+  @@index([siteName])
+  @@index([projectKey])
 }
 
 model CatalogServiceLink {
@@ -551,6 +574,15 @@ model LogisticsPurchaseOrder {
   supplierInvoiceImageData      Bytes?
   supplierInvoiceImageMimeType  String?
   supplierInvoiceImageUpdatedAt DateTime?
+  mektekDeliveryNoteImageData         Bytes?
+  mektekDeliveryNoteImageMimeType     String?
+  mektekDeliveryNoteImageUpdatedAt    DateTime?
+  customerPoImageData         Bytes?
+  customerPoImageMimeType     String?
+  customerPoImageUpdatedAt    DateTime?
+  signedPoImageData           Bytes?
+  signedPoImageMimeType       String?
+  signedPoImageUpdatedAt      DateTime?
   receivingDeliveryNoteSource   LogisticsReceivingDeliveryNoteSource?
   notes                         String?
   createdBy                     String?                               @db.Uuid

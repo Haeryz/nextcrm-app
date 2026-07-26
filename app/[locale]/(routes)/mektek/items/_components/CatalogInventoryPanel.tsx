@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import {
   ArrowUpDown,
   Download,
+  History,
   Loader2,
   PackageMinus,
   PackagePlus,
@@ -13,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import {
+  listMektekCatalogStockMovements,
   recordMektekCatalogStockMovement,
   setMektekCatalogOpeningStock,
 } from "@/actions/mektek/catalog-inventory";
@@ -37,11 +39,14 @@ import {
 } from "@/components/ui/select";
 import {
   filterCatalogInventorySnapshots,
+  getCatalogMovementCategory,
+  getCatalogMovementCategoryLabel,
   getCatalogProductionChannelLabel,
   getCatalogInventoryLocalDateKey,
   type CatalogInventorySnapshot,
   type CatalogInventoryQuantityField,
   type CatalogInventoryQuantityOperator,
+  type CatalogMovementCategory,
   type CatalogStockDirection,
   type CatalogWarehouse,
 } from "@/lib/mektek/catalog-inventory";
@@ -64,7 +69,40 @@ type MovementDraft = {
   quantity: string;
   occurredOn: string;
   note: string;
+  counterpartyName: string;
 };
+
+type HistoryMovement = {
+  id: string;
+  warehouse: CatalogWarehouse;
+  direction: CatalogStockDirection;
+  quantity: number;
+  occurredAt: Date | string;
+  note: string | null;
+  counterpartyName: string | null;
+  source: string;
+  sourceId: string | null;
+  consignmentSiteName: string | null;
+};
+
+const LOW_STOCK_THRESHOLD = 30;
+
+const STOCK_MOVEMENT_SOURCE_LABEL: Record<string, string> = {
+  MANUAL: "Manual",
+  RECEIVING: "Receiving",
+  OUTBOUND_PO: "Monitoring PO",
+  SERVICE_ORDER: "Service Order",
+};
+
+function formatHistoryTime(value: Date | string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Makassar",
+  }).format(date);
+}
 
 function todayKey() {
   return getCatalogInventoryLocalDateKey();
@@ -90,6 +128,7 @@ function blankMovement(
     quantity: "",
     occurredOn,
     note: "",
+    counterpartyName: "",
   };
 }
 
@@ -125,11 +164,23 @@ export default function CatalogInventoryPanel({
   );
   const [query, setQuery] = useState("");
   const [productionChannel, setProductionChannel] = useState("");
+  const [movementCategory, setMovementCategory] = useState<
+    CatalogMovementCategory | ""
+  >("");
   const [quantityField, setQuantityField] =
     useState<CatalogInventoryQuantityField>("TOTAL_CLOSING_STOCK");
   const [quantityOperator, setQuantityOperator] =
     useState<CatalogInventoryQuantityOperator>("LT");
   const [quantityValue, setQuantityValue] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyItem, setHistoryItem] = useState<
+    CatalogInventoryPanelProps["items"][number] | null
+  >(null);
+  const [historyDay, setHistoryDay] = useState<number | null>(null);
+  const [historyMovements, setHistoryMovements] = useState<HistoryMovement[]>(
+    [],
+  );
+  const [historyLoading, setHistoryLoading] = useState(false);
   const filteredItems = useMemo(() => {
     const matchingIds = new Set(
       filterCatalogInventorySnapshots(
@@ -143,12 +194,23 @@ export default function CatalogInventoryPanel({
           quantityField,
           quantityOperator,
           quantityValue,
+          movementCategory,
         },
       ).map((snapshot) => snapshot.id),
     );
     return items.filter((item) => matchingIds.has(item.id));
-  }, [items, productionChannel, quantityField, quantityOperator, quantityValue, query]);
-  const hasActiveFilters = Boolean(query || productionChannel || quantityValue);
+  }, [
+    items,
+    movementCategory,
+    productionChannel,
+    quantityField,
+    quantityOperator,
+    quantityValue,
+    query,
+  ]);
+  const hasActiveFilters = Boolean(
+    query || productionChannel || movementCategory || quantityValue,
+  );
   const totalRearStock = filteredItems.reduce(
     (sum, item) => sum + item.inventory.closingRearStock,
     0,
@@ -173,6 +235,31 @@ export default function CatalogInventoryPanel({
     setOpeningItem(item);
     setOpeningRearStock(String(item.inventory.openingRearStock));
     setOpeningFrontStock(String(item.inventory.openingFrontStock));
+  };
+
+  const openHistory = (
+    item: CatalogInventoryPanelProps["items"][number],
+    day: number,
+  ) => {
+    const occurredOn = `${month}-${String(day).padStart(2, "0")}`;
+    setHistoryItem(item);
+    setHistoryDay(day);
+    setHistoryMovements([]);
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    startTransition(async () => {
+      const result = await listMektekCatalogStockMovements({
+        catalogItemId: item.id,
+        occurredOn,
+      });
+      if (!result || "error" in result) {
+        toast.error(result?.error || "Gagal memuat riwayat mutasi");
+        setHistoryOpen(false);
+        return;
+      }
+      setHistoryMovements(result.data as HistoryMovement[]);
+      setHistoryLoading(false);
+    });
   };
 
   const submitMovement = () => {
@@ -263,7 +350,7 @@ export default function CatalogInventoryPanel({
       </div>
 
       <Card>
-        <CardHeader className="gap-4 border-b pb-4">
+        <CardHeader className="sticky top-0 z-30 gap-4 border-b bg-card pb-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <CardTitle id="monthly-inventory-title" className="text-base">
@@ -302,7 +389,7 @@ export default function CatalogInventoryPanel({
           </div>
           <div>
             <p className="mb-3 text-sm font-medium">Filter & periode kartu stok</p>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_160px_200px_150px_130px_auto] xl:items-end">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_160px_180px_200px_150px_130px_auto] xl:items-end">
               <div className="space-y-1.5">
                 <Label htmlFor="stock-card-search">Cari seluruh kolom</Label>
                 <Input
@@ -326,6 +413,24 @@ export default function CatalogInventoryPanel({
                     <SelectItem value="ALL">Semua channel</SelectItem>
                     <SelectItem value="POWERTRAIN">Powertrain</SelectItem>
                     <SelectItem value="THERMAL">Thermal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="stock-card-movement">Pergerakan</Label>
+                <Select
+                  value={movementCategory || "ALL"}
+                  onValueChange={(value) =>
+                    setMovementCategory(
+                      value === "ALL" ? "" : (value as CatalogMovementCategory),
+                    )
+                  }
+                >
+                  <SelectTrigger id="stock-card-movement"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Semua pergerakan</SelectItem>
+                    <SelectItem value="FAST_MOVING">Fast Moving</SelectItem>
+                    <SelectItem value="SLOW_MOVING">Slow Moving</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -359,11 +464,11 @@ export default function CatalogInventoryPanel({
                 >
                   <SelectTrigger id="stock-card-operator"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="LT">Kurang dari (&lt;)</SelectItem>
-                    <SelectItem value="LTE">Maksimal (≤)</SelectItem>
-                    <SelectItem value="EQ">Sama dengan (=)</SelectItem>
-                    <SelectItem value="GTE">Minimal (≥)</SelectItem>
-                    <SelectItem value="GT">Lebih dari (&gt;)</SelectItem>
+                    <SelectItem value="LT">{"Kurang dari (<)"}</SelectItem>
+                    <SelectItem value="LTE">{"Maksimal (≤)"}</SelectItem>
+                    <SelectItem value="EQ">{"Sama dengan (=)"}</SelectItem>
+                    <SelectItem value="GTE">{"Minimal (≥)"}</SelectItem>
+                    <SelectItem value="GT">{"Lebih dari (>)"}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -387,6 +492,7 @@ export default function CatalogInventoryPanel({
                 onClick={() => {
                   setQuery("");
                   setProductionChannel("");
+                  setMovementCategory("");
                   setQuantityField("TOTAL_CLOSING_STOCK");
                   setQuantityOperator("LT");
                   setQuantityValue("");
@@ -400,7 +506,7 @@ export default function CatalogInventoryPanel({
             </p>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="min-w-0 p-0">
           <div className="overflow-x-auto">
             <table className="min-w-max border-collapse text-sm">
               <caption className="sr-only">
@@ -412,21 +518,22 @@ export default function CatalogInventoryPanel({
                     Item
                   </th>
                   <th className="min-w-28 border-b border-e px-3 py-3 text-left">Channel</th>
-                  <th className="min-w-24 border-b border-e px-3 py-3 text-right">Awal B.</th>
-                  <th className="min-w-24 border-b border-e px-3 py-3 text-right">Awal D.</th>
+                  <th className="min-w-32 border-b border-e px-3 py-3 text-right">Stok Awal Gudang Belakang</th>
+                  <th className="min-w-32 border-b border-e px-3 py-3 text-right">Stok Awal Gudang Depan</th>
                   {Array.from({ length: daysInMonth }, (_, index) => (
                     <th
                       key={index + 1}
-                      className="w-16 border-b border-e px-2 py-3 text-center font-medium"
+                      className="w-12 border-b border-e px-1 py-3 text-center font-medium"
                     >
                       {index + 1}
                     </th>
                   ))}
                   <th className="min-w-24 border-b border-e px-3 py-3 text-right">Total Masuk</th>
                   <th className="min-w-24 border-b border-e px-3 py-3 text-right">Total Keluar</th>
-                  <th className="min-w-24 border-b border-e px-3 py-3 text-right">Akhir B.</th>
-                  <th className="min-w-24 border-b border-e px-3 py-3 text-right">Akhir D.</th>
+                  <th className="min-w-36 border-b border-e px-3 py-3 text-right">Stok Akhir Gudang Belakang</th>
+                  <th className="min-w-36 border-b border-e px-3 py-3 text-right">Stok Akhir Gudang Depan</th>
                   <th className="min-w-28 border-b border-e px-3 py-3 text-right">Total Akhir</th>
+                  <th className="min-w-28 border-b border-e px-3 py-3 text-left">Pergerakan</th>
                   <th className="min-w-40 border-b border-e px-3 py-3 text-left">Remark</th>
                   <th className="min-w-36 border-b border-e px-3 py-3 text-left">Lokasi B.</th>
                   <th className="min-w-36 border-b border-e px-3 py-3 text-left">Lokasi D.</th>
@@ -435,8 +542,19 @@ export default function CatalogInventoryPanel({
               <tbody>
                 {filteredItems.map((item) => {
                   const inventory = item.inventory;
+                  const totalClosingStock =
+                    inventory.closingRearStock + inventory.closingFrontStock;
+                  const isLowStock = totalClosingStock < LOW_STOCK_THRESHOLD;
+                  const movementCategoryValue = getCatalogMovementCategory(
+                    inventory.totalOutbound,
+                  );
                   return (
-                    <tr key={item.id} className="border-b last:border-b-0 hover:bg-muted/20">
+                    <tr
+                      key={item.id}
+                      className={`border-b last:border-b-0 hover:bg-muted/20 ${
+                        isLowStock ? "bg-orange-100/70 dark:bg-orange-900/20" : ""
+                      }`}
+                    >
                       <th scope="row" className="sticky left-0 z-10 border-e bg-card px-3 py-3 text-left font-normal">
                         <Button
                           type="button"
@@ -475,29 +593,43 @@ export default function CatalogInventoryPanel({
                       <td className="border-e px-3 py-3 text-right font-mono tabular-nums">
                         {inventory.openingFrontStock}
                       </td>
-                      {inventory.dailyMovements.map((daily) => (
-                        <td
-                          key={daily.day}
-                          className="border-e p-1 text-center font-mono tabular-nums"
-                          title={`Masuk: belakang ${daily.inbound.rear}, depan ${daily.inbound.front} · Keluar: belakang ${daily.outbound.rear}, depan ${daily.outbound.front}`}
-                        >
-                          <div className="flex min-h-10 w-full flex-col items-center justify-center px-1">
-                            {daily.inbound.total > 0 && (
-                              <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                                +{daily.inbound.total}
-                              </span>
-                            )}
-                            {daily.outbound.total > 0 && (
-                              <span className="text-xs font-semibold text-destructive">
-                                -{daily.outbound.total}
-                              </span>
-                            )}
-                            {!daily.inbound.total && !daily.outbound.total && (
-                              <span className="text-muted-foreground/50">—</span>
-                            )}
-                          </div>
-                        </td>
-                      ))}
+                      {inventory.dailyMovements.map((daily) => {
+                        const hasActivity =
+                          daily.inbound.total > 0 || daily.outbound.total > 0;
+                        return (
+                          <td
+                            key={daily.day}
+                            className="border-e p-1 text-center font-mono tabular-nums"
+                            title={`Masuk: belakang ${daily.inbound.rear}, depan ${daily.inbound.front} · Keluar: belakang ${daily.outbound.rear}, depan ${daily.outbound.front}`}
+                          >
+                            <div className="flex min-h-10 w-full flex-col items-center justify-center gap-0.5 px-1">
+                              {daily.inbound.total > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => openHistory(item, daily.day)}
+                                  className="rounded px-1 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                                  aria-label={`Riwayat mutasi ${item.description} tanggal ${daily.day} (masuk ${daily.inbound.total})`}
+                                >
+                                  +{daily.inbound.total}
+                                </button>
+                              )}
+                              {daily.outbound.total > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => openHistory(item, daily.day)}
+                                  className="rounded px-1 text-xs font-semibold text-destructive hover:bg-red-100 dark:hover:bg-red-900/30"
+                                  aria-label={`Riwayat mutasi ${item.description} tanggal ${daily.day} (keluar ${daily.outbound.total})`}
+                                >
+                                  -{daily.outbound.total}
+                                </button>
+                              )}
+                              {!hasActivity && (
+                                <span className="text-muted-foreground/50">—</span>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
                       <td className="border-e px-3 py-3 text-right font-mono font-semibold tabular-nums">
                         {inventory.totalInbound}
                       </td>
@@ -511,7 +643,23 @@ export default function CatalogInventoryPanel({
                         {inventory.closingFrontStock}
                       </td>
                       <td className="border-e px-3 py-3 text-right font-mono font-semibold tabular-nums">
-                        {inventory.closingRearStock + inventory.closingFrontStock}
+                        {totalClosingStock}
+                      </td>
+                      <td className="border-e px-3 py-3">
+                        <Badge
+                          variant={
+                            movementCategoryValue === "FAST_MOVING"
+                              ? "default"
+                              : "secondary"
+                          }
+                          className={
+                            movementCategoryValue === "FAST_MOVING"
+                              ? "bg-sky-600 hover:bg-sky-600"
+                              : "bg-amber-500 hover:bg-amber-500"
+                          }
+                        >
+                          {getCatalogMovementCategoryLabel(movementCategoryValue)}
+                        </Badge>
                       </td>
                       <td className="border-e px-3 py-3 text-muted-foreground">
                         {inventory.remark || "-"}
@@ -527,7 +675,7 @@ export default function CatalogInventoryPanel({
                 })}
                 {filteredItems.length === 0 && (
                   <tr>
-                    <td colSpan={daysInMonth + 12} className="px-4 py-10 text-center text-muted-foreground">
+                    <td colSpan={daysInMonth + 13} className="px-4 py-10 text-center text-muted-foreground">
                       Tidak ada item yang cocok dengan filter spreadsheet ini.
                     </td>
                   </tr>
@@ -640,6 +788,27 @@ export default function CatalogInventoryPanel({
               </div>
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="movement-counterparty">
+                {draft.direction === "IN" ? "Dari (sumber masuk)" : "Untuk (tujuan keluar)"}
+              </Label>
+              <Input
+                id="movement-counterparty"
+                value={draft.counterpartyName}
+                onChange={(event) =>
+                  setDraft((current) => ({
+                    ...current,
+                    counterpartyName: event.target.value,
+                  }))
+                }
+                disabled={isPending}
+                placeholder={
+                  draft.direction === "IN"
+                    ? "Contoh: supplier / gudang lain"
+                    : "Contoh: customer / site / service"
+                }
+              />
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="movement-note">Catatan</Label>
               <Input
                 id="movement-note"
@@ -714,6 +883,97 @@ export default function CatalogInventoryPanel({
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={historyOpen}
+        onOpenChange={(open) => {
+          setHistoryOpen(open);
+          if (!open) {
+            setHistoryItem(null);
+            setHistoryDay(null);
+            setHistoryMovements([]);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="size-4" aria-hidden="true" />
+              Riwayat Mutasi Stok
+            </DialogTitle>
+            <DialogDescription>
+              {historyItem?.description}
+              {historyDay
+                ? ` · ${month}-${String(historyDay).padStart(2, "0")}`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {historyLoading ? (
+            <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" data-icon="inline-start" />
+              Memuat riwayat...
+            </div>
+          ) : historyMovements.length === 0 ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">
+              Tidak ada mutasi tercatat pada tanggal ini.
+            </p>
+          ) : (
+            <div className="max-h-96 overflow-y-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead className="sticky top-0 bg-muted/50 text-xs uppercase text-muted-foreground">
+                  <tr>
+                    <th className="border-b border-e px-3 py-2 text-left">Waktu</th>
+                    <th className="border-b border-e px-3 py-2 text-left">Gudang</th>
+                    <th className="border-b border-e px-3 py-2 text-left">Jenis</th>
+                    <th className="border-b border-e px-3 py-2 text-right">Qty</th>
+                    <th className="border-b border-e px-3 py-2 text-left">Dari / Untuk</th>
+                    <th className="border-b border-e px-3 py-2 text-left">Sumber</th>
+                    <th className="border-b px-3 py-2 text-left">Catatan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyMovements.map((movement) => (
+                    <tr key={movement.id} className="border-b last:border-b-0">
+                      <td className="border-e px-3 py-2 align-top text-xs">
+                        {formatHistoryTime(movement.occurredAt)}
+                      </td>
+                      <td className="border-e px-3 py-2 align-top">
+                        {movement.warehouse === "REAR" ? "Belakang" : "Depan"}
+                      </td>
+                      <td className="border-e px-3 py-2 align-top">
+                        <Badge
+                          variant={movement.direction === "IN" ? "secondary" : "outline"}
+                          className={
+                            movement.direction === "IN"
+                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300"
+                              : "bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300"
+                          }
+                        >
+                          {movement.direction === "IN" ? "Masuk" : "Keluar"}
+                        </Badge>
+                      </td>
+                      <td className="border-e px-3 py-2 text-right align-top font-mono tabular-nums">
+                        {movement.quantity}
+                      </td>
+                      <td className="border-e px-3 py-2 align-top text-xs">
+                        {movement.counterpartyName ||
+                          movement.consignmentSiteName ||
+                          "-"}
+                      </td>
+                      <td className="border-e px-3 py-2 align-top text-xs">
+                        {STOCK_MOVEMENT_SOURCE_LABEL[movement.source] ?? movement.source}
+                      </td>
+                      <td className="px-3 py-2 align-top text-xs text-muted-foreground">
+                        {movement.note || "-"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </section>

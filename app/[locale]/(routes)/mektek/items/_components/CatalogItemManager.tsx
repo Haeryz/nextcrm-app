@@ -328,7 +328,6 @@ function CatalogItemForm({
                 }
                 disabled={pending}
                 placeholder="0"
-                required
               />
             </Field>
             <Field
@@ -347,7 +346,6 @@ function CatalogItemForm({
                 }
                 disabled={pending}
                 placeholder="0"
-                required
               />
             </Field>
         </div>

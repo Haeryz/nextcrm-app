@@ -1,0 +1,5 @@
+•⁠  ⁠bagian detail pada spreadsheet jika kita masukkan secara manual melalui spreadsheet yang ada, di keterangan tidak muncul padahal harusnya muncul sesuai dengan yang di inputkan 
+•⁠  ⁠pada bagian detail part tidak bisa simpan barang keluar meskipun stok masih ada
+•⁠  ⁠pada bagian detail spreadsheet jika melihat form riwayat mutasi stok di hari katakanlah di tanggal 23 secara manual namun tanggal 24 yang terinput secara manual melalui edit spare part di jam 16.54 juga masuk ke dalam riwayat pada tanggal tersebut
+•⁠  ⁠pada form Detail Purchase Order Receiving lalu bagian PDF Purchase Order ada 2  yaitu Lihat PDF Purchase Order, jadi flownya begini, karyawan print dulu dari Lihat PDF Purchase Order lalu jika karyawan sudah menanda tangani PDF Purchase Order tersebut maka mereka upload PDF Purchase Order tersebut. 
+•⁠  ⁠pada Halaman Receiving, Catalog/Item, dan juga Monitoring PO jika di scroll maka yang atas sendiri yaitu filter tidak ikut terscroll

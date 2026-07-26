@@ -92,8 +92,21 @@ export default async function MektekLogisticsSpreadsheetPage({
   };
   const paginationItems = getPaginationItems(result.data.page, result.data.totalPages);
   const purchaseOrders = result.data.items.map(
-    ({ inputDate, dueDate, deliveryDate, createdAt, updatedAt, items, ...order }) => ({
+    ({
+      deliveryNoteImageData: _deliveryNoteImageData,
+      supplierInvoiceImageData: _supplierInvoiceImageData,
+      mektekDeliveryNoteImageData: _mektekDeliveryNoteImageData,
+      customerPoImageData,
+      inputDate,
+      dueDate,
+      deliveryDate,
+      createdAt,
+      updatedAt,
+      items,
+      ...order
+    }) => ({
       ...order,
+      hasCustomerPoImage: Boolean(customerPoImageData),
       inputDate: inputDate.toISOString(),
       dueDate: dueDate.toISOString(),
       deliveryDate: deliveryDate?.toISOString() ?? null,
@@ -127,7 +140,7 @@ export default async function MektekLogisticsSpreadsheetPage({
     >
       <div className="flex flex-col gap-6">
         <div><Button asChild variant="outline"><Link href={`/${locale}/mektek/logistics`}>Kembali ke Monitoring PO</Link></Button></div>
-        <Card>
+        <Card className="sticky top-0 z-30">
           <CardContent className="p-4">
             <form
               action={`/${locale}/mektek/logistics/spreadsheet`}

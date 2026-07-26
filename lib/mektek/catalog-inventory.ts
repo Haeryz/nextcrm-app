@@ -1,12 +1,16 @@
 export const CATALOG_PRODUCTION_CHANNELS = ["POWERTRAIN", "THERMAL"] as const;
 export const CATALOG_WAREHOUSES = ["REAR", "FRONT"] as const;
 export const CATALOG_STOCK_DIRECTIONS = ["IN", "OUT"] as const;
+export const CATALOG_MOVEMENT_CATEGORIES = ["FAST_MOVING", "SLOW_MOVING"] as const;
+export const CATALOG_MOVEMENT_FAST_THRESHOLD = 30;
 
 export type CatalogProductionChannel =
   (typeof CATALOG_PRODUCTION_CHANNELS)[number];
 export type CatalogWarehouse = (typeof CATALOG_WAREHOUSES)[number];
 export type CatalogStockDirection =
   (typeof CATALOG_STOCK_DIRECTIONS)[number];
+export type CatalogMovementCategory =
+  (typeof CATALOG_MOVEMENT_CATEGORIES)[number];
 
 export type CatalogStockMovementValue = {
   warehouse: CatalogWarehouse;
@@ -67,6 +71,7 @@ export type CatalogInventorySpreadsheetFilters = {
   quantityField?: CatalogInventoryQuantityField;
   quantityOperator?: CatalogInventoryQuantityOperator;
   quantityValue?: number | string;
+  movementCategory?: CatalogMovementCategory | "";
 };
 
 export function getCatalogProductionChannelLabel(
@@ -74,6 +79,22 @@ export function getCatalogProductionChannelLabel(
 ) {
   if (channel === "POWERTRAIN") return "Powertrain";
   if (channel === "THERMAL") return "Thermal";
+  return "";
+}
+
+export function getCatalogMovementCategory(
+  totalOutbound: number,
+): CatalogMovementCategory {
+  return totalOutbound > CATALOG_MOVEMENT_FAST_THRESHOLD
+    ? "FAST_MOVING"
+    : "SLOW_MOVING";
+}
+
+export function getCatalogMovementCategoryLabel(
+  category: CatalogMovementCategory | null,
+) {
+  if (category === "FAST_MOVING") return "Fast Moving";
+  if (category === "SLOW_MOVING") return "Slow Moving";
   return "";
 }
 
@@ -121,6 +142,13 @@ export function filterCatalogInventorySnapshots(
     if (
       filters.productionChannel &&
       snapshot.productionChannel !== filters.productionChannel
+    ) {
+      return false;
+    }
+
+    if (
+      filters.movementCategory &&
+      getCatalogMovementCategory(snapshot.totalOutbound) !== filters.movementCategory
     ) {
       return false;
     }

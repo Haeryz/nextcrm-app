@@ -294,6 +294,7 @@ export async function recordMektekCatalogStockMovement(input: {
   quantity: number | string;
   occurredOn: string;
   note?: string;
+  counterpartyName?: string;
 }) {
   const access = await ensureCatalogManager();
   if ("error" in access) return { error: access.error };
@@ -323,6 +324,7 @@ export async function recordMektekCatalogStockMovement(input: {
   }
 
   const range = getCatalogInventoryMonthRange(occurredOn.slice(0, 7));
+  const counterpartyName = compactText(input?.counterpartyName) || null;
 
   try {
     await prismadb.$transaction(async (tx) => {
@@ -333,6 +335,7 @@ export async function recordMektekCatalogStockMovement(input: {
         quantity,
         occurredAt,
         note: compactText(input.note) || null,
+        counterpartyName,
         createdBy: access.session.user.id,
         source: "MANUAL",
       });
@@ -349,6 +352,73 @@ export async function recordMektekCatalogStockMovement(input: {
           ? error.message
           : "Gagal mencatat mutasi stok Catalogue Item",
     };
+  }
+}
+
+export async function listMektekCatalogStockMovements(input: {
+  catalogItemId: string;
+  occurredOn?: string;
+}) {
+  const access = await ensureCatalogManager();
+  if ("error" in access) return { error: access.error };
+
+  const catalogItemId = compactText(input?.catalogItemId);
+  if (!catalogItemId) return { error: "Catalogue Item wajib dipilih" };
+
+  const where: Prisma.CatalogStockMovementWhereInput = { catalogItemId };
+  if (input.occurredOn) {
+    try {
+      const parsed = parseCatalogInventoryDateKey(compactText(input.occurredOn));
+      const day = new Date(
+        Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()),
+      );
+      const next = new Date(day);
+      next.setUTCDate(next.getUTCDate() + 1);
+      where.occurredAt = { gte: day, lt: next };
+    } catch {
+      return { error: "Tanggal mutasi tidak valid" };
+    }
+  }
+
+  try {
+    const movements = await prismadb.catalogStockMovement.findMany({
+      where,
+      orderBy: { occurredAt: "asc" },
+      select: {
+        id: true,
+        warehouse: true,
+        direction: true,
+        quantity: true,
+        occurredAt: true,
+        note: true,
+        counterpartyName: true,
+        source: true,
+        sourceId: true,
+        consignmentSiteId: true,
+      },
+    });
+    const siteIds = movements
+      .map((m) => m.consignmentSiteId)
+      .filter((id): id is string => Boolean(id));
+    const sites =
+      siteIds.length > 0
+        ? await prismadb.catalogConsignmentSite.findMany({
+            where: { id: { in: siteIds } },
+            select: { id: true, siteName: true },
+          })
+        : [];
+    const siteById = new Map(sites.map((s) => [s.id, s.siteName]));
+    return {
+      data: movements.map((m) => ({
+        ...m,
+        consignmentSiteName: m.consignmentSiteId
+          ? siteById.get(m.consignmentSiteId) ?? null
+          : null,
+      })),
+    };
+  } catch (error) {
+    console.log("[LIST_MEKTEK_CATALOG_STOCK_MOVEMENTS]", error);
+    return { error: "Gagal memuat riwayat mutasi stok" };
   }
 }
 

@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   Download,
+  Eye,
   FileSpreadsheet,
   ImagePlus,
   Loader2,
@@ -89,6 +90,7 @@ type OutboundPurchaseOrder = {
   deliveryNoteNumber: string | null;
   deliveryDate: string | null;
   notes: string | null;
+  hasCustomerPoImage: boolean;
   createdAt: string;
   updatedAt: string;
   items: Array<{
@@ -184,6 +186,23 @@ async function uploadOutboundConditionImage(receiptId: string, file: File) {
   }
 }
 
+async function uploadCustomerPoImage(purchaseOrderId: string, file: File) {
+  const response = await fetch(
+    `/api/mektek/logistics/purchase-orders/${encodeURIComponent(purchaseOrderId)}/customer-po-image`,
+    {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": file.type },
+    },
+  );
+  const payload = (await response.json().catch(() => null)) as
+    | { error?: string }
+    | null;
+  if (!response.ok) {
+    throw new Error(payload?.error || "Gagal mengunggah PO Customer");
+  }
+}
+
 function blankItemDraft(clientId: string): ItemDraft {
   return {
     clientId,
@@ -195,6 +214,12 @@ function blankItemDraft(clientId: string): ItemDraft {
     orderedQuantity: "",
     note: "",
   };
+}
+
+function buildAutoDeliveryNoteNumber(poNumber: string, dispatchedAt: string) {
+  const safePo = (poNumber || "PO").trim().replace(/\s+/g, "-").toUpperCase();
+  const datePart = (dispatchedAt || "").replace(/-/g, "");
+  return `SJ-${safePo}${datePart ? `-${datePart}` : ""}`;
 }
 
 function toOutboundPurchaseOrderItem(
@@ -242,9 +267,12 @@ export default function OutboundLogisticsManager({
   const nextItemId = useRef(2);
   const conditionCameraInputRef = useRef<HTMLInputElement>(null);
   const conditionGalleryInputRef = useRef<HTMLInputElement>(null);
+  const customerPoInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
   const [createOpen, setCreateOpen] = useState(false);
   const [draft, setDraft] = useState<OutboundDraft>(() => blankDraft());
+  const [customerPoFile, setCustomerPoFile] = useState<File | null>(null);
+  const [customerPoError, setCustomerPoError] = useState<string | null>(null);
   const [activePurchaseOrder, setActivePurchaseOrder] =
     useState<OutboundPurchaseOrder | null>(null);
   const [dispatchDraft, setDispatchDraft] = useState({
@@ -356,7 +384,36 @@ export default function OutboundLogisticsManager({
     }));
   };
 
+  const selectCustomerPoFile = (file: File | null) => {
+    if (!file) {
+      setCustomerPoFile(null);
+      setCustomerPoError(null);
+      return;
+    }
+    if (
+      !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(
+        file.type,
+      )
+    ) {
+      setCustomerPoFile(null);
+      setCustomerPoError("Pilih PO Customer berformat JPEG, PNG, WebP, atau PDF");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setCustomerPoFile(null);
+      setCustomerPoError("Ukuran PO Customer maksimal 5 MB");
+      return;
+    }
+    setCustomerPoFile(file);
+    setCustomerPoError(null);
+  };
+
   const submitPurchaseOrder = () => {
+    if (!customerPoFile) {
+      setCustomerPoError("Unggah PO dari Customer wajib dilakukan");
+      customerPoInputRef.current?.focus();
+      return;
+    }
     startTransition(async () => {
       const result = await createMektekOutboundPurchaseOrder({
         ...draft,
@@ -366,9 +423,22 @@ export default function OutboundLogisticsManager({
         toast.error(result?.error || "Gagal membuat Monitoring PO");
         return;
       }
+      try {
+        await uploadCustomerPoImage(result.data.id, customerPoFile);
+      } catch (error) {
+        toast.warning(
+          `Monitoring PO tersimpan, tetapi ${
+            error instanceof Error
+              ? error.message
+              : "gagal mengunggah PO Customer"
+          }`,
+        );
+      }
       toast.success(`Monitoring PO ${result.data.poNumber} berhasil dibuat`);
       nextItemId.current = 2;
       setDraft(blankDraft());
+      setCustomerPoFile(null);
+      setCustomerPoError(null);
       setCreateOpen(false);
       router.refresh();
     });
@@ -445,6 +515,10 @@ export default function OutboundLogisticsManager({
       const result = await recordMektekOutboundPurchaseOrderDispatch({
         purchaseOrderId: activePurchaseOrder.id,
         ...dispatchDraft,
+        deliveryNoteNumber: buildAutoDeliveryNoteNumber(
+          activePurchaseOrder.poNumber,
+          dispatchDraft.dispatchedAt,
+        ),
         items,
       });
       if (!result || "error" in result) {
@@ -656,8 +730,7 @@ export default function OutboundLogisticsManager({
                   <DialogHeader>
                     <DialogTitle>Buat Monitoring PO</DialogTitle>
                     <DialogDescription>
-                      Cari item dari Catalog atau input Item Name dan Part Number
-                      secara manual.
+                      Pilih item dari Catalog untuk dikirim ke User / PT.
                     </DialogDescription>
                   </DialogHeader>
                   <form
@@ -716,7 +789,6 @@ export default function OutboundLogisticsManager({
                             <SelectItem value="Consignment">Consignment · contract supply</SelectItem>
                           </SelectContent>
                         </Select>
-                        <p className="text-xs text-muted-foreground">Mode dipisahkan dan diperiksa terhadap customer, project, item, serta periode yang sama sebelum barang keluar.</p>
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="outbound-input-date">Tanggal Pengiriman</Label>
@@ -725,19 +797,14 @@ export default function OutboundLogisticsManager({
                           type="date"
                           max={getCatalogInventoryLocalDateKey()}
                           value={draft.inputDate}
-                          onChange={(event) => updateDraft("inputDate", event.target.value)}
-                          disabled={isPending}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="outbound-due-date">Due Date</Label>
-                        <Input
-                          id="outbound-due-date"
-                          type="date"
-                          min={draft.inputDate}
-                          value={draft.dueDate}
-                          onChange={(event) => updateDraft("dueDate", event.target.value)}
+                          onChange={(event) => {
+                            const next = event.target.value;
+                            setDraft((current) => ({
+                              ...current,
+                              inputDate: next,
+                              dueDate: next,
+                            }));
+                          }}
                           disabled={isPending}
                           required
                         />
@@ -746,29 +813,11 @@ export default function OutboundLogisticsManager({
 
                     <fieldset className="space-y-4 rounded-xl border bg-muted/15 p-4 sm:p-5">
                       <legend className="sr-only">Item yang dikirim</legend>
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-start gap-3">
-                          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-semibold text-primary">
-                            {draft.items.length}
-                          </span>
-                          <div>
-                            <p className="font-semibold">Item yang dikirim</p>
-                            <p className="text-xs text-muted-foreground">
-                              Stok belum berubah saat PO dibuat. Pengurangan dilakukan
-                              sesuai QTY Keluar pada setiap batch pengiriman.
-                            </p>
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={addItem}
-                          disabled={isPending || draft.items.length >= 100}
-                        >
-                          <Plus data-icon="inline-start" />
-                          Tambah Item
-                        </Button>
+                      <div className="flex items-center gap-3">
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-semibold text-primary">
+                          {draft.items.length}
+                        </span>
+                        <p className="font-semibold">Item yang dikirim</p>
                       </div>
                       <div className="space-y-4">
                         {draft.items.map((item, index) => {
@@ -784,9 +833,6 @@ export default function OutboundLogisticsManager({
                                     {index + 1}
                                   </span>
                                   <p className="text-sm font-semibold">Detail Item</p>
-                                  {item.source === "MANUAL" && (
-                                    <Badge variant="secondary">Manual</Badge>
-                                  )}
                                 </div>
                                 <Button
                                   type="button"
@@ -821,8 +867,8 @@ export default function OutboundLogisticsManager({
                                     catalogItems={catalogItems}
                                     excludedCatalogItemIds={selectedCatalogItemIds}
                                     disabled={isPending}
-                                    catalogStockMessage="Terhubung ke Catalog / Item. Stok berkurang saat Barang Keluar dicatat."
-                                    manualStockMessage="Item manual tetap dapat dikirim tanpa mengubah stok Catalog."
+                                    hideManual
+                                    catalogStockMessage="Stok berkurang saat Barang Keluar dicatat."
                                     onSourceChange={(source) =>
                                       switchItemSource(item.clientId, source)
                                     }
@@ -861,9 +907,6 @@ export default function OutboundLogisticsManager({
                                       disabled={isPending}
                                       required
                                     />
-                                    <p className="text-xs text-muted-foreground">
-                                      Total kebutuhan User.
-                                    </p>
                                   </div>
 
                                 </div>
@@ -896,8 +939,47 @@ export default function OutboundLogisticsManager({
                             </fieldset>
                           );
                         })}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={addItem}
+                          disabled={isPending || draft.items.length >= 100}
+                          className="w-full border-dashed"
+                        >
+                          <Plus data-icon="inline-start" />
+                          Tambah Item
+                        </Button>
                       </div>
                     </fieldset>
+                    <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
+                      <Label htmlFor="outbound-customer-po">
+                        PO dari Customer{" "}
+                        <span className="font-normal text-destructive">(wajib)</span>
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Unggah PDF atau gambar PO yang diterima dari Customer.
+                      </p>
+                      <input
+                        ref={customerPoInputRef}
+                        id="outbound-customer-po"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        onChange={(event) =>
+                          selectCustomerPoFile(event.target.files?.[0] ?? null)
+                        }
+                        disabled={isPending}
+                        required
+                        className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-accent"
+                      />
+                      {customerPoFile && (
+                        <p className="text-xs text-muted-foreground">
+                          Terpilih: {customerPoFile.name}
+                        </p>
+                      )}
+                      {customerPoError && (
+                        <p className="text-xs text-destructive">{customerPoError}</p>
+                      )}
+                    </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="outbound-notes">Catatan PO</Label>
                       <Textarea
@@ -1033,6 +1115,24 @@ export default function OutboundLogisticsManager({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex justify-end gap-2">
+                        {purchaseOrder.hasCustomerPoImage && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            asChild
+                            aria-label={`Lihat PO Customer ${purchaseOrder.poNumber}`}
+                            title="Lihat PO Customer"
+                          >
+                            <a
+                              href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(purchaseOrder.id)}/customer-po-image`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Eye data-icon="inline-start" /> PO Customer
+                            </a>
+                          </Button>
+                        )}
                         <Button type="button" variant="outline" size="sm" onClick={() => openPurchaseOrder(purchaseOrder)}>
                           <ReceiptText data-icon="inline-start" /> Detail
                         </Button>
@@ -1219,20 +1319,13 @@ export default function OutboundLogisticsManager({
                       </Label>
                       <Input
                         id="outbound-delivery-note-number"
-                        value={dispatchDraft.deliveryNoteNumber}
-                        onChange={(event) =>
-                          setDispatchDraft((current) => ({
-                            ...current,
-                            deliveryNoteNumber: event.target.value,
-                          }))
-                        }
-                        placeholder="Contoh: SJ-0001"
-                        maxLength={100}
+                        value={buildAutoDeliveryNoteNumber(activePurchaseOrder.poNumber, dispatchDraft.dispatchedAt)}
+                        readOnly
                         disabled={isPending}
-                        required
+                        aria-readonly
                       />
                       <p className="text-xs text-muted-foreground">
-                        Nomor ini khusus untuk pengiriman saat ini, bukan nomor PO.
+                        Dibuat otomatis berdasarkan PO No. dan tanggal pengiriman.
                       </p>
                     </div>
                     <div className="space-y-1.5">
@@ -1439,7 +1532,6 @@ export default function OutboundLogisticsManager({
                         isPending ||
                         !!dispatchImageError ||
                         !dispatchDraft.picId ||
-                        !dispatchDraft.deliveryNoteNumber.trim() ||
                         !hasSelectedDispatchItems
                       }
                     >

@@ -36,6 +36,8 @@ type CatalogOrManualItemPickerProps = {
   catalogItems: CatalogOrManualItemOption[];
   excludedCatalogItemIds: ReadonlySet<string>;
   disabled?: boolean;
+  requirePrice?: boolean;
+  hideManual?: boolean;
   catalogStockMessage: string;
   manualStockMessage?: string;
   onSourceChange: (source: CatalogOrManualItemSource) => void;
@@ -56,6 +58,8 @@ export function CatalogOrManualItemPicker({
   catalogItems,
   excludedCatalogItemIds,
   disabled = false,
+  requirePrice = false,
+  hideManual = false,
   catalogStockMessage,
   manualStockMessage = "Item manual tidak mengubah stok Catalog.",
   onSourceChange,
@@ -79,13 +83,21 @@ export function CatalogOrManualItemPicker({
       .filter((item) => {
         const searchable = `${item.description} · ${item.partNumber || "Tanpa PN"}`
           .toLocaleLowerCase("id-ID");
-        return (
-          (!normalizedQuery || searchable.includes(normalizedQuery)) &&
-          (!excludedCatalogItemIds.has(item.id) || item.id === catalogItemId)
-        );
+        const matchesQuery =
+          !normalizedQuery || searchable.includes(normalizedQuery);
+        const isExcluded =
+          excludedCatalogItemIds.has(item.id) && item.id !== catalogItemId;
+        const hasPrice = !requirePrice || Number(item.price) > 0;
+        return matchesQuery && !isExcluded && hasPrice;
       })
       .slice(0, 50);
-  }, [catalogItemId, catalogItems, catalogQuery, excludedCatalogItemIds]);
+  }, [
+    catalogItemId,
+    catalogItems,
+    catalogQuery,
+    excludedCatalogItemIds,
+    requirePrice,
+  ]);
 
   const selectCatalogItem = (item: CatalogOrManualItemOption) => {
     onCatalogItemSelect(item);
@@ -140,15 +152,22 @@ export function CatalogOrManualItemPicker({
         onSourceChange(value as CatalogOrManualItemSource);
       }}
     >
-      <TabsList className="grid h-11 w-full grid-cols-2 rounded-lg p-1">
+      <TabsList
+        className={cn(
+          "grid h-11 w-full rounded-lg p-1",
+          hideManual ? "grid-cols-1" : "grid-cols-2",
+        )}
+      >
         <TabsTrigger value="CATALOG" className="gap-2 rounded-md">
           <PackageSearch className="size-4" aria-hidden="true" />
           Cari Catalog
         </TabsTrigger>
-        <TabsTrigger value="MANUAL" className="gap-2 rounded-md">
-          <PencilLine className="size-4" aria-hidden="true" />
-          Input Manual
-        </TabsTrigger>
+        {!hideManual && (
+          <TabsTrigger value="MANUAL" className="gap-2 rounded-md">
+            <PencilLine className="size-4" aria-hidden="true" />
+            Input Manual
+          </TabsTrigger>
+        )}
       </TabsList>
 
       <TabsContent value="CATALOG" className="mt-3 space-y-3">
@@ -290,6 +309,16 @@ export function CatalogOrManualItemPicker({
                             {catalogItem.partNumber || "Tanpa Part Number"}
                           </span>
                         </span>
+                        {typeof catalogItem.price === "number" &&
+                          catalogItem.price > 0 && (
+                            <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                              {new Intl.NumberFormat("id-ID", {
+                                style: "currency",
+                                currency: "IDR",
+                                maximumFractionDigits: 0,
+                              }).format(catalogItem.price)}
+                            </span>
+                          )}
                       </Button>
                     ))}
                     {catalogMatches.length === 0 && (
@@ -299,21 +328,27 @@ export function CatalogOrManualItemPicker({
                           aria-hidden="true"
                         />
                         <p className="mt-2 text-sm font-medium">
-                          Item tidak ditemukan
+                          {requirePrice
+                            ? "Item belum ada atau belum memiliki harga"
+                            : "Item tidak ditemukan"}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          Anda tetap dapat menambahkan item ini secara manual.
+                          {requirePrice
+                            ? "Isi harga Catalog / Item terlebih dahulu sebelum membuat Receiving."
+                            : "Anda tetap dapat menambahkan item ini secara manual."}
                         </p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="mt-3"
-                          onClick={() => onSourceChange("MANUAL")}
-                        >
-                          <PencilLine className="size-4" aria-hidden="true" />
-                          Gunakan Input Manual
-                        </Button>
+                        {!requirePrice && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="mt-3"
+                            onClick={() => onSourceChange("MANUAL")}
+                          >
+                            <PencilLine className="size-4" aria-hidden="true" />
+                            Gunakan Input Manual
+                          </Button>
+                        )}
                       </div>
                     )}
                     {catalogMatches.length === 50 && (

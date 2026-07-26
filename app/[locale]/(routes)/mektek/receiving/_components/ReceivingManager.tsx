@@ -106,9 +106,15 @@ type LogisticsPurchaseOrderRow = {
   hasDeliveryNoteImage: boolean;
   deliveryNoteImageMimeType: string | null;
   deliveryNoteImageUpdatedAt: string | null;
+  hasMektekDeliveryNoteImage: boolean;
+  mektekDeliveryNoteImageMimeType: string | null;
+  mektekDeliveryNoteImageUpdatedAt: string | null;
   hasSupplierInvoiceImage: boolean;
   supplierInvoiceImageMimeType: string | null;
   supplierInvoiceImageUpdatedAt: string | null;
+  hasSignedPoImage: boolean;
+  signedPoImageMimeType: string | null;
+  signedPoImageUpdatedAt: string | null;
   receivingDeliveryNoteSource: "SUPPLIER" | "MEKTEK" | null;
   notes: string | null;
   createdBy: string | null;
@@ -312,6 +318,50 @@ async function uploadSupplierInvoiceImage(
   }
 }
 
+async function uploadMektekDeliveryNoteImage(
+  purchaseOrderId: string,
+  file: File,
+) {
+  const response = await fetch(
+    `/api/mektek/logistics/purchase-orders/${encodeURIComponent(purchaseOrderId)}/mektek-delivery-note-image`,
+    {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": file.type },
+    },
+  );
+  const payload = (await response.json().catch(() => null)) as
+    | { error?: string }
+    | null;
+  if (!response.ok) {
+    throw new Error(
+      payload?.error || "Gagal mengunggah foto Surat Jalan Mektek",
+    );
+  }
+}
+
+async function uploadSignedPoImage(
+  purchaseOrderId: string,
+  file: File,
+) {
+  const response = await fetch(
+    `/api/mektek/logistics/purchase-orders/${encodeURIComponent(purchaseOrderId)}/signed-po-image`,
+    {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": file.type },
+    },
+  );
+  const payload = (await response.json().catch(() => null)) as
+    | { error?: string }
+    | null;
+  if (!response.ok) {
+    throw new Error(
+      payload?.error || "Gagal mengunggah PO yang ditandatangani",
+    );
+  }
+}
+
 export default function ReceivingManager({
   pics,
   catalogItems,
@@ -327,8 +377,13 @@ export default function ReceivingManager({
   const nextItemId = useRef(2);
   const supplierInvoiceInputRef = useRef<HTMLInputElement>(null);
   const deliveryNoteInputRef = useRef<HTMLInputElement>(null);
+  const mektekDeliveryNoteInputRef = useRef<HTMLInputElement>(null);
+  const signedPoInputRef = useRef<HTMLInputElement>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [isUploadingDeliveryNote, startUploadingDeliveryNote] = useTransition();
+  const [isUploadingMektekDeliveryNote, startUploadingMektekDeliveryNote] =
+    useTransition();
+  const [isUploadingSignedPo, startUploadingSignedPo] = useTransition();
   const [isUploadingSupplierInvoice, startUploadingSupplierInvoice] =
     useTransition();
   const [isCreatingMektekDeliveryNote, startCreatingMektekDeliveryNote] =
@@ -567,6 +622,56 @@ export default function ReceivingManager({
           error instanceof Error
             ? error.message
             : "Gagal mengunggah Faktur supplier",
+        );
+      }
+    });
+  };
+
+  const selectMektekDeliveryNoteImage = (file: File | null) => {
+    if (!activeReceiptPurchaseOrder || !file) return;
+    startUploadingMektekDeliveryNote(async () => {
+      try {
+        await uploadMektekDeliveryNoteImage(
+          activeReceiptPurchaseOrder.id,
+          file,
+        );
+        toast.success("Foto Surat Jalan Mektek berhasil diunggah");
+        setActiveReceiptPurchaseOrder({
+          ...activeReceiptPurchaseOrder,
+          hasMektekDeliveryNoteImage: true,
+          mektekDeliveryNoteImageMimeType: file.type,
+          mektekDeliveryNoteImageUpdatedAt: new Date().toISOString(),
+          receivingDeliveryNoteSource: "MEKTEK",
+        });
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Gagal mengunggah foto Surat Jalan Mektek",
+        );
+      }
+    });
+  };
+
+  const selectSignedPoImage = (file: File | null) => {
+    if (!activeReceiptPurchaseOrder || !file) return;
+    startUploadingSignedPo(async () => {
+      try {
+        await uploadSignedPoImage(activeReceiptPurchaseOrder.id, file);
+        toast.success("PO yang ditandatangani berhasil diunggah");
+        setActiveReceiptPurchaseOrder({
+          ...activeReceiptPurchaseOrder,
+          hasSignedPoImage: true,
+          signedPoImageMimeType: file.type,
+          signedPoImageUpdatedAt: new Date().toISOString(),
+        });
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Gagal mengunggah PO yang ditandatangani",
         );
       }
     });
@@ -913,101 +1018,58 @@ export default function ReceivingManager({
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="logistics-supplier">Supplier / tujuan PO</Label>
-                  <Input
-                    id="logistics-supplier"
-                    value={createValue.supplierName}
-                    onChange={(event) =>
-                      updateCreateValue("supplierName", event.target.value)
-                    }
-                    placeholder="Nama supplier"
-                    disabled={isPending}
-                    required
-                  />
-                </div>
-                 <div className="space-y-1.5">
-                   <Label htmlFor="logistics-po-type">PO Type</Label>
-                   <Select
-                     value={createValue.poType}
-                     onValueChange={(value) => updateCreateValue("poType", value)}
+                   <Label htmlFor="logistics-supplier">Supplier / tujuan PO</Label>
+                   <Input
+                     id="logistics-supplier"
+                     value={createValue.supplierName}
+                     onChange={(event) =>
+                       updateCreateValue("supplierName", event.target.value)
+                     }
+                     placeholder="Nama supplier"
                      disabled={isPending}
-                   >
-                     <SelectTrigger id="logistics-po-type" className="w-full">
-                       <SelectValue placeholder="Pilih PO Type" />
-                     </SelectTrigger>
-                     <SelectContent>
-                       <SelectItem value="Normal">Normal</SelectItem>
-                       <SelectItem value="Consignment">Consignment</SelectItem>
-                     </SelectContent>
-                   </Select>
+                     required
+                   />
                  </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="logistics-project">Job Site / Project</Label>
-                  <Input
-                    id="logistics-project"
-                    value={createValue.projectName}
-                    onChange={(event) =>
-                      updateCreateValue("projectName", event.target.value)
-                    }
-                    placeholder="Nama job site atau project"
-                    disabled={isPending}
-                    required
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="logistics-input-date">Tanggal Input</Label>
-                    <Input
-                      id="logistics-input-date"
-                      type="date"
-                      value={createValue.inputDate}
-                      onChange={(event) =>
-                        updateCreateValue("inputDate", event.target.value)
-                      }
-                      disabled={isPending}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="logistics-due-date">Due Date</Label>
-                    <Input
-                      id="logistics-due-date"
-                      type="date"
-                      min={createValue.inputDate}
-                      value={createValue.dueDate}
-                      onChange={(event) => updateCreateValue("dueDate", event.target.value)}
-                      disabled={isPending}
-                      required
-                    />
-                  </div>
-                </div>
-              </div>
+                   <Label htmlFor="logistics-project">Job Site / Project</Label>
+                   <Input
+                     id="logistics-project"
+                     value={createValue.projectName}
+                     onChange={(event) =>
+                       updateCreateValue("projectName", event.target.value)
+                     }
+                     placeholder="Nama job site atau project"
+                     disabled={isPending}
+                     required
+                   />
+                 </div>
+                 <div className="space-y-1.5">
+                   <Label htmlFor="logistics-input-date">Tanggal Input</Label>
+                   <Input
+                     id="logistics-input-date"
+                     type="date"
+                     value={createValue.inputDate}
+                     onChange={(event) => {
+                       const next = event.target.value;
+                       setCreateValue((current) => ({
+                         ...current,
+                         inputDate: next,
+                         dueDate: next,
+                       }));
+                     }}
+                     disabled={isPending}
+                     required
+                   />
+                 </div>
+               </div>
 
               <fieldset className="space-y-4 rounded-xl border bg-muted/15 p-4 sm:p-5">
                 <legend className="sr-only">Item yang dipesan</legend>
-                <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-semibold text-primary">
-                      {createValue.items.length}
-                    </span>
-                    <div>
-                      <p className="font-semibold">Item yang dipesan</p>
-                      <p className="text-xs text-muted-foreground">
-                        Cari seluruh Catalog / Item atau gunakan input manual jika
-                        barang belum terdaftar.
-                      </p>
-                    </div>
-                  </div>
-                  <Button
-            type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addItem}
-                    disabled={isPending || createValue.items.length >= 100}
-                  >
-                    <Plus data-icon="inline-start" />
-                    Tambah Item
-                  </Button>
+                <div className="flex items-center gap-3">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-semibold text-primary">
+                    {createValue.items.length}
+                  </span>
+                  <p className="font-semibold">Item yang dipesan</p>
                 </div>
                 <div className="space-y-4">
                   {createValue.items.map((item, index) => {
@@ -1053,8 +1115,9 @@ export default function ReceivingManager({
                             catalogItems={catalogItems}
                             excludedCatalogItemIds={selectedCatalogItemIds}
                             disabled={isPending}
-                            catalogStockMessage="Terhubung ke Catalog / Item dan akan menambah stok ketika diterima."
-                            manualStockMessage="Item manual otomatis ditambahkan ke Catalog / Item dan stoknya bertambah saat diterima."
+                            requirePrice
+                            catalogStockMessage="Stok bertambah otomatis saat diterima."
+                            manualStockMessage="Item manual otomatis ditambahkan ke Catalog / Item."
                             onSourceChange={(source) =>
                               switchItemSource(item.clientId, source)
                             }
@@ -1091,9 +1154,6 @@ export default function ReceivingManager({
                                   disabled={isPending}
                                   required
                                 />
-                                <p className="text-xs text-muted-foreground">
-                                  Akan digunakan sebagai kategori mesin di katalog.
-                                </p>
                               </div>
                               <div className="space-y-2">
                                 <Label htmlFor={`receiving-warehouse-${item.clientId}`}>
@@ -1121,9 +1181,6 @@ export default function ReceivingManager({
                                     </SelectItem>
                                   </SelectContent>
                                 </Select>
-                                <p className="text-xs text-muted-foreground">
-                                  Otomatis menjadi tujuan awal saat barang diterima.
-                                </p>
                               </div>
                             </div>
                           )}
@@ -1151,9 +1208,6 @@ export default function ReceivingManager({
                               disabled={isPending}
                               required
                             />
-                            <p className="text-xs text-muted-foreground">
-                              Jumlah yang dipesan.
-                            </p>
                             <Label htmlFor={`logistics-price-${item.clientId}`}>
                               Harga Satuan
                             </Label>
@@ -1175,11 +1229,11 @@ export default function ReceivingManager({
                               disabled={isPending || item.source === "CATALOG"}
                               required
                             />
-                            <p className="text-xs text-muted-foreground">
-                              {item.source === "CATALOG"
-                                ? "Otomatis dari harga Catalog / Item."
-                                : "Wajib diisi untuk item manual."}
-                            </p>
+                            {item.source === "MANUAL" && (
+                              <p className="text-xs text-muted-foreground">
+                                Wajib diisi untuk item manual.
+                              </p>
+                            )}
                             <Separator />
                             <div className="space-y-1">
                               <p className="text-xs text-muted-foreground">
@@ -1197,6 +1251,16 @@ export default function ReceivingManager({
                       </fieldset>
                     );
                   })}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addItem}
+                    disabled={isPending || createValue.items.length >= 100}
+                    className="w-full border-dashed"
+                  >
+                    <Plus data-icon="inline-start" />
+                    Tambah Item
+                  </Button>
                 </div>
               </fieldset>
 
@@ -1735,21 +1799,72 @@ export default function ReceivingManager({
                         <div>
                           <h4 className="font-medium">PDF Purchase Order</h4>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            Dokumen resmi yang dibuat oleh Mektek.
+                            Cetak PO, minta ditandatangani, lalu unggah hasilnya.
                           </p>
                         </div>
                         <Badge variant="secondary">Tersedia</Badge>
                       </div>
-                      <Button asChild type="button" variant="outline" size="sm">
-                        <Link
-                          href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/pdf`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <Printer data-icon="inline-start" />
-                          Lihat PDF Purchase Order
-                        </Link>
+                      <div className="flex flex-wrap gap-2">
+                        <Button asChild type="button" variant="outline" size="sm">
+                          <Link
+                            href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/pdf`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Printer data-icon="inline-start" />
+                            Lihat PDF Purchase Order
+                          </Link>
+                        </Button>
+                        {activeReceiptPurchaseOrder.hasSignedPoImage && (
+                          <Button asChild type="button" size="sm" variant="outline">
+                            <Link
+                              href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/signed-po-image`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <Eye data-icon="inline-start" />
+                              Lihat PO ditandatangani
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        PO ditandatangani:{" "}
+                        {activeReceiptPurchaseOrder.hasSignedPoImage
+                          ? "sudah diunggah"
+                          : "belum diunggah"}
+                      </p>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() =>
+                          signedPoInputRef.current?.click()
+                        }
+                        disabled={isUploadingSignedPo}
+                      >
+                        {isUploadingSignedPo ? (
+                          <Loader2
+                            data-icon="inline-start"
+                            className="animate-spin"
+                          />
+                        ) : (
+                          <Upload data-icon="inline-start" />
+                        )}
+                        {activeReceiptPurchaseOrder.hasSignedPoImage
+                          ? "Ganti PO ditandatangani"
+                          : "Unggah PO ditandatangani"}
                       </Button>
+                      <input
+                        ref={signedPoInputRef}
+                        className="sr-only"
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        aria-label="Pilih PO yang sudah ditandatangani"
+                        onChange={(event) => {
+                          selectSignedPoImage(event.target.files?.[0] ?? null);
+                          event.currentTarget.value = "";
+                        }}
+                      />
                     </section>
 
                     <section className="space-y-3 rounded-lg border p-4">
@@ -1982,16 +2097,75 @@ export default function ReceivingManager({
                         </p>
                         {activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
                         "MEKTEK" ? (
-                          <Button asChild type="button" size="sm">
-                            <Link
-                              href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note?flow=receiving`}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                          <div className="space-y-3">
+                            <div className="flex flex-wrap gap-2">
+                              <Button asChild type="button" size="sm" variant="outline">
+                                <Link
+                                  href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note?flow=receiving`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  <Printer data-icon="inline-start" />
+                                  Cetak Surat Jalan
+                                </Link>
+                              </Button>
+                              {activeReceiptPurchaseOrder.hasMektekDeliveryNoteImage && (
+                                <Button asChild type="button" size="sm" variant="outline">
+                                  <Link
+                                    href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/mektek-delivery-note-image`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <Eye data-icon="inline-start" />
+                                    Lihat foto tanda tangan
+                                  </Link>
+                                </Button>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Cetak Surat Jalan, minta ditandatangani manual,
+                              lalu unggah foto hasil tanda tangan.
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Foto tanda tangan:{" "}
+                              {activeReceiptPurchaseOrder.hasMektekDeliveryNoteImage
+                                ? "sudah diunggah"
+                                : "belum diunggah"}
+                            </p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() =>
+                                mektekDeliveryNoteInputRef.current?.click()
+                              }
+                              disabled={isUploadingMektekDeliveryNote}
                             >
-                              <Eye data-icon="inline-start" />
-                              Lihat Surat Jalan Mektek
-                            </Link>
-                          </Button>
+                              {isUploadingMektekDeliveryNote ? (
+                                <Loader2
+                                  data-icon="inline-start"
+                                  className="animate-spin"
+                                />
+                              ) : (
+                                <Upload data-icon="inline-start" />
+                              )}
+                              {activeReceiptPurchaseOrder.hasMektekDeliveryNoteImage
+                                ? "Ganti foto tanda tangan"
+                                : "Unggah foto tanda tangan"}
+                            </Button>
+                            <input
+                              ref={mektekDeliveryNoteInputRef}
+                              className="sr-only"
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              aria-label="Pilih foto Surat Jalan Mektek yang sudah ditandatangani"
+                              onChange={(event) => {
+                                selectMektekDeliveryNoteImage(
+                                  event.target.files?.[0] ?? null,
+                                );
+                                event.currentTarget.value = "";
+                              }}
+                            />
+                          </div>
                         ) : (
                           <Button
                             type="button"

@@ -18,6 +18,8 @@ type ApplyCatalogStockMovementInput = {
   quantity: number;
   occurredAt: Date;
   note?: string | null;
+  counterpartyName?: string | null;
+  consignmentSiteId?: string | null;
   createdBy?: string | null;
   source?: CatalogStockMovementSource;
   sourceId?: string | null;
@@ -166,6 +168,8 @@ export async function applyCatalogStockMovement(
       quantity: input.quantity,
       occurredAt: input.occurredAt,
       note: input.note || null,
+      counterpartyName: input.counterpartyName || null,
+      consignmentSiteId: input.consignmentSiteId || null,
       source,
       sourceId: input.sourceId || null,
       createdBy: input.createdBy || null,
@@ -178,4 +182,72 @@ export async function applyCatalogStockMovement(
     input.preventNegativeStock,
   );
   return movement;
+}
+
+function compactSiteName(value: unknown) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+type ApplyCatalogConsignmentSiteStockInput = {
+  catalogItemId: string;
+  siteName: string;
+  projectKey?: string | null;
+  direction: CatalogStockDirection;
+  quantity: number;
+  occurredAt: Date;
+  note?: string | null;
+  counterpartyName?: string | null;
+  source?: CatalogStockMovementSource;
+  sourceId?: string | null;
+  createdBy?: string | null;
+};
+
+export async function applyCatalogConsignmentSiteStock(
+  tx: Prisma.TransactionClient,
+  input: ApplyCatalogConsignmentSiteStockInput,
+) {
+  const siteName = compactSiteName(input.siteName);
+  if (!siteName) throw new Error("Nama site consignment wajib diisi");
+  const quantity = Math.floor(Number(input.quantity));
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new Error("Quantity consignment tidak valid");
+  }
+  const delta = input.direction === "IN" ? quantity : -quantity;
+
+  if (delta < 0) {
+    const existing = await tx.catalogConsignmentSite.findUnique({
+      where: {
+        catalogItemId_siteName: {
+          catalogItemId: input.catalogItemId,
+          siteName,
+        },
+      },
+      select: { stock: true },
+    });
+    const available = existing?.stock ?? 0;
+    if (available + delta < 0) {
+      throw new Error(
+        `Stok consignment di site "${siteName}" tidak mencukupi (tersedia ${available})`,
+      );
+    }
+  }
+
+  return tx.catalogConsignmentSite.upsert({
+    where: {
+      catalogItemId_siteName: {
+        catalogItemId: input.catalogItemId,
+        siteName,
+      },
+    },
+    create: {
+      catalogItemId: input.catalogItemId,
+      siteName,
+      projectKey: input.projectKey || null,
+      stock: Math.max(0, delta),
+    },
+    update: {
+      projectKey: input.projectKey || null,
+      stock: { increment: delta },
+    },
+  });
 }

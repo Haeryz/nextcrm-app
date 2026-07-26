@@ -12,7 +12,10 @@ import { revalidatePath } from "next/cache";
 import { authOptions } from "@/lib/auth";
 import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 import { getCatalogInventoryLocalDateKey } from "@/lib/mektek/catalog-inventory";
-import { applyCatalogStockMovement } from "@/lib/mektek/catalog-stock-ledger";
+import {
+  applyCatalogConsignmentSiteStock,
+  applyCatalogStockMovement,
+} from "@/lib/mektek/catalog-stock-ledger";
 import {
   ensureFinanceCounterparty,
   syncOutboundDispatchBillingSource,
@@ -257,8 +260,8 @@ function normalizeHeader(
     return { error: "PO Type harus Normal atau Consignment" } as const;
   }
   if (!inputDate) return { error: "Tanggal Input tidak valid" } as const;
-  if (!dueDate) return { error: "Due Date tidak valid" } as const;
-  if (dueDate < inputDate) {
+  const resolvedDueDate = dueDate ?? inputDate;
+  if (resolvedDueDate < inputDate) {
     return { error: "Due Date tidak boleh sebelum Tanggal Input" } as const;
   }
   return {
@@ -268,11 +271,11 @@ function normalizeHeader(
       userName,
       projectName,
       inputDate,
-      dueDate,
+      dueDate: resolvedDueDate,
       poType,
       poMode: requestedMode,
       supplyStartDate: inputDate,
-      supplyEndDate: dueDate,
+      supplyEndDate: resolvedDueDate,
       notes: notes || null,
     },
   } as const;
@@ -924,6 +927,9 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
           id: true,
           poNumber: true,
           flow: true,
+          poMode: true,
+          projectName: true,
+          userName: true,
           inputDate: true,
           supplyReviewStatus: true,
           items: {
@@ -1061,6 +1067,26 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
           sourceId: movement.receiptId,
           preventNegativeStock: true,
         });
+      }
+      if (purchaseOrder.poMode === "CONSIGNMENT") {
+        const siteName = purchaseOrder.projectName || purchaseOrder.userName;
+        for (const movement of movementInputs.sort((a, b) =>
+          a.catalogItemId.localeCompare(b.catalogItemId),
+        )) {
+          await applyCatalogConsignmentSiteStock(tx, {
+            catalogItemId: movement.catalogItemId,
+            siteName,
+            projectKey: normalizeFinanceKey(purchaseOrder.projectName),
+            direction: "IN",
+            quantity: movement.quantity,
+            occurredAt: dispatchedAt,
+            note: `Consignment ${purchaseOrder.poNumber}`,
+            counterpartyName: purchaseOrder.userName,
+            createdBy: access.session.user.id,
+            source: "OUTBOUND_PO",
+            sourceId: movement.receiptId,
+          });
+        }
       }
       const openItems = await tx.logisticsPurchaseOrderItem.count({
         where: { purchaseOrderId: purchaseOrder.id, status: "OPEN" },

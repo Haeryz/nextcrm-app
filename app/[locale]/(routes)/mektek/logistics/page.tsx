@@ -104,8 +104,21 @@ export default async function MektekLogisticsPage({
     return `/${locale}/mektek/logistics?${next.toString()}`;
   };
   const purchaseOrders = result.data.items.map(
-    ({ inputDate, dueDate, deliveryDate, createdAt, updatedAt, items, ...order }) => ({
+    ({
+      deliveryNoteImageData: _deliveryNoteImageData,
+      supplierInvoiceImageData: _supplierInvoiceImageData,
+      mektekDeliveryNoteImageData: _mektekDeliveryNoteImageData,
+      customerPoImageData,
+      inputDate,
+      dueDate,
+      deliveryDate,
+      createdAt,
+      updatedAt,
+      items,
+      ...order
+    }) => ({
       ...order,
+      hasCustomerPoImage: Boolean(customerPoImageData),
       inputDate: inputDate.toISOString(),
       dueDate: dueDate.toISOString(),
       deliveryDate: deliveryDate?.toISOString() ?? null,
@@ -137,7 +150,7 @@ export default async function MektekLogisticsPage({
       description="Kelola PO pengiriman MekTek ke User, stok keluar, dan Surat Jalan"
     >
       <div className="flex flex-col gap-6">
-        <Card>
+        <Card className="sticky top-0 z-30">
           <CardContent className="p-4">
             <form
               action={`/${locale}/mektek/logistics`}

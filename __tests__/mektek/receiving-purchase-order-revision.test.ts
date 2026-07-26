@@ -94,12 +94,13 @@ describe("Receiving Purchase Order revision", () => {
       "app/api/mektek/logistics/purchase-orders/[id]/delivery-note-image/route.ts",
     );
 
-    expect(schemaSource).toContain(
-      "receivingDeliveryNoteSource LogisticsReceivingDeliveryNoteSource?",
+    expect(schemaSource).toMatch(
+      /receivingDeliveryNoteSource\s+LogisticsReceivingDeliveryNoteSource\?/,
     );
     expect(managerSource).toContain("Pilih sumber Surat Jalan");
     expect(managerSource).toContain("Pilih dokumen ini");
-    expect(managerSource).toContain("Lihat Surat Jalan Mektek");
+    expect(managerSource).toContain("Cetak Surat Jalan");
+    expect(managerSource).toContain("Unggah foto tanda tangan");
     expect(deliveryNoteRoute).toContain('receivingDeliveryNoteSource: "MEKTEK"');
     expect(supplierImageRoute).toContain(
       'receivingDeliveryNoteSource: "SUPPLIER"',
