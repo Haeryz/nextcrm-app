@@ -61,13 +61,13 @@ export function CustomerClaimCard({ phone }: { phone: string }) {
   }
 
   return (
-    <Card className="border-[#151a63]/10 bg-white dark:border-white/10 dark:bg-white/[0.06]">
+    <Card className="border-[#151a63]/10 bg-white">
       <CardContent className="flex flex-col gap-4 p-6">
         <div className="flex items-start gap-3">
-          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#151a63] dark:text-[#fff200]" />
+          <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#151a63]" />
           <div>
             <h2 className="text-base font-semibold">Verifikasi nomor telepon untuk melihat riwayat servis</h2>
-            <p className="mt-1 text-sm leading-6 text-[#4b5577] dark:text-blue-50/70">
+            <p className="mt-1 text-sm leading-6 text-[#4b5577]">
               Kami menemukan catatan servis untuk nomor telepon Anda. Konfirmasikan
               kepemilikan nomor dengan kode WhatsApp untuk menautkannya ke akun ini.
             </p>
@@ -82,7 +82,7 @@ export function CustomerClaimCard({ phone }: { phone: string }) {
             inputMode="numeric"
             autoComplete="one-time-code"
             placeholder="Kode 6 digit"
-            className="h-11 flex-1 border-[#151a63]/20 bg-white text-[#10164f] dark:border-white/15 dark:bg-[#070a18] dark:text-white"
+            className="h-11 flex-1 border-[#151a63]/20 bg-white text-[#10164f]"
             disabled={claiming}
           />
           <Button
@@ -90,7 +90,7 @@ export function CustomerClaimCard({ phone }: { phone: string }) {
             variant="outline"
             onClick={onSend}
             disabled={sending || claiming}
-            className="h-11 border-[#151a63]/20 text-[#10164f] hover:bg-[#eef1ff] dark:border-white/15 dark:text-white dark:hover:bg-white/10"
+            className="h-11 border-[#151a63]/20 text-[#10164f] hover:bg-[#eef1ff]"
           >
             {sending ? "Mengirim..." : "Kirim kode"}
           </Button>
@@ -98,7 +98,7 @@ export function CustomerClaimCard({ phone }: { phone: string }) {
             type="button"
             onClick={onClaim}
             disabled={claiming}
-            className="h-11 bg-[#151a63] text-[#fff200] hover:bg-[#10164f] dark:bg-[#fff200] dark:text-[#10164f] dark:hover:bg-[#f5e900]"
+            className="h-11 bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
           >
             {claiming ? "Menautkan..." : "Klaim riwayat"}
           </Button>

@@ -7,7 +7,6 @@ import { getTranslations, getMessages } from "next-intl/server";
 
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
-import { ThemeProvider } from "@/app/providers/ThemeProvider";
 
 type Props = {
   children: ReactNode;
@@ -67,12 +66,10 @@ export default async function RootLayout(props: Props) {
   const messages = await getMessages();
 
   return (
-    <html lang={locale} suppressHydrationWarning>
-      <body className="min-h-screen font-sans" suppressHydrationWarning>
+    <html lang={locale}>
+      <body className="min-h-screen font-sans">
         <NextIntlClientProvider locale={locale} messages={messages}>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            {children}
-          </ThemeProvider>
+          {children}
         </NextIntlClientProvider>
         <Toaster />
         <SonnerToaster />

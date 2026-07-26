@@ -154,9 +154,9 @@ export default function ServiceOrderStatusControl({
       )}
 
       {confirmation && !isPending && (
-        <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/20">
+        <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
           <div>
-            <p className="text-xs font-medium text-amber-800 dark:text-amber-300">
+            <p className="text-xs font-medium text-amber-800">
               {confirmation === "AWAITING_PAYMENT"
                 ? "Selesaikan servis dan buka pembayaran?"
                 : confirmation === "CANCELLED"

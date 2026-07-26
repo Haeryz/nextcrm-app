@@ -553,7 +553,7 @@ export default function CatalogInventoryPanel({
                     <tr
                       key={item.id}
                       className={`border-b last:border-b-0 hover:bg-muted/20 ${
-                        isLowStock ? "bg-orange-100/70 dark:bg-orange-900/20" : ""
+                        isLowStock ? "bg-orange-100/70" : ""
                       }`}
                     >
                       <th scope="row" className="sticky left-0 z-10 border-e bg-card px-3 py-3 text-left font-normal">
@@ -573,7 +573,7 @@ export default function CatalogInventoryPanel({
                         </p>
                         {isLowStock && (
                           <span
-                            className="mt-1 inline-flex items-center gap-1 rounded-md bg-orange-100 px-1.5 py-0.5 text-xs font-medium text-orange-800 dark:bg-orange-900/40 dark:text-orange-200"
+                            className="mt-1 inline-flex items-center gap-1 rounded-md bg-orange-100 px-1.5 py-0.5 text-xs font-medium text-orange-800"
                             title={`Total stok akhir ${totalClosingStock} di bawah ambang ${LOW_STOCK_THRESHOLD}`}
                           >
                             <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
@@ -617,7 +617,7 @@ export default function CatalogInventoryPanel({
                                 <button
                                   type="button"
                                   onClick={() => openHistory(item, daily.day)}
-                                  className="rounded px-1 text-xs font-semibold text-emerald-600 hover:bg-emerald-100 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                                  className="rounded px-1 text-xs font-semibold text-emerald-600 hover:bg-emerald-100"
                                   aria-label={`Riwayat mutasi ${item.description} tanggal ${daily.day} (masuk ${daily.inbound.total})`}
                                 >
                                   +{daily.inbound.total}
@@ -627,7 +627,7 @@ export default function CatalogInventoryPanel({
                                 <button
                                   type="button"
                                   onClick={() => openHistory(item, daily.day)}
-                                  className="rounded px-1 text-xs font-semibold text-destructive hover:bg-red-100 dark:hover:bg-red-900/30"
+                                  className="rounded px-1 text-xs font-semibold text-destructive hover:bg-red-100"
                                   aria-label={`Riwayat mutasi ${item.description} tanggal ${daily.day} (keluar ${daily.outbound.total})`}
                                 >
                                   -{daily.outbound.total}
@@ -979,8 +979,8 @@ export default function CatalogInventoryPanel({
                           variant={movement.direction === "IN" ? "secondary" : "outline"}
                           className={
                             movement.direction === "IN"
-                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-300"
-                              : "bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300"
+                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                              : "bg-red-100 text-red-700 hover:bg-red-100"
                           }
                         >
                           {movement.direction === "IN" ? "Masuk" : "Keluar"}
