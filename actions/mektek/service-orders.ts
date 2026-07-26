@@ -76,6 +76,7 @@ import {
 import { getWhatsAppState, sendWhatsAppMessage } from "@/lib/whatsapp";
 import { normalizeMektekVehiclePlateNumber } from "@/lib/mektek/customer-vehicles";
 import { reserveMektekServiceNumber } from "@/lib/mektek/service-number";
+import { isUuid } from "@/lib/uuid";
 import {
   inferMektekCustomerType,
   resolveMektekCustomerNames,
@@ -1025,6 +1026,8 @@ export const getMektekServiceOrders = async (input?: {
 };
 
 export const getMektekServiceOrderById = async (id: string) => {
+  if (!isUuid(id)) return null;
+
   // Defense-in-depth: this "use server" export is invocable directly, so authorize
   // here too. Return null (not an error object) so the order|null contract the
   // invoice/receipt routes and the detail page rely on stays intact. Anonymous

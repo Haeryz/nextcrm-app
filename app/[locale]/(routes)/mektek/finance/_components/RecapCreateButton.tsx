@@ -13,7 +13,7 @@ export default function RecapCreateButton({
 }) {
   return (
     <Button asChild size="sm">
-      <Link href="../invoices">{label}</Link>
+      <Link href="/mektek/finance/invoices">{label}</Link>
     </Button>
   );
 }

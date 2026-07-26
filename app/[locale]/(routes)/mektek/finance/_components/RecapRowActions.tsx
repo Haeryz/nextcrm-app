@@ -45,7 +45,9 @@ export default function RecapRowActions({
   return (
     <div className="flex justify-end gap-1">
       <Button asChild variant="outline" size="sm">
-        <Link href={`../invoices?inspect=${encodeURIComponent(invoiceId)}`}>
+        <Link
+          href={`/mektek/finance/invoices?inspect=${encodeURIComponent(invoiceId)}`}
+        >
           Ubah
         </Link>
       </Button>

@@ -37,6 +37,7 @@ import {
   isMektekReceiptAvailable,
   isMektekStorefrontPurchase,
 } from "@/lib/mektek/order-lifecycle";
+import { isUuid } from "@/lib/uuid";
 
 interface Props {
   params: Promise<{ id: string; locale: string }>;
@@ -54,6 +55,8 @@ function valueOrDash(value?: string | null) {
 
 export default async function MektekDetailPage({ params }: Props) {
   const { id, locale } = await params;
+  if (!isUuid(id)) notFound();
+
   const session = await getServerSession(authOptions);
   const canAccess = canViewMektekOrders(session?.user);
   const canUpdateProgress = canUpdateMektekProgress(session?.user);

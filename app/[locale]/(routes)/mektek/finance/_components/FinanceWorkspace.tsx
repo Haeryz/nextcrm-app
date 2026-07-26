@@ -357,7 +357,7 @@ function RevenueClassificationWarning({
           {invoices.slice(0, 5).map((invoice) => (
             <Link
               key={invoice.id}
-              href={`../invoices?classification=unclassified&inspect=${encodeURIComponent(invoice.id)}`}
+              href={`/mektek/finance/invoices?classification=unclassified&inspect=${encodeURIComponent(invoice.id)}`}
               className="block rounded-md border border-amber-300 bg-white/70 px-3 py-2 transition hover:bg-white"
             >
               <span className="font-medium">
@@ -371,7 +371,7 @@ function RevenueClassificationWarning({
           ))}
         </div>
         <Button asChild size="sm" variant="outline" className="mt-3 bg-white">
-          <Link href="../invoices?classification=unclassified">
+          <Link href="/mektek/finance/invoices?classification=unclassified">
             Periksa semua {count.toLocaleString("id-ID")} invoice
           </Link>
         </Button>
@@ -595,7 +595,7 @@ export default async function FinanceWorkspace({
               </p>
             </div>
             <Button asChild size="sm" variant="outline" className="bg-white">
-              <Link href="./invoices">Tampilkan semua invoice</Link>
+              <Link href="/mektek/finance/invoices">Tampilkan semua invoice</Link>
             </Button>
           </div>
         ) : null}
