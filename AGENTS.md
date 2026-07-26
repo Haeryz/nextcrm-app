@@ -61,9 +61,10 @@ This file is the authoritative guide for AI agents (Claude Code and other LLM ag
 
 ## 3. Production E2E Customer Account
 
-Use this existing synthetic customer account for production storefront E2E tests.
-Do not create another customer account unless this account has been removed or
-explicitly invalidated.
+**STATUS: INVALIDATED (2026-07-26).** The production Neon DB was wiped for a
+real company trial deployment. All `CatalogCustomer`, `CatalogCustomerVehicle`,
+customer `Users`, and related OTP/verification rows were deleted. The account
+below no longer exists in the database; its historical orders were also wiped.
 
 - Production URL: `https://mektek-bice.vercel.app`
 - Customer login URL: `https://mektek-bice.vercel.app/en/customer/access`
@@ -71,13 +72,11 @@ explicitly invalidated.
 - Password: `CodexE2E!98201014`
 - Customer name: `Codex E2E 98201014`
 
-This account is test-only. The production storefront currently connects to
-Midtrans Sandbox, so use only Midtrans sandbox cards, simulators, virtual
-accounts, and QRIS flows. Never enter real payment credentials for this account.
-
-The account already has completed BCA virtual-account, credit-card, and
-QRIS/GoPay E2E orders. Reuse it for regression testing login, direct purchase,
-cart checkout, payment reconciliation, invoices, and receipts.
+Before running storefront E2E again, create a fresh synthetic customer account
+following the same pattern (Codex E2E <timestamp>). The production storefront
+currently connects to Midtrans Sandbox, so use only Midtrans sandbox cards,
+simulators, virtual accounts, and QRIS flows. Never enter real payment
+credentials.
 
 ---
 

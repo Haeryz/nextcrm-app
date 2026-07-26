@@ -532,6 +532,94 @@ export async function searchFinancePurchaseOrders(input: {
       },
     },
   });
+
+  // Fallback: when no Logistics PO matches, look up existing invoices for
+  // the typed PO number so users can reuse PO/SJ combos from prior rekap
+  // entries (e.g. demo imports) even without an active Logistics PO.
+  if (purchaseOrders.length === 0) {
+    const invoiceMatches = await prismadb.financeInvoice.findMany({
+      where: {
+        purchaseOrderNumber: { contains: query, mode: "insensitive" },
+        status: { not: FinanceInvoiceStatus.VOID },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+      select: {
+        id: true,
+        purchaseOrderNumber: true,
+        deliveryNoteNumber: true,
+        deliveryNoteDate: true,
+        purchaseOrderDate: true,
+        dueDate: true,
+        counterparty: { select: { legalName: true } },
+      },
+    });
+    if (invoiceMatches.length) {
+      const dateKey = (date: Date | null) =>
+        date ? date.toISOString().slice(0, 10) : "";
+      const grouped = new Map<
+        string,
+        typeof invoiceMatches
+      >();
+      for (const invoice of invoiceMatches) {
+        const key = invoice.purchaseOrderNumber ?? "";
+        if (!key) continue;
+        const list = grouped.get(key) ?? [];
+        list.push(invoice);
+        grouped.set(key, list);
+      }
+      const normalized = query.toLocaleLowerCase("id-ID");
+      const fallback: FinancePurchaseOrderSuggestion[] = [];
+      for (const [poNumber, invoices] of grouped) {
+        const first = invoices[0];
+        const deliveryNoteNumbers = [
+          ...new Set(
+            invoices
+              .map((invoice) => invoice.deliveryNoteNumber)
+              .filter((value): value is string => Boolean(value)),
+          ),
+        ];
+        fallback.push({
+          id: first.id,
+          poNumber,
+          poMode: "MANUAL",
+          customerName: first.counterparty?.legalName ?? "",
+          projectName: "",
+          purchaseOrderDate: dateKey(first.purchaseOrderDate),
+          dueDate: dateKey(first.dueDate),
+          deliveryNoteNumber: deliveryNoteNumbers.join(", "),
+          deliveryNoteDate: dateKey(first.deliveryNoteDate),
+          description: "",
+          subtotal: "",
+          pricingComplete: false,
+          deliveryNotes: [],
+          totalDeliveryNoteCount: 0,
+        });
+      }
+      const sorted = fallback
+        .sort((left, right) => {
+          const leftNumber = left.poNumber.toLocaleLowerCase("id-ID");
+          const rightNumber = right.poNumber.toLocaleLowerCase("id-ID");
+          const leftRank = leftNumber === normalized
+            ? 0
+            : leftNumber.startsWith(normalized)
+              ? 1
+              : 2;
+          const rightRank = rightNumber === normalized
+            ? 0
+            : rightNumber.startsWith(normalized)
+              ? 1
+              : 2;
+          return (
+            leftRank - rightRank ||
+            leftNumber.localeCompare(rightNumber, "id-ID")
+          );
+        })
+        .slice(0, 8);
+      return { data: sorted };
+    }
+  }
+
   const billingSources = purchaseOrders.length
     ? await prismadb.financeBillingSource.findMany({
         where: {
