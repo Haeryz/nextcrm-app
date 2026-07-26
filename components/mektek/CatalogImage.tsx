@@ -29,9 +29,17 @@ export function CatalogImage({
   const [failed, setFailed] = useState(false);
 
   if (!src || failed) {
+    // role="img" + aria-label so the fallback still identifies *which* item is
+    // missing a picture; without it a reader just hears "Tidak ada gambar"
+    // repeated once per card. Only token colours here — this component also
+    // renders in the staff catalog manager, outside the `.customer-light` scope.
     return (
-      <div className="flex size-full items-center justify-center text-sm text-muted-foreground">
-        Tidak ada gambar
+      <div
+        role="img"
+        aria-label={alt ? `${alt} — tidak ada gambar` : "Tidak ada gambar"}
+        className="flex size-full items-center justify-center bg-muted text-sm text-muted-foreground"
+      >
+        <span aria-hidden="true">Tidak ada gambar</span>
       </div>
     );
   }

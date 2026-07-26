@@ -49,21 +49,24 @@ export default async function CustomerPreferencesPage({
   const preference = await readEmailPreference(userId);
 
   return (
-    <main className="min-h-screen bg-[#f7f8ff] text-[#091247]">
-      <section className="border-b border-[#151a63]/10 bg-white/80 backdrop-blur">
+    <main className="min-h-screen bg-muted text-[hsl(var(--brand-navy-ink))]">
+      <section className="border-b border-primary/10 bg-card/80 backdrop-blur">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-6">
-          <Link href={`/${locale}/customer`} className="min-w-0">
-            <MektekBrandMark textClassName="text-[#10164f]" />
+          <Link
+            href={`/${locale}/customer`}
+            className="flex min-w-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <MektekBrandMark textClassName="text-secondary-foreground" />
           </Link>
 
           <div>
-            <Badge className="bg-[#fff200] text-[#10164f] hover:bg-[#fff200]">
+            <Badge className="bg-[hsl(var(--brand-yellow))] text-secondary-foreground hover:bg-[hsl(var(--brand-yellow))]">
               Preferensi email
             </Badge>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
               Atur email yang Anda terima
             </h1>
-            <p className="mt-2 text-sm leading-6 text-[#4b5577]">
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
               Anda yang menentukan. Email penting seperti kode verifikasi, status
               servis, dan bukti pembayaran tetap dikirim karena bagian dari layanan
               Anda.
@@ -71,13 +74,9 @@ export default async function CustomerPreferencesPage({
           </div>
 
           <div>
-            <Button
-              asChild
-              variant="outline"
-              className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff]"
-            >
+            <Button asChild variant="outline" className="h-11">
               <Link href={`/${locale}/customer/profile`}>
-                <ArrowLeft data-icon="inline-start" />
+                <ArrowLeft data-icon="inline-start" aria-hidden="true" />
                 Kembali ke profil
               </Link>
             </Button>
@@ -85,22 +84,43 @@ export default async function CustomerPreferencesPage({
         </div>
       </section>
 
-      <section className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-6 md:px-6">
+      <section
+        aria-labelledby="preferences-section-heading"
+        className="mx-auto grid w-full max-w-3xl gap-4 px-4 py-8 md:px-6"
+      >
         {!hasRealEmail ? (
-          <Card className="border-[#151a63]/10 bg-white">
-            <CardContent className="p-6 text-sm leading-6 text-[#4b5577]">
-              Akun Anda belum memiliki alamat email asli, sehingga kami belum dapat
-              mengirimkan email apa pun. Hubungi tim Mektek untuk menambahkan email
-              Anda, lalu preferensi ini dapat diatur di sini.
+          <Card className="rounded-xl border-primary/10 bg-card shadow-sm">
+            <CardContent className="flex flex-col items-start gap-4 p-6">
+              <div>
+                <h2
+                  id="preferences-section-heading"
+                  className="text-lg font-semibold"
+                >
+                  Belum ada alamat email pada akun ini
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Akun Anda dibuat dari nomor telepon saja, sehingga kami belum dapat
+                  mengirimkan email apa pun. Hubungi tim Mektek untuk menambahkan
+                  alamat email Anda, lalu preferensi ini dapat diatur di sini.
+                </p>
+              </div>
+              <Button asChild variant="outline" className="h-11">
+                <Link href={`/${locale}/customer/profile`}>Kembali ke profil</Link>
+              </Button>
             </CardContent>
           </Card>
         ) : (
-          <CustomerEmailPreferencesForm
-            userId={userId}
-            email={email}
-            marketing={preference?.marketingOptedInAt !== null && preference?.marketingOptedInAt !== undefined}
-            offers={preference?.offersOptedInAt !== null && preference?.offersOptedInAt !== undefined}
-          />
+          <>
+            <h2 id="preferences-section-heading" className="sr-only">
+              Preferensi email
+            </h2>
+            <CustomerEmailPreferencesForm
+              userId={userId}
+              email={email}
+              marketing={preference?.marketingOptedInAt !== null && preference?.marketingOptedInAt !== undefined}
+              offers={preference?.offersOptedInAt !== null && preference?.offersOptedInAt !== undefined}
+            />
+          </>
         )}
       </section>
     </main>

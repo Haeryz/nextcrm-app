@@ -16,6 +16,11 @@ type Props = {
   offers: boolean;
 };
 
+// The visual switch is 24px tall; this invisible overlay grows the touch area to
+// roughly 48px without changing the control's appearance.
+const SWITCH_TAP_TARGET_CLASS =
+  "relative mt-1 after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']";
+
 export function CustomerEmailPreferencesForm({
   userId,
   email,
@@ -54,19 +59,21 @@ export function CustomerEmailPreferencesForm({
   }
 
   return (
-    <Card className="border-[#151a63]/10 bg-white">
+    <Card className="rounded-xl border-primary/10 bg-card shadow-sm">
       <CardContent className="flex flex-col gap-6 p-6">
         <div>
-          <p className="text-xs text-[#4b5577]">Email Anda</p>
-          <p className="truncate text-sm font-semibold text-[#10164f]">{email}</p>
+          <p className="text-xs text-muted-foreground">Email Anda</p>
+          <p className="truncate text-sm font-semibold text-secondary-foreground">
+            {email}
+          </p>
         </div>
 
-        <div className="flex items-start justify-between gap-4 border-t border-[#151a63]/10 pt-5">
+        <div className="flex items-start justify-between gap-4 border-t border-primary/10 pt-5">
           <div className="flex flex-col gap-1">
-            <Label htmlFor="pref-marketing" className="text-sm font-semibold text-[#10164f]">
+            <Label htmlFor="pref-marketing" className="text-sm font-semibold text-secondary-foreground">
               Email promosi
             </Label>
-            <p className="text-xs leading-5 text-[#4b5577]">
+            <p id="pref-marketing-help" className="text-xs leading-5 text-muted-foreground">
               Kabar produk baru, tips perawatan kendaraan, dan info kegiatan Mektek.
             </p>
           </div>
@@ -75,16 +82,17 @@ export function CustomerEmailPreferencesForm({
             checked={marketingOn}
             onCheckedChange={setMarketingOn}
             disabled={isSaving}
-            aria-label="Email promosi"
+            aria-describedby="pref-marketing-help"
+            className={SWITCH_TAP_TARGET_CLASS}
           />
         </div>
 
-        <div className="flex items-start justify-between gap-4 border-t border-[#151a63]/10 pt-5">
+        <div className="flex items-start justify-between gap-4 border-t border-primary/10 pt-5">
           <div className="flex flex-col gap-1">
-            <Label htmlFor="pref-offers" className="text-sm font-semibold text-[#10164f]">
+            <Label htmlFor="pref-offers" className="text-sm font-semibold text-secondary-foreground">
               Penawaran khusus
             </Label>
-            <p className="text-xs leading-5 text-[#4b5577]">
+            <p id="pref-offers-help" className="text-xs leading-5 text-muted-foreground">
               Diskon, voucher, dan penawaran terbatas untuk pelanggan Mektek.
             </p>
           </div>
@@ -93,20 +101,22 @@ export function CustomerEmailPreferencesForm({
             checked={offersOn}
             onCheckedChange={setOffersOn}
             disabled={isSaving}
-            aria-label="Penawaran khusus"
+            aria-describedby="pref-offers-help"
+            className={SWITCH_TAP_TARGET_CLASS}
           />
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-[#151a63]/10 pt-5">
-          <p className="text-xs leading-5 text-[#4b5577]">
-            Mematikan kedua pilihan tidak memengaruhi email penting seperti kode
+        <div className="flex flex-col gap-3 border-t border-primary/10 pt-5">
+          <p className="text-xs leading-5 text-muted-foreground">
+            Kedua pilihan mati secara bawaan dan hanya aktif bila Anda menyalakannya
+            sendiri. Mematikan keduanya tidak memengaruhi email penting seperti kode
             verifikasi, status servis, dan bukti pembayaran.
           </p>
           <Button
             type="button"
             onClick={onSave}
             disabled={isSaving || !isDirty}
-            className="bg-[#151a63] text-[#fff200] hover:bg-[#10164f] sm:w-fit"
+            className="h-11 sm:w-fit"
           >
             {isSaving ? "Menyimpan..." : "Simpan preferensi"}
           </Button>

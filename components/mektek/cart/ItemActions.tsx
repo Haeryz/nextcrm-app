@@ -30,23 +30,25 @@ export function ItemActions({ item }: { item: StoreItem }) {
       <Button
         type="button"
         variant="outline"
-        className="flex-1 border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff]"
+        className="h-11 flex-1 border-border/20 bg-card text-[hsl(var(--brand-navy-deep))] sm:h-10"
         onClick={() => {
           add(item, 1);
           toast.success("Ditambahkan ke keranjang", {
             action: { label: "Lihat", onClick: () => setCartOpen(true) },
           });
         }}
+        aria-label={`Tambahkan ${item.description} ke keranjang`}
       >
-        <ShoppingCart data-icon="inline-start" />
+        <ShoppingCart data-icon="inline-start" aria-hidden="true" />
         Keranjang
       </Button>
       <Button
         type="button"
-        className="flex-1 bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
+        className="h-11 flex-1 sm:h-10"
         onClick={handleBuy}
+        aria-label={`Beli ${item.description} sekarang`}
       >
-        <Zap data-icon="inline-start" />
+        <Zap data-icon="inline-start" aria-hidden="true" />
         Beli
       </Button>
     </div>

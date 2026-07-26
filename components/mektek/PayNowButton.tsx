@@ -11,6 +11,7 @@ import {
   syncMektekPaymentStatus,
 } from "@/actions/mektek/payments";
 import { confirmPaymentWithRetry } from "@/lib/mektek/payment-confirmation";
+import { cn } from "@/lib/utils";
 
 type SnapCallbacks = {
   onSuccess?: (result: unknown) => void;
@@ -112,13 +113,25 @@ export function PayNowButton({
     router.refresh();
   };
 
+  /**
+   * `window.snap.pay()` is non-blocking: it opens the Midtrans modal and returns
+   * immediately. Clearing `loading` in a `finally` around it therefore re-enabled
+   * the button while the modal was still open, so dismissing and re-clicking
+   * created a SECOND payment intent for the same order. The flag must only be
+   * cleared on paths where no Snap modal is (or will be) open — i.e. every early
+   * bail-out before `pay()`, the synchronous throw from `pay()` itself, and the
+   * four Snap lifecycle callbacks. This mirrors `CheckoutDialog`.
+   */
   const handlePay = async () => {
+    if (loading) return;
     setLoading(true);
     try {
       const result = await createMektekPaymentIntent({ serviceOrderId, token, code });
 
+      // Exit 1: server refused to create the intent.
       if (result?.error || !result?.data) {
         toast.error(result?.error ?? "Gagal memulai pembayaran");
+        setLoading(false);
         return;
       }
 
@@ -126,28 +139,46 @@ export function PayNowButton({
 
       await loadSnapScript(snapScriptUrl, clientKey);
 
+      // Exit 2: snap.js loaded but did not expose the global.
       if (!window.snap) {
         toast.error("Gagal memuat pembayaran");
+        setLoading(false);
         return;
       }
 
       window.snap.pay(snapToken, {
+        // Exit 3: paid — stay disabled until confirmation settles.
         onSuccess: () => {
-          void confirmPayment(orderId);
+          void (async () => {
+            try {
+              await confirmPayment(orderId);
+            } catch {
+              toast.info("Pembayaran berhasil dan sedang dikonfirmasi Midtrans.");
+            } finally {
+              setLoading(false);
+            }
+          })();
         },
+        // Exit 4: awaiting payment (VA / QRIS).
         onPending: () => {
           toast.info("Menunggu pembayaran Anda.");
+          setLoading(false);
         },
+        // Exit 5: Midtrans reported a failure.
         onError: () => {
           toast.error("Pembayaran gagal. Silakan coba lagi.");
+          setLoading(false);
         },
+        // Exit 6: customer dismissed the modal.
         onClose: () => {
           toast.info("Pembayaran dibatalkan.");
+          setLoading(false);
         },
       });
     } catch (error) {
+      // Exit 7: snap.js failed to load, or pay() threw synchronously — in both
+      // cases no modal is open, so the button must become clickable again.
       toast.error(error instanceof Error ? error.message : "Terjadi kesalahan");
-    } finally {
       setLoading(false);
     }
   };
@@ -155,13 +186,23 @@ export function PayNowButton({
   if (balanceDue <= 0) return null;
 
   return (
-    <Button onClick={handlePay} disabled={loading} className={className}>
+    <Button
+      type="button"
+      onClick={handlePay}
+      disabled={loading}
+      aria-busy={loading}
+      className={cn("h-11 sm:h-10", className)}
+    >
       {loading ? (
-        <Loader2 data-icon="inline-start" className="animate-spin" />
+        <Loader2
+          data-icon="inline-start"
+          className="animate-spin"
+          aria-hidden="true"
+        />
       ) : (
-        <CreditCard data-icon="inline-start" />
+        <CreditCard data-icon="inline-start" aria-hidden="true" />
       )}
-      Bayar {formatCurrency(balanceDue)}
+      {loading ? "Memproses pembayaran…" : `Bayar ${formatCurrency(balanceDue)}`}
     </Button>
   );
 }

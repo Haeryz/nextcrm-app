@@ -162,26 +162,24 @@ export function CheckoutDialog() {
       modal={false}
       onOpenChange={(v) => (!v ? handleClose() : undefined)}
     >
-      <DialogContent className="customer-light max-h-[90vh] overflow-y-auto border-[#151a63]/10 bg-[#f7f8ff] text-[#091247] sm:max-w-lg">
+      <DialogContent className="customer-light max-h-[90vh] overflow-y-auto border-border/10 bg-muted text-[hsl(var(--brand-navy-ink))] sm:max-w-lg">
         {done ? (
           <div className="flex flex-col items-center gap-4 py-4 text-center">
-            <CheckCircle2 className="size-12 text-[#151a63]" />
+            <CheckCircle2 className="size-12 text-primary" aria-hidden="true" />
             <div className="space-y-1">
               <DialogTitle>Pesanan diterima</DialogTitle>
-              <DialogDescription className="text-[#4b5577]">
+              <DialogDescription className="text-muted-foreground">
                 Pembayaran sedang dikonfirmasi. Anda dapat memantau status pesanan.
               </DialogDescription>
             </div>
             <div className="flex w-full flex-col gap-2 pt-2">
-              <Button
-                asChild
-                className="w-full bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
-              >
+              <Button asChild className="h-11 w-full sm:h-10">
                 <Link href={done.trackingPath}>Lihat status pesanan</Link>
               </Button>
               <Button
+                type="button"
                 variant="outline"
-                className="w-full border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff]"
+                className="h-11 w-full border-border/20 text-[hsl(var(--brand-navy-deep))] sm:h-10"
                 onClick={handleClose}
               >
                 Tutup
@@ -192,29 +190,42 @@ export function CheckoutDialog() {
           <>
             <DialogHeader>
               <DialogTitle>Checkout</DialogTitle>
-              <DialogDescription className="text-[#4b5577]">
+              <DialogDescription className="text-muted-foreground">
                 Masukkan data Anda untuk melanjutkan pembayaran.
               </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-3">
-              <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border border-[#151a63]/10 bg-white p-3">
+              <ul className="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-border/10 bg-card p-4 shadow-sm">
                 {lines.map(({ item, quantity }) => (
-                  <div key={item.id} className="flex items-start justify-between gap-3 text-sm">
+                  <li
+                    key={item.id}
+                    className="flex items-start justify-between gap-3 text-sm"
+                  >
                     <span className="min-w-0 flex-1 truncate">
                       {item.description}{" "}
-                      <span className="text-[#4b5577]">× {quantity}</span>
+                      <span className="text-muted-foreground">× {quantity}</span>
                     </span>
-                    <span className="font-medium">{formatIDR(item.price * quantity)}</span>
-                  </div>
+                    <span className="font-medium tabular-nums">
+                      {formatIDR(item.price * quantity)}
+                    </span>
+                  </li>
                 ))}
+              </ul>
+              {/* Announced on change: a direct-checkout line and a cart checkout
+                  reuse this dialog, so the total can change under the reader. */}
+              <div
+                className="flex items-center justify-between text-sm"
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="font-semibold tabular-nums">
+                  {formatIDR(subtotal)}
+                </span>
               </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-[#4b5577]">Subtotal</span>
-                <span className="font-semibold">{formatIDR(subtotal)}</span>
-              </div>
-              <p className="text-xs text-[#4b5577]">
-                Total akhir termasuk PPN 11% & PPh 2% akan tampil di Midtrans.
+              <p className="text-xs text-muted-foreground">
+                Total akhir termasuk PPN 11% &amp; PPh 2% akan tampil di Midtrans.
               </p>
             </div>
 
@@ -229,7 +240,9 @@ export function CheckoutDialog() {
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Nama lengkap"
                   autoComplete="name"
-                  className="border-[#151a63]/20 bg-white text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
+                  required
+                  aria-required="true"
+                  className="h-11 border-border/20 bg-card text-[hsl(var(--brand-navy-deep))] sm:h-10"
                 />
               </div>
               <div className="space-y-1.5">
@@ -241,8 +254,14 @@ export function CheckoutDialog() {
                   placeholder="08xxxxxxxxxx"
                   inputMode="tel"
                   autoComplete="tel"
-                  className="border-[#151a63]/20 bg-white text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
+                  required
+                  aria-required="true"
+                  aria-describedby="co-phone-hint"
+                  className="h-11 border-border/20 bg-card text-[hsl(var(--brand-navy-deep))] sm:h-10"
                 />
+                <p id="co-phone-hint" className="text-xs text-muted-foreground">
+                  Dipakai untuk mengirim status pesanan lewat WhatsApp.
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="co-address">Alamat (opsional)</Label>
@@ -252,7 +271,7 @@ export function CheckoutDialog() {
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="Alamat pengiriman"
                   autoComplete="street-address"
-                  className="border-[#151a63]/20 bg-white text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
+                  className="h-11 border-border/20 bg-card text-[hsl(var(--brand-navy-deep))] sm:h-10"
                 />
               </div>
             </div>
@@ -263,7 +282,7 @@ export function CheckoutDialog() {
                 variant="outline"
                 onClick={handleClose}
                 disabled={loading}
-                className="border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff]"
+                className="h-11 border-border/20 text-[hsl(var(--brand-navy-deep))] sm:h-10"
               >
                 Batal
               </Button>
@@ -271,12 +290,19 @@ export function CheckoutDialog() {
                 type="button"
                 onClick={handlePay}
                 disabled={loading}
-                className="bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
+                aria-busy={loading}
+                className="h-11 sm:h-10"
               >
                 {loading ? (
-                  <Loader2 data-icon="inline-start" className="animate-spin" />
+                  <Loader2
+                    data-icon="inline-start"
+                    className="animate-spin"
+                    aria-hidden="true"
+                  />
                 ) : null}
-                Bayar {formatIDR(subtotal)}
+                {loading
+                  ? "Memproses pembayaran…"
+                  : `Bayar ${formatIDR(subtotal)}`}
               </Button>
             </DialogFooter>
           </>

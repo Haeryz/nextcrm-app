@@ -12,9 +12,11 @@ import {
   Gauge,
   LogIn,
   MapPin,
+  PackageSearch,
   Search,
   ShieldCheck,
   Sparkles,
+  Timer,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
@@ -61,6 +63,33 @@ type LandingProcessStep = {
 type CustomerCatalog = Awaited<ReturnType<typeof listMektekCatalogItems>>;
 type CustomerCatalogItem = CustomerCatalog["items"][number];
 
+/*
+ * Shared style tokens for this page.
+ *
+ * Colours come from the `.customer-light` brand scope in `app/[locale]/globals.css`
+ * (`--primary` is the brand navy, `--brand-*` is the rest of the scale). Nothing here
+ * should hardcode a hex literal — the palette has exactly one source of truth.
+ *
+ * The class constants below exist because the hero, the trust strip, the service
+ * grid and the catalogue grid are sibling surfaces: they previously used three
+ * different radii, four near-identical off-whites and two heading scales for no
+ * reason. Reusing one constant keeps them in step.
+ */
+const PAGE_SHELL = "mx-auto w-full max-w-7xl px-4 md:px-6";
+const CARD_SURFACE = "rounded-xl border border-primary/10 bg-card shadow-sm";
+const SECTION_HEADING =
+  "text-2xl font-semibold leading-tight text-[hsl(var(--brand-navy-ink))] sm:text-3xl lg:text-4xl";
+const EYEBROW = "text-sm font-semibold uppercase tracking-[0.18em] text-primary";
+const BODY_TEXT = "text-sm leading-6 text-[hsl(var(--brand-muted))]";
+const OUTLINE_BUTTON = "border-primary/20 text-[hsl(var(--brand-navy-deep))]";
+const OUTLINE_BUTTON_ON_LIGHT = `${OUTLINE_BUTTON} bg-card/80`;
+const OUTLINE_BUTTON_ON_DARK =
+  "border-white/30 bg-white/10 text-white hover:bg-white hover:text-[hsl(var(--brand-navy-deep))]";
+const YELLOW_BUTTON =
+  "bg-[hsl(var(--brand-yellow))] text-[hsl(var(--brand-navy-deep))] hover:bg-[hsl(var(--brand-yellow))]/90";
+const ACCENT_BADGE =
+  "border-transparent bg-[hsl(var(--brand-yellow))] text-[hsl(var(--brand-navy-deep))] hover:bg-[hsl(var(--brand-yellow))]";
+
 function readSearchParam(
   searchParams: Record<string, string | string[] | undefined>,
   key: string
@@ -76,6 +105,27 @@ function formatPrice(price: number | null) {
     currency: "IDR",
     maximumFractionDigits: 0,
   });
+}
+
+/**
+ * Availability is the second decision driver after price, so it never relies on
+ * colour alone: each state carries its own icon *and* its own wording.
+ */
+function AvailabilityPill({ available }: { available: boolean }) {
+  const Icon = available ? CheckCircle2 : Timer;
+
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[0.7rem] font-semibold leading-5 ${
+        available
+          ? "bg-[hsl(var(--brand-surface-alt))] text-[hsl(var(--brand-navy-deep))]"
+          : "border border-dashed border-primary/30 text-[hsl(var(--brand-muted))]"
+      }`}
+    >
+      <Icon aria-hidden="true" className="size-3" />
+      {available ? "Siap dibeli" : "Pre-order"}
+    </span>
+  );
 }
 
 const marqueeItems: string[] = [
@@ -172,17 +222,20 @@ function MektekLanding({
     : "Akses pelanggan";
 
   return (
-    <main className="min-h-screen bg-[#f7f8ff] text-[#091247]">
-      <section className="relative flex min-h-[100svh] flex-col overflow-hidden bg-[#0b1151] text-white">
-        <div aria-hidden className="absolute inset-0">
+    <main className="min-h-screen bg-[hsl(var(--brand-surface))] text-[hsl(var(--brand-navy-ink))]">
+      <section
+        aria-labelledby="beranda-judul"
+        className="relative flex min-h-[100svh] flex-col overflow-hidden bg-[hsl(var(--brand-navy-deep))] text-white"
+      >
+        <div aria-hidden="true" className="absolute inset-0">
           {/* Replace this visual placeholder with the real workshop photo when available. */}
-          <div className="absolute inset-0 bg-[linear-gradient(135deg,#070b36_0%,#12176a_48%,#fff200_160%)]" />
-          <div className="absolute inset-y-0 right-0 hidden w-[58%] bg-[repeating-linear-gradient(135deg,rgba(255,242,0,0.25)_0px,rgba(255,242,0,0.25)_1px,transparent_1px,transparent_16px)] opacity-50 lg:block" />
-          <div className="absolute inset-0 bg-[linear-gradient(100deg,rgba(5,8,32,0.97)_0%,rgba(9,15,75,0.88)_48%,rgba(9,15,75,0.38)_100%)]" />
-          <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-b from-transparent to-[#f7f8ff]" />
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,hsl(var(--brand-navy-ink))_0%,hsl(var(--brand-navy))_48%,hsl(var(--brand-yellow))_160%)]" />
+          <div className="absolute inset-y-0 right-0 hidden w-[58%] bg-[repeating-linear-gradient(135deg,hsl(var(--brand-yellow)_/_0.25)_0px,hsl(var(--brand-yellow)_/_0.25)_1px,transparent_1px,transparent_16px)] opacity-50 lg:block" />
+          <div className="absolute inset-0 bg-[linear-gradient(100deg,hsl(var(--brand-navy-ink)_/_0.97)_0%,hsl(var(--brand-navy-ink)_/_0.88)_48%,hsl(var(--brand-navy-ink)_/_0.38)_100%)]" />
+          <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-b from-transparent to-[hsl(var(--brand-surface))]" />
         </div>
 
-        <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-4 md:px-6 lg:py-7">
+        <div className={`relative z-10 flex flex-1 flex-col py-4 lg:py-7 ${PAGE_SHELL}`}>
           <div className="flex flex-wrap items-center justify-between gap-4">
             <MektekBrandMark
               priority
@@ -190,17 +243,13 @@ function MektekLanding({
               textClassName="text-white"
             />
             <div className="flex items-center gap-2">
-              <Button
-                asChild
-                variant="outline"
-                className="border-white/25 bg-white/10 text-white hover:bg-[#fff200] hover:text-[#10164f]"
-              >
+              <Button asChild variant="outline" className={OUTLINE_BUTTON_ON_DARK}>
                 <Link href={accessHref}>
                   {accessLabel}
                   {isAuthenticated ? (
-                    <UserRound className="size-4" />
+                    <UserRound aria-hidden="true" />
                   ) : (
-                    <LogIn className="size-4" />
+                    <LogIn aria-hidden="true" />
                   )}
                 </Link>
               </Button>
@@ -209,13 +258,16 @@ function MektekLanding({
 
           <div className="flex flex-1 flex-col justify-center gap-5 py-5 sm:gap-7 sm:py-7 lg:gap-8 lg:py-10">
             <div className="max-w-4xl space-y-4 sm:space-y-7">
-              <div className="inline-flex items-center gap-2 rounded-md border border-[#fff200]/35 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase text-zinc-100 sm:py-2">
-                <BadgeCheck className="size-4 text-[#fff200]" />
-                Bengkel Resmi Denso & Dealer AC
-              </div>
+              <p className="inline-flex items-center gap-2 rounded-md border border-[hsl(var(--brand-yellow))]/35 bg-white/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-zinc-100 sm:py-2">
+                <BadgeCheck aria-hidden="true" className="size-4 text-[hsl(var(--brand-yellow))]" />
+                Bengkel Resmi Denso &amp; Dealer AC
+              </p>
 
               <div className="space-y-3 sm:space-y-5">
-                <h1 className="max-w-4xl text-4xl font-semibold leading-[1.04] sm:text-5xl lg:text-7xl">
+                <h1
+                  id="beranda-judul"
+                  className="max-w-4xl text-4xl font-semibold leading-[1.04] sm:text-5xl lg:text-7xl"
+                >
                   PT Mektek Tanjung Lestari
                 </h1>
                 <p className="max-w-2xl text-sm leading-6 text-zinc-200 sm:text-lg sm:leading-7">
@@ -226,27 +278,27 @@ function MektekLanding({
               </div>
 
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                <Button asChild size="lg" className="h-10 bg-[#fff200] text-[#10164f] hover:bg-[#f5e900] sm:h-11">
+                <Button asChild size="lg" className={`h-10 sm:h-11 ${YELLOW_BUTTON}`}>
                   <Link href={sparepartHref}>
                     Buka katalog
-                    <ArrowRight className="size-4" />
+                    <ArrowRight aria-hidden="true" />
                   </Link>
                 </Button>
                 <Button
                   asChild
                   size="lg"
                   variant="outline"
-                  className="h-10 border-white/30 bg-white/10 text-white hover:bg-white hover:text-[#10164f] sm:h-11"
+                  className={`h-10 sm:h-11 ${OUTLINE_BUTTON_ON_DARK}`}
                 >
-                  <Link href="#services">
+                  <Link href="#layanan">
                     Lihat layanan
-                    <ArrowRight className="size-4" />
+                    <ArrowRight aria-hidden="true" />
                   </Link>
                 </Button>
               </div>
             </div>
 
-            <div className="max-w-6xl rounded-md border border-white/15 bg-white/[0.07] p-2 shadow-sm backdrop-blur sm:p-2.5">
+            <div className="max-w-6xl rounded-xl border border-white/15 bg-white/[0.07] p-2 shadow-sm backdrop-blur sm:p-2.5">
               <dl className="grid gap-2 md:grid-cols-[minmax(0,0.9fr)_minmax(0,0.9fr)_minmax(0,1.55fr)]">
                 {contactDetails.map((item: LandingInfoCard) => {
                   const Icon = item.icon;
@@ -254,10 +306,10 @@ function MektekLanding({
                   return (
                     <div
                       key={item.title}
-                      className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 rounded-md bg-white/[0.08] px-3 py-2.5"
+                      className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 rounded-lg bg-white/[0.08] px-3 py-2.5"
                     >
-                      <dt className="flex size-9 shrink-0 items-center justify-center rounded-md bg-[#fff200] text-[#10164f]">
-                        <Icon className="size-4" />
+                      <dt className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--brand-yellow))] text-[hsl(var(--brand-navy-deep))]">
+                        <Icon aria-hidden="true" className="size-4" />
                         <span className="sr-only">{item.title}</span>
                       </dt>
                       <dd className="min-w-0">
@@ -279,7 +331,15 @@ function MektekLanding({
           </div>
         </div>
 
-        <div className="relative z-10 shrink-0 overflow-hidden border-y border-[#fff200]/30 bg-[#fff200] text-[#10164f]">
+        {/*
+          Decorative repetition of claims already stated in the hero badge, the trust
+          strip and the service grid — duplicating it for screen readers would only
+          add noise, and the second copy exists purely to make the loop seamless.
+        */}
+        <div
+          aria-hidden="true"
+          className="relative z-10 shrink-0 overflow-hidden border-y border-[hsl(var(--brand-yellow))]/30 bg-[hsl(var(--brand-yellow))] text-[hsl(var(--brand-navy-deep))]"
+        >
           <div className="animate-mektek-marquee flex w-max items-center py-2 sm:py-3">
             {[0, 1].map((group) => (
               <div key={group} className="flex shrink-0 items-center gap-8 pr-8">
@@ -297,100 +357,105 @@ function MektekLanding({
         </div>
       </section>
 
-      <section className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-8 md:grid-cols-3 md:px-6">
-        {landingHighlights.map((item: string) => (
-          <div
-            key={item}
-            className="flex items-start gap-3 rounded-md border border-[#151a63]/10 bg-white p-4 shadow-sm"
-          >
-            <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-[#151a63]" />
-            <p className="text-sm font-medium leading-6">{item}</p>
-          </div>
-        ))}
+      <section aria-label="Keunggulan MekTek" className={`${PAGE_SHELL} py-10 lg:py-12`}>
+        <ul role="list" className="grid gap-4 md:grid-cols-3">
+          {landingHighlights.map((item: string) => (
+            <li key={item} className={`flex items-start gap-3 p-5 ${CARD_SURFACE}`}>
+              <CheckCircle2 aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary" />
+              <p className="text-sm font-medium leading-6">{item}</p>
+            </li>
+          ))}
+        </ul>
       </section>
 
-      <section id="services" className="border-y border-[#151a63]/10 bg-white">
-        <div className="mx-auto grid w-full max-w-7xl gap-8 px-4 py-12 md:px-6 lg:grid-cols-[0.82fr_1.18fr] lg:py-16">
+      <section
+        id="layanan"
+        aria-labelledby="layanan-judul"
+        className="border-y border-primary/10 bg-card"
+      >
+        <div
+          className={`${PAGE_SHELL} grid gap-8 py-12 lg:grid-cols-[0.82fr_1.18fr] lg:py-16`}
+        >
           <div className="space-y-4">
-            <Badge className="bg-[#fff200] text-[#10164f] hover:bg-[#fff200]">
-              Servis Resmi Denso
-            </Badge>
-            <h2 className="text-2xl font-semibold leading-tight sm:text-4xl">
+            <Badge className={ACCENT_BADGE}>Servis Resmi Denso</Badge>
+            <h2 id="layanan-judul" className={SECTION_HEADING}>
               Perawatan mobil yang rapi, jelas, dan ditangani bengkel resmi Denso.
             </h2>
-            <p className="text-sm leading-6 text-[#4b5577] sm:text-base">
+            <p className={`${BODY_TEXT} sm:text-base`}>
               PT Mektek Tanjung Lestari melayani kebutuhan servis kendaraan di
               Kecamatan Murung Pudak, Kabupaten Tabalong, Kalimantan Selatan.
               Datang untuk menjaga AC tetap nyaman dan kendaraan siap digunakan.
             </p>
-            <div className="flex items-start gap-3 rounded-md border-l-4 border-[#fff200] bg-[#f8f9ff] p-4">
-              <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#151a63]" />
-              <p className="text-sm leading-6 text-[#26305f]">
+            <div className="flex items-start gap-3 rounded-xl border border-primary/10 border-l-4 border-l-[hsl(var(--brand-yellow))] bg-[hsl(var(--brand-surface))] p-5">
+              <ShieldCheck aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary" />
+              <p className="text-sm leading-6 text-[hsl(var(--brand-navy-deep))]">
                 Yuk servis mobilnya ke Dealer Resmi Denso Mektek Tanjung agar
                 pengemudi dan penumpang merasa nyaman di perjalanan.
               </p>
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <ul role="list" className="grid gap-4 sm:grid-cols-2">
             {serviceCards.map((item: LandingServiceCard) => {
               const Icon = item.icon;
 
               return (
-                <div
+                <li
                   key={item.title}
-                  className="rounded-md border border-[#151a63]/10 bg-[#fafbff] p-5 shadow-sm"
+                  className="rounded-xl border border-primary/10 bg-[hsl(var(--brand-surface))] p-5 shadow-sm"
                 >
-                  <div className="flex size-11 items-center justify-center rounded-md bg-[#151a63] text-[#fff200]">
-                    <Icon className="size-5" />
-                  </div>
+                  <span className="flex size-11 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                    <Icon aria-hidden="true" className="size-5" />
+                  </span>
                   <h3 className="mt-5 text-base font-semibold">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-[#4b5577]">
-                    {item.description}
-                  </p>
-                </div>
+                  <p className={`mt-2 ${BODY_TEXT}`}>{item.description}</p>
+                </li>
               );
             })}
-          </div>
+          </ul>
         </div>
       </section>
 
-      <section className="mx-auto w-full max-w-7xl px-4 py-12 md:px-6 lg:py-16">
+      <section aria-labelledby="alur-judul" className={`${PAGE_SHELL} py-12 lg:py-16`}>
         <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
           <div className="space-y-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#151a63]">
-              Cara mulai
-            </p>
-            <h2 className="text-2xl font-semibold leading-tight sm:text-3xl">
+            <p className={EYEBROW}>Cara mulai</p>
+            <h2 id="alur-judul" className={SECTION_HEADING}>
               Mulai dari kebutuhan servis, lalu lanjutkan dengan pengecekan kendaraan.
             </h2>
-            <p className="max-w-xl text-sm leading-6 text-[#4b5577]">
+            <p className={`max-w-xl ${BODY_TEXT}`}>
               Alur dibuat sederhana untuk pelanggan yang ingin langsung datang ke
               bengkel atau melihat katalog sparepart terlebih dahulu.
             </p>
           </div>
 
-          <div className="grid gap-4">
+          <ol className="grid gap-4">
             {processSteps.map((item: LandingProcessStep) => (
-              <div
+              <li
                 key={item.step}
-                className="grid gap-3 rounded-md border border-[#151a63]/10 bg-white p-5 shadow-sm sm:grid-cols-[4rem_1fr]"
+                className={`grid gap-3 p-5 sm:grid-cols-[4rem_1fr] ${CARD_SURFACE}`}
               >
-                <p className="text-sm font-semibold text-[#151a63]">{item.step}</p>
+                <p className="text-sm font-semibold tabular-nums text-primary">
+                  <span className="sr-only">Langkah </span>
+                  {item.step}
+                </p>
                 <div>
                   <h3 className="text-base font-semibold">{item.title}</h3>
-                  <p className="mt-1 text-sm leading-6 text-[#4b5577]">
-                    {item.description}
-                  </p>
+                  <p className={`mt-1 ${BODY_TEXT}`}>{item.description}</p>
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
       </section>
 
-      <section className="bg-[#0b1151] text-white">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-8 sm:flex-row sm:items-center sm:justify-between md:px-6">
+      <section
+        aria-label="Ajakan servis"
+        className="bg-[hsl(var(--brand-navy-deep))] text-white"
+      >
+        <div
+          className={`${PAGE_SHELL} flex flex-col gap-5 py-10 sm:flex-row sm:items-center sm:justify-between lg:py-12`}
+        >
           <div>
             <p className="text-lg font-semibold">Siap servis di PT Mektek Tanjung Lestari?</p>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-blue-50/70">
@@ -399,10 +464,10 @@ function MektekLanding({
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button asChild className="bg-[#fff200] text-[#10164f] hover:bg-[#f5e900]">
+            <Button asChild className={YELLOW_BUTTON}>
               <Link href={sparepartHref}>
                 Buka katalog
-                <ArrowRight className="size-4" />
+                <ArrowRight aria-hidden="true" />
               </Link>
             </Button>
             <Button
@@ -413,9 +478,9 @@ function MektekLanding({
               <Link href={accessHref}>
                 {accessLabel}
                 {isAuthenticated ? (
-                  <UserRound className="size-4" />
+                  <UserRound aria-hidden="true" />
                 ) : (
-                  <LogIn className="size-4" />
+                  <LogIn aria-hidden="true" />
                 )}
               </Link>
             </Button>
@@ -467,53 +532,55 @@ export default async function CustomerCatalogPage({
     return `/${locale}/customer?${nextParams.toString()}`;
   };
 
+  const catalogHref = `/${locale}/customer?view=sparepart`;
+  const hasFilters = Boolean(query || machine);
+  const filterSummary = [
+    query ? `kata kunci "${query}"` : null,
+    machine ? `mesin "${machine}"` : null,
+  ]
+    .filter(Boolean)
+    .join(" dan ");
+
   return (
     <CartProvider locale={locale} isAuthenticated={isAuthenticated}>
-    <main className="min-h-screen bg-[#f7f8ff] text-[#091247]">
-      <section className="border-b border-[#151a63]/10 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 md:px-6">
+    <main className="min-h-screen bg-[hsl(var(--brand-surface))] text-[hsl(var(--brand-navy-ink))]">
+      <section className="border-b border-primary/10 bg-card/80 backdrop-blur">
+        <div className={`${PAGE_SHELL} flex flex-col gap-6 py-8`}>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <Link href={`/${locale}/customer`} className="min-w-0">
-              <MektekBrandMark textClassName="text-[#10164f]" />
+            <Link
+              href={`/${locale}/customer`}
+              aria-label="Beranda PT Mektek Tanjung Lestari"
+              className="min-w-0"
+            >
+              <MektekBrandMark textClassName="text-[hsl(var(--brand-navy-deep))]" />
             </Link>
           </div>
 
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-col gap-2">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#151a63]">
-                Katalog MekTek
-              </p>
-              <h1 className="text-3xl font-semibold md:text-4xl">
-                Katalog sparepart
-              </h1>
-              <p className="max-w-2xl text-sm text-[#4b5577] md:text-base">
+              <p className={EYEBROW}>Katalog MekTek</p>
+              <h1 className="text-3xl font-semibold md:text-4xl">Katalog sparepart</h1>
+              <p className={`max-w-2xl ${BODY_TEXT} md:text-base`}>
                 Telusuri sparepart berdasarkan model, nomor komponen, atau deskripsi.
               </p>
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <Button
-                asChild
-                variant="outline"
-                className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff]"
-              >
+              <Button asChild variant="outline" className={OUTLINE_BUTTON_ON_LIGHT}>
                 <Link href={`/${locale}/customer`}>
-                  <ArrowLeft className="size-4" />
+                  <ArrowLeft aria-hidden="true" />
                   Beranda pelanggan
                 </Link>
               </Button>
-              <Button
-                asChild
-                className="bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
-              >
+              <Button asChild>
                 <Link
                   href={
                     isAuthenticated
                       ? `/${locale}/customer/profile`
-                      : `/${locale}/customer/access?next=${encodeURIComponent(`/${locale}/customer?view=sparepart`)}`
+                      : `/${locale}/customer/access?next=${encodeURIComponent(catalogHref)}`
                   }
                 >
-                  <UserRound className="size-4" />
+                  <UserRound aria-hidden="true" />
                   {isAuthenticated ? "Akun saya" : "Akses pelanggan"}
                 </Link>
               </Button>
@@ -523,162 +590,217 @@ export default async function CustomerCatalogPage({
 
           <form
             action={`/${locale}/customer`}
-            className="grid gap-3 rounded-md border border-[#151a63]/10 bg-[#fafbff] p-3 shadow-sm md:grid-cols-[1fr_220px_auto]"
+            role="search"
+            aria-label="Cari sparepart"
+            className="grid gap-3 rounded-xl border border-primary/10 bg-[hsl(var(--brand-surface))] p-3 shadow-sm md:grid-cols-[1fr_220px_auto]"
           >
             <input type="hidden" name="view" value="sparepart" />
-            <Input
-              name="q"
-              placeholder="Cari nomor komponen, nama item, atau deskripsi"
-              defaultValue={query}
-              className="border-[#151a63]/20 bg-white text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
-            />
-            <Input
-              name="machine"
-              placeholder="Mesin"
-              defaultValue={machine}
-              className="border-[#151a63]/20 bg-white text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
-            />
-            <Button
-              type="submit"
-              className="bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
-            >
-              <Search data-icon="inline-start" />
+            <div className="min-w-0">
+              <label htmlFor="catalog-query" className="sr-only">
+                Kata kunci sparepart
+              </label>
+              <Input
+                id="catalog-query"
+                name="q"
+                placeholder="Cari nomor komponen, nama item, atau deskripsi"
+                defaultValue={query}
+                className="border-primary/20 bg-card text-[hsl(var(--brand-navy-deep))] placeholder:text-[hsl(var(--brand-muted))]/70 focus-visible:ring-primary"
+              />
+            </div>
+            <div className="min-w-0">
+              <label htmlFor="catalog-machine" className="sr-only">
+                Filter mesin
+              </label>
+              <Input
+                id="catalog-machine"
+                name="machine"
+                list="catalog-machine-options"
+                placeholder="Mesin"
+                defaultValue={machine}
+                className="border-primary/20 bg-card text-[hsl(var(--brand-navy-deep))] placeholder:text-[hsl(var(--brand-muted))]/70 focus-visible:ring-primary"
+              />
+              <datalist id="catalog-machine-options">
+                {catalog.machines.map((option: string) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+            </div>
+            <Button type="submit">
+              <Search data-icon="inline-start" aria-hidden="true" />
               Cari
             </Button>
           </form>
         </div>
       </section>
 
-      <section className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-6 md:px-6">
+      <section className={`${PAGE_SHELL} flex flex-col gap-5 py-8`}>
         {showHighlights && (
           <CustomerCatalogHighlights locale={locale} {...highlights} />
         )}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-[#4b5577]">
-            {catalog.totalCount} item ditemukan
-          </p>
-          {(query || machine) && (
-            <Button
-              asChild
-              variant="ghost"
-              size="sm"
-              className="text-[#151a63] hover:bg-[#eef1ff] hover:text-[#10164f]"
-            >
-              <Link href={`/${locale}/customer?view=sparepart`}>Reset Filter</Link>
-            </Button>
-          )}
-        </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {catalog.items.map((item: CustomerCatalogItem) => {
-            const imagePath = getExistingCatalogImagePath(item.imagePath);
-
-            return (
-              <Card
-                key={item.id}
-                className="overflow-hidden border-[#151a63]/10 bg-white shadow-sm"
-              >
-                <div className="aspect-[4/3] bg-[#eef1ff]">
-                  <CatalogImage src={imagePath} alt={item.description} />
-                </div>
-                <CardContent className="flex min-h-56 flex-col gap-3 p-4">
-                  <div className="flex items-center gap-3">
-                    <Badge className="max-w-[70%] truncate bg-[#fff200] text-[#10164f] hover:bg-[#fff200]">
-                      {item.machine}
-                    </Badge>
-                  </div>
-                  <div className="flex flex-1 flex-col gap-1">
-                    <h2 className="line-clamp-2 text-base font-semibold">
-                      {item.description}
-                    </h2>
-                    <p className="text-sm text-[#4b5577]">
-                      {item.partNumber || "Tanpa nomor komponen"}
-                    </p>
-                  </div>
-                  {typeof item.price === "number" && item.price > 0 ? (
-                    <div className="flex flex-col gap-3">
-                      <p className="text-base font-semibold">
-                        {formatPrice(item.price)}
-                      </p>
-                      <ItemActions
-                        item={{
-                          id: item.id,
-                          description: item.description,
-                          price: item.price,
-                          machine: item.machine ?? null,
-                          partNumber: item.partNumber ?? null,
-                          catalogPartNumber: null,
-                          imagePath: item.imagePath ?? null,
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-between gap-2 rounded-md border border-dashed border-[#151a63]/20 bg-[#eef1ff]/70 px-3 py-2">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-[#4b5577]">
-                          Harga belum tersedia
-                        </span>
-                        <span className="text-xs text-[#4b5577]">
-                          Segera hadir
-                        </span>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className="shrink-0 border-[#151a63]/25 text-[#151a63]"
-                      >
-                        Pre-order
-                      </Badge>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-
-        {catalog.items.length === 0 && (
-          <Card className="border-[#151a63]/10 bg-white">
-            <CardContent className="p-10 text-center text-sm text-[#4b5577]">
-              Tidak ada item katalog yang cocok dengan pencarian ini.
+        {catalog.items.length === 0 ? (
+          <Card className={CARD_SURFACE}>
+            <CardContent className="flex flex-col items-center gap-5 px-6 py-12 text-center">
+              <span className="flex size-14 items-center justify-center rounded-full bg-[hsl(var(--brand-surface-alt))] text-primary">
+                <PackageSearch aria-hidden="true" className="size-7" />
+              </span>
+              <div className="space-y-2">
+                <h2 className="text-lg font-semibold">Sparepart tidak ditemukan</h2>
+                <p className={`mx-auto max-w-md ${BODY_TEXT}`}>
+                  {hasFilters
+                    ? `Tidak ada item yang cocok dengan ${filterSummary}. Coba kata kunci yang lebih singkat, periksa ejaan nomor komponen, atau hapus filter mesin.`
+                    : "Belum ada sparepart yang bisa ditampilkan di katalog saat ini. Silakan kembali lagi nanti atau hubungi tim MekTek."}
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                {hasFilters && (
+                  <Button asChild>
+                    <Link href={catalogHref}>Tampilkan semua sparepart</Link>
+                  </Button>
+                )}
+                <Button asChild variant="outline" className={OUTLINE_BUTTON_ON_LIGHT}>
+                  <Link href={`/${locale}/customer`}>
+                    <ArrowLeft aria-hidden="true" />
+                    Kembali ke beranda
+                  </Link>
+                </Button>
+              </div>
             </CardContent>
           </Card>
-        )}
+        ) : (
+          <>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-[hsl(var(--brand-muted))]">
+                <span className="font-semibold tabular-nums text-[hsl(var(--brand-navy-deep))]">
+                  {catalog.totalCount}
+                </span>{" "}
+                item ditemukan
+              </p>
+              {hasFilters && (
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="sm"
+                  className="text-primary hover:text-[hsl(var(--brand-navy-deep))]"
+                >
+                  <Link href={catalogHref}>Reset Filter</Link>
+                </Button>
+              )}
+            </div>
 
-        <div className="flex flex-col gap-3 border-t border-[#151a63]/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-[#4b5577]">
-            Halaman {catalog.page} dari {catalog.totalPages}
-          </p>
-          <div className="flex gap-2">
-            {catalog.page <= 1 ? (
-              <Button variant="outline" size="sm" disabled>
-                Sebelumnya
-              </Button>
-            ) : (
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff]"
+            <ul
+              role="list"
+              aria-label="Daftar sparepart"
+              className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            >
+              {catalog.items.map((item: CustomerCatalogItem) => {
+                const imagePath = getExistingCatalogImagePath(item.imagePath);
+                const price =
+                  typeof item.price === "number" && item.price > 0 ? item.price : null;
+
+                return (
+                  <li key={item.id} className="min-w-0">
+                    <Card
+                      className={`flex h-full flex-col overflow-hidden ${CARD_SURFACE} transition hover:-translate-y-0.5 hover:shadow-md`}
+                    >
+                      <div className="aspect-[4/3] bg-[hsl(var(--brand-surface-alt))]">
+                        <CatalogImage
+                          src={imagePath}
+                          alt={`Foto sparepart ${item.description} untuk mesin ${item.machine}`}
+                        />
+                      </div>
+                      <CardContent className="flex min-h-56 flex-1 flex-col gap-3 p-5">
+                        <div className="flex items-center justify-between gap-2">
+                          <Badge variant="secondary" className="min-w-0 max-w-[60%] truncate">
+                            <span className="sr-only">Mesin: </span>
+                            {item.machine}
+                          </Badge>
+                          <AvailabilityPill available={price !== null} />
+                        </div>
+
+                        <div className="flex flex-1 flex-col gap-1.5">
+                          <h3 className="line-clamp-2 text-base font-semibold leading-6">
+                            {item.description}
+                          </h3>
+                          <p className="truncate text-xs font-medium uppercase tracking-[0.1em] text-[hsl(var(--brand-muted))]">
+                            <span className="sr-only">Nomor komponen: </span>
+                            {item.partNumber || "Tanpa nomor komponen"}
+                          </p>
+                        </div>
+
+                        <div className="flex flex-col gap-3">
+                          <p
+                            className={
+                              price !== null
+                                ? "text-xl font-bold leading-7 tracking-tight tabular-nums text-[hsl(var(--brand-navy-deep))]"
+                                : "text-sm font-semibold leading-7 text-[hsl(var(--brand-muted))]"
+                            }
+                          >
+                            <span className="sr-only">Harga: </span>
+                            {formatPrice(price)}
+                          </p>
+
+                          {price !== null ? (
+                            <ItemActions
+                              item={{
+                                id: item.id,
+                                description: item.description,
+                                price,
+                                machine: item.machine ?? null,
+                                partNumber: item.partNumber ?? null,
+                                catalogPartNumber: null,
+                                imagePath: item.imagePath ?? null,
+                              }}
+                            />
+                          ) : (
+                            <p className="rounded-lg border border-dashed border-primary/20 bg-[hsl(var(--brand-surface-alt))]/70 px-3 py-2 text-xs leading-5 text-[hsl(var(--brand-muted))]">
+                              Hubungi tim MekTek untuk konfirmasi harga dan ketersediaan.
+                            </p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {catalog.totalPages > 1 && (
+              <nav
+                aria-label="Navigasi halaman katalog"
+                className="flex flex-col gap-3 border-t border-primary/10 pt-5 sm:flex-row sm:items-center sm:justify-between"
               >
-                <Link href={pageHref(catalog.page - 1)}>Sebelumnya</Link>
-              </Button>
+                <p className="text-sm tabular-nums text-[hsl(var(--brand-muted))]">
+                  Halaman {catalog.page} dari {catalog.totalPages}
+                </p>
+                <div className="flex gap-2">
+                  {catalog.page <= 1 ? (
+                    <Button variant="outline" size="sm" disabled>
+                      Sebelumnya
+                    </Button>
+                  ) : (
+                    <Button asChild variant="outline" size="sm" className={OUTLINE_BUTTON_ON_LIGHT}>
+                      <Link href={pageHref(catalog.page - 1)} rel="prev">
+                        Sebelumnya
+                      </Link>
+                    </Button>
+                  )}
+                  {catalog.page >= catalog.totalPages ? (
+                    <Button variant="outline" size="sm" disabled>
+                      Berikutnya
+                    </Button>
+                  ) : (
+                    <Button asChild variant="outline" size="sm" className={OUTLINE_BUTTON_ON_LIGHT}>
+                      <Link href={pageHref(catalog.page + 1)} rel="next">
+                        Berikutnya
+                      </Link>
+                    </Button>
+                  )}
+                </div>
+              </nav>
             )}
-            {catalog.page >= catalog.totalPages ? (
-              <Button variant="outline" size="sm" disabled>
-                Berikutnya
-              </Button>
-            ) : (
-              <Button
-                asChild
-                variant="outline"
-                size="sm"
-                className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff]"
-              >
-                <Link href={pageHref(catalog.page + 1)}>Berikutnya</Link>
-              </Button>
-            )}
-          </div>
-        </div>
+          </>
+        )}
       </section>
       <CartMount />
     </main>

@@ -34,7 +34,11 @@ type SendResult = { ok: boolean; providerId?: string; error?: string };
 const isProd = process.env.NODE_ENV === "production";
 
 // Resend's free onboarding domain — testing only (sends to the account owner).
-const TEST_FROM = "onboarding@resend.com";
+// Resend's shared onboarding sender is on resend.DEV, not resend.com (which is
+// their website and is not a valid sending domain). Dev-only fallback: it can
+// only deliver to the address that owns the Resend account, so real recipients
+// still require a domain you control, verified in Resend with its DNS records.
+const TEST_FROM = "onboarding@resend.dev";
 
 function resolveFromAddress(purpose: EmailPurpose): string {
   const isBulk = purpose === "marketing" || purpose === "offers";
