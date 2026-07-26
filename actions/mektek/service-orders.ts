@@ -360,7 +360,8 @@ export const createMektekServiceOrder = async (
   const serviceCreatedAt = new Date();
 
   try {
-    const creation = await prismadb.$transaction(async (tx) => {
+    const creation = await prismadb.$transaction(
+      async (tx) => {
       const technicianIds = technicianSelections
         .map((selection) => selection.id)
         .filter((id): id is string => !!id);
@@ -605,7 +606,9 @@ export const createMektekServiceOrder = async (
         serviceOrder,
         customerCreated: !existingCatalogCustomer,
       };
-    });
+    },
+      { timeout: 30000, maxWait: 10000 },
+    );
 
     const task = creation.serviceOrder;
 
@@ -1240,7 +1243,8 @@ export const appendMektekServiceOrderItems = async (input: {
   if (stockValidationError) return { error: stockValidationError };
 
   try {
-    const outcome = await prismadb.$transaction(async (tx) => {
+    const outcome = await prismadb.$transaction(
+      async (tx) => {
       const order = await tx.crm_Accounts_Tasks.findFirst({
         where: { id: serviceOrderId, ...mektekOrderWhere() },
         select: {
@@ -1333,7 +1337,9 @@ export const appendMektekServiceOrderItems = async (input: {
           timelineDraft,
         },
       };
-    });
+    },
+      { timeout: 30000, maxWait: 10000 },
+    );
     if ("error" in outcome) return outcome;
 
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
@@ -1422,7 +1428,8 @@ export const updateMektekServiceOrderStatus = async (input: {
 
     const tags = parseTagsObject(serviceOrder.tags);
     if (newStatus === "CANCELLED") {
-      await prismadb.$transaction(async (tx) => {
+      await prismadb.$transaction(
+        async (tx) => {
         await tx.crm_Accounts_Tasks.update({
           where: { id: serviceOrder.id },
           data: { updatedBy: session.user.id },
@@ -1463,7 +1470,9 @@ export const updateMektekServiceOrderStatus = async (input: {
             updatedBy: session.user.id,
           },
         });
-      });
+      },
+        { timeout: 30000, maxWait: 10000 },
+      );
 
       revalidatePath("/[locale]/(routes)/mektek", "page");
       revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
