@@ -9,6 +9,7 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Mail,
   Plus,
   Shuffle,
   Trash2,
@@ -33,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { generateRandomCustomerPassword } from "@/lib/mektek/customer-password-generator";
 import {
   Select,
@@ -51,10 +53,13 @@ type CustomerUserRow = {
   createdAt: string;
   updatedAt: string;
   serviceCount: number;
+  whatsappOptedOutAt: string | null;
+  whatsappOptedOutSource: string | null;
   user: {
     id: string;
     name: string | null;
     email: string;
+    emailIsPlaceholder: boolean;
     isAdmin: boolean;
     mektekRole: "CS" | "TECHNICIAN" | null;
     lastLoginAt: string | null;
@@ -72,6 +77,7 @@ const blankCustomer: CustomerUserInput = {
   customerType: "STANDARD",
   email: "",
   password: "",
+  whatsappOptedOut: false,
 };
 
 function customerToInput(customer: CustomerUserRow): CustomerUserInput {
@@ -79,8 +85,11 @@ function customerToInput(customer: CustomerUserRow): CustomerUserInput {
     name: customer.user?.name || customer.username,
     phone: customer.phone,
     customerType: customer.customerType,
-    email: customer.user?.email ?? "",
+    // Never show the synthesized <digits>@phone.nextcrm.local address as if it
+    // were a real one — staff must see an empty field they can actually fill.
+    email: customer.user?.emailIsPlaceholder ? "" : customer.user?.email ?? "",
     password: "",
+    whatsappOptedOut: customer.whatsappOptedOutAt !== null,
   };
 }
 
@@ -126,6 +135,7 @@ function CustomerUserForm({
   submitLabel,
   pending,
   isEdit,
+  optOutSource,
 }: {
   value: CustomerUserInput;
   onChange: (value: CustomerUserInput) => void;
@@ -133,8 +143,10 @@ function CustomerUserForm({
   submitLabel: string;
   pending: boolean;
   isEdit?: boolean;
+  optOutSource?: string | null;
 }) {
   const [showPassword, setShowPassword] = useState(false);
+  const hasRealEmail = (value.email ?? "").trim().length > 0;
   const update = (key: keyof CustomerUserInput, nextValue: string | boolean) => {
     onChange({ ...value, [key]: nextValue });
   };
@@ -185,15 +197,6 @@ function CustomerUserForm({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Email">
-          <Input
-            type="email"
-            value={value.email ?? ""}
-            onChange={(event) => update("email", event.target.value)}
-            disabled={pending}
-            placeholder="Dibuat dari nomor telepon jika kosong"
-          />
-        </Field>
         <Field label={isEdit ? "New password" : "Password"}>
           <div className="flex flex-col gap-2 sm:flex-row">
             <div className="relative flex-1">
@@ -236,6 +239,65 @@ function CustomerUserForm({
             Password acak berisi huruf besar, huruf kecil, angka, dan simbol.
           </p>
         </Field>
+      </div>
+
+      <div className="flex flex-col gap-4 rounded-lg border border-amber-300/70 bg-amber-50/60 p-4 dark:border-amber-500/30 dark:bg-amber-500/5">
+        <div className="flex flex-col gap-1.5">
+          <Label
+            htmlFor="customer-email"
+            className="flex items-center gap-2 text-sm font-semibold"
+          >
+            <Mail className="size-4" />
+            Email Customer
+          </Label>
+          <Input
+            id="customer-email"
+            type="email"
+            value={value.email ?? ""}
+            onChange={(event) => update("email", event.target.value)}
+            disabled={pending}
+            placeholder="nama@domain.com"
+            className="bg-background"
+          />
+          <p className="text-xs text-muted-foreground">
+            Isi email asli Customer. Tanpa email asli, sistem hanya membuat alamat
+            internal dari nomor telepon, sehingga Customer <strong>tidak dapat
+            menerima promosi, penawaran, maupun email apa pun</strong> dari Mektek.
+            Minta izin Customer terlebih dahulu sebelum mengisinya.
+          </p>
+          {isEdit && !hasRealEmail && (
+            <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+              Customer ini belum punya email asli dan belum dapat dihubungi lewat
+              email.
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2 border-t border-amber-300/50 pt-3 dark:border-amber-500/20">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="customer-wa-optout" className="text-sm font-semibold">
+                Jangan hubungi via WhatsApp
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Aktifkan bila Customer meminta berhenti menerima pesan WhatsApp.
+                Notifikasi WhatsApp tidak akan dikirim ke nomor ini.
+              </p>
+            </div>
+            <Switch
+              id="customer-wa-optout"
+              checked={value.whatsappOptedOut === true}
+              onCheckedChange={(checked) => update("whatsappOptedOut", checked)}
+              disabled={pending}
+              aria-label="Jangan hubungi via WhatsApp"
+            />
+          </div>
+          {optOutSource === "customer" && value.whatsappOptedOut && (
+            <p className="text-xs text-muted-foreground">
+              Penolakan ini diminta langsung oleh Customer.
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="flex justify-end">
@@ -362,7 +424,11 @@ export default function CustomerUserManager({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm">
-                    {customer.user?.email ?? "Belum ada Login Account"}
+                    {!customer.user
+                      ? "Belum ada Login Account"
+                      : customer.user.emailIsPlaceholder
+                        ? "Belum ada email asli"
+                        : customer.user.email}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {customer.user ? "Customer Login" : "Belum ada Login terhubung"}
@@ -373,6 +439,9 @@ export default function CustomerUserManager({
                   <Badge variant={customer.user?.isAdmin ? "default" : "secondary"}>
                     {roleLabel(customer)}
                   </Badge>
+                  {customer.whatsappOptedOutAt && (
+                    <Badge variant="destructive">Tanpa WhatsApp</Badge>
+                  )}
                 </div>
                 <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
                   <div>
@@ -433,6 +502,7 @@ export default function CustomerUserManager({
             submitLabel="Simpan perubahan"
             pending={isPending}
             isEdit
+            optOutSource={editingCustomer?.whatsappOptedOutSource ?? null}
           />
         </DialogContent>
       </Dialog>

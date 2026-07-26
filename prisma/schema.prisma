@@ -385,15 +385,25 @@ model CatalogCustomer {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 
-  user         Users?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  serviceLinks CatalogServiceLink[]
-  vehicles     CatalogCustomerVehicle[]
-  vouchers     MektekVoucher[]
+  // WhatsApp do-not-contact. Lives HERE and not on UserEmailPreference because
+  // that model keys off Users.id, and most Mektek customers are walk-ins with
+  // userId = null — they would be unprotected by a Users-keyed opt-out.
+  // Set either by the customer (opt-out link) or by staff (toggle); `source`
+  // records which. Null = never opted out.
+  whatsappOptedOutAt     DateTime?
+  whatsappOptedOutSource String?   @db.VarChar(16) // "customer" | "staff"
+
+  user           Users?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  serviceLinks   CatalogServiceLink[]
+  vehicles       CatalogCustomerVehicle[]
+  vouchers       MektekVoucher[]
+  waOptOutTokens WhatsAppOptOutToken[]
 
   @@index([phoneNormalized])
   @@index([customerType])
   @@index([userId])
   @@index([createdAt])
+  @@index([whatsappOptedOutAt])
 }
 
 model CatalogCustomerVehicle {
@@ -1535,6 +1545,53 @@ model UserEmailPreference {
   updatedAt           DateTime  @updatedAt
 
   user Users @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// One row per WhatsApp send attempt. This exists because there was previously NO
+// record of what left the business number — an admin could not answer "how many
+// messages did we send yesterday, to whom, and who triggered them", which is the
+// first question worth asking after a suspension.
+//
+// recipientHash mirrors EmailLog's convention (sha256, no plaintext number at
+// rest); recipientMasked is a display-only partial for the admin dashboard.
+// `category` is what the daily promotional cap counts.
+model WhatsAppMessageLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  recipientHash   String   @db.Char(64)
+  recipientMasked String   @db.VarChar(24)
+  purpose         String   @db.VarChar(40)
+  category        String   @db.VarChar(16) // "transactional" | "promotional"
+  status          String   @db.VarChar(24) // "sent" | "failed" | "suppressed"
+  error           String?  @db.Text
+  // Staff member who triggered it, when a human did. Null for cron/system sends.
+  // Intentionally not a relation so log rows survive user deletion.
+  sentById        String?  @db.Uuid
+  sentAt          DateTime @default(now())
+
+  @@index([sentAt])
+  @@index([purpose, sentAt])
+  @@index([status, sentAt])
+  @@index([category, sentAt])
+  @@index([recipientHash])
+}
+
+// Opt-out link tokens. Inbound WhatsApp is architecturally impossible in this
+// app (the socket is torn down after every send and nothing listens for
+// messages.upsert), so "reply STOP" can never work — the opt-out has to be a
+// link to a public web page. Single-use and hashed at rest, mirroring
+// EmailUnsubscribeToken.
+model WhatsAppOptOutToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  customerId String    @db.Uuid
+  tokenHash  String    @unique @db.Char(64)
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  customer CatalogCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([expiresAt])
 }
 
 // Deliverability audit + abuse forensics. recipientHash is sha256(email) so we

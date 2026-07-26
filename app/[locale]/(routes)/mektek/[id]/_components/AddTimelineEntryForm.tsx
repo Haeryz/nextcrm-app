@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { addMektekTimelineEntry } from "@/actions/mektek/service-orders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import WhatsAppNotifyToggle from "./WhatsAppNotifyToggle";
 
 interface AddTimelineEntryFormProps {
   serviceOrderId: string;
@@ -43,15 +42,10 @@ export default function AddTimelineEntryForm({
   return (
     <form
       onSubmit={onSubmit}
-      className="min-w-0 space-y-3 rounded-lg border bg-card p-3 sm:p-4"
+      className="min-w-0 space-y-2 rounded-lg border bg-card p-3 sm:p-4"
     >
-      <div>
-        <p className="text-sm font-semibold">Add Timeline</p>
-        <p className="text-xs text-muted-foreground">
-          Tambahkan catatan terbaru ke riwayat pesanan.
-        </p>
-      </div>
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row">
+      <p className="text-sm font-semibold">Add Timeline</p>
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
         <Input
           placeholder="Contoh: Sparepart sudah dipasang"
           value={description}
@@ -62,13 +56,19 @@ export default function AddTimelineEntryForm({
         />
         <Button
           type="submit"
-          className="w-full shrink-0 sm:w-auto"
+          className="min-h-10 w-full shrink-0 sm:w-auto"
           disabled={isPending}
         >
           {isPending ? "Menyimpan..." : "Add Timeline"}
         </Button>
       </div>
-      <WhatsAppNotifyToggle />
+      {/* Honest replacement for the old WhatsApp checkbox, which was never
+          wired to anything and claimed the integration was still offline. */}
+      <p className="text-xs leading-5 text-muted-foreground">
+        Catatan langsung tampil di halaman lacak pelanggan. Menyimpan catatan
+        tidak mengirim WhatsApp — pesan otomatis hanya terkirim saat status
+        pesanan berubah. Untuk mengabari pelanggan sekarang, pakai tab WhatsApp.
+      </p>
     </form>
   );
 }

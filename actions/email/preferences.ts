@@ -3,6 +3,7 @@
 import { prismadb } from "@/lib/prisma";
 import { authOptions } from "@/lib/auth";
 import { getServerSession } from "@/lib/session";
+import { getCustomerAuthSession } from "@/lib/customer-auth";
 import { hasTrustedMutationOrigin } from "@/lib/trusted-origin";
 import {
   consumeUnsubscribeToken,
@@ -20,7 +21,29 @@ export type EmailPreference = {
   offersOptedOutAt: Date | null;
 };
 
+// Resolves the acting user. Staff sign in through NextAuth; Mektek customers
+// sign in through the revocable customer session (lib/customer-auth.ts), so a
+// NextAuth-only check would lock customers out of their own preferences page.
+async function currentActorId(): Promise<string | null> {
+  const staffSession = await getServerSession(authOptions);
+  if (staffSession?.user?.id) return staffSession.user.id;
+  const customerSession = await getCustomerAuthSession();
+  return customerSession?.user?.id ?? null;
+}
+
+// Self-read only. This module is "use server", so without the actor check any
+// caller could enumerate another user's consent state.
 export async function getEmailPreference(
+  userId: string
+): Promise<EmailPreference | null> {
+  const actorId = await currentActorId();
+  if (!actorId || actorId !== userId) return null;
+  return readEmailPreference(userId);
+}
+
+// Internal read, no session check — for server-side callers that have already
+// resolved the session themselves (e.g. the preferences page).
+export async function readEmailPreference(
   userId: string
 ): Promise<EmailPreference | null> {
   const row = await prismadb.userEmailPreference.findUnique({
@@ -40,23 +63,15 @@ export type UpdateEmailPreferenceInput = {
   offers?: boolean;
 };
 
-// Authenticated opt-in/out. Used by the in-app preferences page. Setting a
-// channel true records an opt-in timestamp + clears the corresponding
-// opt-out timestamp; false does the reverse.
-export async function updateEmailPreference(
+// Internal writer — no session check. The only caller allowed to skip the check
+// is one that just created the user itself (registration), where no session
+// exists yet but consent was captured on that same form submission. Setting a
+// channel true records an opt-in timestamp + clears the corresponding opt-out
+// timestamp; false does the reverse.
+export async function setEmailPreferenceInternal(
   userId: string,
   input: UpdateEmailPreferenceInput
 ): Promise<{ success?: true; error?: string }> {
-  if (!(await hasTrustedMutationOrigin())) {
-    return { error: "Request tidak dapat diverifikasi" };
-  }
-
-  // Session user must match the userId being mutated.
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id || session.user.id !== userId) {
-    return { error: "Tidak memiliki izin" };
-  }
-
   const now = new Date();
   const data: {
     marketingOptedInAt?: Date | null;
@@ -99,6 +114,24 @@ export async function updateEmailPreference(
     console.error("[UPDATE_EMAIL_PREFERENCE]", error);
     return { error: "Gagal memperbarui preferensi" };
   }
+}
+
+// Authenticated opt-in/out. Used by the customer preferences page.
+export async function updateEmailPreference(
+  userId: string,
+  input: UpdateEmailPreferenceInput
+): Promise<{ success?: true; error?: string }> {
+  if (!(await hasTrustedMutationOrigin())) {
+    return { error: "Request tidak dapat diverifikasi" };
+  }
+
+  // Acting user must match the userId being mutated.
+  const actorId = await currentActorId();
+  if (!actorId || actorId !== userId) {
+    return { error: "Tidak memiliki izin" };
+  }
+
+  return setEmailPreferenceInternal(userId, input);
 }
 
 // Token-based unsubscribe — called from the unsubscribe confirm page and the

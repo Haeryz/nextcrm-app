@@ -110,6 +110,7 @@ export default async function MektekCustomersPage({
             ...item,
             createdAt: item.createdAt.toISOString(),
             updatedAt: item.updatedAt.toISOString(),
+            whatsappOptedOutAt: item.whatsappOptedOutAt?.toISOString() ?? null,
             user: item.user
               ? {
                   ...item.user,

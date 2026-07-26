@@ -13,7 +13,10 @@ describe("multiple customer vehicles", () => {
     );
 
     expect(schema).toContain("model CatalogCustomerVehicle");
-    expect(schema).toContain("vehicles     CatalogCustomerVehicle[]");
+    // Match on the relation itself, not on exact column padding: `prisma format`
+    // realigns this block whenever a longer field name is added to the model, so a
+    // whitespace-exact assertion breaks on unrelated schema edits.
+    expect(schema).toMatch(/vehicles\s+CatalogCustomerVehicle\[\]/);
     expect(actions).toContain("catalogCustomerVehicle.upsert");
     expect(actions).toContain("vehicles:");
     expect(migration).toContain("historical_vehicles");

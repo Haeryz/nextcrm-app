@@ -14,9 +14,22 @@ import { boundedText, MAX_NAME_LEN } from "@/lib/mektek/sanitize";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { hashPassword } from "@/lib/password";
+import { normalizeEmail as normalizeRealEmail } from "@/lib/email/validation";
 
 const DEFAULT_PAGE_SIZE = 12;
 const customerTypes = new Set(["STANDARD", "B2B"]);
+
+// Accounts created from a phone number only get a synthesized address that no
+// inbox is ever behind. Staff must be able to tell those apart from a real one.
+const PHONE_PLACEHOLDER_SUFFIX = "@phone.nextcrm.local";
+
+// Not exported: this module is "use server", where every export must be an async
+// server action. The client reads the precomputed flag on the row instead.
+function isPlaceholderEmail(email: string | null | undefined): boolean {
+  return String(email ?? "")
+    .toLowerCase()
+    .endsWith(PHONE_PLACEHOLDER_SUFFIX);
+}
 
 export type CustomerUserInput = {
   name: string;
@@ -24,6 +37,8 @@ export type CustomerUserInput = {
   customerType?: string;
   email?: string;
   password?: string;
+  // Staff-set WhatsApp do-not-contact toggle.
+  whatsappOptedOut?: boolean;
 };
 
 export type CustomerUserRow = {
@@ -35,10 +50,15 @@ export type CustomerUserRow = {
   createdAt: Date;
   updatedAt: Date;
   serviceCount: number;
+  whatsappOptedOutAt: Date | null;
+  whatsappOptedOutSource: string | null;
   user: {
     id: string;
     name: string | null;
     email: string;
+    // True when `email` is the synthesized <digits>@phone.nextcrm.local
+    // placeholder, i.e. the customer has no reachable inbox.
+    emailIsPlaceholder: boolean;
     isAdmin: boolean;
     mektekRole: "CS" | "TECHNICIAN" | null;
     staffDivision: import("@/lib/auth/staff-divisions").StaffDivision | null;
@@ -67,14 +87,26 @@ function normalizeCustomerUserInput(input: CustomerUserInput) {
   const name = boundedText(input.name, MAX_NAME_LEN);
   const phone = compactText(input.phone);
   const phoneNormalized = normalizePhoneNumber(phone);
-  const email = normalizeEmail(input.email) || buildPhoneAccountEmail(phoneNormalized);
+  const rawEmail = normalizeEmail(input.email);
   const password = String(input.password ?? "");
   const customerType = customerTypes.has(String(input.customerType))
     ? (String(input.customerType) as CatalogCustomerType)
     : ("STANDARD" as CatalogCustomerType);
   if (!name) return { error: "Nama Customer wajib diisi" };
   if (!isValidPhoneNumber(phone)) return { error: "Nomor telepon tidak valid" };
-  if (!email.includes("@")) return { error: "Email tidak valid" };
+
+  // A typed-in address is validated strictly (lib/email/validation). Leaving it
+  // blank — or re-submitting the synthesized placeholder unchanged — falls back
+  // to the phone placeholder, which keeps walk-in creation working.
+  let email: string;
+  if (!rawEmail || isPlaceholderEmail(rawEmail)) {
+    email = buildPhoneAccountEmail(phoneNormalized);
+  } else {
+    const validEmail = normalizeRealEmail(rawEmail);
+    if (!validEmail) return { error: "Email tidak valid" };
+    email = validEmail;
+  }
+
   if (password && password.length < 8) {
     return { error: "Password minimal 8 karakter" };
   }
@@ -87,6 +119,7 @@ function normalizeCustomerUserInput(input: CustomerUserInput) {
       email,
       password,
       customerType,
+      whatsappOptedOut: input.whatsappOptedOut === true,
     },
   };
 }
@@ -183,11 +216,14 @@ export async function listMektekCustomerUsers(input?: {
     createdAt: customer.createdAt,
     updatedAt: customer.updatedAt,
     serviceCount: customer._count.serviceLinks,
+    whatsappOptedOutAt: customer.whatsappOptedOutAt,
+    whatsappOptedOutSource: customer.whatsappOptedOutSource,
     user: customer.user
       ? {
           id: customer.user.id,
           name: customer.user.name,
           email: customer.user.email,
+          emailIsPlaceholder: isPlaceholderEmail(customer.user.email),
           isAdmin: customer.user.is_admin,
           mektekRole: customer.user.mektekRole,
           staffDivision: customer.user.staffDivision,
@@ -245,6 +281,12 @@ export async function createMektekCustomerUser(input: CustomerUserInput) {
           phoneNormalized: data.phoneNormalized,
           customerType: data.customerType,
           userId: user.id,
+          ...(data.whatsappOptedOut
+            ? {
+                whatsappOptedOutAt: new Date(),
+                whatsappOptedOutSource: "staff",
+              }
+            : {}),
         },
       });
     });
@@ -275,6 +317,8 @@ export async function updateMektekCustomerUser(id: string, input: CustomerUserIn
         select: {
           id: true,
           userId: true,
+          whatsappOptedOutAt: true,
+          whatsappOptedOutSource: true,
           user: {
             select: {
               is_admin: true,

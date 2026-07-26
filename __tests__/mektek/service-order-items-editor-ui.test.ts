@@ -39,4 +39,12 @@ describe("Service order items editor UI", () => {
       /items=\{sparepartItems\}[\s\S]*minimumItems=\{0\}/,
     );
   });
+
+  it("explains save behavior and uses a specific item action label", () => {
+    expect(editorSource).toContain("Perbarui item pesanan");
+    expect(editorSource).toContain("Servis baru akan ditambahkan");
+    expect(editorSource).toContain("sparepart di bawah menjadi kondisi terbaru");
+    expect(editorSource).toContain("Simpan item pesanan");
+    expect(editorSource).toContain("<Save data-icon=\"inline-start\" />");
+  });
 });

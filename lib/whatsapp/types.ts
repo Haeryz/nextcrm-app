@@ -26,10 +26,31 @@ export type WhatsAppMedia = {
 
 export type WhatsAppSendResult = { ok: true } | { ok: false; error: string };
 
+/**
+ * Transactional = the recipient asked for this specific message (OTP, order status,
+ * receipt, invoice). Promotional = we chose to contact them (offers, campaigns,
+ * reminders they never requested).
+ *
+ * The split is load-bearing, not cosmetic: opting out of marketing suppresses only
+ * `promotional`, so an opted-out customer still gets the notification that their car
+ * is ready. Daily volume caps likewise apply to `promotional` only.
+ */
+export type WhatsAppSendCategory = "transactional" | "promotional";
+
 export type WhatsAppSendParams = {
   to: string;
   message: string;
   media?: WhatsAppMedia[];
+  /**
+   * Short slug identifying the message kind, e.g. `otp`, `order-complete`,
+   * `contract-reminder`. Recorded on every WhatsAppMessageLog row so volume can be
+   * attributed to a feature. Defaults to `unspecified`.
+   */
+  purpose?: string;
+  /** Defaults to `transactional` — the conservative choice for existing callers. */
+  category?: WhatsAppSendCategory;
+  /** Staff member who triggered the send; omit for cron/system sends. */
+  sentById?: string | null;
 };
 
 /** What a transport must provide. Both drivers satisfy this identically so callers

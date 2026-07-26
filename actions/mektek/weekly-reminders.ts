@@ -81,8 +81,14 @@ export async function sendMektekWeeklyServiceReminders(now = new Date()) {
       continue;
     }
     const trackingLink = `${baseUrl}/id/service-status/${order.id}?token=${encodeURIComponent(token)}`;
+    // Tagged promotional on purpose: this is a recurring unsolicited nudge, not
+    // something the recipient asked for. That classification is what subjects it
+    // to the do-not-contact check and the daily cap in the send policy — an
+    // untagged send defaults to transactional and bypasses both.
     const result = await sendWhatsAppMessage({
       to: phone,
+      purpose: "weekly-reminder",
+      category: "promotional",
       message: buildMektekWeeklyReminderMessage({
         customerName: typeof tags.customerName === "string" ? tags.customerName : "Pelanggan",
         vehicle: typeof tags.vehicle === "string" ? tags.vehicle : "kendaraan Anda",

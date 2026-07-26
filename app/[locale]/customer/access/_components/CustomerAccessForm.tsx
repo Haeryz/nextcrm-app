@@ -1,12 +1,23 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { ArrowRight, Eye, EyeOff, Lock, Phone, ShieldCheck, UserRound } from "lucide-react";
+import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  Phone,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { toast } from "sonner";
+import { z } from "zod";
 
 import { registerCustomerUser } from "@/actions/auth/register-user";
 import { loginCustomer } from "@/actions/auth/customer-session";
 import { requestCustomerPhoneOtp } from "@/actions/auth/phone-otp";
+import { requestCustomerEmailOtp } from "@/actions/auth/email-otp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +26,51 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
+
+// Email stays optional so walk-in customers with only a phone can still sign up.
+// It is validated only when filled, and marketing consent is a separate opt-in
+// that is never pre-ticked.
+const signupSchema = z
+  .object({
+    name: z.string().trim().min(3, "Nama minimal 3 karakter").max(120),
+    phone: z.string().trim().min(6, "Nomor telepon tidak valid").max(64),
+    email: z.string().trim().max(160),
+    emailOtpCode: z.string().trim(),
+    password: z.string().min(8, "Password minimal 8 karakter").max(100),
+    confirmPassword: z.string().min(8, "Password minimal 8 karakter").max(100),
+    otpCode: z.string().trim().length(6, "Masukkan kode WhatsApp 6 digit"),
+    marketingConsent: z.boolean(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.password !== values.confirmPassword) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["confirmPassword"],
+        message: "Password tidak sama",
+      });
+    }
+    if (values.email && !z.string().email().safeParse(values.email).success) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["email"],
+        message: "Format email tidak valid",
+      });
+    }
+    if (values.email && values.emailOtpCode.length !== 6) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["emailOtpCode"],
+        message: "Masukkan kode verifikasi email 6 digit",
+      });
+    }
+    if (values.marketingConsent && !values.email) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["email"],
+        message: "Isi email Anda untuk menerima promosi",
+      });
+    }
+  });
 
 export function CustomerAccessForm({
   locale,
@@ -30,6 +86,12 @@ export function CustomerAccessForm({
   const [signupPassword, setSignupPassword] = useState("");
   const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
   const [signupOtp, setSignupOtp] = useState("");
+  const [signupEmail, setSignupEmail] = useState("");
+  const [signupEmailOtp, setSignupEmailOtp] = useState("");
+  const [emailOtpSending, setEmailOtpSending] = useState(false);
+  const [emailOtpSent, setEmailOtpSent] = useState(false);
+  // Consent is never pre-ticked.
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -87,17 +149,66 @@ export function CustomerAccessForm({
     }
   }
 
+  async function onSendEmailOtp() {
+    if (!signupEmail.trim()) {
+      toast.error("Masukkan email terlebih dahulu.");
+      return;
+    }
+    setEmailOtpSending(true);
+    try {
+      const result = await requestCustomerEmailOtp(signupEmail);
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      setEmailOtpSent(true);
+      toast.success("Kode verifikasi dikirim ke email Anda.");
+    } catch (error: unknown) {
+      toast.error(errorMessage(error, "Gagal mengirim kode email"));
+    } finally {
+      setEmailOtpSending(false);
+    }
+  }
+
   async function onSignupSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    const parsed = signupSchema.safeParse({
+      name: signupName,
+      phone: signupPhone,
+      email: signupEmail,
+      emailOtpCode: signupEmailOtp,
+      password: signupPassword,
+      confirmPassword: signupConfirmPassword,
+      otpCode: signupOtp,
+      marketingConsent,
+    });
+
+    if (!parsed.success) {
+      toast.error(
+        parsed.error.issues[0]?.message ?? "Data pendaftaran belum lengkap"
+      );
+      return;
+    }
+
+    const values = parsed.data;
     setIsLoading(true);
 
     try {
       const result = await registerCustomerUser({
-        name: signupName,
-        phone: signupPhone,
-        password: signupPassword,
-        confirmPassword: signupConfirmPassword,
-        otpCode: signupOtp,
+        name: values.name,
+        phone: values.phone,
+        password: values.password,
+        confirmPassword: values.confirmPassword,
+        otpCode: values.otpCode,
+        ...(values.email
+          ? {
+              email: values.email,
+              emailOtpCode: values.emailOtpCode,
+              // Consent only travels when there is a real inbox behind it.
+              marketingConsent: values.marketingConsent,
+            }
+          : {}),
       });
 
       if (result.error) {
@@ -309,6 +420,91 @@ export function CustomerAccessForm({
                 Kami mengirim kode ke WhatsApp untuk memastikan nomor ini milik Anda.
               </p>
             </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="signup-email" className="text-[#10164f]">
+                Email (opsional)
+              </Label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
+                <Input
+                  id="signup-email"
+                  value={signupEmail}
+                  onChange={(event) => setSignupEmail(event.target.value)}
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  maxLength={160}
+                  placeholder="nama@domain.com"
+                  className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
+                  disabled={isLoading}
+                />
+              </div>
+              <p className="text-xs text-[#4b5577]/80">
+                Isi email jika Anda ingin menerima informasi promosi dan penawaran.
+                Tanpa email, akun Anda tetap aktif dan kabar servis tetap dikirim
+                lewat WhatsApp.
+              </p>
+            </div>
+
+            {signupEmail.trim().length > 0 && (
+              <div className="grid gap-2">
+                <Label htmlFor="signup-email-otp" className="text-[#10164f]">
+                  Kode verifikasi email
+                </Label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
+                    <Input
+                      id="signup-email-otp"
+                      value={signupEmailOtp}
+                      onChange={(event) =>
+                        setSignupEmailOtp(
+                          event.target.value.replace(/\D/g, "").slice(0, 6)
+                        )
+                      }
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      placeholder="Kode 6 digit"
+                      className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
+                      disabled={isLoading}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onSendEmailOtp}
+                    disabled={isLoading || emailOtpSending}
+                    className="h-12 whitespace-nowrap border-[#151a63]/20 text-[#10164f] hover:bg-[#eef1ff]"
+                  >
+                    {emailOtpSending
+                      ? "Mengirim..."
+                      : emailOtpSent
+                        ? "Kirim ulang"
+                        : "Kirim kode"}
+                  </Button>
+                </div>
+                <p className="text-xs text-[#4b5577]/80">
+                  Kami mengirim kode ke email tersebut untuk memastikan alamatnya
+                  benar milik Anda.
+                </p>
+              </div>
+            )}
+
+            <label className="flex cursor-pointer items-start gap-3 text-sm text-[#4b5577]">
+              <input
+                type="checkbox"
+                checked={marketingConsent}
+                onChange={(event) => setMarketingConsent(event.target.checked)}
+                className="mt-0.5 size-4 rounded border-[#151a63]/30 accent-[#151a63]"
+                disabled={isLoading}
+              />
+              <span>
+                Saya bersedia menerima email promosi dan penawaran dari Mektek.
+                Anda dapat berhenti berlangganan kapan saja lewat halaman
+                preferensi atau tautan di setiap email.
+              </span>
+            </label>
 
             <div className="grid gap-2">
               <Label htmlFor="signup-password" className="text-[#10164f]">

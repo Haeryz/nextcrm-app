@@ -314,8 +314,8 @@ export default function DamageItemsInput({
                   </div>
                 )}
 
-                <div className="grid gap-3 md:grid-cols-12 md:items-start">
-                  <div className="space-y-1.5 md:col-span-7">
+                <div className="grid min-w-0 gap-3">
+                  <div className="min-w-0 space-y-1.5">
                     <Label htmlFor={descriptionId}>
                       {descriptionLabel} <span className="text-destructive">*</span>
                     </Label>
@@ -401,74 +401,76 @@ export default function DamageItemsInput({
                     )}
                   </div>
 
-                  <div className="space-y-1.5 md:col-span-2">
-                    <Label htmlFor={quantityId}>Jumlah</Label>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        aria-label={`Kurangi jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
-                        onClick={() =>
-                          updateItem(index, "quantity", Math.max(1, quantity - 1))
-                        }
-                        disabled={disabled || quantity <= 1}
-                        className="shrink-0"
-                      >
-                        <Minus className="size-4" aria-hidden="true" />
-                      </Button>
-                      <Input
-                        id={quantityId}
-                        aria-label={`Jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        step={1}
-                        value={String(quantity)}
-                        onChange={(event) =>
-                          updateItem(
-                            index,
-                            "quantity",
-                            Math.max(
-                              1,
-                              Math.floor(
-                                Number(event.target.value.replace(/\D/g, "")) || 1,
+                  <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                    <div className="min-w-0 space-y-1.5">
+                      <Label htmlFor={quantityId}>Jumlah</Label>
+                      <div className="grid grid-cols-[2.75rem_minmax(4rem,1fr)_2.75rem] items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label={`Kurangi jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
+                          onClick={() =>
+                            updateItem(index, "quantity", Math.max(1, quantity - 1))
+                          }
+                          disabled={disabled || quantity <= 1}
+                          className="size-11 shrink-0"
+                        >
+                          <Minus className="size-4" aria-hidden="true" />
+                        </Button>
+                        <Input
+                          id={quantityId}
+                          aria-label={`Jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          step={1}
+                          value={String(quantity)}
+                          onChange={(event) =>
+                            updateItem(
+                              index,
+                              "quantity",
+                              Math.max(
+                                1,
+                                Math.floor(
+                                  Number(event.target.value.replace(/\D/g, "")) || 1,
+                                ),
                               ),
-                            ),
-                          )
+                            )
+                          }
+                          disabled={disabled}
+                          className="h-11 min-w-0 text-center"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label={`Tambah jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
+                          onClick={() => updateItem(index, "quantity", quantity + 1)}
+                          disabled={disabled}
+                          className="size-11 shrink-0"
+                        >
+                          <Plus className="size-4" aria-hidden="true" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 space-y-1.5">
+                      <Label htmlFor={priceId}>
+                        Harga satuan <span className="text-destructive">*</span>
+                      </Label>
+                      <RupiahInput
+                        id={priceId}
+                        aria-label={`Harga satuan ${itemLabel.toLowerCase()} ${index + 1} dalam Rupiah`}
+                        placeholder="Rp 0"
+                        value={item.estimatedCost}
+                        onValueChange={(value) =>
+                          updateItem(index, "estimatedCost", value)
                         }
                         disabled={disabled}
-                        className="min-w-0 text-center"
+                        required
                       />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        aria-label={`Tambah jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
-                        onClick={() => updateItem(index, "quantity", quantity + 1)}
-                        disabled={disabled}
-                        className="shrink-0"
-                      >
-                        <Plus className="size-4" aria-hidden="true" />
-                      </Button>
                     </div>
-                  </div>
-
-                  <div className="space-y-1.5 md:col-span-3">
-                    <Label htmlFor={priceId}>
-                      Harga satuan <span className="text-destructive">*</span>
-                    </Label>
-                    <RupiahInput
-                      id={priceId}
-                      aria-label={`Harga satuan ${itemLabel.toLowerCase()} ${index + 1} dalam Rupiah`}
-                      placeholder="Rp 0"
-                      value={item.estimatedCost}
-                      onValueChange={(value) =>
-                        updateItem(index, "estimatedCost", value)
-                      }
-                      disabled={disabled}
-                      required
-                    />
                   </div>
                 </div>
               </article>

@@ -24,6 +24,7 @@ import {
   assertNotDisposable,
   DisposableEmailError,
 } from "@/lib/email/disposable-domains";
+import { setEmailPreferenceInternal } from "@/actions/email/preferences";
 
 // Public registration writes a users row (+ bcrypt hash) per call. Throttle by IP
 // to blunt scripted account-creation floods.
@@ -127,6 +128,7 @@ export const registerCustomerUser = async (data: {
   password: string;
   confirmPassword: string;
   otpCode: string;
+  marketingConsent?: boolean;
 }) => {
   if (!(await hasTrustedMutationOrigin())) {
     return { error: "Request tidak dapat diverifikasi" };
@@ -139,6 +141,9 @@ export const registerCustomerUser = async (data: {
   const password = String(data?.password ?? "");
   const confirmPassword = String(data?.confirmPassword ?? "");
   const otpCode = String(data?.otpCode ?? "").trim();
+  // Opt-in only. Anything other than a literal true (an unticked box, a missing
+  // field, a truthy string from a hand-rolled client) counts as "no consent".
+  const marketingConsent = data?.marketingConsent === true;
   const phoneNormalized = normalizePhoneNumber(phone);
 
   // Whichever channel is provided must be verified. Phone is still required
@@ -305,6 +310,23 @@ export const registerCustomerUser = async (data: {
 
       return createdUser;
     });
+
+    // Marketing consent is recorded ONLY when the customer gave a real,
+    // OTP-verified email AND explicitly ticked the box. A phone-placeholder
+    // account is never opted in — there is no inbox behind it and no consent was
+    // given. Absence of a UserEmailPreference row already means "not opted in",
+    // so declining simply writes nothing.
+    if (marketingConsent && emailNormalized) {
+      const consent = await setEmailPreferenceInternal(user.id, {
+        marketing: true,
+        offers: true,
+      });
+      if (consent.error) {
+        // Never fail the registration over the preference row — the account
+        // exists and the customer can opt in later from the preferences page.
+        console.error("[REGISTER_CUSTOMER_USER_CONSENT]", consent.error);
+      }
+    }
 
     // Never return the full users row — it carries the bcrypt password hash and
     // internal flags, and server-action return values are serialized to the browser.

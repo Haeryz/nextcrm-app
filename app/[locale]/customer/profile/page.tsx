@@ -83,6 +83,15 @@ export default async function CustomerProfilePage({
               </Button>
               <Button
                 asChild
+                variant="outline"
+                className="border-[#151a63]/20 bg-white/80 text-[#10164f] hover:bg-[#eef1ff]"
+              >
+                <Link href={`/${locale}/customer/profile/preferences`}>
+                  Preferensi email
+                </Link>
+              </Button>
+              <Button
+                asChild
                 className="bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
               >
                 <Link href={`/${locale}/customer?view=sparepart`}>Buka katalog</Link>

@@ -72,19 +72,25 @@ export default function EstimatedDoneControl({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex min-w-0 items-start gap-3 rounded-md border bg-muted/20 p-3">
-        <CalendarClock className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">Perkiraan saat ini</p>
-          <p className="break-words text-sm font-medium">
-            {formatEstimate(currentEstimate)}
-          </p>
-        </div>
+    <div className="min-w-0 space-y-3">
+      <div className="flex min-w-0 items-baseline gap-2 rounded-md border bg-muted/20 px-3 py-2">
+        <CalendarClock
+          className="size-4 shrink-0 translate-y-0.5 text-muted-foreground"
+          aria-hidden="true"
+        />
+        <span className="shrink-0 text-xs text-muted-foreground">Saat ini</span>
+        <span className="min-w-0 break-words text-sm font-medium">
+          {formatEstimate(currentEstimate)}
+        </span>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor={`estimated-done-${serviceOrderId}`}>ETA</Label>
+      <div className="min-w-0 space-y-1.5">
+        <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-2">
+          <Label htmlFor={`estimated-done-${serviceOrderId}`}>ETA</Label>
+          <span className="text-xs text-muted-foreground">
+            Terlihat oleh pelanggan
+          </span>
+        </div>
         <Input
           id={`estimated-done-${serviceOrderId}`}
           type="datetime-local"
@@ -93,18 +99,17 @@ export default function EstimatedDoneControl({
           disabled={isPending}
           className="min-w-0"
         />
-        <p className="text-xs text-muted-foreground">
-          Jadwal pelanggan langsung diperbarui setelah Anda menyimpan.
-        </p>
       </div>
 
-      <div className="flex flex-col gap-2 min-[400px]:flex-row min-[400px]:flex-wrap">
+      {/* Wraps on its own instead of switching at a viewport breakpoint: this
+          card sits in a ~380px sidebar even when the viewport is wide. */}
+      <div className="flex min-w-0 flex-wrap gap-2">
         <Button
           type="button"
           size="sm"
           onClick={() => submit(inputValue)}
           disabled={isPending || !inputValue}
-          className="w-full min-[400px]:w-auto"
+          className="min-h-10 flex-1 basis-36"
         >
           {isPending ? (
             <Loader2 data-icon="inline-start" className="animate-spin" />
@@ -119,7 +124,7 @@ export default function EstimatedDoneControl({
           variant="outline"
           onClick={() => submit(null)}
           disabled={isPending || (!currentEstimate && !inputValue)}
-          className="w-full min-[400px]:w-auto"
+          className="min-h-10 flex-1 basis-24"
         >
           <X data-icon="inline-start" />
           Hapus

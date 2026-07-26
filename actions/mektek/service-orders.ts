@@ -1533,7 +1533,8 @@ export const updateMektekServiceOrderStatus = async (input: {
         };
       }
       return {
-        error: "Ubah Status servis menjadi Service Done · Awaiting Payment sebelum menutup Order",
+        error:
+          'Ubah status servis menjadi "Servis Selesai · Menunggu Pembayaran" sebelum menutup pesanan.',
       };
     }
 

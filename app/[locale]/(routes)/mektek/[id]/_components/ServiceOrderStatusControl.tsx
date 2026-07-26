@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { updateMektekServiceOrderStatus } from "@/actions/mektek/service-orders";
 import { Button } from "@/components/ui/button";
+import { statusMap } from "../../_lib/constants";
 
 type OrderStatus =
   | "ACTIVE"
@@ -25,12 +26,14 @@ interface ServiceOrderStatusControlProps {
   canCancel: boolean;
 }
 
+// Labels come from the shared statusMap rather than being duplicated here, so the
+// buttons can never disagree with the status badge rendered elsewhere on the page.
 const STATUSES: { key: OrderStatus; label: string }[] = [
-  { key: "PENDING", label: "Pending" },
-  { key: "ACTIVE", label: "In Progress" },
-  { key: "AWAITING_PAYMENT", label: "Service Done · Awaiting Payment" },
-  { key: "COMPLETE", label: "Done · Closed" },
-  { key: "CANCELLED", label: "Dibatalkan" },
+  { key: "PENDING", label: statusMap.PENDING.label },
+  { key: "ACTIVE", label: statusMap.ACTIVE.label },
+  { key: "AWAITING_PAYMENT", label: statusMap.AWAITING_PAYMENT.label },
+  { key: "COMPLETE", label: statusMap.COMPLETE.label },
+  { key: "CANCELLED", label: statusMap.CANCELLED.label },
 ];
 
 const statusLabel = (status: OrderStatus) =>
@@ -50,6 +53,12 @@ export default function ServiceOrderStatusControl({
   const [confirmation, setConfirmation] = useState<
     "AWAITING_PAYMENT" | "COMPLETE" | "CANCELLED" | null
   >(null);
+  // Tracks which button is actually being submitted. `confirmation` cannot do
+  // this: it is null for the one-step PENDING/ACTIVE transitions, so keying the
+  // spinner off it left those buttons with no loading state at all.
+  const [submittingStatus, setSubmittingStatus] = useState<OrderStatus | null>(
+    null,
+  );
 
   const handleStatusChange = (newStatus: OrderStatus) => {
     if (
@@ -62,6 +71,7 @@ export default function ServiceOrderStatusControl({
       return;
     }
 
+    setSubmittingStatus(newStatus);
     startTransition(async () => {
       const result = await updateMektekServiceOrderStatus({
         locale,
@@ -71,6 +81,7 @@ export default function ServiceOrderStatusControl({
       if (!result || "error" in result) {
         toast.error(result?.error || "Gagal memperbarui status pesanan");
         setConfirmation(null);
+        setSubmittingStatus(null);
         return;
       }
 
@@ -86,6 +97,7 @@ export default function ServiceOrderStatusControl({
           : undefined,
       });
       setConfirmation(null);
+      setSubmittingStatus(null);
       router.refresh();
     });
   };
@@ -105,9 +117,11 @@ export default function ServiceOrderStatusControl({
     currentStatus === "COMPLETE" || currentStatus === "CANCELLED";
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">Atur status</p>
-      <div className="grid gap-2 sm:grid-cols-2">
+    <div className="min-w-0 space-y-2">
+      {/* One column on purpose: this control lives in the pinned aside, where a
+          viewport-based two-column grid would squeeze long labels such as
+          "Service Done · Awaiting Payment" into roughly 150px. */}
+      <div className="grid min-w-0 gap-1.5">
         {visibleStatuses.map(({ key, label }) => {
           const closeBlocked = key === "COMPLETE" && balanceDue > 0;
           return (
@@ -122,7 +136,7 @@ export default function ServiceOrderStatusControl({
                     : "outline"
               }
               size="sm"
-              className="h-auto min-h-9 w-full gap-1.5 whitespace-normal break-words"
+              className="h-auto min-h-10 w-full justify-start gap-2 whitespace-normal break-words px-3 py-2 text-left"
               disabled={
                 isPending ||
                 isFinal ||
@@ -134,60 +148,59 @@ export default function ServiceOrderStatusControl({
               }
               onClick={() => handleStatusChange(key)}
             >
-              {isPending && confirmation === key ? (
-                <Loader2 className="size-3 animate-spin" />
+              {isPending && submittingStatus === key ? (
+                <Loader2 className="size-3.5 shrink-0 animate-spin" />
               ) : currentStatus === key ? (
-                <CheckCircle2 className="size-3" />
+                <CheckCircle2 className="size-3.5 shrink-0" />
               ) : (
-                <Circle className="size-3" />
+                <Circle className="size-3.5 shrink-0" />
               )}
-              {label}
+              <span className="min-w-0">{label}</span>
             </Button>
           );
         })}
       </div>
 
       {isFinal && (
-        <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+        <p className="break-words rounded-md border border-dashed px-3 py-2 text-xs leading-5 text-muted-foreground">
           {currentStatus === "CANCELLED"
-            ? "Pesanan dibatalkan secara permanen dan seluruh alokasi stok telah dikembalikan."
-            : "Pesanan ini telah lunas dan ditutup secara permanen."}
+            ? "Pesanan dibatalkan permanen dan seluruh alokasi stok sudah dikembalikan."
+            : "Pesanan ini sudah lunas dan ditutup permanen."}
         </p>
       )}
 
       {showCloseAction && currentStatus === "AWAITING_PAYMENT" && (
-        <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+        <p className="break-words rounded-md border border-dashed px-3 py-2 text-xs leading-5 text-muted-foreground">
           {balanceDue > 0
-            ? `Status Done · Closed tersedia setelah sisa ${formattedBalance} dibayar.`
-            : "Pembayaran telah lunas. Pesanan ini sekarang dapat ditutup permanen."}
-        </div>
+            ? `"${statusMap.COMPLETE.label}" tersedia setelah sisa ${formattedBalance} dibayar.`
+            : "Pembayaran lunas. Pesanan sekarang dapat ditutup permanen."}
+        </p>
       )}
 
       {confirmation && !isPending && (
-        <div className="space-y-3 rounded-md border border-amber-200 bg-amber-50 p-3">
-          <div>
-            <p className="text-xs font-medium text-amber-800">
-              {confirmation === "AWAITING_PAYMENT"
-                ? "Selesaikan servis dan buka pembayaran?"
-                : confirmation === "CANCELLED"
-                  ? "Batalkan order dan kembalikan seluruh stok?"
-                  : "Tutup pesanan yang sudah lunas ini?"}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {confirmation === "AWAITING_PAYMENT"
-                ? "Item akan dikunci, pelanggan dapat meninjau invoice akhir, dan pembayaran akan tersedia."
-                : confirmation === "CANCELLED"
-                  ? "Semua sparepart katalog pada order ini akan dikembalikan ke gudang asal. Tindakan ini tidak dapat dibatalkan."
-                  : "Done · Closed adalah status akhir setelah servis, peninjauan pelanggan, dan pembayaran selesai."}
-            </p>
-          </div>
+        <div className="min-w-0 space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-900 dark:bg-amber-950/40">
+          <p className="break-words text-xs font-semibold text-amber-900 dark:text-amber-200">
+            {confirmation === "AWAITING_PAYMENT"
+              ? "Selesaikan servis dan buka pembayaran?"
+              : confirmation === "CANCELLED"
+                ? "Batalkan order dan kembalikan seluruh stok?"
+                : "Tutup pesanan yang sudah lunas ini?"}
+          </p>
+          <p className="break-words text-xs leading-5 text-amber-800/90 dark:text-amber-200/80">
+            {confirmation === "AWAITING_PAYMENT"
+              ? "Item dikunci, pelanggan meninjau invoice akhir, lalu pembayaran terbuka."
+              : confirmation === "CANCELLED"
+                ? "Sparepart katalog kembali ke gudang asal. Tidak dapat dibatalkan."
+                : "Status akhir setelah servis, peninjauan pelanggan, dan pembayaran selesai."}
+          </p>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
+          {/* Always stacked: side by side these two wrap badly at ~340px. */}
+          <div className="flex flex-col gap-1.5">
             <Button
               type="button"
               size="sm"
               onClick={() => handleStatusChange(confirmation)}
-              className="h-auto w-full whitespace-normal sm:w-auto"
+              className="h-auto min-h-10 w-full whitespace-normal break-words px-3 py-2"
             >
               Konfirmasi{" "}
               {confirmation === "AWAITING_PAYMENT"
@@ -201,7 +214,7 @@ export default function ServiceOrderStatusControl({
               size="sm"
               variant="ghost"
               onClick={() => setConfirmation(null)}
-              className="w-full sm:w-auto"
+              className="min-h-10 w-full"
             >
               Batal
             </Button>

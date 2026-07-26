@@ -1,8 +1,16 @@
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  ArrowLeft,
+  CalendarClock,
+  CircleDollarSign,
+  UserRound,
+} from "lucide-react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   getMektekCustomerTrackingLink,
@@ -186,84 +194,99 @@ export default async function MektekDetailPage({ params }: Props) {
       }`}
     >
       <div className="min-w-0 space-y-4 sm:space-y-6">
-        <Card className="border shadow-sm">
-          <CardContent className="p-4 sm:p-5 md:p-6">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-              <div className="min-w-0 space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={statusMeta.badgeVariant}>{statusMeta.label}</Badge>
-                  <span className="font-mono text-xs font-semibold text-muted-foreground">
-                    {order.serviceNumber ?? order.id.slice(0, 8)}
-                  </span>
-                </div>
-                <div>
-                  <h2 className="break-words text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-                    {customerName}
-                  </h2>
-                  {customerContactName && (
-                    <p className="break-words text-sm text-muted-foreground">
-                      PIC / utusan: {customerContactName}
-                    </p>
-                  )}
-                  <p className="break-words text-sm text-muted-foreground">
-                    {vehicle}
-                    {vehiclePlateNumber ? ` · ${vehiclePlateNumber}` : ""}
-                    {vehicleFleetNumber ? ` · Lambung ${vehicleFleetNumber}` : ""}
-                    {vehicleMileageKm !== undefined
-                      ? ` · ${vehicleMileageKm.toLocaleString("id-ID")} KM`
-                      : ""}
-                  </p>
-                </div>
+        <Card className="overflow-hidden border shadow-sm">
+          <CardContent className="p-4 sm:p-5">
+            <div className="space-y-3 sm:space-y-4">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+                <Button
+                  asChild
+                  variant="ghost"
+                  size="sm"
+                  className="-ms-2 h-8 w-fit shrink-0 text-muted-foreground"
+                >
+                  <Link href={`/${locale}/mektek`}>
+                    <ArrowLeft data-icon="inline-start" />
+                    Kembali
+                  </Link>
+                </Button>
+                <span className="font-mono text-xs font-semibold text-muted-foreground">
+                  No. Service {order.serviceNumber ?? order.id.slice(0, 8)}
+                </span>
+                <Badge
+                  variant={statusMeta.badgeVariant}
+                  className="max-w-full whitespace-normal"
+                >
+                  {statusMeta.label}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {timeline.length} pembaruan
+                </span>
               </div>
 
-              <div className="w-full max-w-none rounded-lg border bg-muted/20 p-3 sm:max-w-sm sm:p-4 lg:shrink-0">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Status saat ini
+              <div className="min-w-0">
+                <h2 className="break-words text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+                  {customerName}
+                </h2>
+                <p className="break-words text-sm text-muted-foreground">
+                  {vehicle}
+                  {vehiclePlateNumber ? ` · ${vehiclePlateNumber}` : ""}
+                  {vehicleFleetNumber ? ` · Lambung ${vehicleFleetNumber}` : ""}
+                  {vehicleMileageKm !== undefined
+                    ? ` · ${vehicleMileageKm.toLocaleString("id-ID")} KM`
+                    : ""}
+                  {customerContactName ? ` · PIC ${customerContactName}` : ""}
                 </p>
-                <div className="mt-2 flex flex-col items-start gap-3 min-[360px]:flex-row min-[360px]:items-center min-[360px]:justify-between">
-                  <Badge
-                    variant={statusMeta.badgeVariant}
-                    className="px-3 py-1.5 text-xs font-bold uppercase tracking-wide"
-                  >
-                    {statusMeta.label}
-                  </Badge>
-                  <p className="text-xs text-muted-foreground">
-                    {timeline.length} pembaruan timeline
-                  </p>
-                </div>
               </div>
+
+              <dl className="grid min-w-0 gap-2 min-[480px]:grid-cols-3">
+                <div className="min-w-0 rounded-lg border bg-muted/20 px-3 py-2">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <CircleDollarSign className="size-3.5" aria-hidden="true" />
+                    Sisa tagihan
+                  </dt>
+                  <dd className="mt-0.5 break-words font-mono text-sm font-semibold tabular-nums">
+                    Rp {invoiceData.financials.balanceDue.toLocaleString("id-ID")}
+                  </dd>
+                </div>
+                <div className="min-w-0 rounded-lg border bg-muted/20 px-3 py-2">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <CalendarClock className="size-3.5" aria-hidden="true" />
+                    Estimasi selesai
+                  </dt>
+                  <dd className="mt-0.5 break-words text-sm font-semibold">
+                    {order.dueDateAt?.toLocaleString("id-ID", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                      timeZone: "Asia/Makassar",
+                    }) ?? "Belum diatur"}
+                  </dd>
+                </div>
+                <div className="min-w-0 rounded-lg border bg-muted/20 px-3 py-2">
+                  <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <UserRound className="size-3.5" aria-hidden="true" />
+                    Teknisi
+                  </dt>
+                  <dd className="mt-0.5 break-words text-sm font-semibold">
+                    {technicianName}
+                  </dd>
+                </div>
+              </dl>
             </div>
           </CardContent>
         </Card>
 
-        <div className="grid min-w-0 grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="min-w-0 space-y-4 sm:space-y-6">
-            <Card className="border shadow-sm">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_288px] xl:grid-cols-[minmax(0,1fr)_352px] 2xl:grid-cols-[minmax(0,1fr)_400px]">
+          <div className="contents">
+            <Card className="order-2 border shadow-sm lg:col-start-1 lg:row-start-1">
               <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
                 <CardTitle className="text-base">Pelanggan & Servis</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">ID Pelanggan</p>
                     <p className="break-all font-mono text-sm font-medium text-foreground">
                       {customerId}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">ETA</p>
-                    <p className="break-words text-sm font-medium text-foreground">
-                      {order.dueDateAt?.toLocaleString("id-ID", {
-                        dateStyle: "medium",
-                        timeStyle: "short",
-                        timeZone: "Asia/Makassar",
-                      }) ?? "Belum diatur"}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">Teknisi</p>
-                    <p className="break-words text-sm font-medium text-foreground">
-                      {technicianName}
                     </p>
                   </div>
                   <div className="min-w-0">
@@ -272,7 +295,7 @@ export default async function MektekDetailPage({ params }: Props) {
                       {valueOrDash(phone)}
                     </p>
                   </div>
-                  <div className="min-w-0 md:col-span-2">
+                  <div className="min-w-0 md:col-span-2 lg:col-span-1 xl:col-span-2">
                     <p className="text-xs text-muted-foreground">Alamat</p>
                     <p className="break-words text-sm font-medium text-foreground">
                       {valueOrDash(address)}
@@ -289,12 +312,12 @@ export default async function MektekDetailPage({ params }: Props) {
               </CardContent>
             </Card>
 
-            <Card className="border shadow-sm">
+            <Card className="order-3 border shadow-sm lg:col-start-1 lg:row-start-2">
               <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
                 <CardTitle className="text-base">Servis & Sparepart</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 px-4 pb-4 sm:px-6 sm:pb-6">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                   <div className="min-w-0 rounded-lg border p-3 sm:p-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold">Deskripsi Servis</p>
@@ -310,14 +333,14 @@ export default async function MektekDetailPage({ params }: Props) {
                           <div key={`${item.name}-${index}`} className="min-w-0 text-sm">
                             <p className="break-words font-medium">{item.name}</p>
                             <p className="break-words text-xs text-muted-foreground">
-                              {item.quantity} x {item.unitPrice.toLocaleString("id-ID")} IDR
+                              {item.quantity} x Rp {item.unitPrice.toLocaleString("id-ID")}
                             </p>
                           </div>
                         ))
                       )}
                     </div>
                     <p className="mt-3 break-words border-t pt-3 font-mono text-sm font-semibold">
-                      Subtotal: {normalizedItems.serviceSubtotal.toLocaleString("id-ID")} IDR
+                      Subtotal: Rp {normalizedItems.serviceSubtotal.toLocaleString("id-ID")}
                     </p>
                   </div>
 
@@ -336,7 +359,7 @@ export default async function MektekDetailPage({ params }: Props) {
                           <div key={`${item.name}-${index}`} className="min-w-0 text-sm">
                             <p className="break-words font-medium">{item.name}</p>
                             <p className="break-words text-xs text-muted-foreground">
-                              {item.quantity} x {item.unitPrice.toLocaleString("id-ID")} IDR
+                              {item.quantity} x Rp {item.unitPrice.toLocaleString("id-ID")}
                               {item.partNumber ? ` · ${item.partNumber}` : ""}
                               {item.stockWarehouse
                                 ? ` · ${
@@ -351,7 +374,7 @@ export default async function MektekDetailPage({ params }: Props) {
                       )}
                     </div>
                     <p className="mt-3 break-words border-t pt-3 font-mono text-sm font-semibold">
-                      Subtotal: {normalizedItems.sparepartSubtotal.toLocaleString("id-ID")} IDR
+                      Subtotal: Rp {normalizedItems.sparepartSubtotal.toLocaleString("id-ID")}
                     </p>
                   </div>
                 </div>
@@ -377,16 +400,16 @@ export default async function MektekDetailPage({ params }: Props) {
                 {canManageOrderItems && !canAddOrderItems && (
                   <div className="break-words rounded-md border border-dashed p-3 text-xs text-muted-foreground">
                     {order.taskStatus === "COMPLETE"
-                      ? "Service Items dan sparepart dikunci permanen karena Order ini telah ditutup."
-                      : "Service Items dan sparepart dikunci selama Payment Review. Ubah Order kembali ke In Progress sebelum menambah pekerjaan."}
+                      ? "Item servis dan sparepart dikunci permanen karena pesanan ini telah ditutup."
+                      : "Item servis dan sparepart dikunci selama tinjauan pembayaran. Kembalikan status pesanan ke pengerjaan sebelum menambah pekerjaan."}
                   </div>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="border shadow-sm">
+            <Card className="order-4 border shadow-sm lg:col-start-1 lg:row-start-3">
               <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
-                <CardTitle className="text-base">Work Timeline</CardTitle>
+                <CardTitle className="text-base">Riwayat Pengerjaan</CardTitle>
               </CardHeader>
               <CardContent className="space-y-5 px-4 pb-4 sm:px-6 sm:pb-6">
                 {canUpdateProgress && <AddTimelineEntryForm serviceOrderId={order.id} />}
@@ -403,10 +426,10 @@ export default async function MektekDetailPage({ params }: Props) {
                       />
                       <div className="min-w-0 space-y-2">
                         <p className="text-xs text-muted-foreground">
-                          {timelineItem.date.toLocaleDateString()} ·{" "}
-                          {timelineItem.date.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
+                          {timelineItem.date.toLocaleString("id-ID", {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                            timeZone: "Asia/Makassar",
                           })}
                         </p>
                         <p className="break-words text-sm font-medium text-foreground">
@@ -421,27 +444,7 @@ export default async function MektekDetailPage({ params }: Props) {
 
           </div>
 
-          <aside className="min-w-0 space-y-4 sm:space-y-6">
-            <VisitDiscountCard visitCount={completedVisitCount} />
-
-            {canManageSchedule && (
-              <Card className="border shadow-sm">
-                <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
-                  <CardTitle className="text-base">Jadwal</CardTitle>
-                </CardHeader>
-                <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
-                  <EstimatedDoneControl
-                    serviceOrderId={order.id}
-                    estimatedDone={order.dueDateAt?.toISOString() ?? null}
-                  />
-                </CardContent>
-              </Card>
-            )}
-
-            {canUseCustomerTools && customerTrackingLink && (
-              <CustomerTrackingLinkCard link={customerTrackingLink} />
-            )}
-
+          <aside className="order-1 min-w-0 space-y-4 sm:space-y-6 lg:sticky lg:top-4 lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:max-h-[calc(100svh-2rem)] lg:self-start lg:overflow-y-auto lg:pe-1">
             {(canUpdateProgress || canManageOrderItems) && (
               <Card className="border shadow-sm">
                 <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
@@ -461,12 +464,26 @@ export default async function MektekDetailPage({ params }: Props) {
               </Card>
             )}
 
+            {canManageSchedule && (
+              <Card className="border shadow-sm">
+                <CardHeader className="px-4 pb-3 pt-4 sm:px-6 sm:pt-6">
+                  <CardTitle className="text-base">Jadwal</CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
+                  <EstimatedDoneControl
+                    serviceOrderId={order.id}
+                    estimatedDone={order.dueDateAt?.toISOString() ?? null}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
             {(canManagePayment || canUseCustomerTools) && (
               <Tabs defaultValue={canRecordPayment ? "payment" : "docs"} className="min-w-0 space-y-4">
-                <TabsList className={`grid h-auto w-full gap-1 ${canRecordPayment ? "grid-cols-1 min-[360px]:grid-cols-3" : "grid-cols-2"}`}>
-                  {canRecordPayment && <TabsTrigger value="payment" className="w-full whitespace-normal px-2 text-xs sm:text-sm">Pembayaran</TabsTrigger>}
-                  <TabsTrigger value="docs" className="w-full whitespace-normal px-2 text-xs sm:text-sm">Dokumen</TabsTrigger>
-                  <TabsTrigger value="whatsapp" className="w-full whitespace-normal px-2 text-xs sm:text-sm">WhatsApp</TabsTrigger>
+                <TabsList className={`grid h-auto w-full gap-1 ${canRecordPayment ? "grid-cols-1 min-[480px]:grid-cols-3" : "grid-cols-2"}`}>
+                  {canRecordPayment && <TabsTrigger value="payment" className="w-full whitespace-normal px-2 text-xs xl:text-sm">Pembayaran</TabsTrigger>}
+                  <TabsTrigger value="docs" className="w-full whitespace-normal px-2 text-xs xl:text-sm">Dokumen</TabsTrigger>
+                  <TabsTrigger value="whatsapp" className="w-full whitespace-normal px-2 text-xs xl:text-sm">WhatsApp</TabsTrigger>
                 </TabsList>
                 {canRecordPayment && (
                   <TabsContent value="payment" className="mt-0">
@@ -503,6 +520,12 @@ export default async function MektekDetailPage({ params }: Props) {
                 </TabsContent>
               </Tabs>
             )}
+
+            {canUseCustomerTools && customerTrackingLink && (
+              <CustomerTrackingLinkCard link={customerTrackingLink} />
+            )}
+
+            <VisitDiscountCard visitCount={completedVisitCount} />
           </aside>
         </div>
       </div>
