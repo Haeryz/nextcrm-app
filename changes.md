@@ -119,7 +119,7 @@ Create or update the admin account through the backend bootstrap command:
 ```bash
 NEXTCRM_ADMIN_EMAIL="admin@example.com" \
 NEXTCRM_ADMIN_PASSWORD="replace-with-at-least-12-characters" \
-NEXTCRM_ADMIN_NAME="NextCRM Admin" \
+NEXTCRM_ADMIN_NAME="MektekCRM Admin" \
 pnpm admin:bootstrap
 ```
 

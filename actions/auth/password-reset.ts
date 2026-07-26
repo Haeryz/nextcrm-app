@@ -9,6 +9,7 @@ import { getClientIp } from "@/lib/rate-limit";
 import { hashPassword } from "@/lib/password";
 import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { hasTrustedMutationOrigin } from "@/lib/trusted-origin";
+import { APP_NAME } from "@/lib/brand";
 
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 const GENERIC_SUCCESS =
@@ -79,7 +80,7 @@ export const requestPasswordReset = async (email: string) => {
       await resend.emails.send({
         from: process.env.EMAIL_FROM!,
         to: user.email,
-        subject: "NextCRM - Reset Password",
+        subject: `${APP_NAME} - Atur Ulang Kata Sandi`,
         text: lang === "id"
           ? `Reset Password Anda: ${resetLink}`
           : lang === "en"

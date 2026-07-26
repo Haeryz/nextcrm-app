@@ -1,7 +1,7 @@
 {
   "RootLayout": {
-    "title": "NextCRM",
-    "description": "NextCRM adalah CRM sumber terbuka yang dibangun di atas Next.js."
+    "title": "MektekCRM",
+    "description": "MektekCRM adalah CRM sumber terbuka yang dibangun di atas Next.js."
   },
   "ModuleMenu": {
     "dashboard": "Dashboard",
@@ -26,7 +26,7 @@
   "DashboardPage": {
     "containerTitle": "Dashboard",
     "totalRevenue": "Total pendapatan",
-    "containerDescription": "Selamat datang di NextCRM. Di sini Anda dapat melihat semua informasi penting tentang bisnis Anda.",
+    "containerDescription": "Selamat datang di MektekCRM. Di sini Anda dapat melihat semua informasi penting tentang bisnis Anda.",
     "expectedRevenue": "Perkiraan pendapatan",
     "activeUsers": "Pengguna aktif",
     "accounts": "Perusahaan",

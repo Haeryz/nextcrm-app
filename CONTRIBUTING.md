@@ -1,8 +1,13 @@
-# Contributing to NextCRM
+# Contributing to MektekCRM
 
-First off, thank you for considering contributing to NextCRM! It's people like you that make NextCRM a great tool for the community.
+First off, thank you for considering contributing to MektekCRM! It's people like you that make MektekCRM a great tool for the community.
 
-This document provides guidelines and instructions for contributing to the NextCRM project.
+This document provides guidelines and instructions for contributing to the MektekCRM project.
+
+> **Note:** MektekCRM is a fork of [NextCRM](https://github.com/pdovhomilja/nextcrm-app).
+> The `github.com/pdovhomilja/nextcrm-app` links, the `@nextcrmapp` handle, and the
+> `nextcrm-app` directory name below refer to that **upstream** project and are
+> intentionally left unrenamed. Substitute your own fork's remote where relevant.
 
 ## Table of Contents
 
@@ -195,7 +200,7 @@ When modifying the database schema:
 
 ### Internationalization
 
-NextCRM supports multiple languages (English, Czech, German, Ukrainian):
+MektekCRM supports multiple languages (English, Czech, German, Ukrainian):
 
 - Use `next-intl` for translations
 - Add new translation keys to `/locales/{lang}.json`
@@ -259,8 +264,8 @@ Based on our [roadmap](https://github.com/pdovhomilja/nextcrm-app#roadmap), here
 
 ## Recognition
 
-Contributors will be recognized in our README and release notes. Thank you for helping make NextCRM better!
+Contributors will be recognized in our README and release notes. Thank you for helping make MektekCRM better!
 
 ---
 
-By contributing to NextCRM, you agree that your contributions will be licensed under the [MIT License](LICENSE.md).
+By contributing to MektekCRM, you agree that your contributions will be licensed under the [MIT License](LICENSE.md).

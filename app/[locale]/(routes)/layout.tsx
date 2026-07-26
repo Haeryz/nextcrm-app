@@ -98,7 +98,7 @@ export default async function AppLayout({
           />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">
-              {process.env.NEXT_PUBLIC_APP_NAME || "NextCRM"}
+              {process.env.NEXT_PUBLIC_APP_NAME || "MektekCRM"}
             </p>
           </div>
         </header>

@@ -96,4 +96,17 @@ matrix later.
 
 ## 5. Localisation policy
 
-All language must use Bahasa Indonesia in the interface, with the exception of technical / coding are allowed to use english name convention such as variable name, database, etc while preserving the interface of that data in Bahasa Indonesia. FUCKING SPEAK WITH FUCKING ENGLISH FOR FUCK SAKE JEWWWWWWWWWW U FUCK RETARD ARE U DUMB U ROOM TEMPERATURE IQ.
+**All user-visible interface copy must be written in Bahasa Indonesia.** This
+covers labels, buttons, headings, table columns, empty states, toasts,
+validation messages, and error text — anything a customer, staff member, or
+admin reads in the UI.
+
+**Technical identifiers stay in English.** Variable and function names, database
+model and column names, API field names, route segments, and code comments
+follow the usual English naming conventions. When such a value is surfaced in
+the interface, present it behind a Bahasa Indonesia label rather than renaming
+the underlying identifier.
+
+**Communicate with the user in English** unless the user asks for another
+language. The Bahasa Indonesia rule applies to the product's interface copy, not
+to agent-to-user conversation, commit messages, or code review notes.

@@ -122,7 +122,7 @@ function CustomerSummaryDocument({ data }: { data: MektekCustomerSummaryPdfData 
         </View>
 
         <View style={styles.footer} fixed>
-          <Text>Dicetak dari MekTek CRM</Text>
+          <Text>Dicetak dari MektekCRM</Text>
           <Text render={({ pageNumber, totalPages }) => `Halaman ${pageNumber} / ${totalPages}`} />
         </View>
       </Page>

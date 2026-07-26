@@ -11,6 +11,13 @@ import { consumeAuthRateLimit } from "@/lib/auth-rate-limit";
 import { hasTrustedMutationOrigin } from "@/lib/trusted-origin";
 import { reserveWhatsAppOtpSend } from "@/lib/whatsapp/otp-send-guard";
 
+// Phone (WhatsApp) OTP. Signup verification moved to EMAIL (see
+// actions/auth/email-otp.ts) because the WhatsApp channel proved unreliable.
+// This code path is still REQUIRED and must not be removed: proving control of a
+// phone number is what gates claimMektekCustomerByPhone, which links an existing
+// walk-in customer record — and its whole service history — to an account.
+// Without it, anyone could type a stranger's number and claim their history.
+//
 // OTP requests write a DB row + trigger a WhatsApp send. Throttle hard by both IP
 // and phone so it can't be used to spam a victim's number or flood the table.
 const OTP_IP_LIMIT = 5;

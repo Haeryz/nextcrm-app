@@ -15,7 +15,6 @@ import {
   registerCustomerUser,
   registerUser,
 } from "@/actions/auth/register-user";
-import { requestCustomerPhoneOtp } from "@/actions/auth/phone-otp";
 import { requestCustomerEmailOtp } from "@/actions/auth/email-otp";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,44 +43,28 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// Email is optional on purpose: walk-in customers who only have a phone must
-// still be able to register. It is validated only when actually filled in, and
-// marketing consent is a separate opt-in that is never pre-ticked.
+// Email is the verification channel for customer signup, so it is REQUIRED — an
+// address we were never given cannot be verified. Marketing consent stays a
+// separate opt-in that is never pre-ticked.
 const customerSchema = z
   .object({
     name: z.string().min(3).max(50),
     phone: z.string().min(6).max(30),
-    email: z.string().trim().max(160).optional().or(z.literal("")),
-    emailOtpCode: z.string().trim().optional().or(z.literal("")),
+    email: z.string().trim().min(1, "Email wajib diisi").max(160),
+    emailOtpCode: z
+      .string()
+      .trim()
+      .length(6, "Masukkan kode verifikasi email 6 digit"),
     password: z.string().min(8).max(50),
     confirmPassword: z.string().min(8).max(50),
-    otpCode: z.string().length(6, "Masukkan kode WhatsApp 6 digit"),
     marketingConsent: z.boolean(),
   })
   .superRefine((values, ctx) => {
-    const email = (values.email ?? "").trim();
-
-    if (email && !z.string().email().safeParse(email).success) {
+    if (!z.string().email().safeParse(values.email.trim()).success) {
       ctx.addIssue({
         code: "custom",
         path: ["email"],
         message: "Format email tidak valid",
-      });
-    }
-
-    if (email && (values.emailOtpCode ?? "").trim().length !== 6) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["emailOtpCode"],
-        message: "Masukkan kode verifikasi email 6 digit",
-      });
-    }
-
-    if (values.marketingConsent && !email) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["email"],
-        message: "Isi email Anda untuk menerima promosi",
       });
     }
   });
@@ -141,37 +124,12 @@ export function RegisterComponent() {
       emailOtpCode: "",
       password: "",
       confirmPassword: "",
-      otpCode: "",
       // Consent is never pre-ticked.
       marketingConsent: false,
     },
   });
 
-  const [otpSending, setOtpSending] = React.useState(false);
   const [emailOtpSending, setEmailOtpSending] = React.useState(false);
-  const customerEmail = customerForm.watch("email") ?? "";
-  const hasCustomerEmail = customerEmail.trim().length > 0;
-
-  const onSendCustomerOtp = async () => {
-    const phone = customerForm.getValues("phone");
-    if (!phone?.trim()) {
-      toast.error("Masukkan nomor telepon terlebih dahulu.");
-      return;
-    }
-    setOtpSending(true);
-    try {
-      const result = await requestCustomerPhoneOtp(phone);
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Kode verifikasi dikirim via WhatsApp.");
-    } catch (error: any) {
-      toast.error(error?.message || "Gagal mengirim kode");
-    } finally {
-      setOtpSending(false);
-    }
-  };
 
   const onSendCustomerEmailOtp = async () => {
     const email = (customerForm.getValues("email") ?? "").trim();
@@ -186,7 +144,9 @@ export function RegisterComponent() {
         toast.error(result.error);
         return;
       }
-      toast.success("Kode verifikasi dikirim ke email Anda.");
+      toast.success(
+        "Kode verifikasi dikirim ke email Anda. Cek juga folder spam/promosi."
+      );
     } catch (error: any) {
       toast.error(error?.message || "Gagal mengirim kode email");
     } finally {
@@ -209,21 +169,14 @@ export function RegisterComponent() {
   const onCustomerSubmit = async (data: CustomerFormValues) => {
     setIsLoading(true);
     try {
-      const email = (data.email ?? "").trim();
       const result = await registerCustomerUser({
         name: data.name,
         phone: data.phone,
+        email: data.email.trim(),
+        emailOtpCode: data.emailOtpCode.trim(),
         password: data.password,
         confirmPassword: data.confirmPassword,
-        otpCode: data.otpCode,
-        ...(email
-          ? {
-              email,
-              emailOtpCode: (data.emailOtpCode ?? "").trim(),
-              // Consent only travels when there is a real inbox behind it.
-              marketingConsent: data.marketingConsent === true,
-            }
-          : {}),
+        marketingConsent: data.marketingConsent === true,
       });
 
       if (result.error) {
@@ -324,42 +277,11 @@ export function RegisterComponent() {
                           {...field}
                         />
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={customerForm.control}
-                  name="otpCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Kode verifikasi WhatsApp</FormLabel>
-                      <div className="flex items-start gap-2">
-                        <FormControl>
-                          <Input
-                            disabled={isLoading}
-                            inputMode="numeric"
-                            autoComplete="one-time-code"
-                            placeholder="Kode 6 digit"
-                            {...field}
-                            onChange={(event) =>
-                              field.onChange(
-                                event.target.value.replace(/\D/g, "").slice(0, 6)
-                              )
-                            }
-                          />
-                        </FormControl>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-9 shrink-0 whitespace-nowrap"
-                          disabled={isLoading || otpSending}
-                          onClick={onSendCustomerOtp}
-                        >
-                          {otpSending ? "Mengirim..." : "Kirim kode"}
-                        </Button>
-                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Nomor ini dipakai untuk Login dan kabar servis. Riwayat
+                        servis lama Anda dapat ditautkan nanti dari halaman profil
+                        setelah nomor ini diverifikasi lewat WhatsApp.
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -370,7 +292,7 @@ export function RegisterComponent() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email (opsional)</FormLabel>
+                      <FormLabel>Email</FormLabel>
                       <FormControl>
                         <Input
                           disabled={isLoading}
@@ -383,57 +305,57 @@ export function RegisterComponent() {
                         />
                       </FormControl>
                       <p className="text-xs text-muted-foreground">
-                        Isi email jika Anda ingin menerima informasi promosi dan
-                        penawaran. Tanpa email, akun Anda tetap aktif dan kabar
-                        servis tetap dikirim lewat WhatsApp.
+                        Email wajib diisi karena kode verifikasi akun dikirim ke
+                        alamat ini.
                       </p>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
-                {hasCustomerEmail && (
-                  <FormField
-                    control={customerForm.control}
-                    name="emailOtpCode"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Kode verifikasi email</FormLabel>
-                        <div className="flex items-start gap-2">
-                          <FormControl>
-                            <Input
-                              disabled={isLoading}
-                              inputMode="numeric"
-                              autoComplete="one-time-code"
-                              placeholder="Kode 6 digit"
-                              {...field}
-                              value={field.value ?? ""}
-                              onChange={(event) =>
-                                field.onChange(
-                                  event.target.value.replace(/\D/g, "").slice(0, 6)
-                                )
-                              }
-                            />
-                          </FormControl>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-9 shrink-0 whitespace-nowrap"
-                            disabled={isLoading || emailOtpSending}
-                            onClick={onSendCustomerEmailOtp}
-                          >
-                            {emailOtpSending ? "Mengirim..." : "Kirim kode"}
-                          </Button>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Kami mengirim kode ke email tersebut untuk memastikan
-                          alamatnya benar milik Anda.
-                        </p>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
+                <FormField
+                  control={customerForm.control}
+                  name="emailOtpCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Kode verifikasi email</FormLabel>
+                      <div className="flex items-start gap-2">
+                        <FormControl>
+                          <Input
+                            disabled={isLoading}
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            placeholder="Kode 6 digit"
+                            {...field}
+                            value={field.value ?? ""}
+                            onChange={(event) =>
+                              field.onChange(
+                                event.target.value.replace(/\D/g, "").slice(0, 6)
+                              )
+                            }
+                          />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-9 shrink-0 whitespace-nowrap"
+                          disabled={isLoading || emailOtpSending}
+                          onClick={onSendCustomerEmailOtp}
+                        >
+                          {emailOtpSending ? "Mengirim..." : "Kirim kode"}
+                        </Button>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Klik &quot;Kirim kode&quot;, lalu masukkan 6 digit yang kami
+                        kirim ke email Anda. Kode berlaku 5 menit. Belum masuk?
+                        Periksa folder spam/promosi, pastikan alamatnya benar, lalu
+                        kirim ulang.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
 
                 <FormField
                   control={customerForm.control}

@@ -3,11 +3,7 @@ import { headers } from "next/headers";
 import { prismadb } from "@/lib/prisma";
 import { newUserNotify } from "@/lib/new-user-notify";
 import { Language } from "@prisma/client";
-import {
-  buildPhoneAccountEmail,
-  isValidPhoneNumber,
-  normalizePhoneNumber,
-} from "@/lib/phone";
+import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/phone";
 import { boundedText, MAX_NAME_LEN } from "@/lib/mektek/sanitize";
 import { getClientIp } from "@/lib/rate-limit";
 import { verifyOtpCode } from "@/lib/otp";
@@ -123,11 +119,17 @@ export const registerUser = async (data: {
 export const registerCustomerUser = async (data: {
   name: string;
   phone: string;
-  email?: string;
-  emailOtpCode?: string;
+  email: string;
+  emailOtpCode: string;
   password: string;
   confirmPassword: string;
-  otpCode: string;
+  // OPTIONAL WhatsApp OTP. Signup itself is verified by EMAIL; this code is only
+  // ever used to link a pre-existing walk-in CatalogCustomer record (and the
+  // service history hanging off it) to the new account. Without a valid phone
+  // OTP that record is left completely untouched and must be claimed later
+  // through claimMektekCustomerByPhone, which is OTP-gated. See the transaction
+  // below — that is the account-takeover boundary.
+  otpCode?: string;
   marketingConsent?: boolean;
 }) => {
   if (!(await hasTrustedMutationOrigin())) {
@@ -140,36 +142,39 @@ export const registerCustomerUser = async (data: {
   const emailOtpCode = String(data?.emailOtpCode ?? "").trim();
   const password = String(data?.password ?? "");
   const confirmPassword = String(data?.confirmPassword ?? "");
-  const otpCode = String(data?.otpCode ?? "").trim();
+  const phoneOtpCode = String(data?.otpCode ?? "").trim();
   // Opt-in only. Anything other than a literal true (an unticked box, a missing
   // field, a truthy string from a hand-rolled client) counts as "no consent".
   const marketingConsent = data?.marketingConsent === true;
   const phoneNormalized = normalizePhoneNumber(phone);
 
-  // Whichever channel is provided must be verified. Phone is still required
-  // in v1 (the storefront signup form collects it); email is optional. When
-  // email is provided, it must be valid, non-disposable, and own a verified
-  // OTP code. Mass-account-creation via throwaway emails is blunted by the
-  // per-email signup throttle below.
-  const emailProvided = rawEmail.length > 0;
-  const emailNormalized = emailProvided ? normalizeEmail(rawEmail) : null;
+  // EMAIL is the verification channel for signup. WhatsApp OTP proved unreliable
+  // in production (unofficial Baileys client, 3-8s sends, the business number was
+  // suspended), so the address must be present, valid, non-disposable, and own a
+  // verified OTP code before an account is created. Mass-account-creation via
+  // throwaway inboxes is blunted by the per-email signup throttle below.
+  const emailNormalized = normalizeEmail(rawEmail);
 
-  if (!name || !phone || !password || !confirmPassword || !otpCode) {
+  if (
+    !name ||
+    !phone ||
+    !rawEmail ||
+    !emailOtpCode ||
+    !password ||
+    !confirmPassword
+  ) {
     const missingFields = [];
     if (!name) missingFields.push("name");
     if (!phone) missingFields.push("phone");
+    if (!rawEmail) missingFields.push("email");
+    if (!emailOtpCode) missingFields.push("emailOtpCode");
     if (!password) missingFields.push("password");
     if (!confirmPassword) missingFields.push("confirmPassword");
-    if (!otpCode) missingFields.push("otpCode");
     return { error: `Field wajib belum diisi: ${missingFields.join(", ")}` };
   }
 
-  if (emailProvided && (!emailNormalized || !isValidEmail(rawEmail))) {
+  if (!emailNormalized || !isValidEmail(rawEmail)) {
     return { error: "Email tidak valid" };
-  }
-
-  if (emailProvided && !emailOtpCode) {
-    return { error: "Field wajib belum diisi: emailOtpCode" };
   }
 
   if (!isValidPhoneNumber(phone)) {
@@ -189,15 +194,13 @@ export const registerCustomerUser = async (data: {
 
   // Block disposable/temp domains on signup. Generic error — never reveal
   // which domains are blocked.
-  if (emailProvided && emailNormalized) {
-    try {
-      await assertNotDisposable(emailNormalized);
-    } catch (error) {
-      if (error instanceof DisposableEmailError) {
-        return { error: "Email dari domain ini tidak diizinkan" };
-      }
-      throw error;
+  try {
+    await assertNotDisposable(emailNormalized);
+  } catch (error) {
+    if (error instanceof DisposableEmailError) {
+      return { error: "Email dari domain ini tidak diizinkan" };
     }
+    throw error;
   }
 
   const ip = getClientIp(await headers());
@@ -214,23 +217,20 @@ export const registerCustomerUser = async (data: {
   // 3 signups per email per 24h — a mass-account-creation throttle layered on
   // top of the existing per-IP 5/15min cap. Defeats scripted registration
   // farms that rotate IPs but reuse a single burner email.
-  const emailSignupLimit =
-    emailProvided && emailNormalized
-      ? await consumeAuthRateLimit(
-          `email-signup:email:${emailRecipientHash(emailNormalized)}`,
-          3,
-          24 * 60 * 60 * 1000
-        )
-      : { ok: true };
+  const emailSignupLimit = await consumeAuthRateLimit(
+    `email-signup:email:${emailRecipientHash(emailNormalized)}`,
+    3,
+    24 * 60 * 60 * 1000
+  );
   if (!ipLimit.ok || !phoneLimit.ok || !emailSignupLimit.ok) {
     return { error: "Terlalu banyak Request. Silakan coba lagi nanti." };
   }
 
-  // If the user only gave a phone, synthesize an internal email so the unique
-  // constraint on Users.email is satisfied and the account is reachable for
-  // transactional system notifications only (never marketing/offers — those
-  // are gated by UserEmailPreference, which defaults to opted-out).
-  const email = emailNormalized ?? buildPhoneAccountEmail(phoneNormalized);
+  // The verified address is the account email. The @phone.nextcrm.local
+  // placeholder (buildPhoneAccountEmail) is deliberately NOT used here any more:
+  // signup now always carries a real, OTP-verified inbox. Staff-created walk-in
+  // accounts still use it (actions/mektek/customers.ts) and existing rows keep it.
+  const email = emailNormalized;
 
   try {
     const existingUser = await prismadb.users.findFirst({
@@ -246,23 +246,29 @@ export const registerCustomerUser = async (data: {
       return { error: "Nomor telepon atau email ini sudah memiliki Account" };
     }
 
-    // Prove ownership of the phone before binding it to an account. Without this,
-    // anyone could register with a victim's number and (via the profile flow) claim
-    // the victim's existing walk-in customer record, tokens, and PII.
-    const phoneOtpValid = await verifyOtpCode(phoneNormalized, otpCode);
-    if (!phoneOtpValid) {
-      return { error: "Kode verifikasi salah atau kedaluwarsa" };
+    // Prove ownership of the inbox before binding it to an account. This is the
+    // signup verification gate: no valid email code, no account.
+    const emailOtpValid = await verifyEmailOtpCode(
+      emailNormalized,
+      emailOtpCode
+    );
+    if (!emailOtpValid) {
+      return {
+        error:
+          "Kode verifikasi email salah atau kedaluwarsa. Minta kode baru, lalu periksa kotak masuk dan folder spam/promosi.",
+      };
     }
 
-    // Per the "whichever channel is provided" decision: if the user supplied
-    // an email, prove ownership of that inbox too before binding it.
-    if (emailProvided && emailNormalized) {
-      const emailOtpValid = await verifyEmailOtpCode(
-        emailNormalized,
-        emailOtpCode
-      );
-      if (!emailOtpValid) {
-        return { error: "Kode verifikasi email salah atau kedaluwarsa" };
+    // OPTIONAL second channel. A valid WhatsApp code proves the person also
+    // controls the phone number, which is the ONLY thing that allows an existing
+    // walk-in customer record to be linked below. A wrong code is a hard error
+    // rather than a silent downgrade, so a mistyped code never quietly skips the
+    // link the customer was expecting.
+    let phoneVerified = false;
+    if (phoneOtpCode) {
+      phoneVerified = await verifyOtpCode(phoneNormalized, phoneOtpCode);
+      if (!phoneVerified) {
+        return { error: "Kode verifikasi WhatsApp salah atau kedaluwarsa" };
       }
     }
 
@@ -289,34 +295,46 @@ export const registerCustomerUser = async (data: {
         },
       });
 
-      await tx.catalogCustomer.upsert({
-        where: {
-          phoneNormalized,
-        },
-        update: {
-          username: name,
-          phone,
-          customerType: "STANDARD",
-          userId: createdUser.id,
-        },
-        create: {
-          username: name,
-          phone,
-          phoneNormalized,
-          customerType: "STANDARD",
-          userId: createdUser.id,
-        },
+      // ACCOUNT-TAKEOVER BOUNDARY. Signup is verified by email, which proves
+      // nothing about the phone number typed into the form. An existing
+      // CatalogCustomer row for that phone is a walk-in customer's record with
+      // real service history attached, so it is NEVER linked to (or overwritten
+      // by) an account that has not proved phone ownership. Without a phone OTP
+      // the row is left exactly as it was and the customer links it later from
+      // their profile via claimMektekCustomerByPhone, which requires the OTP.
+      const existingCustomer = await tx.catalogCustomer.findUnique({
+        where: { phoneNormalized },
+        select: { id: true, userId: true },
       });
+
+      if (!existingCustomer) {
+        await tx.catalogCustomer.create({
+          data: {
+            username: name,
+            phone,
+            phoneNormalized,
+            customerType: "STANDARD",
+            userId: createdUser.id,
+          },
+        });
+      } else if (phoneVerified && existingCustomer.userId === null) {
+        // Phone ownership proven and the record is unclaimed — same conditions
+        // claimMektekCustomerByPhone enforces, so linking here is equivalent.
+        // customerType is left alone: it is a staff-assigned tier.
+        await tx.catalogCustomer.update({
+          where: { id: existingCustomer.id },
+          data: { username: name, phone, userId: createdUser.id },
+        });
+      }
 
       return createdUser;
     });
 
-    // Marketing consent is recorded ONLY when the customer gave a real,
-    // OTP-verified email AND explicitly ticked the box. A phone-placeholder
-    // account is never opted in — there is no inbox behind it and no consent was
-    // given. Absence of a UserEmailPreference row already means "not opted in",
-    // so declining simply writes nothing.
-    if (marketingConsent && emailNormalized) {
+    // Marketing consent is recorded ONLY when the customer explicitly ticked the
+    // box. The address is always real and OTP-verified at this point. Absence of
+    // a UserEmailPreference row already means "not opted in", so declining
+    // simply writes nothing.
+    if (marketingConsent) {
       const consent = await setEmailPreferenceInternal(user.id, {
         marketing: true,
         offers: true,

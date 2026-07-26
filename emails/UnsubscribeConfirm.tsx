@@ -12,6 +12,7 @@ import {
   Text,
 } from "@react-email/components";
 import * as React from "react";
+import { APP_NAME } from "\@/lib/brand";
 
 interface UnsubscribeConfirmProps {
   username?: string | null;
@@ -31,7 +32,7 @@ export const UnsubscribeConfirm = ({
   const copy =
     userLanguage === "id"
       ? {
-          preview: `Konfirmasi berhenti berlangganan dari ${process.env.NEXT_PUBLIC_APP_NAME}`,
+          preview: `Konfirmasi berhenti berlangganan dari ${APP_NAME}`,
           heading: "Konfirmasi Berhenti Berlangganan",
           hello: "Halo",
           channelLabel:
@@ -52,7 +53,7 @@ export const UnsubscribeConfirm = ({
         }
       : userLanguage === "en"
         ? {
-            preview: `Unsubscribe confirmation from ${process.env.NEXT_PUBLIC_APP_NAME}`,
+            preview: `Unsubscribe confirmation from ${APP_NAME}`,
             heading: "Unsubscribe Confirmation",
             hello: "Hello",
             channelLabel:
@@ -72,7 +73,7 @@ export const UnsubscribeConfirm = ({
             thanks: "Thank you,",
           }
         : {
-            preview: `Potvrzení odhlášení od ${process.env.NEXT_PUBLIC_APP_NAME}`,
+            preview: `Potvrzení odhlášení od ${APP_NAME}`,
             heading: "Potvrzení odhlášení",
             hello: "Dobrý den",
             channelLabel:
@@ -133,7 +134,7 @@ export const UnsubscribeConfirm = ({
               {copy.mistaken}
             </Text>
             <Text className="text-[#666666] text-xs leading-[20px]">
-              {copy.thanks} {process.env.NEXT_PUBLIC_APP_NAME}
+              {copy.thanks} {APP_NAME}
             </Text>
           </Container>
         </Body>

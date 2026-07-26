@@ -16,7 +16,6 @@ import { z } from "zod";
 
 import { registerCustomerUser } from "@/actions/auth/register-user";
 import { loginCustomer } from "@/actions/auth/customer-session";
-import { requestCustomerPhoneOtp } from "@/actions/auth/phone-otp";
 import { requestCustomerEmailOtp } from "@/actions/auth/email-otp";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,18 +26,20 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
-// Email stays optional so walk-in customers with only a phone can still sign up.
-// It is validated only when filled, and marketing consent is a separate opt-in
+// Email is the verification channel for signup, so it is REQUIRED: an address we
+// were never given cannot be verified. Marketing consent stays a separate opt-in
 // that is never pre-ticked.
 const signupSchema = z
   .object({
     name: z.string().trim().min(3, "Nama minimal 3 karakter").max(120),
     phone: z.string().trim().min(6, "Nomor telepon tidak valid").max(64),
-    email: z.string().trim().max(160),
-    emailOtpCode: z.string().trim(),
+    email: z.string().trim().min(1, "Email wajib diisi").max(160),
+    emailOtpCode: z
+      .string()
+      .trim()
+      .length(6, "Masukkan kode verifikasi email 6 digit"),
     password: z.string().min(8, "Password minimal 8 karakter").max(100),
     confirmPassword: z.string().min(8, "Password minimal 8 karakter").max(100),
-    otpCode: z.string().trim().length(6, "Masukkan kode WhatsApp 6 digit"),
     marketingConsent: z.boolean(),
   })
   .superRefine((values, ctx) => {
@@ -49,25 +50,11 @@ const signupSchema = z
         message: "Password tidak sama",
       });
     }
-    if (values.email && !z.string().email().safeParse(values.email).success) {
+    if (!z.string().email().safeParse(values.email).success) {
       ctx.addIssue({
         code: "custom",
         path: ["email"],
         message: "Format email tidak valid",
-      });
-    }
-    if (values.email && values.emailOtpCode.length !== 6) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["emailOtpCode"],
-        message: "Masukkan kode verifikasi email 6 digit",
-      });
-    }
-    if (values.marketingConsent && !values.email) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["email"],
-        message: "Isi email Anda untuk menerima promosi",
       });
     }
   });
@@ -85,15 +72,12 @@ export function CustomerAccessForm({
   const [signupPhone, setSignupPhone] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
-  const [signupOtp, setSignupOtp] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupEmailOtp, setSignupEmailOtp] = useState("");
   const [emailOtpSending, setEmailOtpSending] = useState(false);
   const [emailOtpSent, setEmailOtpSent] = useState(false);
   // Consent is never pre-ticked.
   const [marketingConsent, setMarketingConsent] = useState(false);
-  const [otpSending, setOtpSending] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] =
@@ -128,27 +112,6 @@ export function CustomerAccessForm({
     }
   }
 
-  async function onSendOtp() {
-    if (!signupPhone.trim()) {
-      toast.error("Masukkan nomor telepon terlebih dahulu.");
-      return;
-    }
-    setOtpSending(true);
-    try {
-      const result = await requestCustomerPhoneOtp(signupPhone);
-      if (result.error) {
-        toast.error(result.error);
-        return;
-      }
-      setOtpSent(true);
-      toast.success("Kode verifikasi dikirim via WhatsApp.");
-    } catch (error: unknown) {
-      toast.error(errorMessage(error, "Gagal mengirim kode"));
-    } finally {
-      setOtpSending(false);
-    }
-  }
-
   async function onSendEmailOtp() {
     if (!signupEmail.trim()) {
       toast.error("Masukkan email terlebih dahulu.");
@@ -162,7 +125,9 @@ export function CustomerAccessForm({
         return;
       }
       setEmailOtpSent(true);
-      toast.success("Kode verifikasi dikirim ke email Anda.");
+      toast.success(
+        "Kode verifikasi dikirim ke email Anda. Cek juga folder spam/promosi."
+      );
     } catch (error: unknown) {
       toast.error(errorMessage(error, "Gagal mengirim kode email"));
     } finally {
@@ -180,7 +145,6 @@ export function CustomerAccessForm({
       emailOtpCode: signupEmailOtp,
       password: signupPassword,
       confirmPassword: signupConfirmPassword,
-      otpCode: signupOtp,
       marketingConsent,
     });
 
@@ -198,17 +162,11 @@ export function CustomerAccessForm({
       const result = await registerCustomerUser({
         name: values.name,
         phone: values.phone,
+        email: values.email,
+        emailOtpCode: values.emailOtpCode,
         password: values.password,
         confirmPassword: values.confirmPassword,
-        otpCode: values.otpCode,
-        ...(values.email
-          ? {
-              email: values.email,
-              emailOtpCode: values.emailOtpCode,
-              // Consent only travels when there is a real inbox behind it.
-              marketingConsent: values.marketingConsent,
-            }
-          : {}),
+        marketingConsent: values.marketingConsent,
       });
 
       if (result.error) {
@@ -382,20 +340,52 @@ export function CustomerAccessForm({
                   disabled={isLoading}
                 />
               </div>
+              <p className="text-xs text-[#4b5577]/80">
+                Nomor ini dipakai untuk Login dan kabar servis. Riwayat servis lama
+                Anda dapat ditautkan nanti dari halaman profil setelah nomor ini
+                diverifikasi lewat WhatsApp.
+              </p>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="signup-otp" className="text-[#10164f]">
-                Kode verifikasi WhatsApp
+              <Label htmlFor="signup-email" className="text-[#10164f]">
+                Email
+              </Label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
+                <Input
+                  id="signup-email"
+                  value={signupEmail}
+                  onChange={(event) => setSignupEmail(event.target.value)}
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  required
+                  maxLength={160}
+                  placeholder="nama@domain.com"
+                  className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
+                  disabled={isLoading}
+                />
+              </div>
+              <p className="text-xs text-[#4b5577]/80">
+                Email wajib diisi karena kode verifikasi akun dikirim ke alamat ini.
+              </p>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="signup-email-otp" className="text-[#10164f]">
+                Kode verifikasi email
               </Label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
                   <Input
-                    id="signup-otp"
-                    value={signupOtp}
+                    id="signup-email-otp"
+                    value={signupEmailOtp}
                     onChange={(event) =>
-                      setSignupOtp(event.target.value.replace(/\D/g, "").slice(0, 6))
+                      setSignupEmailOtp(
+                        event.target.value.replace(/\D/g, "").slice(0, 6)
+                      )
                     }
                     inputMode="numeric"
                     autoComplete="one-time-code"
@@ -409,87 +399,24 @@ export function CustomerAccessForm({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={onSendOtp}
-                  disabled={isLoading || otpSending}
+                  onClick={onSendEmailOtp}
+                  disabled={isLoading || emailOtpSending}
                   className="h-12 whitespace-nowrap border-[#151a63]/20 text-[#10164f] hover:bg-[#eef1ff]"
                 >
-                  {otpSending ? "Mengirim..." : otpSent ? "Kirim ulang" : "Kirim kode"}
+                  {emailOtpSending
+                    ? "Mengirim..."
+                    : emailOtpSent
+                      ? "Kirim ulang"
+                      : "Kirim kode"}
                 </Button>
               </div>
               <p className="text-xs text-[#4b5577]/80">
-                Kami mengirim kode ke WhatsApp untuk memastikan nomor ini milik Anda.
+                Klik &quot;Kirim kode&quot;, lalu masukkan 6 digit yang kami kirim ke
+                email Anda. Kode berlaku 5 menit. Belum masuk? Periksa folder
+                spam/promosi, pastikan alamatnya benar, lalu tekan &quot;Kirim
+                ulang&quot;.
               </p>
             </div>
-
-            <div className="grid gap-2">
-              <Label htmlFor="signup-email" className="text-[#10164f]">
-                Email (opsional)
-              </Label>
-              <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
-                <Input
-                  id="signup-email"
-                  value={signupEmail}
-                  onChange={(event) => setSignupEmail(event.target.value)}
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  maxLength={160}
-                  placeholder="nama@domain.com"
-                  className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
-                  disabled={isLoading}
-                />
-              </div>
-              <p className="text-xs text-[#4b5577]/80">
-                Isi email jika Anda ingin menerima informasi promosi dan penawaran.
-                Tanpa email, akun Anda tetap aktif dan kabar servis tetap dikirim
-                lewat WhatsApp.
-              </p>
-            </div>
-
-            {signupEmail.trim().length > 0 && (
-              <div className="grid gap-2">
-                <Label htmlFor="signup-email-otp" className="text-[#10164f]">
-                  Kode verifikasi email
-                </Label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#151a63]/60" />
-                    <Input
-                      id="signup-email-otp"
-                      value={signupEmailOtp}
-                      onChange={(event) =>
-                        setSignupEmailOtp(
-                          event.target.value.replace(/\D/g, "").slice(0, 6)
-                        )
-                      }
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      placeholder="Kode 6 digit"
-                      className="h-12 border-[#151a63]/20 bg-white pl-9 text-[#10164f] placeholder:text-[#4b5577]/70 focus-visible:ring-[#151a63]"
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={onSendEmailOtp}
-                    disabled={isLoading || emailOtpSending}
-                    className="h-12 whitespace-nowrap border-[#151a63]/20 text-[#10164f] hover:bg-[#eef1ff]"
-                  >
-                    {emailOtpSending
-                      ? "Mengirim..."
-                      : emailOtpSent
-                        ? "Kirim ulang"
-                        : "Kirim kode"}
-                  </Button>
-                </div>
-                <p className="text-xs text-[#4b5577]/80">
-                  Kami mengirim kode ke email tersebut untuk memastikan alamatnya
-                  benar milik Anda.
-                </p>
-              </div>
-            )}
 
             <label className="flex cursor-pointer items-start gap-3 text-sm text-[#4b5577]">
               <input

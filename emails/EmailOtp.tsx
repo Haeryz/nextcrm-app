@@ -11,6 +11,7 @@ import {
   Text,
 } from "@react-email/components";
 import * as React from "react";
+import { APP_NAME } from "\@/lib/brand";
 
 interface EmailOtpProps {
   code: string;
@@ -22,7 +23,7 @@ export const EmailOtp = ({ code, email, userLanguage }: EmailOtpProps) => {
   const copy =
     userLanguage === "id"
       ? {
-          preview: `Kode Verifikasi dari ${process.env.NEXT_PUBLIC_APP_NAME}`,
+          preview: `Kode Verifikasi dari ${APP_NAME}`,
           heading: "Kode Verifikasi Anda",
           hello: "Halo",
           request: "Berikut adalah kode verifikasi untuk Email Anda:",
@@ -32,7 +33,7 @@ export const EmailOtp = ({ code, email, userLanguage }: EmailOtpProps) => {
         }
       : userLanguage === "en"
         ? {
-            preview: `Verification code from ${process.env.NEXT_PUBLIC_APP_NAME}`,
+            preview: `Verification code from ${APP_NAME}`,
             heading: "Your verification code",
             hello: "Hello",
             request: "Here is the verification code for your email:",
@@ -41,7 +42,7 @@ export const EmailOtp = ({ code, email, userLanguage }: EmailOtpProps) => {
             thanks: "Thank you,",
           }
         : {
-            preview: `Verifikační kód od ${process.env.NEXT_PUBLIC_APP_NAME}`,
+            preview: `Verifikační kód od ${APP_NAME}`,
             heading: "Váš verifikační kód",
             hello: "Dobrý den",
             request: "Zde je verifikační kód pro váš e-mail:",
@@ -75,7 +76,7 @@ export const EmailOtp = ({ code, email, userLanguage }: EmailOtpProps) => {
               {copy.instructions}
             </Text>
             <Text className="text-black text-sm leading-[24px]">
-              {copy.thanks} {process.env.NEXT_PUBLIC_APP_NAME}
+              {copy.thanks} {APP_NAME}
             </Text>
             <Hr className="border border-solid border-[#eaeaea] my-[26px] mx-0 w-full" />
           </Container>

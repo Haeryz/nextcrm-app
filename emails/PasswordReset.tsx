@@ -13,6 +13,7 @@ import {
   Text,
 } from "@react-email/components";
 import * as React from "react";
+import { APP_NAME } from "\@/lib/brand";
 
 interface VercelInviteUserEmailProps {
   username?: string;
@@ -33,7 +34,7 @@ export const PasswordResetEmail = ({
 }: VercelInviteUserEmailProps) => {
   const copy = userLanguage === "id"
     ? {
-        preview: `Reset Password dari ${process.env.NEXT_PUBLIC_APP_NAME}`,
+        preview: `Reset Password dari ${APP_NAME}`,
         heading: "Reset Password untuk:",
         hello: "Halo",
         request: "Kami menerima Request Reset Password untuk Account Anda:",
@@ -44,7 +45,7 @@ export const PasswordResetEmail = ({
       }
     : userLanguage === "en"
       ? {
-          preview: `Password reset from ${process.env.NEXT_PUBLIC_APP_NAME}`,
+          preview: `Password reset from ${APP_NAME}`,
           heading: "Password reset for:",
           hello: "Hello",
           request: "We received a request to reset the password for your account:",
@@ -54,7 +55,7 @@ export const PasswordResetEmail = ({
           thanks: "Thank you,",
         }
       : {
-          preview: `Obnovení hesla od ${process.env.NEXT_PUBLIC_APP_NAME}`,
+          preview: `Obnovení hesla od ${APP_NAME}`,
           heading: "Obnovení hesla pro:",
           hello: "Dobrý den",
           request: "Obdrželi jsme žádost o obnovení hesla k vašemu účtu:",
@@ -100,7 +101,7 @@ export const PasswordResetEmail = ({
             </Text>
             <Text className="text-black text-sm leading-[24px]">
               {copy.thanks}{" "}
-              {process.env.NEXT_PUBLIC_APP_NAME}
+              {APP_NAME}
             </Text>
             <Hr className="border border-solid border-[#eaeaea] my-[26px] mx-0 w-full" />
           </Container>

@@ -21,7 +21,7 @@ import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 /**
  * AppSidebar Component - Task Groups 1.2, 2.2-2.7, 3.1, 5.3, 5.4
  *
- * Core sidebar component for NextCRM application layout.
+ * Core sidebar component for MektekCRM application layout.
  * Implements shadcn/ui sidebar pattern with:
  * - Logo and "N" branding symbol with rotation animation
  * - Build version display in footer (when expanded)
@@ -97,14 +97,16 @@ export function AppSidebar({
             isExpanded ? "gap-x-4" : "justify-center",
           )}
         >
-          {/* "N" Branding Symbol with rotation animation */}
+          {/* Brand mark with rotation animation. Kept in sync with the product
+              name beside it — it read "N" long after the rename to MektekCRM. */}
           <div
             className={cn(
               "flex-shrink-0 border rounded-full px-4 py-2 transition-transform duration-500",
               isExpanded && "rotate-[360deg]",
             )}
+            aria-hidden="true"
           >
-            N
+            M
           </div>
 
           {/* App Name - visible when expanded, hidden when collapsed */}
@@ -114,7 +116,7 @@ export function AppSidebar({
               !isExpanded ? "w-0 opacity-0" : "w-auto opacity-100",
             )}
           >
-            {process.env.NEXT_PUBLIC_APP_NAME || "NextCRM"}
+            {process.env.NEXT_PUBLIC_APP_NAME || "MektekCRM"}
           </h1>
           <SidebarTrigger
             aria-label="Tutup menu navigasi"

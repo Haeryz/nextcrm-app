@@ -104,7 +104,7 @@ To create or update the initial admin account, set these variables in `.env.loca
 ```env
 NEXTCRM_ADMIN_EMAIL="admin@example.com"
 NEXTCRM_ADMIN_PASSWORD="replace-with-at-least-12-characters"
-NEXTCRM_ADMIN_NAME="NextCRM Admin"
+NEXTCRM_ADMIN_NAME="MektekCRM Admin"
 ```
 
 Then run:
@@ -112,6 +112,9 @@ Then run:
 ```bash
 pnpm admin:bootstrap
 ```
+
+> The `NEXTCRM_` prefix on these variable names is intentional and must not be
+> renamed — see [Legacy `nextcrm` identifiers](#legacy-nextcrm-identifiers-that-must-not-be-renamed) below.
 
 ## Environment Variables
 
@@ -133,6 +136,35 @@ Mektek payment variables:
 - `NEXT_PUBLIC_MIDTRANS_CLIENT_KEY`
 
 Optional integrations in `.env.example` include Resend, Rossum, MinIO, SMTP/IMAP, cron secrets, and external API keys.
+
+### Legacy `nextcrm` identifiers that must NOT be renamed
+
+The product is branded **MektekCRM**, but a handful of `nextcrm` strings are
+**identifiers, not branding**, and were deliberately left unchanged. Do not
+"finish the rename" — each of these breaks a running deployment:
+
+- **The 12 `NEXTCRM_*` environment variable names** (`NEXTCRM_DISABLE_AUTH`,
+  `NEXTCRM_PROTOTYPE_MODE`, `NEXTCRM_ALLOW_NOAUTH_IN_PROD`,
+  `NEXTCRM_ADMIN_EMAIL` / `_PASSWORD` / `_NAME`, `NEXTCRM_GUEST_USER_ID` /
+  `_EMAIL` / `_NAME` / `_LANGUAGE`, `NEXTCRM_KEEP_DEV_CACHE`,
+  `NEXTCRM_SKIP_WHATSAPP_BROWSER_INSTALL`). These are the literal keys read from
+  `process.env` in the code **and the literal keys configured in the Vercel
+  dashboard**. A renamed key is not an error — it silently falls back to its
+  default, which for `NEXTCRM_DISABLE_AUTH` means auth behaviour changes without
+  warning. In `.env.example` the keys are kept byte-identical; only comments and
+  human-readable display values were rebranded.
+- **`@phone.nextcrm.local`** — the synthetic email domain for phone-only
+  accounts. It is already persisted in existing database rows, so renaming it
+  splits the placeholder set and the email-campaign audience filter would begin
+  mailing a domain that does not exist.
+- **`guest@nextcrm.local`** — the default guest-user email and the upsert key for
+  no-auth mode; changing it creates a duplicate guest user.
+- **`nxtc__`** — the MCP bearer-token prefix (a wire-format constant).
+- **The repository directory name `nextcrm-app`** and any absolute path
+  containing it, including the `${APP_IMAGE:-nextcrm-app}` default image name in
+  `docker-compose.yml`.
+
+Rebranding applies to prose, display names, and the npm package name only.
 
 ## Main Routes
 

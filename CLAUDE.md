@@ -67,36 +67,38 @@ Point the client at **`/setup`** (e.g. `https://…/en/setup`). It shows a guide
 
 ### Database
 
-Prisma 7 + PostgreSQL 17+ with the **pgvector** extension (required for vector search). The client singleton is in `lib/prisma.ts`. It uses `@prisma/adapter-pg` with connection pooling via `pg`. If `DATABASE_URL` is not set, a mock client is returned so the app boots without a database.
+Prisma 7 + PostgreSQL. The client singleton is in `lib/prisma.ts`. It uses `@prisma/adapter-pg` with connection pooling via `pg`. If `DATABASE_URL` is not set, a mock client is returned so the app boots without a database.
 
 All DB calls go through the `prismadb` export from `lib/prisma.ts`.
 
 CRM model names use the `crm_` prefix (e.g. `crm_Accounts`, `crm_Leads`).
 
-**Soft delete**: CRM entities use `deletedAt`/`deletedBy` columns — records are never hard-deleted. Always filter `deletedAt: null` in queries unless intentionally accessing deleted records.
+**No pgvector.** `prisma/schema.prisma` declares a plain `postgresql` datasource with **no `extensions` block** and no vector columns. The pgvector requirement described in upstream NextCRM does not apply to this fork — a stock PostgreSQL instance is sufficient.
+
+**No soft delete — deletes are hard.** There is no `deletedAt` or `deletedBy` column anywhere in `prisma/schema.prisma` (`grep -c deletedAt prisma/schema.prisma` returns `0`). Deleting a record removes the row. Do **not** add `deletedAt: null` filters to queries, and do not assume a deleted record is recoverable. If soft delete is ever wanted, it has to be introduced as a schema change first.
 
 ### Server Actions
 
 Server actions live in `actions/`. Use `createSafeAction` from `lib/create-safe-action.ts` for Zod-validated actions that return `ActionState<TInput, TOutput>`.
 
-### Background Jobs (Inngest)
+### Background Jobs, MCP Server, Vector Search, AI Enrichment — NOT APPLICABLE
 
-`inngest/` contains the Inngest client (`client.ts`) and functions (`functions/`). Functions handle:
-- Vector embedding for CRM records on create/update (`embed-*.ts`)
-- Backfill embedding for existing records
-- AI enrichment of Targets and Contacts via E2B sandboxed Chrome agent (`enrich-*.ts`)
-
-### MCP Server
-
-Exposed at `/api/mcp/[transport]` (supports `sse` and `http`). Implemented with `@vercel/mcp-adapter`. Tools are defined per-module in `lib/mcp/tools/`. Auth uses Bearer tokens (`nxtc__...`) generated from user profiles, checked via `lib/mcp/auth.ts`.
-
-### AI & Enrichment
-
-- **Embeddings**: OpenAI `text-embedding-3-small` via Inngest jobs; stored in pgvector with HNSW indexes
-- **Enrichment agent**: Claude Sonnet 4.6 in an E2B cloud sandbox with real Chrome browser
-- **API key priority**: ENV variable → user profile
-
-> ⚠️ Much of this section is inherited from upstream NextCRM and does not match this Mektek fork. There is no `/admin/llm-keys` route, and no LLM key is encrypted anywhere — verify against the code before relying on it. `EMAIL_ENCRYPTION_KEY` (64-char hex) is real and required, but its only consumer is `lib/crypto/secret-box.ts`, which encrypts the **WhatsApp session** (see WhatsApp Integration below).
+> ⚠️ **None of this exists in this fork.** These subsystems belong to upstream
+> NextCRM and were described here in error. Verified absent in the current tree:
+>
+> | Described as | Actual state |
+> |---|---|
+> | Inngest jobs in `inngest/` | No `inngest/` directory. No `embed-*.ts` or `enrich-*.ts` files anywhere. |
+> | MCP server at `/api/mcp/[transport]`, tools in `lib/mcp/tools/`, Bearer `nxtc__...` tokens via `lib/mcp/auth.ts` | No `lib/mcp/` and no `app/api/mcp/` directory. |
+> | Vector embeddings (OpenAI `text-embedding-3-small`) stored in pgvector with HNSW indexes | No vector or embedding columns and no `extensions` block in `prisma/schema.prisma`. There is no vector search. |
+> | Per-user LLM key management at `/admin/llm-keys` | The route does not exist; neither does any `admin/` route group. No LLM key is encrypted anywhere. |
+>
+> Do not plan work against any of the above without building it first. `e2b/` is
+> the one leftover that is still present on disk, but nothing in the app invokes it.
+>
+> `EMAIL_ENCRYPTION_KEY` (64-char hex) **is** real and required. Its only consumer
+> is `lib/crypto/secret-box.ts`, which encrypts the **WhatsApp session** (see
+> WhatsApp Integration below) — it has nothing to do with LLM keys.
 
 ### UI
 
@@ -107,16 +109,22 @@ Exposed at `/api/mcp/[transport]` (supports `sse` and `http`). Implemented with 
 
 ### Key Modules
 
+`app/[locale]/(routes)/` currently contains exactly one feature module —
+`mektek/` — plus `components/`, `layout.tsx`, and `loading.tsx`.
+
 | Path | Description |
 |------|-------------|
-| `app/[locale]/(routes)/crm/` | CRM: Accounts, Contacts, Leads, Opportunities, Contracts, Tasks |
-| `app/[locale]/(routes)/campaigns/` | Targets, Target Lists, Campaigns |
-| `app/[locale]/(routes)/mektek/` | Custom Indonesian auto-service order management (built on CRM Accounts) |
-| `app/[locale]/(routes)/admin/` | User management, audit log, LLM key management, CRM settings |
-| `app/[locale]/(routes)/projects/` | Project management |
-| `app/[locale]/(routes)/emails/` | IMAP/SMTP email client |
-| `app/[locale]/(routes)/documents/` | Document storage (MinIO/S3) |
-| `app/[locale]/(routes)/reports/` | Reports and charts (Tremor/Recharts) |
+| `app/[locale]/(routes)/mektek/` | Indonesian auto-service order management — the entire authenticated staff/admin workspace |
+| `app/[locale]/customer/` | Public, token-gated customer portal (tracking, profile, vouchers, storefront) |
+| `app/[locale]/(auth)/` | Sign-in, registration, setup wizard, password reset |
+| `actions/mektek/` | Server actions backing the Mektek workflows |
+| `lib/mektek/` | Permissions, payments, loyalty, and helpers |
+
+> ⚠️ Upstream NextCRM's `crm/`, `campaigns/`, `admin/`, `projects/`, `emails/`,
+> `documents/`, and `reports/` route groups were previously listed here. **None
+> of them exist in this fork.** In particular there is no `admin/` route group,
+> so neither `/admin/llm-keys` nor `/admin/audit-log` is reachable. Admin
+> functionality lives under `mektek/dashboard` and `mektek/finance/audit`.
 
 ### Mektek Module
 
@@ -154,18 +162,26 @@ Vercel notes: **Fluid compute must be enabled** (it is what allows the 300s pair
 
 ### Audit Log
 
-All CRM entities track field-level change history. A `diffObjects` utility computes before/after diffs stored as structured JSON. The global admin audit log is at `/admin/audit-log`. The `AuditTimeline` and `AuditEntry` components render per-entity history.
+Auditing in this fork is **finance-scoped, not CRM-wide**. The `FinanceAuditEvent`
+model in `prisma/schema.prisma` records finance activity, surfaced at
+`app/[locale]/(routes)/mektek/finance/audit/page.tsx`.
+
+> ⚠️ Upstream NextCRM's global audit log was previously described here: a
+> `diffObjects` utility, field-level history on every CRM entity, a
+> `/admin/audit-log` route, and `AuditTimeline`/`AuditEntry` components. **None
+> of those exist in this tree.**
 
 ## Environment Setup
 
-Copy both example files:
+Copy the example file (there is no `.env.local.example` in this repo — only
+`.env.example` and `.env.production.example` are tracked):
 ```bash
 cp .env.example .env
-cp .env.local.example .env.local
+cp .env.example .env.local
 ```
 
 Minimum required for local dev with no-auth mode (no external services):
-- `DATABASE_URL` — PostgreSQL 17+ with pgvector extension
+- `DATABASE_URL` — PostgreSQL (stock; no pgvector extension needed, see Database above)
 - `NEXTCRM_DISABLE_AUTH=true` (already set in `.env.example`)
 - `EMAIL_ENCRYPTION_KEY` — 64-char hex (`openssl rand -hex 32`). Encrypts the stored WhatsApp
   session; without it, WhatsApp pairing fails closed. Rotating it forces a re-scan of the QR.
@@ -182,6 +198,22 @@ Required in every **deployed** environment:
   production, links break rather than trust an attacker-controllable header (host-header
   injection defense). It's a `NEXT_PUBLIC_*` var, so it is inlined at build time — **redeploy**
   after changing it.
+
+### ⛔ Legacy `nextcrm` identifiers that must NOT be renamed
+
+The product is branded **MektekCRM**, but several `nextcrm` strings are
+**identifiers, not branding**. They were deliberately left alone during the
+rename. Do not "finish the job" — each of these breaks production if changed:
+
+| Identifier | Why it must stay |
+|---|---|
+| The 12 `NEXTCRM_*` env var **names** (`NEXTCRM_DISABLE_AUTH`, `NEXTCRM_PROTOTYPE_MODE`, `NEXTCRM_ALLOW_NOAUTH_IN_PROD`, `NEXTCRM_ADMIN_EMAIL`/`_PASSWORD`/`_NAME`, `NEXTCRM_GUEST_USER_ID`/`_EMAIL`/`_NAME`/`_LANGUAGE`, `NEXTCRM_KEEP_DEV_CACHE`, `NEXTCRM_SKIP_WHATSAPP_BROWSER_INSTALL`) | These are the exact keys read by `process.env` in `lib/session.ts`, `scripts/*`, and friends, **and the exact keys set in the Vercel dashboard**. Renaming them in docs hands the reader instructions that silently fail closed — e.g. `NEXTCRM_DISABLE_AUTH` reverting to its default. In `.env.example` the keys are byte-identical on purpose; only the surrounding comments and display **values** were rebranded. |
+| `@phone.nextcrm.local` | The synthetic email domain for phone-only accounts (`buildPhoneAccountEmail`). It is **already written into existing DB rows**. Renaming it splits the placeholder set, so the email-campaign audience filter would stop recognising the old rows and start mailing a fake domain. |
+| `nxtc__` | MCP bearer-token prefix. A wire-format constant. |
+| `guest@nextcrm.local` | Default `NEXTCRM_GUEST_USER_EMAIL` value and the upsert key for the no-auth guest user — changing it mints a second guest row instead of reusing the first. |
+| The repo directory name `nextcrm-app`, and any absolute path containing it | Local clones, CI checkout paths, and the `${APP_IMAGE:-nextcrm-app}` default in `docker-compose.yml`. |
+
+Rebranding is limited to **prose, display names, and the npm package name**.
 
 ## Testing
 

@@ -92,20 +92,36 @@ export async function requestCustomerEmailOtp(
       );
       return GENERIC_OK;
     }
-    return { error: "Verifikasi email sedang tidak tersedia" };
+    return {
+      error:
+        "Verifikasi email sedang tidak tersedia. Silakan coba lagi nanti atau hubungi kami.",
+    };
   }
 
-  const result = await sendTransactionalEmail({
-    to: emailNormalized,
-    subject,
-    react: EmailOtp({
-      code,
-      email: emailNormalized,
-      userLanguage: "id",
-    }),
-    purpose: "otp",
-    text: `Kode verifikasi ${process.env.NEXT_PUBLIC_APP_NAME} Anda: ${code}. Berlaku 5 menit. Jangan bagikan kode ini kepada siapa pun.`,
-  });
+  // A misconfigured sender (e.g. RESEND_FROM_EMAIL unset) makes
+  // sendTransactionalEmail throw rather than return, so the call is wrapped:
+  // an unhandled rejection would surface as an opaque client error instead of
+  // an actionable Bahasa message, and must still fail closed in production.
+  let result: { ok: boolean; error?: string };
+  try {
+    result = await sendTransactionalEmail({
+      to: emailNormalized,
+      subject,
+      react: EmailOtp({
+        code,
+        email: emailNormalized,
+        userLanguage: "id",
+      }),
+      purpose: "otp",
+      text: `Kode verifikasi ${process.env.NEXT_PUBLIC_APP_NAME} Anda: ${code}. Berlaku 5 menit. Jangan bagikan kode ini kepada siapa pun.`,
+    });
+  } catch (error) {
+    console.error("[EMAIL_OTP_SEND]", error);
+    result = {
+      ok: false,
+      error: error instanceof Error ? error.message : "Send failed",
+    };
+  }
 
   if (!result.ok) {
     if (process.env.NODE_ENV !== "production") {
@@ -114,7 +130,10 @@ export async function requestCustomerEmailOtp(
       );
       return GENERIC_OK;
     }
-    return { error: "Gagal mengirim kode verifikasi. Coba lagi nanti." };
+    return {
+      error:
+        "Gagal mengirim kode verifikasi. Coba lagi beberapa saat lagi, dan pastikan alamat email Anda benar.",
+    };
   }
 
   return GENERIC_OK;

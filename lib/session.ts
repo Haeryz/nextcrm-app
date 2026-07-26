@@ -34,7 +34,7 @@ const GUEST_USER_ID =
 const GUEST_USER_EMAIL =
   process.env.NEXTCRM_GUEST_USER_EMAIL || "guest@nextcrm.local";
 const GUEST_USER_NAME =
-  process.env.NEXTCRM_GUEST_USER_NAME || "NextCRM Guest";
+  process.env.NEXTCRM_GUEST_USER_NAME || "MektekCRM Guest";
 const RAW_GUEST_LANGUAGE = process.env.NEXTCRM_GUEST_USER_LANGUAGE || "id";
 const FALLBACK_EXPIRY = new Date(
   Date.now() + 1000 * 60 * 60 * 24 * 365

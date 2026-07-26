@@ -1,7 +1,7 @@
 # Panduan Operasional dan Testing Aplikasi MekTek
 
 **Dokumen:** Panduan penggunaan website dari sisi admin, staf, dan customer  
-**Aplikasi:** NextCRM App - MekTek Core  
+**Aplikasi:** MektekCRM App - MekTek Core  
 **Tujuan:** Menjadi acuan resmi untuk pelatihan pengguna, pengoperasian harian, dan testing/UAT oleh tim internal.  
 **Ruang lingkup:** Authentication, dashboard operasional, order servis, katalog sparepart, tracking customer, pembayaran, dokumen invoice/struk, WhatsApp, dan customer profile.  
 
