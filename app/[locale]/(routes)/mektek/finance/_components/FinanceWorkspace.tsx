@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import type { Prisma } from "@prisma/client";
+
 import { getFinanceOverview } from "@/actions/mektek/finance";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,10 @@ import {
   parseFinanceContractPeriodEnd,
 } from "@/lib/mektek/finance";
 import { buildFinanceSynchronizedRecaps } from "@/lib/mektek/finance-recaps";
+import {
+  matchesReportQuery,
+  reportQueryTerms,
+} from "@/lib/mektek/finance-search";
 import { buildFinancePurchaseOrderDeliveryNoteSuggestion } from "@/lib/mektek/finance-po";
 import { prismadb } from "@/lib/prisma";
 
@@ -250,15 +256,43 @@ function Header({ title, description }: { title: string; description: string }) 
   );
 }
 
-const matchesReportQuery = (
-  query: string,
-  ...values: Array<unknown>
-) => {
-  const normalized = query.trim().toLocaleLowerCase("id-ID");
-  if (!normalized) return true;
-  return values.some((value) =>
-    String(value ?? "").toLocaleLowerCase("id-ID").includes(normalized),
-  );
+/**
+ * Narrows the invoice query in the database so a search is not limited to the
+ * page of most recent invoices we would otherwise load into memory.
+ */
+const invoiceSearchWhere = (query: string): Prisma.FinanceInvoiceWhereInput => {
+  const terms = reportQueryTerms(query);
+  if (!terms.length) return {};
+  return {
+    AND: terms.map((term) => ({
+      OR: [
+        { invoiceNumber: { contains: term, mode: "insensitive" as const } },
+        { draftNumber: { contains: term, mode: "insensitive" as const } },
+        { deliveryNoteNumber: { contains: term, mode: "insensitive" as const } },
+        { receiptNumber: { contains: term, mode: "insensitive" as const } },
+        {
+          purchaseOrderNumber: {
+            contains: term,
+            mode: "insensitive" as const,
+          },
+        },
+        { taxInvoiceNumber: { contains: term, mode: "insensitive" as const } },
+        { notes: { contains: term, mode: "insensitive" as const } },
+        {
+          counterparty: {
+            legalName: { contains: term, mode: "insensitive" as const },
+          },
+        },
+        {
+          lines: {
+            some: {
+              description: { contains: term, mode: "insensitive" as const },
+            },
+          },
+        },
+      ],
+    })),
+  };
 };
 
 function ReportFilter({
@@ -411,6 +445,7 @@ export default async function FinanceWorkspace({
   if (section === "invoices") {
     const [invoices, customers] = await Promise.all([
       prismadb.financeInvoice.findMany({
+        where: invoiceSearchWhere(query),
         orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
         take: 500,
         include: {
@@ -578,8 +613,11 @@ export default async function FinanceWorkspace({
         query,
         row.company,
         row.deliveryNoteNumber,
+        row.deliveryNoteDate,
         row.invoiceNumber,
+        row.invoiceDate,
         row.purchaseOrderNumber,
+        row.purchaseOrderDate,
         row.description,
       ),
     );
