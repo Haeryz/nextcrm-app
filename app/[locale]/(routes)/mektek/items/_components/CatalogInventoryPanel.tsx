@@ -343,7 +343,9 @@ export default function CatalogInventoryPanel({
       </div>
 
       <Card>
-        <CardHeader className="sticky top-0 z-30 gap-4 border-b bg-card pb-4">
+        {/* Only stick from md up. Below that the header stacks to ~690px — taller
+            than a phone viewport — so pinning it hid the table entirely. */}
+        <CardHeader className="gap-4 border-b bg-card pb-4 md:sticky md:top-0 md:z-30">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
             <div>
               <CardTitle id="monthly-inventory-title" className="text-base">
@@ -677,7 +679,7 @@ export default function CatalogInventoryPanel({
           if (!open) setActiveItem(null);
         }}
       >
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Catat Mutasi Stok</DialogTitle>
             <DialogDescription>
@@ -815,7 +817,7 @@ export default function CatalogInventoryPanel({
       </Dialog>
 
       <Dialog open={!!openingItem} onOpenChange={(open) => !open && setOpeningItem(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Atur Stok Awal</DialogTitle>
             <DialogDescription>
@@ -881,7 +883,7 @@ export default function CatalogInventoryPanel({
           }
         }}
       >
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="size-4" aria-hidden="true" />

@@ -133,7 +133,10 @@ export default function SupplierDebtTransactionDialog({
           )}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      {/* DialogContent is fixed and vertically centred, so without an internal
+          scroll the ~780px of fields here get clipped at BOTH ends on a phone and
+          the submit button becomes unreachable. */}
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {isDeposit ? "Catat deposit pemasok" : "Bayar hutang / piutang"}

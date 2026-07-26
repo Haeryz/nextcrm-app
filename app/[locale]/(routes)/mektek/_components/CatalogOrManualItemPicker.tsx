@@ -319,7 +319,12 @@ export function CatalogOrManualItemPicker({
                         type="button"
                         variant="ghost"
                         role="option"
-                        aria-selected={catalogItemId === catalogItem.id}
+                        // This is an aria-activedescendant combobox: DOM focus must
+                        // stay on the search input, so options are not tabbable, and
+                        // aria-selected must track the keyboard highlight rather than
+                        // the already-committed value.
+                        tabIndex={-1}
+                        aria-selected={index === activeIndex}
                         className={cn(
                           "h-auto w-full justify-start gap-3 rounded-md px-3 py-2.5 text-left",
                           index === activeIndex && "bg-accent text-accent-foreground",

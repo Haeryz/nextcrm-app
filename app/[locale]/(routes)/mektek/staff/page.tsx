@@ -4,6 +4,7 @@ import {
   updateSubAdmin,
 } from "@/actions/auth/sub-admins";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { requireAdmin } from "@/lib/auth-guards";
 import { prismadb } from "@/lib/prisma";
 import StaffActionForm from "./_components/StaffActionForm";
@@ -48,16 +49,44 @@ export default async function StaffManagementPage() {
           resetOnSuccess
           className="grid gap-3 md:grid-cols-2 lg:grid-cols-6"
         >
-          <Input name="name" placeholder="Nama" required maxLength={120} />
-          <Input name="email" type="email" placeholder="Email" required />
-          <Input
-            name="password"
-            type="password"
-            placeholder="Password (min. 12)"
-            required
-            minLength={12}
-            maxLength={50}
-          />
+          {/* Labels, not placeholders: a placeholder disappears the moment the user
+              types, which for the password field took the "min. 12" rule with it. */}
+          <div className="space-y-1.5">
+            <Label htmlFor="new-subadmin-name">Nama</Label>
+            <Input
+              id="new-subadmin-name"
+              name="name"
+              required
+              maxLength={120}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-subadmin-email">Email</Label>
+            <Input
+              id="new-subadmin-email"
+              name="email"
+              type="email"
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-subadmin-password">Password</Label>
+            <Input
+              id="new-subadmin-password"
+              name="password"
+              type="password"
+              required
+              minLength={12}
+              maxLength={50}
+              aria-describedby="new-subadmin-password-hint"
+            />
+            <p
+              id="new-subadmin-password-hint"
+              className="text-xs text-muted-foreground"
+            >
+              Minimal 12 karakter.
+            </p>
+          </div>
           <StaffDivisionFields />
           <StaffSubmitButton
             idleLabel="Buat sub-admin"
@@ -80,8 +109,21 @@ export default async function StaffManagementPage() {
                 className="grid gap-3 md:grid-cols-2 lg:grid-cols-6"
               >
                 <input type="hidden" name="id" value={member.id} />
-                <Input name="name" defaultValue={member.name ?? ""} required />
-                <Input name="email" type="email" defaultValue={member.email} required />
+                {/* Inline edit row: aria-label rather than a visible Label, so the
+                    6-column grid stays aligned across every staff card. */}
+                <Input
+                  name="name"
+                  defaultValue={member.name ?? ""}
+                  required
+                  aria-label={`Nama sub-admin ${member.email}`}
+                />
+                <Input
+                  name="email"
+                  type="email"
+                  defaultValue={member.email}
+                  required
+                  aria-label={`Email sub-admin ${member.email}`}
+                />
                 <StaffDivisionFields
                   defaultDivision={member.staffDivision}
                   defaultLogisticsArea={member.logisticsStaffArea}
@@ -90,9 +132,10 @@ export default async function StaffManagementPage() {
                   name="userStatus"
                   className={selectClass}
                   defaultValue={member.userStatus}
+                  aria-label={`Status akun ${member.name ?? member.email}`}
                 >
-                  <option value="ACTIVE">Active</option>
-                  <option value="INACTIVE">Inactive</option>
+                  <option value="ACTIVE">Aktif</option>
+                  <option value="INACTIVE">Nonaktif</option>
                 </select>
                 <StaffSubmitButton
                   idleLabel="Simpan perubahan"

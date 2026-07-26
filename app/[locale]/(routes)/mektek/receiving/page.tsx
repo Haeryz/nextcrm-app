@@ -142,7 +142,7 @@ export default async function MektekReceivingPage({
           </Button>
         </div>
 
-        <Card className="sticky top-0 z-30">
+        <Card className="md:sticky md:top-0 md:z-30">
           <CardContent className="p-4">
             <div className="grid gap-3 md:grid-cols-[minmax(240px,1fr)_180px_auto]">
               <LiveSearchInput

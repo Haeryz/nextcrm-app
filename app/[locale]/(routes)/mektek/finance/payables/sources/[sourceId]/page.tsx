@@ -198,33 +198,38 @@ export default async function SupplierPayableSourceDetailPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* The rounded border needs overflow-hidden, but that CLIPS the 560px
+              table rather than scrolling it — the "Masalah" column was unreachable
+              below ~592px. Scroll on an inner wrapper instead. */}
           {snapshot.pricingIssues.length ? (
             <div className="overflow-hidden rounded-lg border">
-              <table className="w-full min-w-[560px] text-sm">
-                <thead className="bg-muted/50 text-left">
-                  <tr>
-                    <th className="p-3">Item</th>
-                    <th className="p-3">Part Number</th>
-                    <th className="p-3 text-right">QTY</th>
-                    <th className="p-3">Masalah</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {snapshot.pricingIssues.map((issue, index) => (
-                    <tr
-                      key={`${issue.description}-${index}`}
-                      className="border-t"
-                    >
-                      <td className="p-3 font-medium">{issue.description}</td>
-                      <td className="p-3">{issue.partNumber || "—"}</td>
-                      <td className="p-3 text-right">{issue.quantity}</td>
-                      <td className="p-3 text-amber-700">
-                        Harga satuan belum diisi
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[560px] text-sm">
+                  <thead className="bg-muted/50 text-left">
+                    <tr>
+                      <th className="p-3">Item</th>
+                      <th className="p-3">Part Number</th>
+                      <th className="p-3 text-right">QTY</th>
+                      <th className="p-3">Masalah</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {snapshot.pricingIssues.map((issue, index) => (
+                      <tr
+                        key={`${issue.description}-${index}`}
+                        className="border-t"
+                      >
+                        <td className="p-3 font-medium">{issue.description}</td>
+                        <td className="p-3">{issue.partNumber || "—"}</td>
+                        <td className="p-3 text-right">{issue.quantity}</td>
+                        <td className="p-3 text-amber-700">
+                          Harga satuan belum diisi
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-2 text-sm text-emerald-700">

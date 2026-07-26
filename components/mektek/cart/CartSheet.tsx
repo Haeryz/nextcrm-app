@@ -80,30 +80,36 @@ export function CartSheet() {
                         type="button"
                         variant="outline"
                         size="icon"
-                        className="size-7 border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff]"
+                        className="size-10 sm:size-7 border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff]"
                         onClick={() => setQuantity(item.id, quantity - 1)}
                         disabled={quantity <= 1}
+                        aria-label={`Kurangi jumlah ${item.description}`}
                       >
-                        <Minus className="size-3.5" />
+                        <Minus className="size-3.5" aria-hidden="true" />
                       </Button>
-                      <span className="w-6 text-center text-sm">{quantity}</span>
+                      <span className="w-6 text-center text-sm">
+                        <span className="sr-only">Jumlah: </span>
+                        {quantity}
+                      </span>
                       <Button
                         type="button"
                         variant="outline"
                         size="icon"
-                        className="size-7 border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff]"
+                        className="size-10 sm:size-7 border-[#151a63]/20 bg-white text-[#10164f] hover:bg-[#eef1ff]"
                         onClick={() => setQuantity(item.id, quantity + 1)}
+                        aria-label={`Tambah jumlah ${item.description}`}
                       >
-                        <Plus className="size-3.5" />
+                        <Plus className="size-3.5" aria-hidden="true" />
                       </Button>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className="ml-auto size-7 text-[#4b5577] hover:bg-[#eef1ff] hover:text-destructive"
+                        className="ml-auto size-10 sm:size-7 text-[#4b5577] hover:bg-[#eef1ff] hover:text-destructive"
                         onClick={() => remove(item.id)}
+                        aria-label={`Hapus ${item.description} dari keranjang`}
                       >
-                        <Trash2 className="size-4" />
+                        <Trash2 className="size-4" aria-hidden="true" />
                       </Button>
                     </div>
                   </div>
@@ -120,13 +126,14 @@ export function CartSheet() {
               <p className="text-xs text-[#4b5577]">
                 PPN 11% & PPh 2% dihitung saat Checkout.
               </p>
+              {/* Must call handleCheckout: the inline handler that used to be here
+                  skipped the isAuthenticated guard, so a signed-out customer could
+                  fill in the whole checkout form and only hit AUTH_REQUIRED on
+                  submit — losing everything they typed. */}
               <Button
                 type="button"
                 className="w-full bg-[#151a63] text-[#fff200] hover:bg-[#10164f]"
-                onClick={() => {
-                  setCartOpen(false);
-                  openCartCheckout();
-                }}
+                onClick={handleCheckout}
               >
                 Checkout
               </Button>

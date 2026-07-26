@@ -235,7 +235,7 @@ export default function PaymentFakturTrendChart({
                       x="924"
                       y={y - 5}
                       textAnchor="end"
-                      className="fill-slate-600 font-mono text-[9px]"
+                      className="fill-slate-400 font-mono text-[9px]"
                     >
                       {compactRupiah.format(chart.maximum * ratio)}
                     </text>
@@ -312,6 +312,7 @@ export default function PaymentFakturTrendChart({
                   role="button"
                   tabIndex={0}
                   aria-label={`${MONTHS[index]} ${rupiah.format(point.value)}`}
+                  onClick={() => setActiveIndex(index)}
                   onMouseEnter={() => setActiveIndex(index)}
                   onFocus={() => setActiveIndex(index)}
                   onKeyDown={(event) => {
@@ -327,7 +328,7 @@ export default function PaymentFakturTrendChart({
                     className={
                       activeIndex === index
                         ? "fill-slate-100 font-mono text-[10px]"
-                        : "fill-slate-600 font-mono text-[10px]"
+                        : "fill-slate-400 font-mono text-[10px]"
                     }
                   >
                     {MONTHS[index]}
@@ -490,6 +491,7 @@ export default function PaymentFakturTrendChart({
                 role="button"
                 tabIndex={0}
                 aria-label={`${MONTHS[index]} ${rupiah.format(point.value)}`}
+                onClick={() => setActiveIndex(index)}
                 onMouseEnter={() => setActiveIndex(index)}
                 onFocus={() => setActiveIndex(index)}
                 onKeyDown={(event) => {

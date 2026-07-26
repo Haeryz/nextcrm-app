@@ -86,7 +86,7 @@ export default async function MektekCatalogItemsPage({
       description="Master sparepart terintegrasi dengan Monitoring PO, Receiving, dan inventory"
     >
       <div className="flex flex-col gap-6">
-        <Card className="sticky top-0 z-30">
+        <Card className="md:sticky md:top-0 md:z-30">
           <CardContent className="p-4">
             <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_190px_auto]">
               <LiveSearchInput

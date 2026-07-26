@@ -56,8 +56,14 @@ export function LoginComponent() {
   const adminDashboardPath = `/${locale}/mektek/dashboard`;
 
   const formSchema = z.object({
-    email: z.string().min(3).max(80),
-    password: z.string().min(8).max(50),
+    email: z.string().min(3, "Isi Email atau nomor telepon").max(80),
+    // max(100) to match /setup and reset-password. At max(50) an owner who set a
+    // longer password during setup was rejected here before the request was even
+    // sent — locked out of their own account with no server-side reason given.
+    password: z
+      .string()
+      .min(8, "Kata sandi minimal 8 karakter")
+      .max(100, "Kata sandi maksimal 100 karakter"),
   });
 
   type LoginFormValues = z.infer<typeof formSchema>;

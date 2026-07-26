@@ -889,7 +889,9 @@ export default function SupplierDebtReportManager({
                             className={
                               dueState === "OVERDUE"
                                 ? "mt-1 block w-fit bg-rose-600 text-white hover:bg-rose-600"
-                                : "mt-1 block w-fit bg-amber-500 text-white hover:bg-amber-500"
+                                : // white-on-amber-500 is only 2.15:1 and fails WCAG AA;
+                                  // this matches the status badges elsewhere in this file (8.1:1).
+                                  "mt-1 block w-fit bg-amber-100 text-amber-900 hover:bg-amber-100"
                             }
                           >
                             {dueState === "OVERDUE"

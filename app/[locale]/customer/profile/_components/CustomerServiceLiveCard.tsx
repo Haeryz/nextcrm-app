@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PayNowButton } from "@/components/mektek/PayNowButton";
 import type { MektekPublicSnapshot } from "@/lib/mektek/public-status";
+import { formatCustomerDateTime } from "@/lib/mektek/customer-display";
 
 type CustomerServiceLiveCardProps = {
   initialSnapshot: MektekPublicSnapshot;
@@ -20,14 +21,12 @@ type CustomerServiceLiveCardProps = {
   payToken?: string | null;
 };
 
-const formatDateTime = (value: string | null) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
-};
+// Use the shared helper, not a local one. Bare `toLocaleDateString()` follows the
+// VISITOR's browser locale, so this card rendered "7/26/2026" for an en-US customer
+// while the tracking page it links to showed "26/7/2026" for the same order — and
+// 7/26 vs 26/7 is ambiguous, not merely different. The helper also pins the
+// timezone to Asia/Makassar so the calendar day cannot shift.
+const formatDateTime = formatCustomerDateTime;
 
 const formatCurrency = (amount: number) =>
   amount.toLocaleString("id-ID", {

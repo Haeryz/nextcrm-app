@@ -297,7 +297,7 @@ function MektekLanding({
         </div>
       </section>
 
-      <section className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-8 sm:grid-cols-3 md:px-6">
+      <section className="mx-auto grid w-full max-w-7xl gap-4 px-4 py-8 md:grid-cols-3 md:px-6">
         {landingHighlights.map((item: string) => (
           <div
             key={item}

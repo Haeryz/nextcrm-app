@@ -43,7 +43,13 @@ export default async function ReceivingPicManagementPage({
       <section className="rounded-lg border bg-card p-5">
         <h2 className="mb-4 text-lg font-medium">Tambah PIC</h2>
         <form action={createMektekLogisticsPic} className="flex flex-col gap-3 sm:flex-row">
-          <Input name="name" placeholder="Nama PIC" required maxLength={120} />
+          <Input
+            name="name"
+            placeholder="Nama PIC"
+            required
+            maxLength={120}
+            aria-label="Nama PIC baru"
+          />
           <Button type="submit">Tambah</Button>
         </form>
       </section>
@@ -56,14 +62,21 @@ export default async function ReceivingPicManagementPage({
               className="grid gap-3 sm:grid-cols-[1fr_160px_auto]"
             >
               <input type="hidden" name="id" value={pic.id} />
-              <Input name="name" defaultValue={pic.name} required maxLength={120} />
+              <Input
+                name="name"
+                defaultValue={pic.name}
+                required
+                maxLength={120}
+                aria-label={`Nama PIC ${pic.name}`}
+              />
               <select
                 name="isActive"
                 className={selectClass}
                 defaultValue={String(pic.isActive)}
+                aria-label={`Status PIC ${pic.name}`}
               >
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
+                <option value="true">Aktif</option>
+                <option value="false">Nonaktif</option>
               </select>
               <StaffSubmitButton
                 idleLabel="Simpan Perubahan"

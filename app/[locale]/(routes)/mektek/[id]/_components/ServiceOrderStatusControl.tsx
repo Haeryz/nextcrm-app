@@ -74,7 +74,17 @@ export default function ServiceOrderStatusControl({
         return;
       }
 
-      toast.success(`Status diperbarui menjadi ${statusLabel(newStatus)}`);
+      // The WhatsApp notification for these two transitions now runs in the
+      // background (after the response is flushed), so the toast must not imply
+      // the customer has already been contacted — staff used to infer that from
+      // the spinner finishing.
+      const notifiesCustomer =
+        newStatus === "AWAITING_PAYMENT" || newStatus === "COMPLETE";
+      toast.success(`Status diperbarui menjadi ${statusLabel(newStatus)}`, {
+        description: notifiesCustomer
+          ? "Notifikasi WhatsApp ke pelanggan sedang diproses di latar belakang."
+          : undefined,
+      });
       setConfirmation(null);
       router.refresh();
     });

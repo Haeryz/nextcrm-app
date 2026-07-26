@@ -204,7 +204,10 @@ const Sidebar = React.forwardRef<
           <SheetContent
             data-sidebar="sidebar"
             data-mobile="true"
-            className="w-[var(--sidebar-width)] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+            // max-w keeps a visible strip of the page on ≤375px screens, so the
+            // "tap outside to close" affordance still exists (the close button is
+            // hidden below).
+            className="w-[var(--sidebar-width)] max-w-[85vw] bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
             style={
               {
                 "--sidebar-width": SIDEBAR_WIDTH_MOBILE,

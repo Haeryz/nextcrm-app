@@ -222,8 +222,13 @@ const formatDate = (value: Date | null) =>
       }).format(value)
     : "-";
 
+// id-ID, not en-US. This formats the money columns on an invoice sent to
+// customers: en-US grouping renders 1500000 as "1,500,000", and in Indonesian
+// convention the comma is the DECIMAL separator, so that reads as "1.5".
+// id-ID gives "1.500.000". Also used for the quantity column, which is why this
+// stays a plain number formatter rather than a currency one.
 const amount = (value: number) =>
-  new Intl.NumberFormat("en-US", {
+  new Intl.NumberFormat("id-ID", {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(value);
