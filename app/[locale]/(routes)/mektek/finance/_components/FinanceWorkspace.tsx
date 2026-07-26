@@ -37,6 +37,8 @@ import { prismadb } from "@/lib/prisma";
 import MektekPagination from "../../_components/MektekPagination";
 import ContractCrudManager from "./ContractCrudManager";
 import ContractReminderDemo from "./ContractReminderDemo";
+import RecapCreateButton from "./RecapCreateButton";
+import RecapRowActions from "./RecapRowActions";
 import InvoiceCrudManager, { type FinanceInvoiceCrudRow } from "./InvoiceCrudManager";
 
 export type FinanceSection =
@@ -641,10 +643,13 @@ export default async function FinanceWorkspace({
           title="Rekap surat jalan"
           description={`${synchronizedCount.toLocaleString("id-ID")} baris otomatis dari invoice dan Surat Jalan Logistics yang terhubung.`}
         />
-        <ReportFilter
-          query={query}
-          placeholder="Cari perusahaan, nomor SJ, invoice, atau PO"
-        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <ReportFilter
+            query={query}
+            placeholder="Cari perusahaan, nomor SJ, invoice, atau PO"
+          />
+          <RecapCreateButton />
+        </div>
         {rows.length ? (
           <>
             <div className="overflow-hidden rounded-xl border bg-card">
@@ -663,6 +668,7 @@ export default async function FinanceWorkspace({
                       <th className="p-3 text-right">TOTAL</th>
                       <th className="p-3 text-right">PPN</th>
                       <th className="p-3 text-right">GRAND TOTAL</th>
+                      <th className="p-3 text-right">AKSI</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -679,6 +685,12 @@ export default async function FinanceWorkspace({
                         <td className="p-3 text-right">{workbookMoney(row.subtotal)}</td>
                         <td className="p-3 text-right">{workbookMoney(row.taxAmount)}</td>
                         <td className="p-3 text-right font-medium">{workbookMoney(row.total)}</td>
+                        <td className="p-3 text-right">
+                          <RecapRowActions
+                            invoiceId={row.invoiceId}
+                            label={row.invoiceNumber}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -748,10 +760,13 @@ export default async function FinanceWorkspace({
           title="Rekapitulasi invoice jasa & part"
           description="Terbentuk otomatis dari rekap invoice dan pembayaran yang sudah diposting."
         />
-        <ReportFilter
-          query={query}
-          placeholder="Cari perusahaan atau status piutang"
-        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <ReportFilter
+            query={query}
+            placeholder="Cari perusahaan atau status piutang"
+          />
+          <RecapCreateButton />
+        </div>
         {receivableRows.length ? (
           <>
             <section className="space-y-2" aria-labelledby="invoice-customer-table">
@@ -971,10 +986,13 @@ export default async function FinanceWorkspace({
           title="Pendapatan spare part"
           description="Terbentuk otomatis dari baris spare part pada rekap invoice, termasuk invoice campuran."
         />
-        <ReportFilter
-          query={query}
-          placeholder="Cari pelanggan, invoice, SJ, PO, atau faktur pajak"
-        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <ReportFilter
+            query={query}
+            placeholder="Cari pelanggan, invoice, SJ, PO, atau faktur pajak"
+          />
+          <RecapCreateButton />
+        </div>
         {report.unclassifiedCount > 0 ? (
           <RevenueClassificationWarning
             count={report.unclassifiedCount}
@@ -1000,6 +1018,7 @@ export default async function FinanceWorkspace({
                     <th className="p-3 text-right">PPN</th>
                     <th className="p-3 text-right">Total</th>
                     <th className="p-3">Faktur pajak</th>
+                    <th className="p-3 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1018,6 +1037,12 @@ export default async function FinanceWorkspace({
                         <td className="p-3 text-right">{money(row.taxAmount)}</td>
                         <td className="p-3 text-right font-semibold">{money(row.total)}</td>
                         <td className="p-3">{row.taxInvoiceNumber || "—"}</td>
+                        <td className="p-3 text-right">
+                          <RecapRowActions
+                            invoiceId={row.invoiceId}
+                            label={row.invoiceNumber}
+                          />
+                        </td>
                       </tr>
                     );
                   })}
@@ -1051,10 +1076,13 @@ export default async function FinanceWorkspace({
           title="Pendapatan jasa"
           description="Terbentuk otomatis dari baris jasa pada rekap invoice, termasuk invoice campuran."
         />
-        <ReportFilter
-          query={query}
-          placeholder="Cari pelanggan, invoice, PO, atau keterangan"
-        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <ReportFilter
+            query={query}
+            placeholder="Cari pelanggan, invoice, PO, atau keterangan"
+          />
+          <RecapCreateButton />
+        </div>
         {report.unclassifiedCount > 0 ? (
           <RevenueClassificationWarning
             count={report.unclassifiedCount}
@@ -1079,6 +1107,7 @@ export default async function FinanceWorkspace({
                     <th className="p-3 text-right">Total</th>
                     <th className="p-3">Faktur pajak</th>
                     <th className="p-3">Keterangan</th>
+                    <th className="p-3 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1096,6 +1125,12 @@ export default async function FinanceWorkspace({
                         <td className="p-3 text-right font-semibold">{money(row.total)}</td>
                         <td className="p-3">{row.taxInvoiceNumber || "—"}</td>
                         <td className="max-w-[360px] p-3">{row.description}</td>
+                        <td className="p-3 text-right">
+                          <RecapRowActions
+                            invoiceId={row.invoiceId}
+                            label={row.invoiceNumber}
+                          />
+                        </td>
                       </tr>
                     );
                   })}
@@ -1128,7 +1163,10 @@ export default async function FinanceWorkspace({
           title="Rekap pendapatan jasa & suku cadang"
           description="Rekap otomatis dari baris invoice; invoice campuran dibagi menurut nilai setiap baris."
         />
-        <ReportFilter query={query} placeholder="Cari pelanggan" />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <ReportFilter query={query} placeholder="Cari pelanggan" />
+          <RecapCreateButton />
+        </div>
         {report.unclassifiedCount > 0 ? (
           <RevenueClassificationWarning
             count={report.unclassifiedCount}

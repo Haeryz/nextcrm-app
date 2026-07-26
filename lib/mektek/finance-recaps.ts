@@ -36,6 +36,8 @@ export type FinanceRecapInvoice = {
 
 export type FinanceSynchronizedRevenueRow = {
   key: string;
+  /** The invoice this recap row derives from, used to edit or remove it. */
+  invoiceId: string;
   category: Exclude<FinanceRevenueCategory, "unclassified">;
   customer: string;
   deliveryNoteNumber: string;
@@ -82,6 +84,8 @@ export function buildFinanceSynchronizedRecaps(
   const activeInvoices = invoices.filter((invoice) => invoice.status !== "VOID");
   const deliveryNotes: Array<{
     id: string;
+    /** The invoice this recap row derives from, used to edit or remove it. */
+    invoiceId: string;
     company: string;
     deliveryNoteNumber: string;
     deliveryNoteDate: string | null;
@@ -154,6 +158,7 @@ export function buildFinanceSynchronizedRecaps(
       const taxAmount = Math.round(invoice.taxAmount * taxShare * 100) / 100;
       deliveryNotes.push({
         id: `${invoice.id}:${deliveryNote.id}`,
+        invoiceId: invoice.id,
         company: invoice.customer,
         deliveryNoteNumber: deliveryNote.number,
         deliveryNoteDate: deliveryNote.date,
@@ -219,6 +224,7 @@ export function buildFinanceSynchronizedRecaps(
       if (bucket.subtotal <= 0) continue;
       revenueRows.push({
         key: `${invoice.id}:${category}`,
+        invoiceId: invoice.id,
         category,
         customer: invoice.customer,
         deliveryNoteNumber: invoice.deliveryNoteNumber ?? "",
