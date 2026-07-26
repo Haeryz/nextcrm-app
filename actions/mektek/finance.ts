@@ -33,6 +33,7 @@ import {
 } from "@/lib/mektek/finance-po";
 import { isFinanceDestinationBank } from "@/lib/mektek/finance-bank-accounts";
 import { parseSupplierPayableSnapshot } from "@/lib/mektek/supplier-payment";
+import { syncInvoiceToPaymentFaktur } from "@/lib/mektek/payment-faktur-sync";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -1372,6 +1373,24 @@ export async function createFinanceInvoiceEntry(input: FinanceInvoiceEntryInput)
         },
       });
       await syncInvoiceBillingSources(tx, created.id, sourceIds);
+      // A saved invoice must show up in Payment Faktur straight away.
+      await syncInvoiceToPaymentFaktur(
+        tx,
+        {
+          customerName: value.customerName,
+          invoiceNumber: value.invoiceNumber,
+          invoiceDate: value.invoiceDate,
+          receiptNumber: value.receiptNumber,
+          purchaseOrderNumber: value.purchaseOrderNumber,
+          destinationBank: value.accountDestination,
+          deliveryDate: value.deliveryNoteDate,
+          description: value.description,
+          subtotal: value.subtotal,
+          taxAmount: value.taxAmount,
+          taxInvoiceNumber: value.taxInvoiceNumber,
+        },
+        access.current.id,
+      );
       await audit(tx, {
         entityType: "INVOICE",
         entityId: created.id,
@@ -1481,6 +1500,23 @@ export async function updateFinanceInvoiceEntry(
         },
       });
       await syncInvoiceBillingSources(tx, updated.id, sourceIds);
+      await syncInvoiceToPaymentFaktur(
+        tx,
+        {
+          customerName: value.customerName,
+          invoiceNumber: value.invoiceNumber,
+          invoiceDate: value.invoiceDate,
+          receiptNumber: value.receiptNumber,
+          purchaseOrderNumber: value.purchaseOrderNumber,
+          destinationBank: value.accountDestination,
+          deliveryDate: value.deliveryNoteDate,
+          description: value.description,
+          subtotal: value.subtotal,
+          taxAmount: value.taxAmount,
+          taxInvoiceNumber: value.taxInvoiceNumber,
+        },
+        access.current.id,
+      );
       await audit(tx, {
         entityType: "INVOICE",
         entityId: updated.id,

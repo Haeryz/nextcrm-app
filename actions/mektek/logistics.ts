@@ -21,6 +21,7 @@ import {
   syncOutboundDispatchBillingSource,
   syncReceivingPayableSource,
 } from "@/lib/mektek/finance-sync";
+import { ensurePaymentFakturCustomer } from "@/lib/mektek/payment-faktur-sync";
 import { normalizeFinanceKey } from "@/lib/mektek/finance";
 import {
   isLogisticsPurchaseOrderType,
@@ -781,6 +782,9 @@ export async function createMektekOutboundPurchaseOrder(
     const purchaseOrder = await prismadb.$transaction(async (tx) => {
       const hydrated = await hydratePurchaseOrderLines(tx, lines.data);
       const counterparty = await ensureFinanceCounterparty(tx, header.data.userName, "CUSTOMER");
+      // A company that first appears on an outbound PO must also be visible in
+      // Payment Faktur and the rest of the Finance/Accounting menus.
+      await ensurePaymentFakturCustomer(tx, header.data.userName);
       const itemKeys = hydrated.map((line) => normalizeFinanceKey(line.source === "CATALOG" ? line.catalogItem.id : line.partNumber || line.partName));
       const conflicts = await tx.logisticsSupplyAllocation.findMany({
         where: {

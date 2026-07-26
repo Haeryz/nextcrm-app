@@ -12,6 +12,12 @@ jest.mock("@/lib/mektek/finance-sync", () => ({
   syncOutboundDispatchBillingSource: jest.fn(async () => null),
   syncReceivingPayableSource: jest.fn(async () => null),
 }));
+jest.mock("@/lib/mektek/payment-faktur-sync", () => ({
+  ensurePaymentFakturCustomer: jest.fn(async () => ({
+    id: "payment-faktur-customer-1",
+  })),
+  syncInvoiceToPaymentFaktur: jest.fn(async () => null),
+}));
 
 const purchaseOrderCreate = jest.fn();
 const purchaseOrderFindUnique = jest.fn();
