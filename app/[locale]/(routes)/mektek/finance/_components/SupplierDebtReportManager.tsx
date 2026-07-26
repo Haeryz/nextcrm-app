@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState, useTransition } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDown,
@@ -29,9 +30,25 @@ import type {
 } from "@/lib/mektek/supplier-debt-report";
 import { supplierDebtDueState } from "@/lib/mektek/supplier-debt-ledger";
 
-import PaymentFakturTrendChart from "./PaymentFakturTrendChart";
 import SupplierDebtEntryDialog from "./SupplierDebtEntryDialog";
 import SupplierDebtTransactionDialog from "./SupplierDebtTransactionDialog";
+
+// Split out of this route's bundle: the chart is a ~525-line SVG component that
+// renders below the fold on both the recap and detail views. The skeleton
+// matches the `variant="market"` layout used here (header + 4-up stat row +
+// 280px plot area) at each breakpoint so the swap-in causes no layout shift.
+const PaymentFakturTrendChart = dynamic(
+  () => import("./PaymentFakturTrendChart"),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        aria-hidden
+        className="h-[686px] animate-pulse rounded-xl border border-slate-800 bg-slate-900/40 sm:h-[626px] lg:h-[524px]"
+      />
+    ),
+  },
+);
 
 type ReportView = "overview" | "recap" | "detail";
 
@@ -65,15 +82,15 @@ const rupiah = new Intl.NumberFormat("id-ID", {
   maximumFractionDigits: 0,
 });
 
+const dateFormatter = new Intl.DateTimeFormat("id-ID", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
+
 const dateLabel = (value: string | null) =>
-  value
-    ? new Intl.DateTimeFormat("id-ID", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-      }).format(new Date(`${value}T00:00:00.000Z`))
-    : "—";
+  value ? dateFormatter.format(new Date(`${value}T00:00:00.000Z`)) : "—";
 
 const statusLabel: Record<SupplierDebtStatus, string> = {
   BELUM_BAYAR: "Belum dibayar",

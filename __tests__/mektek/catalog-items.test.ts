@@ -1,4 +1,10 @@
-jest.mock("next/cache", () => ({ revalidatePath: jest.fn() }));
+jest.mock("next/cache", () => ({
+  revalidatePath: jest.fn(),
+  // Pass-through: the real `unstable_cache` needs a Next request context that Jest
+  // has no way to provide. Returning the function unwrapped keeps the cached body
+  // under test (against the mocked Prisma client) instead of stubbing it out.
+  unstable_cache: (fn: unknown) => fn,
+}));
 jest.mock("@/lib/session", () => ({ getServerSession: jest.fn() }));
 jest.mock("@/lib/auth", () => ({ authOptions: {} }));
 

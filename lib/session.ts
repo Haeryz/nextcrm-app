@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { authOptions as defaultAuthOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession as getNextAuthServerSession } from "next-auth";
@@ -195,36 +196,52 @@ export function isAuthDisabled(): boolean {
   return NO_AUTH_ENABLED;
 }
 
+// Memoized per request. Resolving a session runs the NextAuth `session` callback,
+// which does a `users.findUnique` (and periodically a `lastLoginAt` update) on every
+// call — and a single authenticated navigation resolves the session 3-4 times across
+// the layout, the page and each server action it invokes.
+//
+// React `cache()` is scoped to one request, so nothing is ever shared between users.
+// Do NOT substitute `unstable_cache`/`revalidate` here: this is per-user auth state.
+const getCachedServerSession = cache(
+  async (options: NextAuthOptions): Promise<Session | null> => {
+    const session = (await getNextAuthServerSession(options)) as Session | null;
+
+    if (!NO_AUTH_ENABLED) {
+      return session;
+    }
+
+    if (session?.user?.id) {
+      return normalizeSession(session);
+    }
+
+    try {
+      const fallbackUser = await getFallbackUser();
+      return toSession(fallbackUser);
+    } catch {
+      return toSession({
+        id: GUEST_USER_ID,
+        email: GUEST_USER_EMAIL,
+        name: GUEST_USER_NAME,
+        avatar: null,
+        phone: null,
+        phoneNormalized: null,
+        userLanguage: GUEST_USER_LANGUAGE,
+        userStatus: "ACTIVE",
+        is_admin: true,
+        mektekRole: null,
+        staffDivision: null,
+        logisticsStaffArea: null,
+      });
+    }
+  }
+);
+
+// Thin wrapper so that both `getServerSession()` and `getServerSession(authOptions)`
+// resolve to the same `cache()` key — `cache` keys on the arguments it receives, and
+// `authOptions` is the very object re-exported here as `defaultAuthOptions`.
 export async function getServerSession(
   options: NextAuthOptions = defaultAuthOptions
 ): Promise<Session | null> {
-  const session = (await getNextAuthServerSession(options)) as Session | null;
-
-  if (!NO_AUTH_ENABLED) {
-    return session;
-  }
-
-  if (session?.user?.id) {
-    return normalizeSession(session);
-  }
-
-  try {
-    const fallbackUser = await getFallbackUser();
-    return toSession(fallbackUser);
-  } catch {
-    return toSession({
-      id: GUEST_USER_ID,
-      email: GUEST_USER_EMAIL,
-      name: GUEST_USER_NAME,
-      avatar: null,
-      phone: null,
-      phoneNormalized: null,
-      userLanguage: GUEST_USER_LANGUAGE,
-      userStatus: "ACTIVE",
-      is_admin: true,
-      mektekRole: null,
-      staffDivision: null,
-      logisticsStaffArea: null,
-    });
-  }
+  return getCachedServerSession(options);
 }

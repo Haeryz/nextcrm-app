@@ -268,12 +268,14 @@ function restoreReceivingDraft(): {
   }
 }
 
+const rupiahFormatter = new Intl.NumberFormat("id-ID", {
+  style: "currency",
+  currency: "IDR",
+  maximumFractionDigits: 0,
+});
+
 function formatRupiah(value: number) {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return rupiahFormatter.format(value);
 }
 
 const logisticsDateFormatter = new Intl.DateTimeFormat("id-ID", {
@@ -400,7 +402,12 @@ export default function ReceivingManager({
 }: ReceivingManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const nextItemId = useRef(restoreReceivingDraft().nextId);
+  // Restored once, via a lazy state initialiser. `useRef(restoreReceivingDraft().nextId)`
+  // is NOT lazy — it re-ran the synchronous sessionStorage read + JSON.parse on every
+  // render and discarded the result. Sharing one restore also removes the second call
+  // that seeded `createValue` below.
+  const [restoredDraft] = useState(restoreReceivingDraft);
+  const nextItemId = useRef(restoredDraft.nextId);
   const supplierInvoiceInputRef = useRef<HTMLInputElement>(null);
   const deliveryNoteInputRef = useRef<HTMLInputElement>(null);
   const mektekDeliveryNoteInputRef = useRef<HTMLInputElement>(null);
@@ -417,7 +424,7 @@ export default function ReceivingManager({
   const [isSelectingDeliveryNoteSource, startSelectingDeliveryNoteSource] =
     useTransition();
   const [createValue, setCreateValue] = useState<PurchaseOrderDraft>(
-    () => restoreReceivingDraft().draft,
+    restoredDraft.draft,
   );
   const [activeReceiptPurchaseOrder, setActiveReceiptPurchaseOrder] =
     useState<LogisticsPurchaseOrderRow | null>(

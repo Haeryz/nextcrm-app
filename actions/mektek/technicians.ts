@@ -9,7 +9,12 @@ import {
 } from "@/lib/mektek/technicians";
 import { prismadb } from "@/lib/prisma";
 
-const MANAGEMENT_PATH = "/mektek/technicians";
+// Must include the route group: Next derives the implicit cache tag from the
+// app-manifest page path ("/[locale]/(routes)/mektek/technicians/page"), so the
+// bare "/mektek/technicians" form used previously never matched anything and
+// every revalidation here was silently a no-op.
+const MANAGEMENT_PATH = "/[locale]/(routes)/mektek/technicians";
+const MEKTEK_HOME_PATH = "/[locale]/(routes)/mektek";
 
 function text(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -31,8 +36,8 @@ export async function createMektekTechnician(formData: FormData) {
   await prismadb.mektekTechnician.create({
     data: { ...technician, isActive: true },
   });
-  revalidatePath(MANAGEMENT_PATH);
-  revalidatePath("/mektek");
+  revalidatePath(MANAGEMENT_PATH, "page");
+  revalidatePath(MEKTEK_HOME_PATH, "page");
 }
 
 export async function updateMektekTechnician(formData: FormData) {
@@ -45,8 +50,8 @@ export async function updateMektekTechnician(formData: FormData) {
     where: { id },
     data: { ...technician, isActive },
   });
-  revalidatePath(MANAGEMENT_PATH);
-  revalidatePath("/mektek");
+  revalidatePath(MANAGEMENT_PATH, "page");
+  revalidatePath(MEKTEK_HOME_PATH, "page");
 }
 
 export async function deleteMektekTechnician(formData: FormData) {
@@ -54,6 +59,6 @@ export async function deleteMektekTechnician(formData: FormData) {
   const id = text(formData, "id");
   if (!id) throw new Error("ID technician tidak valid.");
   await prismadb.mektekTechnician.deleteMany({ where: { id } });
-  revalidatePath(MANAGEMENT_PATH);
-  revalidatePath("/mektek");
+  revalidatePath(MANAGEMENT_PATH, "page");
+  revalidatePath(MEKTEK_HOME_PATH, "page");
 }

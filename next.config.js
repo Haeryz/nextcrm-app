@@ -20,12 +20,22 @@ const nextConfig = {
   // only runs on a long-lived server with Chrome, and bundling Chromium crashes
   // Vercel functions. Combined with the lazy `import()` in lib/whatsapp/*, routes
   // that merely reference the module no longer pull the browser in at cold start.
+  // The rest below are server-only too (verified: no "use client" file imports any
+  // of them). @react-pdf/renderer and xlsx are multi-MB with their own font and
+  // codepage tables; argon2/bcrypt are native modules. Bundling them just inflates
+  // the serverless functions and slows every compile.
   serverExternalPackages: [
     "baileys",
     "protobufjs",
     "whatsapp-web.js",
     "puppeteer",
     "puppeteer-core",
+    "@react-pdf/renderer",
+    "xlsx",
+    "xlsx-js-style",
+    "argon2",
+    "bcrypt",
+    "nodemailer",
   ],
 
   // Don't advertise the framework (removes the X-Powered-By: Next.js header).
@@ -39,8 +49,11 @@ const nextConfig = {
   },
 
   images: {
+    // Serve modern formats and keep optimized variants around for a month instead
+    // of the 60s default, so repeat views don't re-run the optimizer.
+    formats: ["image/avif", "image/webp"],
+    minimumCacheTTL: 2678400,
     remotePatterns: [
-      { protocol: "https", hostname: "localhost" },
       { protocol: "https", hostname: "res.cloudinary.com" },
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
       { protocol: "https", hostname: "minio-cwg0o4ss0scoccgwso8sk004.coolify.cz" },

@@ -9,6 +9,7 @@ import {
   useState,
   useTransition,
 } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowDown,
@@ -57,7 +58,23 @@ import {
   type PaymentFakturStatusFilter,
 } from "@/lib/mektek/payment-faktur-table";
 
-import PaymentFakturTrendChart from "./PaymentFakturTrendChart";
+// The trend chart is a ~525-line hand-rolled SVG component that always renders
+// below the fold here, so it is split out of this route's bundle and fetched
+// after hydration. The skeleton mirrors the chart's own rendered height at each
+// breakpoint (header + stat row + 250px plot area) so nothing shifts when it
+// swaps in. `ssr: false` is safe: it is never the page's main content.
+const PaymentFakturTrendChart = dynamic(
+  () => import("./PaymentFakturTrendChart"),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        aria-hidden
+        className="h-[580px] animate-pulse rounded-xl border bg-muted/40 sm:h-[534px] lg:h-[466px]"
+      />
+    ),
+  },
+);
 
 export type PaymentFakturCustomerOption = {
   id: string;
@@ -129,15 +146,14 @@ const rupiah = new Intl.NumberFormat("id-ID", {
   currency: "IDR",
   maximumFractionDigits: 2,
 });
+const dateFormatter = new Intl.DateTimeFormat("id-ID", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  timeZone: "UTC",
+});
 const dateLabel = (value: string | null) =>
-  value
-    ? new Intl.DateTimeFormat("id-ID", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-      }).format(new Date(`${value}T00:00:00.000Z`))
-    : "—";
+  value ? dateFormatter.format(new Date(`${value}T00:00:00.000Z`)) : "—";
 
 export default function PaymentFakturManager({
   customers,

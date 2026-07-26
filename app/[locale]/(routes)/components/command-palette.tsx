@@ -30,7 +30,7 @@ type CommandPaletteUser = {
   userStatus?: string | null;
 };
 
-type CommandPaletteProps = {
+export type CommandPaletteProps = {
   user: CommandPaletteUser | null;
   locale: string;
 };

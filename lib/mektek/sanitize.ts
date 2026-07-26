@@ -1,23 +1,24 @@
 import { isValidPhoneNumber, normalizePhoneNumber } from "@/lib/phone";
+import { boundedText, MAX_ADDRESS_LEN, MAX_NAME_LEN } from "@/lib/mektek/text";
 
 // Shared bounds + validation for customer-supplied Mektek fields. Centralized so
 // the storefront (public), admin, and registration paths all cap the same way
 // before values are persisted into the `tags` JSON blob and later rendered into
 // generated PDFs and WhatsApp message bodies.
-export const MAX_NAME_LEN = 120;
-export const MAX_ADDRESS_LEN = 500;
-export const MAX_VEHICLE_LEN = 120;
-export const MAX_VEHICLE_PLATE_NUMBER_LEN = 24;
-export const MAX_VEHICLE_FLEET_NUMBER_LEN = 80;
-export const MAX_COMPLAINT_LEN = 2000;
-
-/** Collapse whitespace, trim, and hard-cap length. */
-export function boundedText(value: unknown, maxLen: number): string {
-  return String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, maxLen);
-}
+//
+// The bounds and `boundedText` themselves live in `./text`, which imports nothing
+// — this module adds the phone validation on top. Re-exported here so existing
+// server-side callers keep working unchanged; anything reachable from a client
+// component should import from `./text` directly to stay off libphonenumber-js.
+export {
+  boundedText,
+  MAX_NAME_LEN,
+  MAX_ADDRESS_LEN,
+  MAX_VEHICLE_LEN,
+  MAX_VEHICLE_PLATE_NUMBER_LEN,
+  MAX_VEHICLE_FLEET_NUMBER_LEN,
+  MAX_COMPLAINT_LEN,
+} from "@/lib/mektek/text";
 
 /**
  * Validate + bound a name/phone/address triple in one place. Returns either an

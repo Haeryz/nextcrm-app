@@ -11,7 +11,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "./components/app-sidebar";
-import { CommandPalette } from "./components/command-palette";
+import { CommandPaletteLazy } from "./components/command-palette-lazy";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
 
 export const metadata: Metadata = {
@@ -50,8 +50,13 @@ export default async function AppLayout({
   children: React.ReactNode;
   params: Promise<{ locale: string }>;
 }) {
-  const { locale } = await params;
-  const session = await getServerSession(authOptions);
+  // Independent — resolve concurrently. This layout runs on every authenticated
+  // navigation, so the serial round-trip here was paid by every page in the app.
+  const [{ locale }, session, cookieStore] = await Promise.all([
+    params,
+    getServerSession(authOptions),
+    cookies(),
+  ]);
 
   //console.log(session, "session");
 
@@ -73,14 +78,13 @@ export default async function AppLayout({
     return redirect(`/${locale}/customer/profile`);
   }
 
-  const cookieStore = await cookies();
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
   return (
     <SidebarProvider defaultOpen={sidebarOpen}>
       <AppSidebar session={session} />
       <SidebarInset className="h-svh overflow-hidden">
-        <CommandPalette user={session?.user ?? null} locale={locale} />
+        <CommandPaletteLazy user={session?.user ?? null} locale={locale} />
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:border focus:ring-2 focus:ring-ring"

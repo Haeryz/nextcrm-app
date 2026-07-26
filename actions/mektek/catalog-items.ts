@@ -1,7 +1,7 @@
 "use server";
 
 import crypto from "crypto";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, unstable_cache } from "next/cache";
 import type { CatalogProductionChannel, Prisma } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth";
@@ -229,8 +229,39 @@ export async function listMektekCatalogItems(input?: {
   };
 }
 
+/**
+ * The popularity ranking scans EVERY Mektek service order — no `take`, and the
+ * `tags`/`content` JSON must be parsed for each one — to end up with a handful of
+ * ids. That ran on every view of the public, unauthenticated storefront, which is the
+ * most traffic-exposed page in the app.
+ *
+ * Only this ranking is cached, deliberately. It is identical for every visitor and
+ * holds no session or per-user data, so one shared entry is correct; and because the
+ * newest-items query below stays live, a freshly added catalog item still appears on
+ * the storefront immediately. The only thing that can lag is which parts count as
+ * "popular", which is harmless for up to 15 minutes — so this needs no invalidation
+ * wiring on the mutation paths at all.
+ */
+const loadCatalogSalesRanks = unstable_cache(
+  async () => {
+    const orders = await prismadb.crm_Accounts_Tasks.findMany({
+      where: mektekOrderWhere(),
+      select: {
+        id: true,
+        createdAt: true,
+        taskStatus: true,
+        content: true,
+        tags: true,
+      },
+    });
+    return buildMektekDashboardAnalytics(orders).topProducts;
+  },
+  ["mektek-catalog-sales-ranks"],
+  { revalidate: 900 }
+);
+
 export async function getMektekCatalogHighlights() {
-  const [newestItems, orders] = await Promise.all([
+  const [newestItems, salesRanks] = await Promise.all([
     prismadb.catalogItem.findMany({
       orderBy: { createdAt: "desc" },
       take: 8,
@@ -246,18 +277,8 @@ export async function getMektekCatalogHighlights() {
         createdAt: true,
       },
     }),
-    prismadb.crm_Accounts_Tasks.findMany({
-      where: mektekOrderWhere(),
-      select: {
-        id: true,
-        createdAt: true,
-        taskStatus: true,
-        content: true,
-        tags: true,
-      },
-    }),
+    loadCatalogSalesRanks(),
   ]);
-  const salesRanks = buildMektekDashboardAnalytics(orders).topProducts;
   const popularIds = salesRanks
     .map((item) => item.catalogItemId)
     .filter((id): id is string => Boolean(id));

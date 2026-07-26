@@ -1,7 +1,14 @@
 const { execFileSync } = require("child_process");
 const fs = require("fs");
 
+// The wwebjs/Puppeteer driver is refused outright on Vercel (lib/whatsapp/index.ts),
+// so downloading ~150-300MB of Chrome during a serverless/CI build is pure waste on
+// every deploy. Local dev still installs it.
+const isServerlessBuild =
+  process.env.VERCEL === "1" || process.env.CI === "true";
+
 const skipInstall =
+  isServerlessBuild ||
   process.env.NEXTCRM_SKIP_WHATSAPP_BROWSER_INSTALL === "true" ||
   process.env.PUPPETEER_SKIP_DOWNLOAD === "true";
 

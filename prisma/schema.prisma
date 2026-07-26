@@ -458,10 +458,10 @@ model CatalogItem {
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt
 
-  inventoryMonths CatalogInventoryMonth[]
-  stockMovements  CatalogStockMovement[]
+  inventoryMonths  CatalogInventoryMonth[]
+  stockMovements   CatalogStockMovement[]
   consignmentSites CatalogConsignmentSite[]
-  logisticsItems  LogisticsPurchaseOrderItem[]
+  logisticsItems   LogisticsPurchaseOrderItem[]
 
   @@index([machine])
   @@index([description])
@@ -488,23 +488,23 @@ model CatalogInventoryMonth {
 }
 
 model CatalogStockMovement {
-  id               String                     @id @default(uuid()) @db.Uuid
-  catalogItemId    String
-  inventoryMonthId String                     @db.Uuid
-  warehouse        CatalogWarehouse
-  direction        CatalogStockDirection
-  quantity         Int
-  occurredAt       DateTime
-  note             String?
-  counterpartyName String?
-  consignmentSiteId String?                   @db.Uuid
-  source           CatalogStockMovementSource @default(MANUAL)
-  sourceId         String?
-  createdBy        String?                    @db.Uuid
-  createdAt        DateTime                   @default(now())
+  id                String                     @id @default(uuid()) @db.Uuid
+  catalogItemId     String
+  inventoryMonthId  String                     @db.Uuid
+  warehouse         CatalogWarehouse
+  direction         CatalogStockDirection
+  quantity          Int
+  occurredAt        DateTime
+  note              String?
+  counterpartyName  String?
+  consignmentSiteId String?                    @db.Uuid
+  source            CatalogStockMovementSource @default(MANUAL)
+  sourceId          String?
+  createdBy         String?                    @db.Uuid
+  createdAt         DateTime                   @default(now())
 
-  item           CatalogItem            @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
-  inventoryMonth CatalogInventoryMonth  @relation(fields: [inventoryMonthId], references: [id], onDelete: Cascade)
+  item            CatalogItem             @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  inventoryMonth  CatalogInventoryMonth   @relation(fields: [inventoryMonthId], references: [id], onDelete: Cascade)
   consignmentSite CatalogConsignmentSite? @relation(fields: [consignmentSiteId], references: [id], onDelete: SetNull)
 
   @@unique([source, sourceId])
@@ -522,8 +522,8 @@ model CatalogConsignmentSite {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  item       CatalogItem            @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
-  movements  CatalogStockMovement[]
+  item      CatalogItem            @relation(fields: [catalogItemId], references: [id], onDelete: Cascade)
+  movements CatalogStockMovement[]
 
   @@unique([catalogItemId, siteName])
   @@index([catalogItemId])
@@ -549,45 +549,45 @@ model CatalogServiceLink {
 }
 
 model LogisticsPurchaseOrder {
-  id                            String                                @id @default(uuid()) @db.Uuid
-  poNumber                      String
-  flow                          LogisticsPurchaseOrderFlow            @default(RECEIVING)
-  supplierName                  String
-  userName                      String
-  projectName                   String
-  inputDate                     DateTime                              @db.Date
-  dueDate                       DateTime                              @db.Date
-  poType                        String                                @default("Normal")
-  poMode                        LogisticsPurchaseOrderMode            @default(MANUAL)
-  status                        LogisticsPurchaseOrderStatus          @default(OPEN)
-  supplyReviewStatus            FinanceSupplyReviewStatus             @default(CLEAR)
-  financeCounterpartyId         String?                               @db.Uuid
-  financeContractId             String?                               @db.Uuid
-  financeQuoteId                String?                               @db.Uuid
-  supplyStartDate               DateTime?                             @db.Date
-  supplyEndDate                 DateTime?                             @db.Date
-  deliveryNoteNumber            String?                               @unique
-  deliveryDate                  DateTime?                             @db.Date
-  deliveryNoteImageData         Bytes?
-  deliveryNoteImageMimeType     String?
-  deliveryNoteImageUpdatedAt    DateTime?
-  supplierInvoiceImageData      Bytes?
-  supplierInvoiceImageMimeType  String?
-  supplierInvoiceImageUpdatedAt DateTime?
-  mektekDeliveryNoteImageData         Bytes?
-  mektekDeliveryNoteImageMimeType     String?
-  mektekDeliveryNoteImageUpdatedAt    DateTime?
-  customerPoImageData         Bytes?
-  customerPoImageMimeType     String?
-  customerPoImageUpdatedAt    DateTime?
-  signedPoImageData           Bytes?
-  signedPoImageMimeType       String?
-  signedPoImageUpdatedAt      DateTime?
-  receivingDeliveryNoteSource   LogisticsReceivingDeliveryNoteSource?
-  notes                         String?
-  createdBy                     String?                               @db.Uuid
-  createdAt                     DateTime                              @default(now())
-  updatedAt                     DateTime                              @updatedAt
+  id                               String                                @id @default(uuid()) @db.Uuid
+  poNumber                         String
+  flow                             LogisticsPurchaseOrderFlow            @default(RECEIVING)
+  supplierName                     String
+  userName                         String
+  projectName                      String
+  inputDate                        DateTime                              @db.Date
+  dueDate                          DateTime                              @db.Date
+  poType                           String                                @default("Normal")
+  poMode                           LogisticsPurchaseOrderMode            @default(MANUAL)
+  status                           LogisticsPurchaseOrderStatus          @default(OPEN)
+  supplyReviewStatus               FinanceSupplyReviewStatus             @default(CLEAR)
+  financeCounterpartyId            String?                               @db.Uuid
+  financeContractId                String?                               @db.Uuid
+  financeQuoteId                   String?                               @db.Uuid
+  supplyStartDate                  DateTime?                             @db.Date
+  supplyEndDate                    DateTime?                             @db.Date
+  deliveryNoteNumber               String?                               @unique
+  deliveryDate                     DateTime?                             @db.Date
+  deliveryNoteImageData            Bytes?
+  deliveryNoteImageMimeType        String?
+  deliveryNoteImageUpdatedAt       DateTime?
+  supplierInvoiceImageData         Bytes?
+  supplierInvoiceImageMimeType     String?
+  supplierInvoiceImageUpdatedAt    DateTime?
+  mektekDeliveryNoteImageData      Bytes?
+  mektekDeliveryNoteImageMimeType  String?
+  mektekDeliveryNoteImageUpdatedAt DateTime?
+  customerPoImageData              Bytes?
+  customerPoImageMimeType          String?
+  customerPoImageUpdatedAt         DateTime?
+  signedPoImageData                Bytes?
+  signedPoImageMimeType            String?
+  signedPoImageUpdatedAt           DateTime?
+  receivingDeliveryNoteSource      LogisticsReceivingDeliveryNoteSource?
+  notes                            String?
+  createdBy                        String?                               @db.Uuid
+  createdAt                        DateTime                              @default(now())
+  updatedAt                        DateTime                              @updatedAt
 
   items               LogisticsPurchaseOrderItem[]
   financeCounterparty FinanceCounterparty?         @relation(fields: [financeCounterpartyId], references: [id], onDelete: SetNull)
@@ -876,6 +876,10 @@ model FinanceContract {
   @@unique([counterpartyId, normalizedNumber, version])
   @@index([status, endDate])
   @@index([counterpartyId, startDate, endDate])
+  // Renewal chain lookups: `financeContract.findFirst({ where: { supersedesId } })`
+  // (actions/mektek/finance.ts) and `findMany({ where: { supersedesId: { in: [...] } } })`
+  // (FinanceWorkspace contracts section). No other index leads with this column.
+  @@index([supersedesId])
 }
 
 model FinanceContractLine {
@@ -1096,6 +1100,9 @@ model FinanceReceipt {
 
   @@index([counterpartyId, receivedAt])
   @@index([status, receivedAt])
+  // Unfiltered `orderBy: { receivedAt: "desc" }, take: 50` (FinanceWorkspace cash section);
+  // `receivedAt` is a trailing column in both indexes above, so neither can drive the sort.
+  @@index([receivedAt])
 }
 
 model FinanceReceiptAllocation {
@@ -1168,6 +1175,11 @@ model FinanceSupplierBill {
   @@unique([counterpartyId, supplierInvoiceNumber])
   @@index([status, dueDate])
   @@index([counterpartyId, status])
+  // Unfiltered `orderBy: { createdAt: "desc" }, take: 100` (FinanceWorkspace payables section).
+  @@index([createdAt])
+  // Unfiltered `orderBy: [{ billDate: "desc" }, { createdAt: "desc" }], take: 200`
+  // (mektek/finance/payables/page.tsx) — scanned backwards to satisfy both sort keys.
+  @@index([billDate, createdAt])
 }
 
 model FinanceSupplierBillLine {
@@ -1209,6 +1221,9 @@ model FinanceDisbursement {
 
   @@index([counterpartyId, paidAt])
   @@index([status, paidAt])
+  // Unfiltered `orderBy: { paidAt: "desc" }, take: 50` (FinanceWorkspace cash section);
+  // `paidAt` is a trailing column in both indexes above, so neither can drive the sort.
+  @@index([paidAt])
 }
 
 model FinanceDisbursementAllocation {
@@ -1241,6 +1256,9 @@ model FinanceApproval {
   @@index([status, requestedAt])
   @@index([entityType, entityId])
   @@index([requestedBy])
+  // Unfiltered `orderBy: { requestedAt: "desc" }, take: 50` (FinanceWorkspace approvals section);
+  // the `[status, requestedAt]` index cannot serve a sort with no `status` predicate.
+  @@index([requestedAt])
 }
 
 model FinanceAuditEvent {
@@ -1257,6 +1275,9 @@ model FinanceAuditEvent {
   @@index([entityType, entityId, createdAt])
   @@index([actorId, createdAt])
   @@index([action, createdAt])
+  // Unfiltered `orderBy: { createdAt: "desc" }, take: 100` (FinanceWorkspace audit section).
+  // `createdAt` is only ever a trailing column above, which Postgres cannot use to sort.
+  @@index([createdAt])
 }
 
 model FinanceAttachment {

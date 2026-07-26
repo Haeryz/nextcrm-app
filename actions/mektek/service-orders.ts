@@ -5,6 +5,7 @@ import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { after } from "next/server";
 import crypto from "crypto";
 import type { Prisma } from "@prisma/client";
 import {
@@ -621,31 +622,56 @@ export const createMektekServiceOrder = async (
     const tags = parseTagsObject(task.tags);
     const whatsappMeta = parseWhatsappMeta(tags);
 
-    let whatsappResult: { ok: boolean; error?: string } = { ok: false, error: "Skipped" };
-    try {
-      whatsappResult = await notifyMektekOrderCreated({
-        order: task,
-        trackingLink: customerTrackingLink,
-      });
-    } catch (error) {
-      console.log("[MEKTEK_WHATSAPP_ORDER_CREATED]", error);
-    }
+    // The order is already durably committed above, and a WhatsApp send costs 3-8s
+    // (connect -> send -> disconnect, one at a time behind the lease). Keeping it on
+    // the critical path made every "create order" click hang for that long. Run it
+    // after the response is flushed instead.
+    //
+    // Nothing is lost in error reporting: the send failure was already swallowed into
+    // console.log below and the action returned success regardless. What DOES change
+    // is timing — `tags.whatsapp` is stamped after the response, so a caller must not
+    // expect it to be present on the returned object.
+    after(async () => {
+      let whatsappResult: { ok: boolean; error?: string } = {
+        ok: false,
+        error: "Skipped",
+      };
+      try {
+        whatsappResult = await notifyMektekOrderCreated({
+          order: task,
+          trackingLink: customerTrackingLink,
+        });
+      } catch (error) {
+        console.log("[MEKTEK_WHATSAPP_ORDER_CREATED]", error);
+        return;
+      }
 
-    if (whatsappResult.ok) {
-      await prismadb.crm_Accounts_Tasks.update({
-        where: { id: task.id },
-        data: {
-          tags: {
-            ...tags,
-            whatsapp: {
-              ...whatsappMeta,
-              orderCreatedAt: new Date().toISOString(),
-              lastStatus: "ACTIVE",
+      if (!whatsappResult.ok) {
+        console.log(
+          "[MEKTEK_WHATSAPP_ORDER_CREATED] send failed",
+          { orderId: task.id, error: whatsappResult.error },
+        );
+        return;
+      }
+
+      try {
+        await prismadb.crm_Accounts_Tasks.update({
+          where: { id: task.id },
+          data: {
+            tags: {
+              ...tags,
+              whatsapp: {
+                ...whatsappMeta,
+                orderCreatedAt: new Date().toISOString(),
+                lastStatus: "ACTIVE",
+              },
             },
           },
-        },
-      });
-    }
+        });
+      } catch (error) {
+        console.log("[MEKTEK_WHATSAPP_ORDER_CREATED] stamp failed", error);
+      }
+    });
 
     revalidatePath("/[locale]/(routes)/mektek", "page");
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
@@ -1542,46 +1568,73 @@ export const updateMektekServiceOrderStatus = async (input: {
     }
 
     if (shouldNotifyReady || shouldNotifyComplete) {
-      const trackingLink = customerCode
-        ? await buildCustomerTrackingLink(
-            customerCode,
-            input?.locale || session.user.userLanguage,
-          )
-        : "";
+      // Notifying renders 1-2 PDFs and then does a full WhatsApp connect -> send ->
+      // disconnect, which together added roughly 5-12s to every "Service Done" /
+      // "Close Order" click. The status change is already committed above, so none of
+      // this is needed for the response to be correct — run it after the response is
+      // flushed and let the click return immediately.
+      //
+      // Error reporting is unchanged: failures here were already only console.log'd
+      // and the action returned success either way. What changes is that the
+      // `tags.whatsapp` stamp now lands after the response, so any UI wanting to show
+      // "customer notified" must read it on a subsequent load rather than from the
+      // return value of this call.
+      const notifyLocale = input?.locale || session.user.userLanguage;
 
-      let notifyResult: { ok: boolean; error?: string } = { ok: false, error: "Skipped" };
-      try {
-        notifyResult = shouldNotifyReady
-          ? await notifyMektekOrderReadyForPayment({
-              order: { ...serviceOrder, taskStatus: newStatus, tags: nextTags },
-              trackingLink,
-            })
-          : await notifyMektekOrderCompleted({
-              order: { ...serviceOrder, taskStatus: newStatus, tags: nextTags },
-              trackingLink,
-            });
-      } catch (error) {
-        console.log("[MEKTEK_WHATSAPP_ORDER_STATUS]", error);
-      }
+      after(async () => {
+        const trackingLink = customerCode
+          ? await buildCustomerTrackingLink(customerCode, notifyLocale)
+          : "";
 
-      if (notifyResult.ok) {
+        let notifyResult: { ok: boolean; error?: string } = {
+          ok: false,
+          error: "Skipped",
+        };
+        try {
+          notifyResult = shouldNotifyReady
+            ? await notifyMektekOrderReadyForPayment({
+                order: { ...serviceOrder, taskStatus: newStatus, tags: nextTags },
+                trackingLink,
+              })
+            : await notifyMektekOrderCompleted({
+                order: { ...serviceOrder, taskStatus: newStatus, tags: nextTags },
+                trackingLink,
+              });
+        } catch (error) {
+          console.log("[MEKTEK_WHATSAPP_ORDER_STATUS]", error);
+          return;
+        }
+
+        if (!notifyResult.ok) {
+          console.log("[MEKTEK_WHATSAPP_ORDER_STATUS] send failed", {
+            orderId: serviceOrder.id,
+            status: newStatus,
+            error: notifyResult.error,
+          });
+          return;
+        }
+
         const notifiedAt = new Date().toISOString();
-        await prismadb.crm_Accounts_Tasks.update({
-          where: { id: serviceOrder.id },
-          data: {
-            tags: {
-              ...nextTags,
-              whatsapp: {
-                ...whatsappMeta,
-                lastStatus: newStatus,
-                ...(newStatus === "AWAITING_PAYMENT"
-                  ? { readyForPaymentNotifiedAt: notifiedAt }
-                  : { completedNotifiedAt: notifiedAt }),
+        try {
+          await prismadb.crm_Accounts_Tasks.update({
+            where: { id: serviceOrder.id },
+            data: {
+              tags: {
+                ...nextTags,
+                whatsapp: {
+                  ...whatsappMeta,
+                  lastStatus: newStatus,
+                  ...(newStatus === "AWAITING_PAYMENT"
+                    ? { readyForPaymentNotifiedAt: notifiedAt }
+                    : { completedNotifiedAt: notifiedAt }),
+                },
               },
             },
-          },
-        });
-      }
+          });
+        } catch (error) {
+          console.log("[MEKTEK_WHATSAPP_ORDER_STATUS] stamp failed", error);
+        }
+      });
     }
 
     revalidatePath("/[locale]/(routes)/mektek", "page");

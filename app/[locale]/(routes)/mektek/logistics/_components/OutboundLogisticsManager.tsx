@@ -284,15 +284,18 @@ export default function OutboundLogisticsManager({
   mode,
 }: OutboundLogisticsManagerProps) {
   const router = useRouter();
-  const nextItemId = useRef(restoreOutboundDraft().nextId);
+  // Restored once, via a lazy state initialiser. `useRef(restoreOutboundDraft().nextId)`
+  // is NOT lazy — it re-ran the synchronous sessionStorage read + JSON.parse on every
+  // render and discarded the result. Sharing one restore also removes the second call
+  // that seeded `draft` below.
+  const [restoredDraft] = useState(restoreOutboundDraft);
+  const nextItemId = useRef(restoredDraft.nextId);
   const conditionCameraInputRef = useRef<HTMLInputElement>(null);
   const conditionGalleryInputRef = useRef<HTMLInputElement>(null);
   const customerPoInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
   const [createOpen, setCreateOpen] = useState(false);
-  const [draft, setDraft] = useState<OutboundDraft>(
-    () => restoreOutboundDraft().draft,
-  );
+  const [draft, setDraft] = useState<OutboundDraft>(restoredDraft.draft);
   const [customerPoFile, setCustomerPoFile] = useState<File | null>(null);
   const [customerPoError, setCustomerPoError] = useState<string | null>(null);
   const [activePurchaseOrder, setActivePurchaseOrder] =

@@ -25,6 +25,12 @@ export type CatalogOrManualItemOption = {
   price?: number | null;
 };
 
+const catalogPriceFormatter = new Intl.NumberFormat("id-ID", {
+  style: "currency",
+  currency: "IDR",
+  maximumFractionDigits: 0,
+});
+
 type CatalogOrManualItemPickerProps = {
   idPrefix: string;
   itemNumber: number;
@@ -77,26 +83,49 @@ export function CatalogOrManualItemPicker({
     [catalogItemId, catalogItems],
   );
 
+  // Precomputed once per catalog list rather than per keystroke: building and
+  // lowercasing this string for every item on every render is the dominant cost
+  // when the catalog is large.
+  const searchIndex = useMemo(
+    () =>
+      new Map(
+        catalogItems.map((item) => [
+          item.id,
+          `${item.description} · ${item.partNumber || "Tanpa PN"}`.toLocaleLowerCase(
+            "id-ID",
+          ),
+        ]),
+      ),
+    [catalogItems],
+  );
+
   const catalogMatches = useMemo(() => {
     const normalizedQuery = catalogQuery.trim().toLocaleLowerCase("id-ID");
-    return catalogItems
-      .filter((item) => {
-        const searchable = `${item.description} · ${item.partNumber || "Tanpa PN"}`
-          .toLocaleLowerCase("id-ID");
-        const matchesQuery =
-          !normalizedQuery || searchable.includes(normalizedQuery);
-        const isExcluded =
-          excludedCatalogItemIds.has(item.id) && item.id !== catalogItemId;
-        const hasPrice = !requirePrice || Number(item.price) > 0;
-        return matchesQuery && !isExcluded && hasPrice;
-      })
-      .slice(0, 50);
+    const matches: CatalogOrManualItemOption[] = [];
+    for (const item of catalogItems) {
+      const isExcluded =
+        excludedCatalogItemIds.has(item.id) && item.id !== catalogItemId;
+      if (isExcluded) continue;
+      if (requirePrice && !(Number(item.price) > 0)) continue;
+      if (
+        normalizedQuery &&
+        !searchIndex.get(item.id)?.includes(normalizedQuery)
+      ) {
+        continue;
+      }
+      matches.push(item);
+      // Stop as soon as the rendered cap is reached instead of filtering the
+      // whole catalog and slicing afterwards.
+      if (matches.length === 50) break;
+    }
+    return matches;
   }, [
     catalogItemId,
     catalogItems,
     catalogQuery,
     excludedCatalogItemIds,
     requirePrice,
+    searchIndex,
   ]);
 
   const selectCatalogItem = (item: CatalogOrManualItemOption) => {
@@ -312,11 +341,7 @@ export function CatalogOrManualItemPicker({
                         {typeof catalogItem.price === "number" &&
                           catalogItem.price > 0 && (
                             <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                              {new Intl.NumberFormat("id-ID", {
-                                style: "currency",
-                                currency: "IDR",
-                                maximumFractionDigits: 0,
-                              }).format(catalogItem.price)}
+                              {catalogPriceFormatter.format(catalogItem.price)}
                             </span>
                           )}
                       </Button>

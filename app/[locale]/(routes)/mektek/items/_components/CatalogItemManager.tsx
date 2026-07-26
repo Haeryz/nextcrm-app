@@ -568,7 +568,11 @@ export default function CatalogItemManager({
               className="grid gap-3 px-4 py-4 xl:grid-cols-[72px_minmax(0,1.2fr)_110px_120px_minmax(140px,0.8fr)_minmax(120px,0.7fr)_minmax(120px,0.7fr)_128px] xl:items-center xl:gap-4"
             >
               <div className="size-16 overflow-hidden rounded-md border bg-muted">
-                <CatalogImage src={item.imagePath} alt={item.description} />
+                <CatalogImage
+                  src={item.imagePath}
+                  alt={item.description}
+                  sizes="64px"
+                />
               </div>
               <div className="min-w-0">
                 <p className="truncate font-medium">{item.description}</p>

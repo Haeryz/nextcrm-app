@@ -47,7 +47,11 @@ function HighlightGroup({
             <Link key={item.id} href={`/${locale}/customer?view=sparepart&q=${encodeURIComponent(query)}`}>
               <Card className="h-full overflow-hidden border-[#151a63]/10 bg-white transition hover:-translate-y-0.5 hover:shadow-md">
                 <div className="aspect-[16/9] bg-[#eef1ff]">
-                  <CatalogImage src={getExistingCatalogImagePath(item.imagePath)} alt={item.description} />
+                  <CatalogImage
+                    src={getExistingCatalogImagePath(item.imagePath)}
+                    alt={item.description}
+                    sizes="(max-width: 640px) 100vw, (max-width: 1280px) 50vw, 25vw"
+                  />
                 </div>
                 <CardContent className="space-y-2 p-4">
                   <div className="flex items-center justify-between gap-2">

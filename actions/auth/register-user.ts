@@ -261,6 +261,11 @@ export const registerCustomerUser = async (data: {
       }
     }
 
+    // Hash before opening the transaction. The KDF is 100-500ms of pure CPU and
+    // depends on nothing inside it, so running it there pinned a pooled connection
+    // and held the transaction open for the whole duration.
+    const passwordHash = await hashPassword(password);
+
     const user = await prismadb.$transaction(async (tx) => {
       const createdUser = await tx.users.create({
         data: {
@@ -275,7 +280,7 @@ export const registerCustomerUser = async (data: {
           phoneNormalized,
           userLanguage: "id",
           userStatus: "ACTIVE",
-          password: await hashPassword(password),
+          password: passwordHash,
         },
       });
 

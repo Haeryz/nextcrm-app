@@ -1,4 +1,7 @@
-import { boundedText } from "@/lib/mektek/sanitize";
+// Import from the leaf `text` module, NOT `sanitize` — this file is reachable from
+// client components (ReceivingManager, OutboundLogisticsManager), and `sanitize`
+// would drag libphonenumber-js into those bundles.
+import { boundedText } from "@/lib/mektek/text";
 
 export const LOGISTICS_PURCHASE_ORDER_STATUSES = ["OPEN", "CLOSED"] as const;
 export const LOGISTICS_PURCHASE_ORDER_TYPES = ["Manual", "Consignment"] as const;

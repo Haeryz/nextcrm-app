@@ -55,14 +55,21 @@ export default async function MektekPage({ params, searchParams }: MektekPagePro
   );
   const dateFrom = readSearchParam(resolvedSearchParams, "dateFrom");
   const dateTo = readSearchParam(resolvedSearchParams, "dateTo");
-  const { orders, page, pageSize, totalCount, totalPages } =
-    await getMektekServiceOrders({
-      page: currentPage,
-      pageSize: 8,
-      dateFrom,
-      dateTo,
-    });
-  const techniciansResult = canCreate ? await getMektekTechnicians() : { data: [] };
+  // Independent queries — fetch concurrently rather than serialising them.
+  const [{ orders, page, pageSize, totalCount, totalPages }, techniciansResult] =
+    await Promise.all([
+      getMektekServiceOrders({
+        page: currentPage,
+        pageSize: 8,
+        dateFrom,
+        dateTo,
+      }),
+      canCreate
+        ? getMektekTechnicians()
+        : Promise.resolve({ data: [] as Awaited<
+            ReturnType<typeof getMektekTechnicians>
+          >["data"] }),
+    ]);
   const technicians = techniciansResult.data ?? [];
 
   return (
