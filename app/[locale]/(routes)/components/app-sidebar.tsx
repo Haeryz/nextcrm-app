@@ -17,6 +17,7 @@ import getMektekMenuItems from "./menu-items/Mektek";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
 import type { StaffDivision } from "@/lib/auth/staff-divisions";
 import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
+import { APP_NAME } from "@/lib/brand";
 
 /**
  * AppSidebar Component - Task Groups 1.2, 2.2-2.7, 3.1, 5.3, 5.4
@@ -116,7 +117,7 @@ export function AppSidebar({
               !isExpanded ? "w-0 opacity-0" : "w-auto opacity-100",
             )}
           >
-            {process.env.NEXT_PUBLIC_APP_NAME || "MektekCRM"}
+            {APP_NAME}
           </h1>
           <SidebarTrigger
             aria-label="Tutup menu navigasi"

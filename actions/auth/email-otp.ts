@@ -15,6 +15,7 @@ import {
 import { assertNotDisposable, DisposableEmailError } from "@/lib/email/disposable-domains";
 import { sendTransactionalEmail } from "@/lib/email";
 import { EmailOtp } from "@/emails/EmailOtp";
+import { APP_NAME } from "@/lib/brand";
 
 // OTP requests write a DB row + trigger an email send. Throttle hard by both IP
 // and email so it can't be used to spam a victim's inbox or flood the table.
@@ -78,7 +79,7 @@ export async function requestCustomerEmailOtp(
   }
 
   const code = await issueEmailOtpCode(emailNormalized);
-  const subject = `Kode Verifikasi dari ${process.env.NEXT_PUBLIC_APP_NAME}`;
+  const subject = `Kode Verifikasi dari ${APP_NAME}`;
 
   // External API gate. If Resend can't send, we FAIL CLOSED in production
   // (never skip verification). In dev/prototype we log the code so the local
@@ -113,7 +114,9 @@ export async function requestCustomerEmailOtp(
         userLanguage: "id",
       }),
       purpose: "otp",
-      text: `Kode verifikasi ${process.env.NEXT_PUBLIC_APP_NAME} Anda: ${code}. Berlaku 5 menit. Jangan bagikan kode ini kepada siapa pun.`,
+      // APP_NAME, not the bare env var: NEXT_PUBLIC_APP_NAME has no default, so an
+      // unset var rendered this as "Kode verifikasi undefined Anda".
+      text: `Kode verifikasi ${APP_NAME} Anda: ${code}. Berlaku 5 menit. Jangan bagikan kode ini kepada siapa pun.`,
     });
   } catch (error) {
     console.error("[EMAIL_OTP_SEND]", error);

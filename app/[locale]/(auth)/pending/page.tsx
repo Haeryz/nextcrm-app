@@ -6,6 +6,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import TryAgain from "./components/TryAgain";
 import { Users } from "@prisma/client";
+import { APP_NAME } from "@/lib/brand";
 
 const PendingPage = async () => {
   const adminUsers: Users[] = await prismadb.users.findMany({
@@ -28,10 +29,10 @@ const PendingPage = async () => {
       </pre> */}
       <div className="flex flex-col">
         <h1 className="text-3xl">
-          {process.env.NEXT_PUBLIC_APP_NAME} - akun Anda harus disetujui Admin
+          {APP_NAME} - akun Anda harus disetujui Admin
         </h1>
         <p>
-          Selamat datang di {process.env.NEXT_PUBLIC_APP_NAME}. Mintalah Admin di
+          Selamat datang di {APP_NAME}. Mintalah Admin di
           organisasi Anda untuk menyetujui akun ini. Jika Anda adalah pengguna
           pertama, hubungi dukungan teknis untuk mengaktifkan akun.
         </p>

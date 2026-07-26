@@ -12,6 +12,7 @@ import {
   CardDescription,
   CardTitle,
 } from "@/components/ui/card";
+import { APP_NAME } from "@/lib/brand";
 
 const PendingPage = async () => {
   const adminUsers: Users[] = await prismadb.users.findMany({
@@ -33,7 +34,7 @@ const PendingPage = async () => {
         Akun Anda telah dinonaktifkan oleh Admin
       </CardTitle>
       <CardDescription className="py-3">
-        Akun {process.env.NEXT_PUBLIC_APP_NAME} Anda telah dinonaktifkan.
+        Akun {APP_NAME} Anda telah dinonaktifkan.
         Mintalah Admin di organisasi Anda untuk mengaktifkannya kembali.
       </CardDescription>
       <CardContent>

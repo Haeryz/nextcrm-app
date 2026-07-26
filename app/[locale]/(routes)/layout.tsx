@@ -13,6 +13,7 @@ import {
 import { AppSidebar } from "./components/app-sidebar";
 import { CommandPaletteLazy } from "./components/command-palette-lazy";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
+import { APP_NAME } from "@/lib/brand";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -98,7 +99,7 @@ export default async function AppLayout({
           />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">
-              {process.env.NEXT_PUBLIC_APP_NAME || "MektekCRM"}
+              {APP_NAME}
             </p>
           </div>
         </header>
