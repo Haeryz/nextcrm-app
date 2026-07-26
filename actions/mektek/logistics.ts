@@ -247,7 +247,7 @@ function normalizeHeader(
   const userName = boundedText(input?.userName, MAX_NAME_LEN);
   const projectName = boundedText(input?.projectName, MAX_NAME_LEN);
   const requestedMode = input?.poMode ?? (compactText(input?.poType).toLowerCase() === "consignment" ? "CONSIGNMENT" : "MANUAL");
-  const poType = requestedMode === "CONSIGNMENT" ? "Consignment" : "Normal";
+  const poType = requestedMode === "CONSIGNMENT" ? "Consignment" : "Manual";
   const notes = boundedText(input?.notes, MAX_NOTE_LEN);
   const inputDate = parseDateOnly(input?.inputDate);
   const dueDate = parseDateOnly(input?.dueDate);
@@ -257,7 +257,7 @@ function normalizeHeader(
   if (!userName) return { error: "User / PT wajib diisi" } as const;
   if (!projectName) return { error: "Job Site / Project wajib diisi" } as const;
   if (!isLogisticsPurchaseOrderType(poType)) {
-    return { error: "PO Type harus Normal atau Consignment" } as const;
+    return { error: "PO Type harus Manual atau Consignment" } as const;
   }
   if (!inputDate) return { error: "Tanggal Input tidak valid" } as const;
   const resolvedDueDate = dueDate ?? inputDate;

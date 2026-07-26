@@ -245,7 +245,7 @@ function blankDraft(): OutboundDraft {
     projectName: "",
     inputDate: today,
     dueDate: today,
-    poType: "Normal",
+    poType: "Manual",
     notes: "",
     items: [blankItemDraft("outbound-item-1")],
   };
@@ -543,7 +543,10 @@ export default function OutboundLogisticsManager({
       projectName: purchaseOrder.projectName,
       inputDate: getCatalogInventoryLocalDateKey(),
       dueDate: getCatalogInventoryLocalDateKey(),
-      poType: purchaseOrder.poType,
+      poType:
+        purchaseOrder.poType.toLowerCase() === "consignment"
+          ? "Consignment"
+          : "Manual",
       notes: purchaseOrder.notes ?? "",
       items,
     });
@@ -871,7 +874,7 @@ export default function OutboundLogisticsManager({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Normal">Manual · one-off PO</SelectItem>
+                            <SelectItem value="Manual">Manual · one-off PO</SelectItem>
                             <SelectItem value="Consignment">Consignment · contract supply</SelectItem>
                           </SelectContent>
                         </Select>

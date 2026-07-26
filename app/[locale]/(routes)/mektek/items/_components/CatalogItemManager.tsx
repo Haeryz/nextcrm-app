@@ -40,7 +40,12 @@ import {
 } from "@/components/ui/select";
 import { CatalogImage } from "@/components/mektek/CatalogImage";
 import { RupiahInput } from "@/components/mektek/RupiahInput";
-import { getCatalogProductionChannelLabel } from "@/lib/mektek/catalog-inventory";
+import {
+  getCatalogMovementCategory,
+  getCatalogMovementCategoryLabel,
+  getCatalogProductionChannelLabel,
+  type CatalogInventorySnapshot,
+} from "@/lib/mektek/catalog-inventory";
 
 type CatalogItemRow = {
   id: string;
@@ -55,6 +60,7 @@ type CatalogItemRow = {
   rearStock: number;
   frontStock: number;
   remark: string | null;
+  inventory: Pick<CatalogInventorySnapshot, "totalOutbound">;
 };
 
 type CatalogItemManagerProps = {
@@ -132,6 +138,23 @@ function formatPrice(price: number | null) {
     currency: "IDR",
     maximumFractionDigits: 0,
   });
+}
+
+function CatalogMovementBadge({ totalOutbound }: { totalOutbound: number }) {
+  const movementCategory = getCatalogMovementCategory(totalOutbound);
+
+  return (
+    <Badge
+      variant={movementCategory === "FAST_MOVING" ? "default" : "secondary"}
+      className={
+        movementCategory === "FAST_MOVING"
+          ? "bg-sky-600 hover:bg-sky-600"
+          : "bg-amber-500 hover:bg-amber-500"
+      }
+    >
+      {getCatalogMovementCategoryLabel(movementCategory)}
+    </Badge>
+  );
 }
 
 function Field({
@@ -528,10 +551,11 @@ export default function CatalogItemManager({
       </div>
 
       <div className="overflow-hidden rounded-lg border">
-        <div className="hidden grid-cols-[72px_minmax(0,1.2fr)_120px_minmax(140px,0.8fr)_minmax(130px,0.7fr)_minmax(130px,0.7fr)_128px] gap-4 border-b bg-muted/30 px-4 py-3 text-xs font-medium uppercase text-muted-foreground xl:grid">
+        <div className="hidden grid-cols-[72px_minmax(0,1.2fr)_110px_120px_minmax(140px,0.8fr)_minmax(120px,0.7fr)_minmax(120px,0.7fr)_128px] gap-4 border-b bg-muted/30 px-4 py-3 text-xs font-medium uppercase text-muted-foreground xl:grid">
           <span>Image</span>
           <span>Item</span>
           <span>Channel</span>
+          <span>Pergerakan</span>
           <span>Machine / Part</span>
           <span>G. Belakang</span>
           <span>G. Depan</span>
@@ -541,7 +565,7 @@ export default function CatalogItemManager({
           {items.map((item) => (
             <div
               key={item.id}
-              className="grid gap-3 px-4 py-4 xl:grid-cols-[72px_minmax(0,1.2fr)_120px_minmax(140px,0.8fr)_minmax(130px,0.7fr)_minmax(130px,0.7fr)_128px] xl:items-center xl:gap-4"
+              className="grid gap-3 px-4 py-4 xl:grid-cols-[72px_minmax(0,1.2fr)_110px_120px_minmax(140px,0.8fr)_minmax(120px,0.7fr)_minmax(120px,0.7fr)_128px] xl:items-center xl:gap-4"
             >
               <div className="size-16 overflow-hidden rounded-md border bg-muted">
                 <CatalogImage src={item.imagePath} alt={item.description} />
@@ -554,6 +578,11 @@ export default function CatalogItemManager({
                 <Badge variant={item.productionChannel ? "secondary" : "outline"}>
                   {getCatalogProductionChannelLabel(item.productionChannel) || "Belum diatur"}
                 </Badge>
+              </div>
+              <div>
+                <CatalogMovementBadge
+                  totalOutbound={item.inventory.totalOutbound}
+                />
               </div>
               <div className="min-w-0 text-sm">
                 <p className="truncate font-medium">{item.machine}</p>

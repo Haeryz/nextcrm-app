@@ -13,6 +13,20 @@ describe("catalog inventory spreadsheet route", () => {
     ),
     "utf8",
   );
+  const inventoryPanelSource = readFileSync(
+    resolve(
+      process.cwd(),
+      "app/[locale]/(routes)/mektek/items/_components/CatalogInventoryPanel.tsx",
+    ),
+    "utf8",
+  );
+  const catalogManagerSource = readFileSync(
+    resolve(
+      process.cwd(),
+      "app/[locale]/(routes)/mektek/items/_components/CatalogItemManager.tsx",
+    ),
+    "utf8",
+  );
 
   it("keeps the inventory spreadsheet on a dedicated route", () => {
     expect(itemsPageSource).toContain("/mektek/items/spreadsheet");
@@ -26,5 +40,12 @@ describe("catalog inventory spreadsheet route", () => {
   it("loads the full export data source instead of one paginated item page", () => {
     expect(spreadsheetPageSource).not.toContain("pageSize");
     expect(spreadsheetPageSource).toContain("inventory.snapshots");
+  });
+
+  it("shows movement classification in Catalog / Item instead of the spreadsheet", () => {
+    expect(catalogManagerSource).toContain("<span>Pergerakan</span>");
+    expect(catalogManagerSource).toContain("<CatalogMovementBadge");
+    expect(inventoryPanelSource).not.toContain("stock-card-movement");
+    expect(inventoryPanelSource).not.toContain(">Pergerakan</th>");
   });
 });

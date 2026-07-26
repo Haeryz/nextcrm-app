@@ -1,7 +1,7 @@
 import { boundedText } from "@/lib/mektek/sanitize";
 
 export const LOGISTICS_PURCHASE_ORDER_STATUSES = ["OPEN", "CLOSED"] as const;
-export const LOGISTICS_PURCHASE_ORDER_TYPES = ["Normal", "Consignment"] as const;
+export const LOGISTICS_PURCHASE_ORDER_TYPES = ["Manual", "Consignment"] as const;
 const MAX_DELIVERY_NOTE_NUMBER_LENGTH = 100;
 
 export type LogisticsPurchaseOrderStatus =

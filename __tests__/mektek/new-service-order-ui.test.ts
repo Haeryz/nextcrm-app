@@ -24,6 +24,12 @@ describe("New service order form UI", () => {
     expect(formSource).toContain('title="Pekerjaan & Estimasi"');
   });
 
+  it("uses stronger horizontal separators between order sections", () => {
+    expect(
+      formSource.match(/<Separator className="h-0\.5 bg-border" \/>/g),
+    ).toHaveLength(5);
+  });
+
   it("uses persistent labels for required order fields", () => {
     expect(formSource).toMatch(/htmlFor="customer-name"[\s\S]*Nama pelanggan/);
     expect(formSource).toMatch(/htmlFor="vehicle-name"[\s\S]*Kendaraan/);

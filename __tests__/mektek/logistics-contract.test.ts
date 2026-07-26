@@ -36,6 +36,16 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
     expect(outboundManager).toContain("createMektekOutboundPurchaseOrder");
   });
 
+  it("names the standard Monitoring PO supply mode Manual", () => {
+    expect(outboundManager).toContain('poType: "Manual"');
+    expect(outboundManager).toContain(
+      '<SelectItem value="Manual">Manual · one-off PO</SelectItem>',
+    );
+    expect(actionSource).toContain(
+      'requestedMode === "CONSIGNMENT" ? "Consignment" : "Manual"',
+    );
+  });
+
   it("links both flows to Catalog and the shared stock ledger", () => {
     expect(schema).toMatch(/catalogItemId\s+String\?/);
     expect(schema).toMatch(/source\s+CatalogStockMovementSource/);

@@ -40,14 +40,11 @@ import {
 } from "@/components/ui/select";
 import {
   filterCatalogInventorySnapshots,
-  getCatalogMovementCategory,
-  getCatalogMovementCategoryLabel,
   getCatalogProductionChannelLabel,
   getCatalogInventoryLocalDateKey,
   type CatalogInventorySnapshot,
   type CatalogInventoryQuantityField,
   type CatalogInventoryQuantityOperator,
-  type CatalogMovementCategory,
   type CatalogStockDirection,
   type CatalogWarehouse,
 } from "@/lib/mektek/catalog-inventory";
@@ -165,9 +162,6 @@ export default function CatalogInventoryPanel({
   );
   const [query, setQuery] = useState("");
   const [productionChannel, setProductionChannel] = useState("");
-  const [movementCategory, setMovementCategory] = useState<
-    CatalogMovementCategory | ""
-  >("");
   const [quantityField, setQuantityField] =
     useState<CatalogInventoryQuantityField>("TOTAL_CLOSING_STOCK");
   const [quantityOperator, setQuantityOperator] =
@@ -195,14 +189,12 @@ export default function CatalogInventoryPanel({
           quantityField,
           quantityOperator,
           quantityValue,
-          movementCategory,
         },
       ).map((snapshot) => snapshot.id),
     );
     return items.filter((item) => matchingIds.has(item.id));
   }, [
     items,
-    movementCategory,
     productionChannel,
     quantityField,
     quantityOperator,
@@ -210,7 +202,7 @@ export default function CatalogInventoryPanel({
     query,
   ]);
   const hasActiveFilters = Boolean(
-    query || productionChannel || movementCategory || quantityValue,
+    query || productionChannel || quantityValue,
   );
   const totalRearStock = filteredItems.reduce(
     (sum, item) => sum + item.inventory.closingRearStock,
@@ -390,7 +382,7 @@ export default function CatalogInventoryPanel({
           </div>
           <div>
             <p className="mb-3 text-sm font-medium">Filter & periode kartu stok</p>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_160px_180px_200px_150px_130px_auto] xl:items-end">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.4fr)_160px_200px_150px_130px_auto] xl:items-end">
               <div className="space-y-1.5">
                 <Label htmlFor="stock-card-search">Cari seluruh kolom</Label>
                 <Input
@@ -414,24 +406,6 @@ export default function CatalogInventoryPanel({
                     <SelectItem value="ALL">Semua channel</SelectItem>
                     <SelectItem value="POWERTRAIN">Powertrain</SelectItem>
                     <SelectItem value="THERMAL">Thermal</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="stock-card-movement">Pergerakan</Label>
-                <Select
-                  value={movementCategory || "ALL"}
-                  onValueChange={(value) =>
-                    setMovementCategory(
-                      value === "ALL" ? "" : (value as CatalogMovementCategory),
-                    )
-                  }
-                >
-                  <SelectTrigger id="stock-card-movement"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ALL">Semua pergerakan</SelectItem>
-                    <SelectItem value="FAST_MOVING">Fast Moving</SelectItem>
-                    <SelectItem value="SLOW_MOVING">Slow Moving</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -493,7 +467,6 @@ export default function CatalogInventoryPanel({
                 onClick={() => {
                   setQuery("");
                   setProductionChannel("");
-                  setMovementCategory("");
                   setQuantityField("TOTAL_CLOSING_STOCK");
                   setQuantityOperator("LT");
                   setQuantityValue("");
@@ -534,7 +507,6 @@ export default function CatalogInventoryPanel({
                   <th className="min-w-36 border-b border-e px-3 py-3 text-right">Stok Akhir Gudang Belakang</th>
                   <th className="min-w-36 border-b border-e px-3 py-3 text-right">Stok Akhir Gudang Depan</th>
                   <th className="min-w-28 border-b border-e px-3 py-3 text-right">Total Akhir</th>
-                  <th className="min-w-28 border-b border-e px-3 py-3 text-left">Pergerakan</th>
                   <th className="min-w-40 border-b border-e px-3 py-3 text-left">Remark</th>
                   <th className="min-w-36 border-b border-e px-3 py-3 text-left">Lokasi B.</th>
                   <th className="min-w-36 border-b border-e px-3 py-3 text-left">Lokasi D.</th>
@@ -546,9 +518,6 @@ export default function CatalogInventoryPanel({
                   const totalClosingStock =
                     inventory.closingRearStock + inventory.closingFrontStock;
                   const isLowStock = totalClosingStock < LOW_STOCK_THRESHOLD;
-                  const movementCategoryValue = getCatalogMovementCategory(
-                    inventory.totalOutbound,
-                  );
                   return (
                     <tr
                       key={item.id}
@@ -655,22 +624,6 @@ export default function CatalogInventoryPanel({
                       <td className="border-e px-3 py-3 text-right font-mono font-semibold tabular-nums">
                         {totalClosingStock}
                       </td>
-                      <td className="border-e px-3 py-3">
-                        <Badge
-                          variant={
-                            movementCategoryValue === "FAST_MOVING"
-                              ? "default"
-                              : "secondary"
-                          }
-                          className={
-                            movementCategoryValue === "FAST_MOVING"
-                              ? "bg-sky-600 hover:bg-sky-600"
-                              : "bg-amber-500 hover:bg-amber-500"
-                          }
-                        >
-                          {getCatalogMovementCategoryLabel(movementCategoryValue)}
-                        </Badge>
-                      </td>
                       <td className="border-e px-3 py-3 text-muted-foreground">
                         {inventory.remark || "-"}
                       </td>
@@ -700,7 +653,6 @@ export default function CatalogInventoryPanel({
                           onClick={() => {
                             setQuery("");
                             setProductionChannel("");
-                            setMovementCategory("");
                             setQuantityField("TOTAL_CLOSING_STOCK");
                             setQuantityOperator("LT");
                             setQuantityValue("");

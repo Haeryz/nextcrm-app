@@ -513,7 +513,7 @@ export default function NewServiceOrderForm({
           </Badge>
         </div>
 
-        <Separator />
+        <Separator className="h-0.5 bg-border" />
 
         <OrderFormSection
           id="customer-section"
@@ -684,7 +684,7 @@ export default function NewServiceOrderForm({
           </div>
         </OrderFormSection>
 
-        <Separator />
+        <Separator className="h-0.5 bg-border" />
 
         <OrderFormSection
           id="vehicle-section"
@@ -796,7 +796,7 @@ export default function NewServiceOrderForm({
           </div>
         </OrderFormSection>
 
-        <Separator />
+        <Separator className="h-0.5 bg-border" />
 
         <OrderFormSection
           id="assignment-section"
@@ -878,7 +878,7 @@ export default function NewServiceOrderForm({
           </div>
         </OrderFormSection>
 
-        <Separator />
+        <Separator className="h-0.5 bg-border" />
 
         <OrderFormSection
           id="work-section"
@@ -899,7 +899,7 @@ export default function NewServiceOrderForm({
               disabled={isPending}
             />
 
-            <Separator />
+            <Separator className="h-0.5 bg-border" />
 
             <DamageItemsInput
               items={sparepartItems}
