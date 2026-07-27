@@ -2,69 +2,43 @@ import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 import type { StaffDivision } from "@/lib/auth/staff-divisions";
 
 export const STAFF_CAPABILITIES = [
-  "MEKTEK_DASHBOARD",
-  "MEKTEK_SERVICE_ORDERS",
-  "MEKTEK_CREATE_ORDERS",
-  "MEKTEK_UPDATE_PROGRESS",
-  "MEKTEK_MANAGE_PAYMENTS",
-  "MEKTEK_MANAGE_SCHEDULE",
-  "MEKTEK_CUSTOMER_TOOLS",
-  "MEKTEK_CUSTOMERS",
+  "MEKTEK_CUSTOMER_SERVICE",
   "MEKTEK_CATALOG",
   "MEKTEK_MONITORING_PO",
   "MEKTEK_RECEIVING",
   "MEKTEK_FINANCE",
-  "MEKTEK_VOUCHERS",
+  "MEKTEK_ACCOUNTING",
 ] as const;
 
 export type StaffCapability = (typeof STAFF_CAPABILITIES)[number];
 
 export const STAFF_CAPABILITY_LABELS: Record<StaffCapability, string> = {
-  MEKTEK_DASHBOARD: "Dashboard",
-  MEKTEK_SERVICE_ORDERS: "Service Order",
-  MEKTEK_CREATE_ORDERS: "Buat Service Order",
-  MEKTEK_UPDATE_PROGRESS: "Update Progress",
-  MEKTEK_MANAGE_PAYMENTS: "Pembayaran",
-  MEKTEK_MANAGE_SCHEDULE: "Jadwal",
-  MEKTEK_CUSTOMER_TOOLS: "Customer Tools & WhatsApp",
-  MEKTEK_CUSTOMERS: "Customer",
+  MEKTEK_CUSTOMER_SERVICE: "Customer Service",
   MEKTEK_CATALOG: "Catalog / Item",
   MEKTEK_MONITORING_PO: "Monitoring PO",
   MEKTEK_RECEIVING: "Receiving",
   MEKTEK_FINANCE: "Finance",
-  MEKTEK_VOUCHERS: "Voucher",
+  MEKTEK_ACCOUNTING: "Accounting",
 };
 
 export const STAFF_CAPABILITY_DESCRIPTIONS: Record<StaffCapability, string> = {
-  MEKTEK_DASHBOARD: "Ringkasan dashboard Mektek",
-  MEKTEK_SERVICE_ORDERS: "Lihat daftar dan detail Service Order",
-  MEKTEK_CREATE_ORDERS: "Buat Service Order dan kelola item order",
-  MEKTEK_UPDATE_PROGRESS: "Catat progress pengerjaan Service Order",
-  MEKTEK_MANAGE_PAYMENTS: "Kelola pembayaran Service Order",
-  MEKTEK_MANAGE_SCHEDULE: "Atur jadwal Service Order",
-  MEKTEK_CUSTOMER_TOOLS: "Akses Customer Tools, WhatsApp, dan Email",
-  MEKTEK_CUSTOMERS: "Kelola data Customer",
+  MEKTEK_CUSTOMER_SERVICE:
+    "Dashboard, Service Order, Buat Service Order, Update Progress, Pembayaran, Jadwal, Customer Tools & WhatsApp, Customer, dan Voucher",
   MEKTEK_CATALOG: "Kelola Catalog / Item dan stok",
   MEKTEK_MONITORING_PO: "Kelola pengiriman Monitoring PO",
   MEKTEK_RECEIVING: "Kelola penerimaan barang Receiving",
-  MEKTEK_FINANCE: "Kelola Finance, Faktur, dan laporan keuangan",
-  MEKTEK_VOUCHERS: "Kelola Voucher",
+  MEKTEK_FINANCE: "Pembayaran Pemasok dan Laporan Hutang Pemasok",
+  MEKTEK_ACCOUNTING:
+    "Ringkasan, Rekap Invoice, Rekap Surat Jalan, Rekapitulasi Invoice Jasa & Part, Pendapatan Spare Part, Pendapatan Jasa, Rekap Jasa & Part, Kontrak, Audit Sistem, dan Payment Faktur",
 };
 
-// Broad capability set granted to every non-Logistics division before the
-// capability migration. Used only by the backfill so existing sub-admins keep
+// Broad capability set granted to every non-Logistics, non-Finance division before
+// the capability migration. Used only by the backfill so existing sub-admins keep
 // exactly the access `isBroadDivisionStaff` gave them; admins narrow it later.
+// After the simplification, the nine customer-service capabilities collapsed into
+// the single MEKTEK_CUSTOMER_SERVICE bundle, so the broad set is that one bundle.
 export const BROAD_LEGACY_CAPABILITIES: StaffCapability[] = [
-  "MEKTEK_DASHBOARD",
-  "MEKTEK_SERVICE_ORDERS",
-  "MEKTEK_CREATE_ORDERS",
-  "MEKTEK_UPDATE_PROGRESS",
-  "MEKTEK_MANAGE_PAYMENTS",
-  "MEKTEK_MANAGE_SCHEDULE",
-  "MEKTEK_CUSTOMER_TOOLS",
-  "MEKTEK_CUSTOMERS",
-  "MEKTEK_CATALOG",
-  "MEKTEK_VOUCHERS",
+  "MEKTEK_CUSTOMER_SERVICE",
 ];
 
 export function isStaffCapability(value: unknown): value is StaffCapability {
@@ -101,7 +75,9 @@ export function capabilitiesForLegacyDivision(
     return ["MEKTEK_CATALOG"];
   }
   if (division === "FINANCE") {
-    return [...BROAD_LEGACY_CAPABILITIES, "MEKTEK_FINANCE"];
+    // Finance staff keep the financial workspace; Accounting is granted alongside
+    // MEKTEK_FINANCE so the Finance/Accounting split causes no access loss.
+    return ["MEKTEK_FINANCE", "MEKTEK_ACCOUNTING"];
   }
   return [...BROAD_LEGACY_CAPABILITIES];
 }

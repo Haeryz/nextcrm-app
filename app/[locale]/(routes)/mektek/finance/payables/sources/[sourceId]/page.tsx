@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/card";
 import { parseSupplierPayableSnapshot } from "@/lib/mektek/supplier-payment";
 import { prismadb } from "@/lib/prisma";
+import { requireFinanceSection } from "../../../_lib/gate";
 
 const rupiah = new Intl.NumberFormat("id-ID", {
   style: "currency",
@@ -40,6 +41,7 @@ export default async function SupplierPayableSourceDetailPage({
   params: Promise<{ locale: string; sourceId: string }>;
 }) {
   const { locale, sourceId } = await params;
+  await requireFinanceSection(locale, "finance");
   const source = await prismadb.financePayableSource.findUnique({
     where: { id: sourceId },
     include: {

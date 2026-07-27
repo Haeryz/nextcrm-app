@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-import { canViewMektekFinance } from "@/lib/mektek/permissions";
+import { canManageMektekFinance } from "@/lib/mektek/permissions";
 import { parseSupplierPayableSnapshot } from "@/lib/mektek/supplier-payment";
 import { prismadb } from "@/lib/prisma";
 import { getRequestSessionUser } from "@/lib/request-session";
@@ -31,7 +31,7 @@ export async function GET(
   },
 ) {
   const user = await getRequestSessionUser(request);
-  if (!user?.id || !canViewMektekFinance(user)) {
+  if (!user?.id || !canManageMektekFinance(user)) {
     return new Response("Forbidden", { status: 403 });
   }
 

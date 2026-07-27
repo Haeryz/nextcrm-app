@@ -1,2 +1,11 @@
 import FinanceWorkspace from "../_components/FinanceWorkspace";
-export default function Page() { return <FinanceWorkspace section="contracts" />; }
+import { requireFinanceSection } from "../_lib/gate";
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  await requireFinanceSection(locale, "accounting");
+  return <FinanceWorkspace section="contracts" />;
+}

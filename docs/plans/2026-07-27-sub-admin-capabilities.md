@@ -19,25 +19,18 @@ granular** sesuai `docs/staff-authorization.md` langkah 1–7.
 - Staff management (`/mektek/staff`) & technicians (`/mektek/technicians`) tetap
   **main-admin-only** (`requireAdmin`), bukan capability.
 
-## Matriks Capability (canonical)
+## Matriks Capability (canonical — simplified 2026-07-27)
 
-File baru: `lib/auth/staff-capabilities.ts`
+File: `lib/auth/staff-capabilities.ts`
 
 | Capability | Page / route | Catatan |
 |---|---|---|
-| `MEKTEK_DASHBOARD` | `/mektek/dashboard` | |
-| `MEKTEK_SERVICE_ORDERS` | `/mektek`, `/mektek/[id]` (view) | |
-| `MEKTEK_CREATE_ORDERS` | create service order, manage order items | |
-| `MEKTEK_UPDATE_PROGRESS` | update progress service order | |
-| `MEKTEK_MANAGE_PAYMENTS` | payment actions on service order | |
-| `MEKTEK_MANAGE_SCHEDULE` | schedule actions | |
-| `MEKTEK_CUSTOMER_TOOLS` | `/mektek/whatsapp`, `/mektek/email`, customer tools | |
-| `MEKTEK_CUSTOMERS` | `/mektek/customers`, `/mektek/customers/[id]` | |
+| `MEKTEK_CUSTOMER_SERVICE` | `/mektek/dashboard`, `/mektek` (orders + create + update progress), `/mektek/whatsapp`, `/mektek/email`, `/mektek/customers`, `/mektek/vouchers`, pembayaran, jadwal | Bundle 9 kapabilitas lama (Dashboard, Service Order, Buat, Update Progress, Pembayaran, Jadwal, Customer Tools & WA, Customer, Voucher) |
 | `MEKTEK_CATALOG` | `/mektek/items`, `/mektek/items/spreadsheet` | |
 | `MEKTEK_MONITORING_PO` | `/mektek/logistics`, `/mektek/logistics/spreadsheet` | |
 | `MEKTEK_RECEIVING` | `/mektek/receiving`, `/mektek/receiving/spreadsheet`, `/mektek/receiving/pics` | |
-| `MEKTEK_FINANCE` | `/mektek/finance/**`, finance actions/routes | |
-| `MEKTEK_VOUCHERS` | `/mektek/vouchers` | |
+| `MEKTEK_FINANCE` | `/mektek/finance/payables`, `/mektek/finance/payables/sources/[sourceId]`, `/mektek/finance/supplier-debt-report`, finance actions/routes (pembayaran pemasok, hutang pemasok) | Dipecah dari Finance lama: hanya Pembayaran Pemasok + Laporan Hutang Pemasok |
+| `MEKTEK_ACCOUNTING` | `/mektek/finance` (Ringkasan), `/mektek/finance/invoices`, `/mektek/finance/delivery-notes`, `/mektek/finance/receivables`, `/mektek/finance/spare-parts`, `/mektek/finance/services`, `/mektek/finance/revenue`, `/mektek/finance/contracts`, `/mektek/finance/audit`, `/mektek/finance/payment-faktur` | Baru: Ringkasan, Rekap Invoice/SJ, Pendapatan, Kontrak, Audit, Payment Faktur |
 
 ## Backfill (preserve existing access, no loss)
 
@@ -45,14 +38,12 @@ File baru: `lib/auth/staff-capabilities.ts`
 
 - `LOGISTICS` + `MONITORING_PO` → `[MEKTEK_CATALOG, MEKTEK_MONITORING_PO]`
 - `LOGISTICS` + `RECEIVING` → `[MEKTEK_CATALOG, MEKTEK_RECEIVING]`
-- `FINANCE` → broad set ∪ `[MEKTEK_FINANCE]`
-- `OPERATIONS` / `CUSTOMER_SERVICE` / `TECHNICAL` / `HUMAN_RESOURCES` → broad set
-  (sesuai `isBroadDivisionStaff` saat ini)
+- `LOGISTICS` (null area) → `[MEKTEK_CATALOG]`
+- `FINANCE` → `[MEKTEK_FINANCE, MEKTEK_ACCOUNTING]` (tidak ada akses yang hilang)
+- `OPERATIONS` / `CUSTOMER_SERVICE` / `TECHNICAL` / `HUMAN_RESOURCES` → `[MEKTEK_CUSTOMER_SERVICE]`
 
-Broad set = `[DASHBOARD, SERVICE_ORDERS, CREATE_ORDERS, UPDATE_PROGRESS,
-MANAGE_PAYMENTS, MANAGE_SCHEDULE, CUSTOMER_TOOLS, CUSTOMERS, CATALOG, VOUCHERS]`
-(union dari apa yang `isBroadDivisionStaff` berikan sekarang, agar tidak ada akses
-yang hilang saat migrasi). Admin bisa persempit setelahnya via UI baru.
+Broad set = `[MEKTEK_CUSTOMER_SERVICE]` (9 kapabilitas granular lama di-collapse
+menjadi 1 bundle). Admin bisa campur kapabilitas via UI checkbox.
 
 ## Perubahan
 

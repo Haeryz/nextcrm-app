@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { FinanceAttachmentKind } from "@prisma/client";
 import { validateFinanceAttachment } from "@/lib/mektek/finance-attachment";
-import { canManageMektekFinance } from "@/lib/mektek/permissions";
+import { canViewMektekFinance } from "@/lib/mektek/permissions";
 import { prismadb } from "@/lib/prisma";
 import { getRequestSessionUser } from "@/lib/request-session";
 
@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   const user = await getRequestSessionUser(request);
-  if (!user?.id || !canManageMektekFinance(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!user?.id || !canViewMektekFinance(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const form = await request.formData();
   const file = form.get("file");
   const entityType = String(form.get("entityType") ?? "").trim().slice(0, 80);

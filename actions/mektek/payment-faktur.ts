@@ -4,7 +4,8 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 
 import { authOptions } from "@/lib/auth";
-import { canManageMektekFinance } from "@/lib/mektek/permissions";
+import type { StaffCapability } from "@/lib/auth/staff-capabilities";
+import { hasMektekCapability } from "@/lib/mektek/permissions";
 import { isFinanceDestinationBank } from "@/lib/mektek/finance-bank-accounts";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
@@ -50,19 +51,27 @@ const money = (value: unknown) => {
 async function ensureFinanceManager() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized: silakan Login" } as const;
-  if (!canManageMektekFinance(session.user)) {
-    return { error: "Forbidden: akses Finance diperlukan" } as const;
+  if (!hasMektekCapability(session.user, "MEKTEK_ACCOUNTING")) {
+    return { error: "Forbidden: akses Accounting diperlukan" } as const;
   }
   const current = await prismadb.users.findUnique({
     where: { id: session.user.id },
-    select: { id: true, is_admin: true, staffDivision: true, userStatus: true },
+    select: {
+      id: true,
+      is_admin: true,
+      staffCapabilities: true,
+      userStatus: true,
+    },
   });
   if (
     !current ||
     current.userStatus !== "ACTIVE" ||
-    (!current.is_admin && current.staffDivision !== "FINANCE")
+    (!current.is_admin &&
+      !(current.staffCapabilities as StaffCapability[]).includes(
+        "MEKTEK_ACCOUNTING",
+      ))
   ) {
-    return { error: "Forbidden: akses Finance sudah berubah" } as const;
+    return { error: "Forbidden: akses Accounting sudah berubah" } as const;
   }
   return { current } as const;
 }

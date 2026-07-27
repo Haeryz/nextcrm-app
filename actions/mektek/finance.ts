@@ -15,9 +15,10 @@ import {
 import { revalidatePath } from "next/cache";
 
 import { authOptions } from "@/lib/auth";
+import type { StaffCapability } from "@/lib/auth/staff-capabilities";
 import {
-  canApproveMektekFinance,
-  canManageMektekFinance,
+  canViewMektekFinance,
+  hasMektekCapability,
 } from "@/lib/mektek/permissions";
 import {
   canApproveFinanceRequest,
@@ -66,27 +67,74 @@ const isPrismaUniqueError = (error: unknown) =>
 
 const financePath = "/[locale]/(routes)/mektek/finance";
 
-async function ensureFinanceManager(approval = false) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" } as const;
-  const allowed = approval
-    ? canApproveMektekFinance(session.user)
-    : canManageMektekFinance(session.user);
-  if (!allowed) return { error: "Forbidden: akses Finance diperlukan" } as const;
+type FinanceAccess = { session: NonNullable<Awaited<ReturnType<typeof getServerSession>>>; current: { id: string; is_admin: boolean; staffCapabilities: StaffCapability[]; userStatus: string } };
 
+// Shared enforcement for the finance/accounting workspaces. The owner passes
+// unconditionally; an active sub-admin must hold the required capability, which is
+// re-verified against the live database so role changes take effect immediately.
+async function ensureCapability(
+  capability: StaffCapability,
+  label: string,
+): Promise<{ error: string } | FinanceAccess> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
+  if (!hasMektekCapability(session.user, capability)) {
+    return { error: `Forbidden: akses ${label} diperlukan` };
+  }
   const current = await prismadb.users.findUnique({
     where: { id: session.user.id },
-    select: { id: true, is_admin: true, staffDivision: true, userStatus: true },
+    select: {
+      id: true,
+      is_admin: true,
+      staffCapabilities: true,
+      userStatus: true,
+    },
   });
   if (
     !current ||
     current.userStatus !== "ACTIVE" ||
-    (!current.is_admin && current.staffDivision !== "FINANCE")
+    (!current.is_admin && !current.staffCapabilities.includes(capability))
   ) {
-    return { error: "Forbidden: akses Finance sudah berubah" } as const;
+    return { error: `Forbidden: akses ${label} sudah berubah` };
   }
-  return { session, current } as const;
+  return { session, current } as FinanceAccess;
 }
+
+// Either Finance or Accounting (for shared foundational ops such as counterparty
+// CRUD and purchase-order search used by both invoice and supplier-bill matching).
+async function ensureFinanceAreaStaff(): Promise<
+  { error: string } | FinanceAccess
+> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
+  if (!canViewMektekFinance(session.user)) {
+    return { error: "Forbidden: akses Finance/Accounting diperlukan" };
+  }
+  const current = await prismadb.users.findUnique({
+    where: { id: session.user.id },
+    select: {
+      id: true,
+      is_admin: true,
+      staffCapabilities: true,
+      userStatus: true,
+    },
+  });
+  const hasEither = (caps: StaffCapability[]) =>
+    caps.includes("MEKTEK_FINANCE") || caps.includes("MEKTEK_ACCOUNTING");
+  if (
+    !current ||
+    current.userStatus !== "ACTIVE" ||
+    (!current.is_admin && !hasEither(current.staffCapabilities))
+  ) {
+    return { error: "Forbidden: akses Finance/Accounting sudah berubah" };
+  }
+  return { session, current } as FinanceAccess;
+}
+
+const ensureFinanceStaff = () => ensureCapability("MEKTEK_FINANCE", "Finance");
+const ensureAccountingStaff = () =>
+  ensureCapability("MEKTEK_ACCOUNTING", "Accounting");
+
 
 async function nextDocumentNumber(
   tx: FinanceTx,
@@ -161,7 +209,7 @@ export async function createFinanceCounterparty(input: {
   email?: string;
   paymentTermsDays?: number;
 }) {
-  const access = await ensureFinanceManager();
+  const access = await ensureFinanceAreaStaff();
   if ("error" in access) return access;
   const legalName = text(input.legalName, 180);
   const normalizedName = normalizeFinanceKey(legalName);
@@ -220,7 +268,7 @@ export async function createFinanceContract(input: {
     unitPrice?: string | number;
   }>;
 }) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const contractNumber = text(input.contractNumber, 160);
   const startDate = dateOnly(input.startDate);
@@ -285,7 +333,7 @@ export async function createFinanceContract(input: {
 }
 
 export async function activateFinanceContract(contractId: string) {
-  const access = await ensureFinanceManager(true);
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const signedDocument = await prismadb.financeAttachment.findFirst({
     where: { entityType: "CONTRACT", entityId: contractId, kind: "SIGNED_CONTRACT" },
@@ -404,7 +452,7 @@ function parseContractEntry(input: FinanceContractEntryInput) {
 export async function createFinanceContractEntry(
   input: FinanceContractEntryInput,
 ) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const parsed = parseContractEntry(input);
   if ("error" in parsed) return parsed;
@@ -468,7 +516,7 @@ export async function updateFinanceContractEntry(
   contractId: string,
   input: FinanceContractEntryInput,
 ) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const id = text(contractId, 36);
   if (!id) return { error: "Kontrak tidak valid" };
@@ -543,7 +591,7 @@ export async function updateFinanceContractEntry(
 }
 
 export async function deleteFinanceContractEntry(contractId: string) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const id = text(contractId, 36);
   if (!id) return { error: "Kontrak tidak valid" };
@@ -595,7 +643,7 @@ export async function renewFinanceContract(
   contractId: string,
   input: { startDate: string; endDate: string; contractNumber?: string },
 ) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const id = text(contractId, 36);
   if (!id) return { error: "Kontrak tidak valid" };
@@ -710,7 +758,7 @@ export async function createFinanceQuote(input: {
     unitPrice: string | number;
   }>;
 }) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const validFrom = dateOnly(input.validFrom);
   const validUntil = dateOnly(input.validUntil);
@@ -765,7 +813,7 @@ export async function createFinanceQuote(input: {
 }
 
 export async function submitFinanceQuoteForApproval(quoteId: string) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const approval = await prismadb.$transaction(async (tx) => {
     await tx.financeQuote.update({ where: { id: quoteId }, data: { status: "PENDING_APPROVAL" } });
@@ -785,7 +833,7 @@ export async function submitFinanceQuoteForApproval(quoteId: string) {
 }
 
 export async function createFinanceInvoiceDraft(sourceIds: string[]) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const ids = [...new Set(sourceIds.map((id) => text(id, 36)).filter(Boolean))];
   if (ids.length === 0) return { error: "Pilih minimal satu sumber tagihan" };
@@ -963,7 +1011,7 @@ export async function searchFinancePurchaseOrders(input: {
 }): Promise<
   { data: FinancePurchaseOrderSuggestion[] } | { error: string }
 > {
-  const access = await ensureFinanceManager();
+  const access = await ensureFinanceAreaStaff();
   if ("error" in access && access.error) return { error: access.error };
   const query = text(input?.query, 80);
   const invoiceId = text(input?.invoiceId, 36);
@@ -1315,7 +1363,7 @@ async function syncInvoiceBillingSources(
 }
 
 export async function createFinanceInvoiceEntry(input: FinanceInvoiceEntryInput) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const parsed = parseInvoiceEntry(input);
   if ("error" in parsed) return parsed;
@@ -1426,7 +1474,7 @@ export async function updateFinanceInvoiceEntry(
   invoiceId: string,
   input: FinanceInvoiceEntryInput,
 ) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const id = text(invoiceId, 36);
   const parsed = parseInvoiceEntry(input);
@@ -1557,7 +1605,7 @@ export async function updateFinanceInvoiceEntry(
 }
 
 export async function deleteFinanceInvoiceEntry(invoiceId: string) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const id = text(invoiceId, 36);
   if (!id) return { error: "Invoice tidak valid" };
@@ -1598,7 +1646,7 @@ export async function deleteFinanceInvoiceEntry(invoiceId: string) {
 }
 
 export async function submitFinanceInvoiceForApproval(invoiceId: string) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const invoice = await prismadb.financeInvoice.findUnique({ where: { id: invoiceId } });
   if (!invoice || invoice.status !== "DRAFT" || !invoice.dueDate || invoice.netAmount.lte(0)) {
@@ -1629,7 +1677,7 @@ export async function decideFinanceApproval(input: {
   approve: boolean;
   reason?: string;
 }) {
-  const access = await ensureFinanceManager(true);
+  const access = await ensureFinanceAreaStaff();
   if ("error" in access) return access;
   const reason = text(input.reason, 1000);
 
@@ -1638,6 +1686,25 @@ export async function decideFinanceApproval(input: {
       const request = await tx.financeApproval.findUnique({ where: { id: input.approvalId } });
       if (!request || request.status !== FinanceApprovalStatus.PENDING) throw new Error("APPROVAL_UNAVAILABLE");
       if (!canApproveFinanceRequest(request.requestedBy, access.current.id)) throw new Error("SELF_APPROVAL");
+      // Branch the capability check by approval action: invoice/quote approvals
+      // require Accounting; supplier-bill/disbursement approvals require Finance.
+      // Supply-conflict overrides are a logistics-facing approval that either
+      // workspace may decide, so no extra capability is enforced here.
+      const requiresCapability: StaffCapability | null =
+        request.action === FinanceApprovalAction.ISSUE_INVOICE ||
+        request.action === FinanceApprovalAction.APPROVE_QUOTE
+          ? "MEKTEK_ACCOUNTING"
+          : request.action === FinanceApprovalAction.POST_SUPPLIER_BILL ||
+              request.action === FinanceApprovalAction.POST_DISBURSEMENT
+            ? "MEKTEK_FINANCE"
+            : null;
+      if (
+        requiresCapability &&
+        !access.current.is_admin &&
+        !access.current.staffCapabilities.includes(requiresCapability)
+      ) {
+        throw new Error("CAPABILITY_REQUIRED");
+      }
       const decidedAt = new Date();
       const status = input.approve ? FinanceApprovalStatus.APPROVED : FinanceApprovalStatus.REJECTED;
 
@@ -1736,7 +1803,13 @@ export async function decideFinanceApproval(input: {
     return { data: result };
   } catch (error) {
     console.error("[DECIDE_FINANCE_APPROVAL]", error);
-    return { error: error instanceof Error && error.message === "SELF_APPROVAL" ? "Pembuat tidak boleh menyetujui permintaannya sendiri" : "Approval tidak dapat diproses" };
+    if (error instanceof Error && error.message === "SELF_APPROVAL") {
+      return { error: "Pembuat tidak boleh menyetujui permintaannya sendiri" };
+    }
+    if (error instanceof Error && error.message === "CAPABILITY_REQUIRED") {
+      return { error: "Forbidden: kapabilitas Finance/Accounting diperlukan untuk approval ini" };
+    }
+    return { error: "Approval tidak dapat diproses" };
   }
 }
 
@@ -1750,7 +1823,7 @@ export async function postFinanceReceipt(input: {
   notes?: string;
   allocations: Array<{ invoiceId: string; amount: string | number }>;
 }) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const amount = money(input.amount);
   const receivedAt = dateOnly(input.receivedAt);
@@ -1826,7 +1899,7 @@ export async function requestFinanceDisbursement(input: {
   notes?: string;
   allocations: Array<{ supplierBillId: string; amount: string | number }>;
 }) {
-  const access = await ensureFinanceManager();
+  const access = await ensureFinanceStaff();
   if ("error" in access) return access;
   const amount = money(input.amount);
   const paidAt = dateOnly(input.paidAt);
@@ -1859,7 +1932,7 @@ export async function createMatchedFinanceSupplierBill(input: {
   supplierInvoiceVerified: boolean;
   goodsReceiptVerified: boolean;
 }) {
-  const access = await ensureFinanceManager();
+  const access = await ensureFinanceStaff();
   if ("error" in access) return access;
   if (
     !input.purchaseOrderVerified ||
@@ -2043,7 +2116,7 @@ export async function createFinanceSupplierBill(input: {
   sourceIds?: string[];
   lines: Array<{ description: string; partNumber?: string; quantity: string | number; unitCost: string | number }>;
 }) {
-  const access = await ensureFinanceManager();
+  const access = await ensureFinanceStaff();
   if ("error" in access) return access;
   const billDate = dateOnly(input.billDate);
   const dueDate = dateOnly(input.dueDate);
@@ -2100,7 +2173,7 @@ export async function createFinanceSupplierBill(input: {
 }
 
 export async function submitFinanceSupplierBillForApproval(billId: string) {
-  const access = await ensureFinanceManager();
+  const access = await ensureFinanceStaff();
   if ("error" in access) return access;
   const result = await prismadb.$transaction(async (tx) => {
     const bill = await tx.financeSupplierBill.update({
@@ -2121,7 +2194,7 @@ export async function getFinanceOverview(input?: {
   month?: string;
   year?: string;
 }) {
-  const access = await ensureFinanceManager();
+  const access = await ensureAccountingStaff();
   if ("error" in access) return access;
   const now = new Date();
 

@@ -17,7 +17,7 @@ export async function sendFinanceContractReminders(now = new Date()) {
   if ((await getWhatsAppState()).status !== "ready") return { sent: 0, skipped: 0, failed: 0, error: "WhatsApp belum terhubung" };
   const [contracts, recipients] = await Promise.all([
     prismadb.financeContract.findMany({ where: { status: "ACTIVE", endDate: { gte: now, lte: new Date(now.getTime() + 31 * 86_400_000) } }, include: { counterparty: { select: { legalName: true } }, reminders: true } }),
-    prismadb.users.findMany({ where: { userStatus: "ACTIVE", OR: [{ is_admin: true }, { staffDivision: "FINANCE" }] }, select: { id: true, name: true, phoneNormalized: true, phone: true } }),
+    prismadb.users.findMany({ where: { userStatus: "ACTIVE", OR: [{ is_admin: true }, { staffCapabilities: { has: "MEKTEK_ACCOUNTING" } }, { staffCapabilities: { has: "MEKTEK_FINANCE" } }] }, select: { id: true, name: true, phoneNormalized: true, phone: true } }),
   ]);
   let sent = 0, skipped = 0, failed = 0, processedContracts = 0, outOfTime = false;
   const deadline = Date.now() + RUN_BUDGET_MS;

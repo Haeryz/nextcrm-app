@@ -2,6 +2,7 @@ import {
   Activity,
   ClipboardList,
   CircleDollarSign,
+  Calculator,
   Mail,
   MessageCircle,
   TicketPercent,
@@ -14,14 +15,12 @@ import type { StaffDivision } from "@/lib/auth/staff-divisions";
 import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 import type { StaffCapability } from "@/lib/auth/staff-capabilities";
 import {
+  canManageMektekAccounting,
   canManageMektekCatalog,
-  canManageMektekCustomers,
-  canManageMektekLogistics,
   canManageMektekFinance,
-  canManageMektekVouchers,
-  canUseMektekCustomerTools,
-  canViewMektekDashboard,
+  canManageMektekLogistics,
   canViewMektekOrders,
+  hasMektekCapability,
 } from "@/lib/mektek/permissions";
 import { NavItem } from "../nav-main";
 
@@ -37,7 +36,7 @@ type MektekMenuUser = {
 const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
   const items: NavItem[] = [];
 
-  if (canViewMektekDashboard(user)) {
+  if (hasMektekCapability(user, "MEKTEK_CUSTOMER_SERVICE")) {
     items.push({
       title: "Dashboard",
       url: "/mektek/dashboard",
@@ -75,33 +74,37 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
     });
   }
 
+  if (canManageMektekAccounting(user)) {
+    items.push({
+      title: "Accounting",
+      icon: Calculator,
+      items: [
+        { title: "Ringkasan", url: "/mektek/finance", exact: true },
+        { title: "Rekap Invoice", url: "/mektek/finance/invoices" },
+        { title: "Rekap Surat Jalan", url: "/mektek/finance/delivery-notes" },
+        { title: "Rekapitulasi Invoice Jasa & Part", url: "/mektek/finance/receivables" },
+        { title: "Pendapatan Spare Part", url: "/mektek/finance/spare-parts" },
+        { title: "Pendapatan Jasa", url: "/mektek/finance/services" },
+        { title: "Rekap Jasa & Part", url: "/mektek/finance/revenue" },
+        { title: "Kontrak", url: "/mektek/finance/contracts" },
+        { title: "Audit Sistem", url: "/mektek/finance/audit" },
+        { title: "Payment Faktur", url: "/mektek/finance/payment-faktur" },
+      ],
+    });
+  }
+
   if (canManageMektekFinance(user)) {
     items.push({
       title: "Finance",
       icon: CircleDollarSign,
       items: [
-        {
-          title: "Accounting",
-          items: [
-            { title: "Ringkasan", url: "/mektek/finance", exact: true },
-            { title: "Rekap Invoice", url: "/mektek/finance/invoices" },
-            { title: "Rekap Surat Jalan", url: "/mektek/finance/delivery-notes" },
-            { title: "Rekapitulasi Invoice Jasa & Part", url: "/mektek/finance/receivables" },
-            { title: "Pendapatan Spare Part", url: "/mektek/finance/spare-parts" },
-            { title: "Pendapatan Jasa", url: "/mektek/finance/services" },
-            { title: "Rekap Jasa & Part", url: "/mektek/finance/revenue" },
-            { title: "Kontrak", url: "/mektek/finance/contracts" },
-            { title: "Audit Sistem", url: "/mektek/finance/audit" },
-          ],
-            },
-            { title: "Pembayaran Pemasok", url: "/mektek/finance/payables" },
-            { title: "Payment Faktur", url: "/mektek/finance/payment-faktur" },
-            { title: "Laporan Hutang Pemasok", url: "/mektek/finance/supplier-debt-report" },
+        { title: "Pembayaran Pemasok", url: "/mektek/finance/payables" },
+        { title: "Laporan Hutang Pemasok", url: "/mektek/finance/supplier-debt-report" },
       ],
     });
   }
 
-  if (canUseMektekCustomerTools(user)) {
+  if (hasMektekCapability(user, "MEKTEK_CUSTOMER_SERVICE")) {
     items.push({
       title: "WhatsApp",
       url: "/mektek/whatsapp",
@@ -113,17 +116,13 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
       url: "/mektek/email",
       icon: Mail,
     });
-  }
 
-  if (canManageMektekCustomers(user)) {
     items.push({
       title: "Pelanggan",
       url: "/mektek/customers",
       icon: Users,
     });
-  }
 
-  if (canManageMektekVouchers(user)) {
     items.push({
       title: "Voucher",
       url: "/mektek/vouchers",

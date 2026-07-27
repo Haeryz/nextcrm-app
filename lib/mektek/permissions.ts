@@ -36,20 +36,12 @@ function hasCapability(
   if (user?.isAdmin) return true;
   const capabilities = user?.staffCapabilities ?? [];
   if (capabilities.includes(capability)) return true;
-  // Legacy operational roles retain their pre-capability access so unrelated work
-  // does not silently drop permissions. Do not merge mektekRole into staffCapabilities.
-  if (user?.mektekRole === "CS") {
-    return (
-      capability === "MEKTEK_CREATE_ORDERS" ||
-      capability === "MEKTEK_SERVICE_ORDERS" ||
-      capability === "MEKTEK_CUSTOMER_TOOLS"
-    );
-  }
-  if (user?.mektekRole === "TECHNICIAN") {
-    return (
-      capability === "MEKTEK_SERVICE_ORDERS" ||
-      capability === "MEKTEK_UPDATE_PROGRESS"
-    );
+  // Legacy operational roles retain access so unrelated work does not silently drop
+  // permissions. Both CS and TECHNICIAN map to the MEKTEK_CUSTOMER_SERVICE bundle
+  // because the nine granular customer-service capabilities were collapsed into it.
+  // Do not merge mektekRole into staffCapabilities.
+  if (user?.mektekRole === "CS" || user?.mektekRole === "TECHNICIAN") {
+    return capability === "MEKTEK_CUSTOMER_SERVICE";
   }
   return false;
 }
@@ -74,7 +66,7 @@ function isDivisionStaff(user?: MektekSessionUser | null) {
 }
 
 export function canCreateMektekOrders(user?: MektekSessionUser | null) {
-  return hasCapability(user, "MEKTEK_CREATE_ORDERS");
+  return hasCapability(user, "MEKTEK_CUSTOMER_SERVICE");
 }
 
 export function canAccessMektekStaffArea(user?: MektekSessionUser | null) {
@@ -85,23 +77,23 @@ export function canAccessMektekStaffArea(user?: MektekSessionUser | null) {
 }
 
 export function canViewMektekDashboard(user?: MektekSessionUser | null) {
-  return hasCapability(user, "MEKTEK_DASHBOARD");
+  return hasCapability(user, "MEKTEK_CUSTOMER_SERVICE");
 }
 
 export function canUseMektekCustomerTools(user?: MektekSessionUser | null) {
-  return hasCapability(user, "MEKTEK_CUSTOMER_TOOLS");
+  return hasCapability(user, "MEKTEK_CUSTOMER_SERVICE");
 }
 
 export function canUpdateMektekProgress(user?: MektekSessionUser | null) {
-  return hasCapability(user, "MEKTEK_UPDATE_PROGRESS");
+  return hasCapability(user, "MEKTEK_CUSTOMER_SERVICE");
 }
 
 export function canManageMektekPayments(user?: MektekSessionUser | null) {
-  return hasCapability(user, "MEKTEK_MANAGE_PAYMENTS");
+  return hasCapability(user, "MEKTEK_CUSTOMER_SERVICE");
 }
 
 export function canViewMektekOrders(user?: MektekSessionUser | null) {
-  return hasCapability(user, "MEKTEK_SERVICE_ORDERS");
+  return hasCapability(user, "MEKTEK_CUSTOMER_SERVICE");
 }
 
 export function canManageMektekCatalog(user?: MektekSessionUser | null) {
@@ -120,23 +112,43 @@ export function canManageMektekLogistics(
   );
 }
 
-// Finance is a confidential ledger workspace. Only the owner or an active account
-// with the MEKTEK_FINANCE capability may view, manage, or approve it.
+// Finance (Pembayaran Pemasok + Laporan Hutang Pemasok) is a confidential ledger
+// workspace. Only the owner or an active account with the MEKTEK_FINANCE capability
+// may view, manage, or approve it.
 export function canManageMektekFinance(user?: MektekSessionUser | null) {
   return hasCapability(user, "MEKTEK_FINANCE");
 }
 
-export const canViewMektekFinance = canManageMektekFinance;
+// Accounting (Ringkasan, Rekap Invoice/SJ, Pendapatan, Kontrak, Audit, Payment
+// Faktur) is a separate confidential workspace gated by MEKTEK_ACCOUNTING.
+export function canManageMektekAccounting(user?: MektekSessionUser | null) {
+  return hasCapability(user, "MEKTEK_ACCOUNTING");
+}
+
+// The finance layout shell (/mektek/finance/**) is shared by both Finance and
+// Accounting staff; individual pages enforce the specific capability. This helper
+// grants entry if the user holds either capability.
+export function canViewMektekFinance(user?: MektekSessionUser | null) {
+  return (
+    isActive(user) &&
+    (!!user?.isAdmin ||
+      hasCapability(user, "MEKTEK_FINANCE") ||
+      hasCapability(user, "MEKTEK_ACCOUNTING"))
+  );
+}
+
 export const canApproveMektekFinance = canManageMektekFinance;
+export const canApproveMektekAccounting = canManageMektekAccounting;
+export const canViewMektekAccounting = canManageMektekAccounting;
 
 export function canManageMektekSchedule(user?: MektekSessionUser | null) {
-  return hasCapability(user, "MEKTEK_MANAGE_SCHEDULE");
+  return hasCapability(user, "MEKTEK_CUSTOMER_SERVICE");
 }
 
 export function canManageMektekCustomers(user?: MektekSessionUser | null) {
-  return hasCapability(user, "MEKTEK_CUSTOMERS");
+  return hasCapability(user, "MEKTEK_CUSTOMER_SERVICE");
 }
 
 export function canManageMektekVouchers(user?: MektekSessionUser | null) {
-  return hasCapability(user, "MEKTEK_VOUCHERS");
+  return hasCapability(user, "MEKTEK_CUSTOMER_SERVICE");
 }

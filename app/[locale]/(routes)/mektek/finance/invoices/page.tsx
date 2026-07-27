@@ -1,14 +1,19 @@
 import FinanceWorkspace from "../_components/FinanceWorkspace";
+import { requireFinanceSection } from "../_lib/gate";
 
 export default async function Page({
+  params,
   searchParams,
 }: {
+  params: Promise<{ locale: string }>;
   searchParams?: Promise<{
     q?: string | string[];
     classification?: string | string[];
     inspect?: string | string[];
   }>;
 }) {
+  const { locale } = await params;
+  await requireFinanceSection(locale, "accounting");
   const resolvedSearchParams = await searchParams;
   const query = resolvedSearchParams?.q;
   const classification = resolvedSearchParams?.classification;

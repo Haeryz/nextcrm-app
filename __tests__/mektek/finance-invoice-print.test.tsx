@@ -46,7 +46,7 @@ describe("print-ready Finance invoice", () => {
     expect(manager).toContain("Unduh PDF");
     expect(manager).toContain("Pilih penandatangan invoice");
     expect(manager).toContain("authorizedSigner");
-    expect(route).toContain("canViewMektekFinance");
+    expect(route).toContain("canManageMektekAccounting");
     expect(route).toContain("renderFinanceInvoicePdf");
     expect(route).toContain("source.snapshot");
     expect(route).toContain("isFinanceInvoiceSigner");

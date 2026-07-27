@@ -16,6 +16,7 @@ import { supplierDebtStatus } from "@/lib/mektek/supplier-debt-report";
 import { prismadb } from "@/lib/prisma";
 
 import SupplierDebtReportManager from "../_components/SupplierDebtReportManager";
+import { requireFinanceSection } from "../_lib/gate";
 
 const PAGE_SIZE = 50;
 const report = snapshot.report as SupplierDebtWorkbookReport;
@@ -85,8 +86,10 @@ const detailSortValue = (row: SupplierDebtDetailEntry, sort: string) => {
 };
 
 export default async function SupplierDebtReportPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ locale: string }>;
   searchParams: Promise<{
     view?: string;
     sheet?: string;
@@ -97,6 +100,8 @@ export default async function SupplierDebtReportPage({
     page?: string;
   }>;
 }) {
+  const { locale } = await params;
+  await requireFinanceSection(locale, "finance");
   const query = await searchParams;
   const view = normalizeView(query.view);
   const status = normalizeStatus(query.status);

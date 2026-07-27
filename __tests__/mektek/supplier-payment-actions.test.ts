@@ -2,8 +2,8 @@ jest.mock("next/cache", () => ({ revalidatePath: jest.fn() }));
 jest.mock("@/lib/session", () => ({ getServerSession: jest.fn() }));
 jest.mock("@/lib/auth", () => ({ authOptions: {} }));
 jest.mock("@/lib/mektek/permissions", () => ({
-  canManageMektekFinance: jest.fn(() => true),
-  canApproveMektekFinance: jest.fn(() => true),
+  hasMektekCapability: jest.fn(() => true),
+  canViewMektekFinance: jest.fn(() => true),
 }));
 
 const sourceFindUnique = jest.fn();
@@ -12,6 +12,8 @@ const billCreate = jest.fn();
 const sequenceUpsert = jest.fn();
 const auditCreate = jest.fn();
 const usersFindUnique = jest.fn();
+const debtEntryFindFirst = jest.fn();
+const debtEntryCreate = jest.fn();
 
 const transactionClient = {
   financePayableSource: {
@@ -21,6 +23,10 @@ const transactionClient = {
   financeSupplierBill: { create: billCreate },
   financeDocumentSequence: { upsert: sequenceUpsert },
   financeAuditEvent: { create: auditCreate },
+  mektekSupplierDebtEntry: {
+    findFirst: debtEntryFindFirst,
+    create: debtEntryCreate,
+  },
 };
 
 jest.mock("@/lib/prisma", () => ({
@@ -55,7 +61,7 @@ describe("matched supplier bill action", () => {
     usersFindUnique.mockResolvedValue({
       id: "finance-id",
       is_admin: true,
-      staffDivision: "FINANCE",
+      staffCapabilities: ["MEKTEK_FINANCE"],
       userStatus: "ACTIVE",
     });
     sequenceUpsert.mockResolvedValue({ nextValue: 2 });
@@ -63,6 +69,7 @@ describe("matched supplier bill action", () => {
       id: "source-id",
       sourceReference: "SJ-001",
       counterpartyId: "supplier-id",
+      counterparty: { legalName: "Test Supplier" },
       supplierBillId: null,
       status: "UNBILLED",
       totalAmount: "49525000",
@@ -87,6 +94,8 @@ describe("matched supplier bill action", () => {
     billCreate.mockResolvedValue({ id: "bill-id" });
     sourceUpdate.mockResolvedValue({ id: "source-id" });
     auditCreate.mockResolvedValue({ id: "audit-id" });
+    debtEntryFindFirst.mockResolvedValue(null);
+    debtEntryCreate.mockResolvedValue({ id: "debt-id" });
   });
 
   it("requires confirmation of all three physical documents", async () => {

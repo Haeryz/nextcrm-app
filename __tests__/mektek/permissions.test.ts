@@ -1,12 +1,13 @@
 import {
   canAccessMektekStaffArea,
   canCreateMektekOrders,
+  canManageMektekAccounting,
   canManageMektekCatalog,
+  canManageMektekFinance,
   canManageMektekLogistics,
-  canManageMektekVouchers,
   canManageMektekPayments,
   canManageMektekSchedule,
-  canManageMektekFinance,
+  canManageMektekVouchers,
   canUpdateMektekProgress,
   canUseMektekCustomerTools,
   canViewMektekDashboard,
@@ -29,6 +30,7 @@ describe("MekTek permissions", () => {
     expect(canManageMektekSchedule(admin)).toBe(true);
     expect(canViewMektekDashboard(admin)).toBe(true);
     expect(canManageMektekFinance(admin)).toBe(true);
+    expect(canManageMektekAccounting(admin)).toBe(true);
   });
 
   it("grants a Finance sub-admin exactly the FINANCE capability (capability-based)", () => {
@@ -42,6 +44,7 @@ describe("MekTek permissions", () => {
 
     expect(canAccessMektekStaffArea(finance)).toBe(true);
     expect(canManageMektekFinance(finance)).toBe(true);
+    expect(canManageMektekAccounting(finance)).toBe(false);
     // A capability-scoped sub-admin does not get broad access to other areas.
     expect(canCreateMektekOrders(finance)).toBe(false);
     expect(canUseMektekCustomerTools(finance)).toBe(false);
@@ -60,6 +63,21 @@ describe("MekTek permissions", () => {
         staffCapabilities: ["MEKTEK_RECEIVING"] as const,
       }),
     ).toBe(false);
+  });
+
+  it("grants an Accounting sub-admin exactly the ACCOUNTING capability", () => {
+    const accounting = {
+      isAdmin: false,
+      mektekRole: null,
+      staffCapabilities: ["MEKTEK_ACCOUNTING"] as const,
+      userStatus: "ACTIVE",
+    };
+
+    expect(canManageMektekAccounting(accounting)).toBe(true);
+    expect(canManageMektekFinance(accounting)).toBe(false);
+    expect(canCreateMektekOrders(accounting)).toBe(false);
+    expect(canManageMektekCatalog(accounting)).toBe(false);
+    expect(canViewMektekDashboard(accounting)).toBe(false);
   });
 
   it("limits Logistics staff to Catalog and their assigned Logistics area", () => {
@@ -96,7 +114,7 @@ describe("MekTek permissions", () => {
     expect(canManageMektekLogistics(unassigned)).toBe(false);
   });
 
-  it("splits CS and technician capabilities", () => {
+  it("maps both CS and TECHNICIAN legacy roles to the Customer Service bundle", () => {
     const cs = { isAdmin: false, mektekRole: "CS" as const, userStatus: "ACTIVE" };
     const technician = {
       isAdmin: false,
@@ -104,23 +122,23 @@ describe("MekTek permissions", () => {
       userStatus: "ACTIVE",
     };
 
-    expect(canCreateMektekOrders(cs)).toBe(true);
-    expect(canUseMektekCustomerTools(cs)).toBe(true);
-    expect(canUpdateMektekProgress(cs)).toBe(false);
-    expect(canManageMektekPayments(cs)).toBe(false);
-    expect(canManageMektekLogistics(cs)).toBe(false);
-    expect(canManageMektekVouchers(cs)).toBe(false);
-    expect(canManageMektekSchedule(cs)).toBe(false);
-    expect(canViewMektekDashboard(cs)).toBe(false);
-
-    expect(canCreateMektekOrders(technician)).toBe(false);
-    expect(canUseMektekCustomerTools(technician)).toBe(false);
-    expect(canUpdateMektekProgress(technician)).toBe(true);
-    expect(canManageMektekPayments(technician)).toBe(false);
-    expect(canManageMektekLogistics(technician)).toBe(false);
-    expect(canManageMektekVouchers(technician)).toBe(false);
-    expect(canManageMektekSchedule(technician)).toBe(false);
-    expect(canViewMektekDashboard(technician)).toBe(false);
+    // Both legacy roles now map to the MEKTEK_CUSTOMER_SERVICE bundle, which
+    // includes all nine former granular capabilities.
+    for (const user of [cs, technician]) {
+      expect(canCreateMektekOrders(user)).toBe(true);
+      expect(canUseMektekCustomerTools(user)).toBe(true);
+      expect(canUpdateMektekProgress(user)).toBe(true);
+      expect(canManageMektekPayments(user)).toBe(true);
+      expect(canManageMektekSchedule(user)).toBe(true);
+      expect(canManageMektekVouchers(user)).toBe(true);
+      expect(canViewMektekDashboard(user)).toBe(true);
+      expect(canViewMektekOrders(user)).toBe(true);
+      // But still denied non-customer-service capabilities.
+      expect(canManageMektekLogistics(user)).toBe(false);
+      expect(canManageMektekCatalog(user)).toBe(false);
+      expect(canManageMektekFinance(user)).toBe(false);
+      expect(canManageMektekAccounting(user)).toBe(false);
+    }
   });
 
   it("keeps standard and B2B customer accounts out of staff/admin areas", () => {
@@ -138,6 +156,7 @@ describe("MekTek permissions", () => {
       expect(canManageMektekSchedule(customer)).toBe(false);
       expect(canViewMektekDashboard(customer)).toBe(false);
       expect(canManageMektekFinance(customer)).toBe(false);
+      expect(canManageMektekAccounting(customer)).toBe(false);
     }
   });
 
@@ -159,12 +178,13 @@ describe("MekTek permissions", () => {
       expect(canManageMektekSchedule(user)).toBe(false);
       expect(canViewMektekDashboard(user)).toBe(false);
       expect(canManageMektekFinance(user)).toBe(false);
+      expect(canManageMektekAccounting(user)).toBe(false);
     }
   });
 
   it("references the canonical broad legacy set used by the backfill", () => {
-    expect(BROAD_LEGACY_CAPABILITIES).toContain("MEKTEK_DASHBOARD");
-    expect(BROAD_LEGACY_CAPABILITIES).toContain("MEKTEK_CREATE_ORDERS");
+    expect(BROAD_LEGACY_CAPABILITIES).toContain("MEKTEK_CUSTOMER_SERVICE");
     expect(BROAD_LEGACY_CAPABILITIES).not.toContain("MEKTEK_FINANCE");
+    expect(BROAD_LEGACY_CAPABILITIES).not.toContain("MEKTEK_ACCOUNTING");
   });
 });

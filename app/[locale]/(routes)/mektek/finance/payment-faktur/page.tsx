@@ -13,6 +13,7 @@ import PaymentFakturManager, {
   type PaymentFakturCustomerOption,
   type PaymentFakturRow,
 } from "../_components/PaymentFakturManager";
+import { requireFinanceSection } from "../_lib/gate";
 
 const PAGE_SIZE = 50;
 const CUSTOMER_RESULT_LIMIT = 50;
@@ -32,8 +33,10 @@ type PaymentMonthlyAggregate = {
 };
 
 export default async function PaymentFakturPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ locale: string }>;
   searchParams: Promise<{
     customer?: string;
     sheetQ?: string;
@@ -44,6 +47,8 @@ export default async function PaymentFakturPage({
     direction?: string;
   }>;
 }) {
+  const { locale } = await params;
+  await requireFinanceSection(locale, "accounting");
   const query = await searchParams;
   const sheetSearch = String(query.sheetQ ?? "").trim().slice(0, 100);
   const customerSelect = {

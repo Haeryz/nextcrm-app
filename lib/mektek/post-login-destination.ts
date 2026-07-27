@@ -14,19 +14,12 @@ const CAPABILITY_DESTINATIONS: Array<{
   capability: StaffCapability;
   path: string;
 }> = [
-  { capability: "MEKTEK_DASHBOARD", path: "mektek/dashboard" },
+  { capability: "MEKTEK_CUSTOMER_SERVICE", path: "mektek/dashboard" },
   { capability: "MEKTEK_MONITORING_PO", path: "mektek/logistics" },
   { capability: "MEKTEK_RECEIVING", path: "mektek/receiving" },
   { capability: "MEKTEK_CATALOG", path: "mektek/items" },
-  { capability: "MEKTEK_FINANCE", path: "mektek/finance" },
-  { capability: "MEKTEK_CUSTOMERS", path: "mektek/customers" },
-  { capability: "MEKTEK_SERVICE_ORDERS", path: "mektek" },
-  { capability: "MEKTEK_VOUCHERS", path: "mektek/vouchers" },
-  { capability: "MEKTEK_CUSTOMER_TOOLS", path: "mektek/whatsapp" },
-  { capability: "MEKTEK_CREATE_ORDERS", path: "mektek" },
-  { capability: "MEKTEK_UPDATE_PROGRESS", path: "mektek" },
-  { capability: "MEKTEK_MANAGE_PAYMENTS", path: "mektek" },
-  { capability: "MEKTEK_MANAGE_SCHEDULE", path: "mektek" },
+  { capability: "MEKTEK_ACCOUNTING", path: "mektek/finance" },
+  { capability: "MEKTEK_FINANCE", path: "mektek/finance/payables" },
 ];
 
 export function shouldRedirectFromStaffLogin(

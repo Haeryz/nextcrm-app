@@ -5,10 +5,17 @@ import SupplierPaymentManager, {
   type SupplierPaymentRow,
   type SupplierPaymentSource,
 } from "../_components/SupplierPaymentManager";
+import { requireFinanceSection } from "../_lib/gate";
 
 const dateOnly = (value: Date) => value.toISOString().slice(0, 10);
 
-export default async function SupplierPaymentsPage() {
+export default async function SupplierPaymentsPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  await requireFinanceSection(locale, "finance");
   const [payableSources, supplierBills] = await Promise.all([
     prismadb.financePayableSource.findMany({
       where: {

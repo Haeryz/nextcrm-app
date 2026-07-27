@@ -84,9 +84,15 @@ describe("getMektekDashboardSummary", () => {
     expect(result.itemActivity).toEqual({ newestItems: [], quantityUpdates: [] });
   });
 
-  it("throws for a non-admin session (item 22)", async () => {
+  it("throws for a non-admin session without Customer Service capability (item 22)", async () => {
     (getServerSession as jest.Mock).mockResolvedValue({
-      user: { id: "cs1", isAdmin: false, mektekRole: "CS", userStatus: "ACTIVE" },
+      user: {
+        id: "logistics1",
+        isAdmin: false,
+        mektekRole: null,
+        staffCapabilities: ["MEKTEK_CATALOG"],
+        userStatus: "ACTIVE",
+      },
     });
     await expect(getMektekDashboardSummary()).rejects.toThrow("Forbidden");
     expect(prismadb.crm_Accounts_Tasks.findMany).not.toHaveBeenCalled();

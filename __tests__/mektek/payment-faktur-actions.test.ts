@@ -2,7 +2,7 @@ jest.mock("next/cache", () => ({ revalidatePath: jest.fn() }));
 jest.mock("@/lib/session", () => ({ getServerSession: jest.fn() }));
 jest.mock("@/lib/auth", () => ({ authOptions: {} }));
 jest.mock("@/lib/mektek/permissions", () => ({
-  canManageMektekFinance: jest.fn(() => true),
+  hasMektekCapability: jest.fn(() => true),
 }));
 
 const customerFindUnique = jest.fn();
@@ -17,7 +17,7 @@ jest.mock("@/lib/prisma", () => ({
       findUnique: jest.fn().mockResolvedValue({
         id: "staff-id",
         is_admin: true,
-        staffDivision: "FINANCE",
+        staffCapabilities: ["MEKTEK_ACCOUNTING"],
         userStatus: "ACTIVE",
       }),
     },

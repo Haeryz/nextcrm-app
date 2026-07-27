@@ -10,7 +10,7 @@ describe("Finance supplier-payment document inspection", () => {
       "app/api/mektek/finance/payables/sources/[sourceId]/documents/[document]/route.ts",
     );
 
-    expect(route).toContain("canViewMektekFinance");
+    expect(route).toContain("canManageMektekFinance");
     expect(route).toContain("financePayableSource.findUnique");
     expect(route).toContain("signedPoImageData");
     expect(route).toContain("signedPoImageMimeType");

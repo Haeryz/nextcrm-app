@@ -47,7 +47,21 @@ describe("getPostLoginDestination", () => {
         staffCapabilities: ["MEKTEK_FINANCE"],
         userStatus: "ACTIVE",
       }),
+    ).toBe("/en/mektek/finance/payables");
+    expect(
+      getPostLoginDestination("en", {
+        staffDivision: null,
+        staffCapabilities: ["MEKTEK_ACCOUNTING"],
+        userStatus: "ACTIVE",
+      }),
     ).toBe("/en/mektek/finance");
+    expect(
+      getPostLoginDestination("en", {
+        staffDivision: null,
+        staffCapabilities: ["MEKTEK_CUSTOMER_SERVICE"],
+        userStatus: "ACTIVE",
+      }),
+    ).toBe("/en/mektek/dashboard");
     expect(
       getPostLoginDestination("en", {
         staffDivision: null,

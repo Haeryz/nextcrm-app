@@ -76,9 +76,10 @@ describe("Staff capability infrastructure", () => {
     expect(capabilitiesForLegacyDivision("LOGISTICS", null)).toEqual([
       "MEKTEK_CATALOG",
     ]);
-    expect(capabilitiesForLegacyDivision("FINANCE", null)).toContain(
+    expect(capabilitiesForLegacyDivision("FINANCE", null)).toEqual([
       "MEKTEK_FINANCE",
-    );
+      "MEKTEK_ACCOUNTING",
+    ]);
     expect(capabilitiesForLegacyDivision("OPERATIONS", null)).toEqual(
       BROAD_LEGACY_CAPABILITIES,
     );
@@ -156,8 +157,10 @@ describe("Sub-admin capability enforcement (lib/mektek/permissions)", () => {
       staffCapabilities: [],
       userStatus: ACTIVE,
     };
+    // Both CS and TECHNICIAN now map to the MEKTEK_CUSTOMER_SERVICE bundle.
     expect(canCreateMektekOrders(cs)).toBe(true);
     expect(canUseMektekCustomerTools(cs)).toBe(true);
+    expect(canUpdateMektekProgress(cs)).toBe(true);
     expect(canManageMektekCatalog(cs)).toBe(false);
     expect(canManageMektekFinance(cs)).toBe(false);
 
@@ -169,7 +172,7 @@ describe("Sub-admin capability enforcement (lib/mektek/permissions)", () => {
     };
     expect(canUpdateMektekProgress(technician)).toBe(true);
     expect(canViewMektekOrders(technician)).toBe(true);
-    expect(canCreateMektekOrders(technician)).toBe(false);
+    expect(canCreateMektekOrders(technician)).toBe(true);
     expect(canManageMektekFinance(technician)).toBe(false);
   });
 

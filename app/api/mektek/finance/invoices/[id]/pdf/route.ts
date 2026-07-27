@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { renderFinanceInvoicePdf } from "@/actions/mektek/finance-invoice-pdf";
-import { canViewMektekFinance } from "@/lib/mektek/permissions";
+import { canManageMektekAccounting } from "@/lib/mektek/permissions";
 import { isFinanceInvoiceSigner } from "@/lib/mektek/finance-invoice-signers";
 import { prismadb } from "@/lib/prisma";
 import { getRequestSessionUser } from "@/lib/request-session";
@@ -11,7 +11,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const user = await getRequestSessionUser(request);
-  if (!user?.id || !canViewMektekFinance(user)) {
+  if (!user?.id || !canManageMektekAccounting(user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
