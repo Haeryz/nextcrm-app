@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { requireAdmin } from "@/lib/auth-guards";
 import { prismadb } from "@/lib/prisma";
 import StaffActionForm from "./_components/StaffActionForm";
-import StaffDivisionFields from "./_components/StaffDivisionFields";
+import StaffCapabilityFields from "./_components/StaffCapabilityFields";
 import StaffSubmitButton from "./_components/StaffSubmitButton";
 
 const selectClass =
@@ -17,7 +17,13 @@ const selectClass =
 export default async function StaffManagementPage() {
   await requireAdmin();
   const staff = await prismadb.users.findMany({
-    where: { is_admin: false, staffDivision: { not: null } },
+    where: {
+      is_admin: false,
+      OR: [
+        { staffDivision: { not: null } },
+        { staffCapabilities: { isEmpty: false } },
+      ],
+    },
     orderBy: [{ staffDivision: "asc" }, { name: "asc" }],
     select: {
       id: true,
@@ -25,6 +31,7 @@ export default async function StaffManagementPage() {
       email: true,
       staffDivision: true,
       logisticsStaffArea: true,
+      staffCapabilities: true,
       userStatus: true,
       lastLoginAt: true,
     },
@@ -33,11 +40,10 @@ export default async function StaffManagementPage() {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       <header>
-        <h1 className="text-2xl font-semibold">Sub-admin &amp; Divisi</h1>
+        <h1 className="text-2xl font-semibold">Sub-admin & Divisi</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Hanya main admin yang dapat membuat dan mengelola account ini.
-          Akses Logistics dibatasi ke Catalog dan bagian yang ditetapkan; matriks
-          pembatasan divisi lain masih dalam tahap penyusunan.
+          Hanya main admin yang dapat membuat dan mengelola account ini. Pilih
+          kapabilitas akses sub-admin — main admin selalu memiliki akses penuh.
         </p>
       </header>
 
@@ -87,7 +93,7 @@ export default async function StaffManagementPage() {
               Minimal 12 karakter.
             </p>
           </div>
-          <StaffDivisionFields />
+          <StaffCapabilityFields />
           <StaffSubmitButton
             idleLabel="Buat sub-admin"
             pendingLabel="Membuat..."
@@ -124,10 +130,20 @@ export default async function StaffManagementPage() {
                   required
                   aria-label={`Email sub-admin ${member.email}`}
                 />
-                <StaffDivisionFields
-                  defaultDivision={member.staffDivision}
-                  defaultLogisticsArea={member.logisticsStaffArea}
-                />
+                <select
+                  name="staffDivision"
+                  className={selectClass}
+                  defaultValue={member.staffDivision ?? ""}
+                  aria-label={`Divisi sub-admin ${member.email}`}
+                >
+                  <option value="">Tanpa divisi</option>
+                  <option value="OPERATIONS">Operations</option>
+                  <option value="CUSTOMER_SERVICE">Customer Service</option>
+                  <option value="TECHNICAL">Technical</option>
+                  <option value="LOGISTICS">Logistics</option>
+                  <option value="FINANCE">Finance</option>
+                  <option value="HUMAN_RESOURCES">Human Resources</option>
+                </select>
                 <select
                   name="userStatus"
                   className={selectClass}
@@ -137,6 +153,9 @@ export default async function StaffManagementPage() {
                   <option value="ACTIVE">Aktif</option>
                   <option value="INACTIVE">Nonaktif</option>
                 </select>
+                <StaffCapabilityFields
+                  defaultCapabilities={member.staffCapabilities}
+                />
                 <StaffSubmitButton
                   idleLabel="Simpan perubahan"
                   pendingLabel="Menyimpan..."

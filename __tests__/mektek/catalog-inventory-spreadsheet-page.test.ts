@@ -48,4 +48,12 @@ describe("catalog inventory spreadsheet route", () => {
     expect(inventoryPanelSource).not.toContain("stock-card-movement");
     expect(inventoryPanelSource).not.toContain(">Pergerakan</th>");
   });
+
+  it("moves the Stok Rendah indicator and filter to Catalog / Item", () => {
+    expect(catalogManagerSource).toContain("Stok Rendah");
+    expect(catalogManagerSource).toContain("AlertTriangle");
+    expect(inventoryPanelSource).not.toContain("Stok Rendah");
+    expect(itemsPageSource).toContain('paramName="lowStock"');
+    expect(itemsPageSource).toContain("lowStock");
+  });
 });

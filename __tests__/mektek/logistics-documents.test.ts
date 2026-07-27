@@ -55,7 +55,18 @@ describe("MekTek Logistics documents", () => {
     expect(deliveryNotePdf).toContain("DESCRIPTION");
     expect(deliveryNotePdf).toContain("PART NUMBER");
     expect(deliveryNotePdf).toContain("QTY");
-    expect(deliveryNotePdf).toContain("Tanggal terima:");
+    expect(deliveryNotePdf).not.toContain("Tanggal terima:");
+  });
+
+  it("drops the right signature only on Receiving delivery notes", () => {
+    expect(deliveryNotePdf).toContain("Penerima");
+    expect(deliveryNotePdf).toContain("Logistics MekTek");
+    expect(deliveryNotePdf).toContain("isReceiving");
+    expect(deliveryNoteRoute).toContain("isReceiving");
+  });
+
+  it("uses JOBSITE/PROJECT label on Monitoring PO delivery notes", () => {
+    expect(deliveryNotePdf).toContain("JOBSITE/PROJECT");
   });
 
   it("limits Receiving documents to its PO PDF and required signatures", () => {

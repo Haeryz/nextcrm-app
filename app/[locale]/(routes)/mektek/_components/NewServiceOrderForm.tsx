@@ -653,19 +653,24 @@ export default function NewServiceOrderForm({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="customer-type">Jenis pelanggan</Label>
-              <Input
-                id="customer-type"
-                value={
-                  customerType === "B2B"
-                    ? "Perusahaan"
-                    : "Pelanggan standar"
+              <Select
+                value={customerType}
+                onValueChange={(value) =>
+                  setCustomerType(value === "B2B" ? "B2B" : "STANDARD")
                 }
-                readOnly
-                aria-readonly="true"
-              />
+                disabled={isPending}
+              >
+                <SelectTrigger id="customer-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="STANDARD">Pelanggan standar</SelectItem>
+                  <SelectItem value="B2B">Perusahaan</SelectItem>
+                </SelectContent>
+              </Select>
               <p className="text-xs text-muted-foreground">
                 Terdeteksi otomatis dari data pelanggan yang dipilih atau nama
-                pelanggan baru.
+                pelanggan baru. Anda dapat mengubahnya secara manual.
               </p>
             </div>
             <div className="space-y-1.5">

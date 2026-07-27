@@ -40,6 +40,37 @@ describe("getPostLoginDestination", () => {
     ).toBe(true);
   });
 
+  it("routes capability-based sub-admins to their first matching workspace", () => {
+    expect(
+      getPostLoginDestination("en", {
+        staffDivision: null,
+        staffCapabilities: ["MEKTEK_FINANCE"],
+        userStatus: "ACTIVE",
+      }),
+    ).toBe("/en/mektek/finance");
+    expect(
+      getPostLoginDestination("en", {
+        staffDivision: null,
+        staffCapabilities: ["MEKTEK_RECEIVING"],
+        userStatus: "ACTIVE",
+      }),
+    ).toBe("/en/mektek/receiving");
+    expect(
+      getPostLoginDestination("en", {
+        staffDivision: null,
+        staffCapabilities: ["MEKTEK_CATALOG", "MEKTEK_MONITORING_PO"],
+        userStatus: "ACTIVE",
+      }),
+    ).toBe("/en/mektek/logistics");
+    expect(
+      shouldRedirectFromStaffLogin({
+        staffDivision: null,
+        staffCapabilities: ["MEKTEK_FINANCE"],
+        userStatus: "ACTIVE",
+      }),
+    ).toBe(true);
+  });
+
   it("keeps customers on the customer profile", () => {
     expect(
       getPostLoginDestination("en", { userStatus: "ACTIVE" }),

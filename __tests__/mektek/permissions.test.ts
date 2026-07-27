@@ -12,6 +12,7 @@ import {
   canViewMektekDashboard,
   canViewMektekOrders,
 } from "@/lib/mektek/permissions";
+import { BROAD_LEGACY_CAPABILITIES } from "@/lib/auth/staff-capabilities";
 
 describe("MekTek permissions", () => {
   it("keeps admin access broad", () => {
@@ -30,29 +31,33 @@ describe("MekTek permissions", () => {
     expect(canManageMektekFinance(admin)).toBe(true);
   });
 
-  it("keeps non-logistics division scaffolding broad outside Logistics", () => {
+  it("grants a Finance sub-admin exactly the FINANCE capability (capability-based)", () => {
     const finance = {
       isAdmin: false,
       mektekRole: null,
       staffDivision: "FINANCE" as const,
+      staffCapabilities: ["MEKTEK_FINANCE"] as const,
       userStatus: "ACTIVE",
     };
 
     expect(canAccessMektekStaffArea(finance)).toBe(true);
-    expect(canCreateMektekOrders(finance)).toBe(true);
-    expect(canUseMektekCustomerTools(finance)).toBe(true);
-    expect(canUpdateMektekProgress(finance)).toBe(true);
-    expect(canManageMektekPayments(finance)).toBe(true);
-    expect(canManageMektekLogistics(finance)).toBe(false);
-    expect(canManageMektekVouchers(finance)).toBe(true);
-    expect(canManageMektekSchedule(finance)).toBe(true);
-    expect(canViewMektekDashboard(finance)).toBe(true);
     expect(canManageMektekFinance(finance)).toBe(true);
+    // A capability-scoped sub-admin does not get broad access to other areas.
+    expect(canCreateMektekOrders(finance)).toBe(false);
+    expect(canUseMektekCustomerTools(finance)).toBe(false);
+    expect(canUpdateMektekProgress(finance)).toBe(false);
+    expect(canManageMektekPayments(finance)).toBe(false);
+    expect(canManageMektekLogistics(finance)).toBe(false);
+    expect(canManageMektekVouchers(finance)).toBe(false);
+    expect(canManageMektekSchedule(finance)).toBe(false);
+    expect(canViewMektekDashboard(finance)).toBe(false);
+    expect(canManageMektekCatalog(finance)).toBe(false);
 
+    // Admin reassigning a Finance division user to Logistics capabilities removes finance access.
     expect(
       canManageMektekFinance({
         ...finance,
-        staffDivision: "LOGISTICS" as const,
+        staffCapabilities: ["MEKTEK_RECEIVING"] as const,
       }),
     ).toBe(false);
   });
@@ -62,13 +67,19 @@ describe("MekTek permissions", () => {
       isAdmin: false,
       staffDivision: "LOGISTICS" as const,
       logisticsStaffArea: "MONITORING_PO" as const,
+      staffCapabilities: ["MEKTEK_CATALOG", "MEKTEK_MONITORING_PO"] as const,
       userStatus: "ACTIVE",
     };
     const receiving = {
       ...monitoring,
       logisticsStaffArea: "RECEIVING" as const,
+      staffCapabilities: ["MEKTEK_CATALOG", "MEKTEK_RECEIVING"] as const,
     };
-    const unassigned = { ...monitoring, logisticsStaffArea: null };
+    const unassigned = {
+      ...monitoring,
+      logisticsStaffArea: null,
+      staffCapabilities: ["MEKTEK_CATALOG"] as const,
+    };
 
     for (const user of [monitoring, receiving, unassigned]) {
       expect(canAccessMektekStaffArea(user)).toBe(true);
@@ -149,5 +160,11 @@ describe("MekTek permissions", () => {
       expect(canViewMektekDashboard(user)).toBe(false);
       expect(canManageMektekFinance(user)).toBe(false);
     }
+  });
+
+  it("references the canonical broad legacy set used by the backfill", () => {
+    expect(BROAD_LEGACY_CAPABILITIES).toContain("MEKTEK_DASHBOARD");
+    expect(BROAD_LEGACY_CAPABILITIES).toContain("MEKTEK_CREATE_ORDERS");
+    expect(BROAD_LEGACY_CAPABILITIES).not.toContain("MEKTEK_FINANCE");
   });
 });

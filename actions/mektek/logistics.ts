@@ -111,7 +111,7 @@ type NormalizedPurchaseOrderLine =
       position: number;
       catalogItemId: null;
       partName: string;
-      partNumber: string;
+      partNumber: string | null;
       machine: string | null;
       orderedQuantity: number;
       unitPrice: string | null;
@@ -301,6 +301,7 @@ function normalizePurchaseOrderLines(
     requireManualMachine?: boolean;
     requireManualWarehouse?: boolean;
     requireManualUnitPrice?: boolean;
+    requireManualPartNumber?: boolean;
     requireUnitPrice?: boolean;
     emptyError: string;
   },
@@ -351,7 +352,7 @@ function normalizePurchaseOrderLines(
       if (!partName) {
         return { error: `Nama item manual baris ${index + 1} wajib diisi` } as const;
       }
-      if (!partNumber) {
+      if (options.requireManualPartNumber !== false && !partNumber) {
         return { error: `Part Number manual baris ${index + 1} wajib diisi` } as const;
       }
       if (options.requireManualMachine && !machine) {
@@ -376,7 +377,7 @@ function normalizePurchaseOrderLines(
         position: index + 1,
         catalogItemId: null,
         partName,
-        partNumber,
+        partNumber: partNumber || null,
         machine: machine || null,
         orderedQuantity,
         unitPrice: manualUnitPrice || agreedUnitPrice,
@@ -459,32 +460,34 @@ async function ensureManualReceivingCatalogItem(
   tx: Prisma.TransactionClient,
   input: {
     partName: string;
-    partNumber: string;
+    partNumber: string | null;
     machine: string;
     poNumber: string;
     unitPrice?: string;
   },
 ) {
-  const existing = await tx.catalogItem.findFirst({
-    where: {
-      OR: [
-        {
-          partNumber: {
-            equals: input.partNumber,
-            mode: "insensitive",
+  if (input.partNumber) {
+    const existing = await tx.catalogItem.findFirst({
+      where: {
+        OR: [
+          {
+            partNumber: {
+              equals: input.partNumber,
+              mode: "insensitive",
+            },
           },
-        },
-        {
-          catalogPartNumber: {
-            equals: input.partNumber,
-            mode: "insensitive",
+          {
+            catalogPartNumber: {
+              equals: input.partNumber,
+              mode: "insensitive",
+            },
           },
-        },
-      ],
-    },
-    select: { id: true },
-  });
-  if (existing) return existing;
+        ],
+      },
+      select: { id: true },
+    });
+    if (existing) return existing;
+  }
 
   return tx.catalogItem.create({
     data: {
@@ -697,6 +700,7 @@ export async function createMektekReceivingPurchaseOrder(
     requireManualMachine: true,
     requireManualWarehouse: true,
     requireManualUnitPrice: true,
+    requireManualPartNumber: false,
     emptyError: "Minimal satu item Receiving wajib diisi",
   });
   if ("error" in lines) return { error: lines.error };
@@ -1544,11 +1548,6 @@ export async function recordMektekReceivingPurchaseOrderReceipt(
       }
       for (const item of purchaseOrder.items) {
         if (item.source !== "MANUAL" || item.catalogItemId) continue;
-        if (!item.partNumber) {
-          throw new LogisticsActionError(
-            `Item manual ${item.partName} belum memiliki Part Number`,
-          );
-        }
         const catalogItem = await ensureManualReceivingCatalogItem(tx, {
           partName: item.partName,
           partNumber: item.partNumber,

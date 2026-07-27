@@ -8,7 +8,7 @@ describe("Receiving Purchase Order Excel export", () => {
     expect(RECEIVING_PURCHASE_ORDER_EXPORT_HEADERS).toEqual([
       "No",
       "Job Site / Project",
-      "Tanggal Input",
+      "Tanggal Create",
       "Due Date",
       "PO No. User",
       "PO Type",
@@ -53,7 +53,7 @@ describe("Receiving Purchase Order Excel export", () => {
       {
         No: 1,
         "Job Site / Project": "Site Morowali",
-        "Tanggal Input": "22 Juli 2026",
+        "Tanggal Create": "22 Juli 2026",
         "Due Date": "28 Juli 2026",
         "PO No. User": "PO-MTL-001",
         "PO Type": "Normal",

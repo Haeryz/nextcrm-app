@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import type { StaffDivision } from "@/lib/auth/staff-divisions";
 import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
+import type { StaffCapability } from "@/lib/auth/staff-capabilities";
 import {
   canManageMektekCatalog,
   canManageMektekCustomers,
@@ -29,6 +30,7 @@ type MektekMenuUser = {
   mektekRole?: "CS" | "TECHNICIAN" | null;
   staffDivision?: StaffDivision | null;
   logisticsStaffArea?: LogisticsStaffArea | null;
+  staffCapabilities?: StaffCapability[] | null;
   userStatus?: string | null;
 };
 

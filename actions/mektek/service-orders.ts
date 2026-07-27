@@ -269,10 +269,14 @@ export const createMektekServiceOrder = async (
   const complaint = boundedText(input?.complaint, MAX_COMPLAINT_LEN);
   const phone = String(input?.phone ?? "").trim();
   const address = boundedText(input?.address, MAX_ADDRESS_LEN);
-  const customerType = inferMektekCustomerType(
-    enteredCompanyName || enteredCustomerName,
-    input?.customerType === "B2B" ? "B2B" : "STANDARD",
-  );
+  const explicitCustomerType = input?.customerType;
+  const customerType =
+    explicitCustomerType === "B2B" || explicitCustomerType === "STANDARD"
+      ? explicitCustomerType
+      : inferMektekCustomerType(
+          enteredCompanyName || enteredCustomerName,
+          "STANDARD",
+        );
   const companyNames =
     customerType === "B2B"
       ? resolveMektekCustomerNames({

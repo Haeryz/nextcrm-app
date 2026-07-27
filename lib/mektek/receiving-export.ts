@@ -1,7 +1,7 @@
 export const RECEIVING_PURCHASE_ORDER_EXPORT_HEADERS = [
   "No",
   "Job Site / Project",
-  "Tanggal Input",
+  "Tanggal Create",
   "Due Date",
   "PO No. User",
   "PO Type",
@@ -64,7 +64,7 @@ export function buildReceivingPurchaseOrderExportRows(
     return {
       No: index + 1,
       "Job Site / Project": order.projectName,
-      "Tanggal Input": dateFormatter.format(order.inputDate),
+      "Tanggal Create": dateFormatter.format(order.inputDate),
       "Due Date": dateFormatter.format(order.dueDate),
       "PO No. User": order.poNumber,
       "PO Type": order.poType,

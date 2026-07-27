@@ -44,6 +44,7 @@ export async function sendMektekLogisticsDocumentWhatsApp(
         partNumber: item.partNumber,
         orderedQuantity: item.orderedQuantity,
         unitPrice: Number(item.agreedUnitPrice || 0),
+        note: item.note,
       })),
     }),
   );

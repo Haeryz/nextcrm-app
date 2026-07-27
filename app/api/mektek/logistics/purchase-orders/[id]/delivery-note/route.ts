@@ -123,6 +123,7 @@ export async function GET(
     picName:
       firstBatchReceipt?.pic.name ||
       (isReceiving ? "Logistics Mektek" : "Logistics MekTek"),
+    isReceiving,
     items: reference
       ? batchItems.map(({ item, receipt }) => ({
           description: item.partName,

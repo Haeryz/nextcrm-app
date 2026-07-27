@@ -13,6 +13,7 @@ function isLegacyCustomerSession(session: Session | null): session is Session {
       !user.isAdmin &&
       !user.mektekRole &&
       !user.staffDivision &&
+      (!user.staffCapabilities || user.staffCapabilities.length === 0) &&
       user.userStatus === "ACTIVE" &&
       (user.phoneNormalized || user.phone),
   );

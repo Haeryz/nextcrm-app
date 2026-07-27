@@ -5,6 +5,7 @@ import { getServerSession as getNextAuthServerSession } from "next-auth";
 import type { NextAuthOptions, Session } from "next-auth";
 import type { StaffDivision } from "@/lib/auth/staff-divisions";
 import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
+import type { StaffCapability } from "@/lib/auth/staff-capabilities";
 
 // No-auth mode is opt-in: it is enabled only when explicitly set to "true".
 const NO_AUTH_ENABLED = process.env.NEXTCRM_DISABLE_AUTH === "true";
@@ -59,6 +60,7 @@ type SessionUserLike = {
   mektekRole: "CS" | "TECHNICIAN" | null;
   staffDivision: StaffDivision | null;
   logisticsStaffArea: LogisticsStaffArea | null;
+  staffCapabilities: StaffCapability[];
 };
 
 function toSession(user: SessionUserLike): Session {
@@ -79,6 +81,7 @@ function toSession(user: SessionUserLike): Session {
       mektekRole: user.mektekRole,
       staffDivision: user.staffDivision,
       logisticsStaffArea: user.logisticsStaffArea,
+      staffCapabilities: user.staffCapabilities ?? [],
       userLanguage: user.userLanguage || "id",
       userStatus: "ACTIVE",
     },
@@ -105,6 +108,7 @@ function normalizeSession(session: Session): Session {
       mektekRole: user.mektekRole ?? null,
       staffDivision: user.staffDivision ?? null,
       logisticsStaffArea: user.logisticsStaffArea ?? null,
+      staffCapabilities: user.staffCapabilities ?? [],
       userLanguage: user.userLanguage || GUEST_USER_LANGUAGE,
       userStatus: user.userStatus || "ACTIVE",
     },
@@ -130,6 +134,7 @@ async function getFallbackUser(): Promise<SessionUserLike> {
       mektekRole: true,
       staffDivision: true,
       logisticsStaffArea: true,
+      staffCapabilities: true,
     },
   });
 
@@ -182,6 +187,7 @@ async function getFallbackUser(): Promise<SessionUserLike> {
       mektekRole: true,
       staffDivision: true,
       logisticsStaffArea: true,
+      staffCapabilities: true,
     },
   });
 
@@ -232,6 +238,7 @@ const getCachedServerSession = cache(
         mektekRole: null,
         staffDivision: null,
         logisticsStaffArea: null,
+        staffCapabilities: [],
       });
     }
   }

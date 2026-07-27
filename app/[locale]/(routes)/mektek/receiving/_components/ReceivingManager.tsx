@@ -976,7 +976,6 @@ export default function ReceivingManager({
     item.source === "CATALOG"
       ? !item.catalogItemId || Number(item.unitPrice) <= 0
       : !item.partName.trim() ||
-        !item.partNumber.trim() ||
         !item.machine.trim() ||
         Number(item.unitPrice) <= 0,
   );
@@ -1147,7 +1146,7 @@ export default function ReceivingManager({
                    />
                  </div>
                  <div className="space-y-1.5">
-                   <Label htmlFor="logistics-input-date">Tanggal Input</Label>
+                    <Label htmlFor="logistics-input-date">Tanggal Create</Label>
                    <Input
                      id="logistics-input-date"
                      type="date"
@@ -1219,6 +1218,7 @@ export default function ReceivingManager({
                             excludedCatalogItemIds={selectedCatalogItemIds}
                             disabled={isPending}
                             requirePrice
+                            requireManualPartNumber={false}
                             catalogStockMessage="Stok bertambah otomatis saat diterima."
                             manualStockMessage="Item manual otomatis ditambahkan ke Catalog / Item."
                             onSourceChange={(source) =>
@@ -1559,7 +1559,7 @@ export default function ReceivingManager({
                       <p className="mt-1 font-medium">{activePurchaseOrder.poType}</p>
                     </div>
                     <div className="rounded-lg bg-muted/50 p-3">
-                      <p className="text-xs text-muted-foreground">Tanggal Input</p>
+                       <p className="text-xs text-muted-foreground">Tanggal Create</p>
                       <p className="mt-1 font-medium">
                         {formatDate(activePurchaseOrder.inputDate)}
                       </p>
@@ -1743,7 +1743,7 @@ export default function ReceivingManager({
                     Job Site
                   </th>
                   <th className="min-w-32 border-b border-e px-3 py-3 text-left">
-                    Tanggal Input
+                    Tanggal Create
                   </th>
                   <th className="min-w-32 border-b border-e px-3 py-3 text-left">Due Date</th>
                   <th className="min-w-28 border-b border-e px-3 py-3 text-left">PO Type</th>

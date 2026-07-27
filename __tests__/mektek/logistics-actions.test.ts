@@ -572,7 +572,7 @@ describe("MekTek Logistics and Receiving actions", () => {
     expect(applyCatalogStockMovement).not.toHaveBeenCalled();
   });
 
-  it("requires item name and part number for manual Receiving rows", async () => {
+  it("requires item name for manual Receiving rows", async () => {
     const result = await createMektekReceivingPurchaseOrder({
       poNumber: "RCV-MANUAL-INVALID",
       supplierName: "Supplier A",
@@ -583,17 +583,64 @@ describe("MekTek Logistics and Receiving actions", () => {
       items: [
         {
           source: "MANUAL",
-          partName: "Seal Kit Custom",
-          partNumber: "",
+          partName: "",
+          partNumber: "SK-CUSTOM-01",
           orderedQuantity: 3,
         },
       ],
     });
 
     expect(result).toEqual({
-      error: "Part Number manual baris 1 wajib diisi",
+      error: "Nama item manual baris 1 wajib diisi",
     });
     expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it("allows manual Receiving rows without a part number", async () => {
+    purchaseOrderCreate.mockResolvedValueOnce({
+      id: "receiving-manual-2",
+      poNumber: "RCV-MANUAL-002",
+      items: [],
+    });
+
+    const result = await createMektekReceivingPurchaseOrder({
+      poNumber: "RCV-MANUAL-002",
+      supplierName: "Supplier A",
+      projectName: "Workshop",
+      inputDate: "2026-07-10",
+      dueDate: "2026-07-20",
+      poType: "Normal",
+      items: [
+        {
+          source: "MANUAL",
+          partName: "Seal Kit Custom",
+          partNumber: "",
+          machine: "Komatsu PC200",
+          warehouse: "FRONT",
+          orderedQuantity: 3,
+          unitPrice: 125_000,
+        },
+      ],
+    });
+
+    expect(result).toEqual(expect.objectContaining({ data: expect.any(Object) }));
+    expect(purchaseOrderCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          flow: "RECEIVING",
+          items: {
+            create: [
+              expect.objectContaining({
+                source: "MANUAL",
+                partName: "Seal Kit Custom",
+                partNumber: null,
+                orderedQuantity: 3,
+              }),
+            ],
+          },
+        }),
+      }),
+    );
   });
 
   it("records Receiving without a delivery-note input and adds stock per item", async () => {

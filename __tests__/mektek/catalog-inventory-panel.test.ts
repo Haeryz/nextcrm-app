@@ -31,4 +31,16 @@ describe("monthly catalogue inventory panel", () => {
     expect(source).toContain('SelectItem value="OUT"');
     expect(source).toContain("/api/mektek/catalog-inventory/export?month=${month}");
   });
+
+  it("edits a per-item minimal stock threshold instead of a fixed low-stock constant", () => {
+    expect(source).not.toContain("LOW_STOCK_THRESHOLD");
+    expect(source).toContain("setMektekCatalogMinStock");
+    expect(source).toContain("Atur minimal stok");
+    expect(source).toContain("inventory.minStock");
+    expect(source).toContain("Minimal stok:");
+  });
+
+  it("moves the Stok Rendah badge out of the spreadsheet", () => {
+    expect(source).not.toContain("Stok Rendah");
+  });
 });

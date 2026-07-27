@@ -42,12 +42,13 @@ describe("sub-admin lifecycle actions", () => {
     expect(prismadb.users.create).not.toHaveBeenCalled();
   });
 
-  it("creates a non-admin account with a division", async () => {
+  it("creates a non-admin account with a division and capabilities", async () => {
     const form = new FormData();
     form.set("name", "Finance Lead");
     form.set("email", "FINANCE@example.com");
     form.set("password", "StrongPassword123!");
     form.set("staffDivision", "FINANCE");
+    form.set("staffCapabilities", "MEKTEK_FINANCE");
 
     await createSubAdmin(form);
 
@@ -58,19 +59,21 @@ describe("sub-admin lifecycle actions", () => {
         is_admin: false,
         is_account_admin: false,
         staffDivision: "FINANCE",
+        staffCapabilities: ["MEKTEK_FINANCE"],
         logisticsStaffArea: null,
         userStatus: "ACTIVE",
       }),
     });
   });
 
-  it("updates only non-admin division accounts", async () => {
+  it("updates only non-admin sub-admin accounts", async () => {
     const form = new FormData();
     form.set("id", "staff-id");
     form.set("name", "Logistics Lead");
     form.set("email", "logistics@example.com");
     form.set("staffDivision", "LOGISTICS");
     form.set("logisticsStaffArea", "RECEIVING");
+    form.set("staffCapabilities", "MEKTEK_RECEIVING");
     form.set("userStatus", "INACTIVE");
 
     await updateSubAdmin(form);
@@ -79,18 +82,22 @@ describe("sub-admin lifecycle actions", () => {
       where: {
         id: "staff-id",
         is_admin: false,
-        staffDivision: { not: null },
+        OR: [
+          { staffDivision: { not: null } },
+          { staffCapabilities: { isEmpty: false } },
+        ],
       },
       data: expect.objectContaining({
         staffDivision: "LOGISTICS",
         logisticsStaffArea: "RECEIVING",
+        staffCapabilities: ["MEKTEK_RECEIVING"],
         userStatus: "INACTIVE",
         authVersion: { increment: 1 },
       }),
     });
   });
 
-  it("requires an area when assigning the Logistics division", async () => {
+  it("requires at least one capability before creating a sub-admin", async () => {
     const form = new FormData();
     form.set("name", "Logistics Lead");
     form.set("email", "logistics@example.com");
@@ -98,12 +105,12 @@ describe("sub-admin lifecycle actions", () => {
     form.set("staffDivision", "LOGISTICS");
 
     await expect(createSubAdmin(form)).rejects.toThrow(
-      "Bagian Logistics wajib dipilih.",
+      "Pilih minimal satu kapabilitas akses sub-admin.",
     );
     expect(prismadb.users.create).not.toHaveBeenCalled();
   });
 
-  it("deletes only non-admin division accounts", async () => {
+  it("deletes only non-admin sub-admin accounts", async () => {
     const form = new FormData();
     form.set("id", "staff-id");
 
@@ -113,7 +120,10 @@ describe("sub-admin lifecycle actions", () => {
       where: {
         id: "staff-id",
         is_admin: false,
-        staffDivision: { not: null },
+        OR: [
+          { staffDivision: { not: null } },
+          { staffCapabilities: { isEmpty: false } },
+        ],
       },
     });
   });

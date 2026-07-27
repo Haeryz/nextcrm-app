@@ -43,6 +43,7 @@ type CatalogOrManualItemPickerProps = {
   excludedCatalogItemIds: ReadonlySet<string>;
   disabled?: boolean;
   requirePrice?: boolean;
+  requireManualPartNumber?: boolean;
   hideManual?: boolean;
   catalogStockMessage: string;
   manualStockMessage?: string;
@@ -65,6 +66,7 @@ export function CatalogOrManualItemPicker({
   excludedCatalogItemIds,
   disabled = false,
   requirePrice = false,
+  requireManualPartNumber = true,
   hideManual = false,
   catalogStockMessage,
   manualStockMessage = "Item manual tidak mengubah stok Catalog.",
@@ -421,7 +423,9 @@ export function CatalogOrManualItemPicker({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor={`${idPrefix}-manual-part-number`}>Part Number</Label>
+            <Label htmlFor={`${idPrefix}-manual-part-number`}>
+              Part Number{requireManualPartNumber ? "" : " (opsional)"}
+            </Label>
             <Input
               id={`${idPrefix}-manual-part-number`}
               className="h-11 rounded-lg bg-background font-mono shadow-sm"
@@ -430,7 +434,7 @@ export function CatalogOrManualItemPicker({
               placeholder="Part number"
               maxLength={120}
               disabled={disabled}
-              required
+              required={requireManualPartNumber}
             />
           </div>
         </div>

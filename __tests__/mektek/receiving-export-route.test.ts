@@ -72,7 +72,7 @@ describe("Receiving Purchase Order Excel export route", () => {
     expect(rows[1]).toEqual([
       "No",
       "Job Site / Project",
-      "Tanggal Input",
+      "Tanggal Create",
       "Due Date",
       "PO No. User",
       "PO Type",

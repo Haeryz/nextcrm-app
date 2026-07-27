@@ -18,6 +18,7 @@ function snapshot(
     openingFrontStock: 0,
     closingRearStock: 0,
     closingFrontStock: 0,
+    minStock: 0,
     openingStockEditable: false,
     totalInbound: 0,
     totalOutbound: 0,

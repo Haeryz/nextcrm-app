@@ -35,6 +35,7 @@ export async function GET(
       partNumber: item.partNumber,
       orderedQuantity: item.orderedQuantity,
       unitPrice: Number(item.agreedUnitPrice || 0),
+      note: item.note,
     })),
   });
   const filename = purchaseOrder.poNumber.replace(/[^A-Za-z0-9_-]+/g, "-");

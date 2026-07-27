@@ -24,6 +24,7 @@ export type MektekPurchaseOrderPdfData = {
     partNumber?: string | null;
     orderedQuantity: number;
     unitPrice: number;
+    note?: string | null;
   }>;
 };
 
@@ -114,6 +115,17 @@ const styles = StyleSheet.create({
     minHeight: 178,
     padding: 8,
   },
+  remarksBox: {
+    borderWidth: 1,
+    borderTopWidth: 0,
+    borderColor,
+    padding: 7,
+    minHeight: 40,
+  },
+  remarksTitle: { fontFamily: "Helvetica-Bold", marginBottom: 4 },
+  remarkLine: { flexDirection: "row", marginBottom: 2 },
+  remarkNumber: { width: 22 },
+  remarkText: { flex: 1 },
   confirmationText: { fontFamily: "Helvetica-Oblique", lineHeight: 1.35 },
   signatureRow: {
     flexDirection: "row",
@@ -219,7 +231,6 @@ function PurchaseOrderDocument({ data }: { data: MektekPurchaseOrderPdfData }) {
         <View style={styles.metaBox}>
           <InfoLine label="Product" value="Spare Part / Material" />
           <InfoLine label="Category" value={data.projectName} />
-          <InfoLine label="Remarks" value={data.notes || "-"} />
         </View>
 
         <View style={styles.table}>
@@ -261,6 +272,26 @@ function PurchaseOrderDocument({ data }: { data: MektekPurchaseOrderPdfData }) {
               Rp {formatMoney(subtotal)}
             </Text>
           </View>
+        </View>
+
+        <View style={styles.remarksBox} wrap={false}>
+          <Text style={styles.remarksTitle}>Remarks</Text>
+          {items.some((item) => item.note && item.note.trim())
+            ? items
+                .filter((item) => item.note && item.note.trim())
+                .map((item) => (
+                  <View
+                    key={`remark-${item.position}`}
+                    style={styles.remarkLine}
+                  >
+                    <Text style={styles.remarkNumber}>{item.position}.</Text>
+                    <Text style={styles.remarkText}>
+                      {item.partName}
+                      {item.note ? ` — ${item.note}` : ""}
+                    </Text>
+                  </View>
+                ))
+            : <Text>-</Text>}
         </View>
 
         <View style={styles.confirmation} wrap={false}>

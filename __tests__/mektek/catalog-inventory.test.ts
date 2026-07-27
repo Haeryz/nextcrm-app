@@ -97,6 +97,7 @@ describe("catalog inventory export", () => {
     openingFrontStock: 4,
     closingRearStock: 20,
     closingFrontStock: 7,
+    minStock: 0,
     openingStockEditable: true,
     totalInbound: 15,
     totalOutbound: 2,

@@ -1001,9 +1001,23 @@ export default function OutboundLogisticsManager({
                             setDraft((current) => ({
                               ...current,
                               inputDate: next,
-                              dueDate: next,
+                              dueDate: next > current.dueDate ? next : current.dueDate,
                             }));
                           }}
+                          disabled={isPending}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="outbound-due-date">Due Date</Label>
+                        <Input
+                          id="outbound-due-date"
+                          type="date"
+                          min={draft.inputDate}
+                          value={draft.dueDate}
+                          onChange={(event) =>
+                            updateDraft("dueDate", event.target.value)
+                          }
                           disabled={isPending}
                           required
                         />

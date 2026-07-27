@@ -45,6 +45,22 @@ enum LogisticsStaffArea {
   RECEIVING
 }
 
+enum StaffCapability {
+  MEKTEK_DASHBOARD
+  MEKTEK_SERVICE_ORDERS
+  MEKTEK_CREATE_ORDERS
+  MEKTEK_UPDATE_PROGRESS
+  MEKTEK_MANAGE_PAYMENTS
+  MEKTEK_MANAGE_SCHEDULE
+  MEKTEK_CUSTOMER_TOOLS
+  MEKTEK_CUSTOMERS
+  MEKTEK_CATALOG
+  MEKTEK_MONITORING_PO
+  MEKTEK_RECEIVING
+  MEKTEK_FINANCE
+  MEKTEK_VOUCHERS
+}
+
 enum CatalogServiceLinkSource {
   ADMIN_ASSIGN
   SELF_SERVICE
@@ -252,6 +268,7 @@ model Users {
   mektekRole         MektekStaffRole?
   staffDivision      StaffDivision?
   logisticsStaffArea LogisticsStaffArea?
+  staffCapabilities  StaffCapability[]   @default([])
   created_on         DateTime            @default(now())
   lastLoginAt        DateTime?
   name               String?
@@ -464,6 +481,7 @@ model CatalogItem {
   frontLocation     String?
   rearStock         Int                       @default(0)
   frontStock        Int                       @default(0)
+  minStock          Int                       @default(0)
   searchText        String
   createdAt         DateTime                  @default(now())
   updatedAt         DateTime                  @updatedAt

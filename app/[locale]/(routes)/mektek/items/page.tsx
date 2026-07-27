@@ -64,12 +64,14 @@ export default async function MektekCatalogItemsPage({
     rawMovementCategory === "SLOW_MOVING"
       ? rawMovementCategory
       : "";
+  const lowStock = readSearchParam(resolvedSearchParams, "lowStock") === "1" ? "1" : "";
   const page = Math.max(Number(readSearchParam(resolvedSearchParams, "page")) || 1, 1);
   const catalog = await listMektekCatalogInventoryItems({
     query,
     machine,
     productionChannel,
     movementCategory,
+    lowStock,
     page,
     pageSize: 18,
   });
@@ -82,6 +84,7 @@ export default async function MektekCatalogItemsPage({
   if (machine) queryString.set("machine", machine);
   if (productionChannel) queryString.set("channel", productionChannel);
   if (movementCategory) queryString.set("movement", movementCategory);
+  if (lowStock) queryString.set("lowStock", lowStock);
   const itemsBase = `/${locale}/mektek/items`;
   const currentQuery = queryString.toString();
 
@@ -99,7 +102,7 @@ export default async function MektekCatalogItemsPage({
       <div className="flex flex-col gap-6">
         <Card className="md:sticky md:top-0 md:z-30">
           <CardContent className="p-4">
-            <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_190px_190px_auto]">
+            <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_170px_170px_170px_auto]">
               <LiveSearchInput
                 basePath={itemsBase}
                 currentQuery={currentQuery}
@@ -140,7 +143,18 @@ export default async function MektekCatalogItemsPage({
                   { value: "SLOW_MOVING", label: "Slow Moving" },
                 ]}
               />
-              {(query || machine || productionChannel || movementCategory) && (
+              <LiveFilterSelect
+                basePath={itemsBase}
+                currentQuery={currentQuery}
+                paramName="lowStock"
+                defaultValue={lowStock}
+                ariaLabel="Filter Stok Rendah"
+                options={[
+                  { value: "ALL", label: "Semua stok" },
+                  { value: "1", label: "Stok Rendah" },
+                ]}
+              />
+              {(query || machine || productionChannel || movementCategory || lowStock) && (
                 <Button asChild type="button" variant="ghost" className="w-full lg:w-auto">
                   <Link href={itemsBase}>Reset Filter</Link>
                 </Button>

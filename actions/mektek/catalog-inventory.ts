@@ -42,6 +42,7 @@ type InventoryItemRecord = {
   frontLocation: string | null;
   rearStock: number;
   frontStock: number;
+  minStock: number;
   remark: string | null;
 };
 
@@ -130,6 +131,25 @@ async function withMovementCategoryFilter(
   return { ...where, id: { in: matchingIds } };
 }
 
+async function withLowStockFilter(
+  where: Prisma.CatalogItemWhereInput,
+  lowStock: string,
+): Promise<Prisma.CatalogItemWhereInput> {
+  if (compactText(lowStock) !== "1") return where;
+  const baseItems = await prismadb.catalogItem.findMany({
+    where,
+    select: { id: true, rearStock: true, frontStock: true, minStock: true },
+  });
+  const matchingIds = baseItems
+    .filter(
+      (item) =>
+        item.minStock > 0 &&
+        item.rearStock + item.frontStock < item.minStock,
+    )
+    .map((item) => item.id);
+  return { ...where, id: { in: matchingIds } };
+}
+
 async function ensureCatalogManager() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized: silakan Login" } as const;
@@ -187,6 +207,7 @@ function inventorySnapshot(
     rearLocation: item.rearLocation,
     frontLocation: item.frontLocation,
     ...calculated,
+    minStock: item.minStock,
     openingStockEditable:
       isRequestedMonth &&
       !!initialMonth &&
@@ -263,6 +284,7 @@ const inventoryItemSelect = {
   frontLocation: true,
   rearStock: true,
   frontStock: true,
+  minStock: true,
   remark: true,
 } satisfies Prisma.CatalogItemSelect;
 
@@ -271,6 +293,7 @@ export async function listMektekCatalogInventoryItems(input?: {
   machine?: string;
   productionChannel?: string;
   movementCategory?: string;
+  lowStock?: string;
   month?: string;
   page?: number;
   pageSize?: number;
@@ -285,11 +308,12 @@ export async function listMektekCatalogInventoryItems(input?: {
   );
   const requestedPage = Math.max(Number(input?.page) || 1, 1);
   const baseWhere = catalogWhere(input);
-  const where = await withMovementCategoryFilter(
+  const movementWhere = await withMovementCategoryFilter(
     baseWhere,
     input?.movementCategory ?? "",
     range,
   );
+  const where = await withLowStockFilter(movementWhere, input?.lowStock ?? "");
   const [totalCount, machines] = await Promise.all([
     prismadb.catalogItem.count({ where }),
     prismadb.catalogItem.findMany({
@@ -522,6 +546,37 @@ export async function setMektekCatalogOpeningStock(input: {
     return {
       error:
         error instanceof Error ? error.message : "Gagal memperbarui stok awal",
+    };
+  }
+}
+
+export async function setMektekCatalogMinStock(input: {
+  catalogItemId: string;
+  minStock: number | string;
+}) {
+  const access = await ensureCatalogManager();
+  if ("error" in access) return { error: access.error };
+
+  const catalogItemId = compactText(input?.catalogItemId);
+  const minStock = Number(input?.minStock);
+  if (!catalogItemId) return { error: "Catalogue Item wajib dipilih" };
+  if (!Number.isInteger(minStock) || minStock < 0) {
+    return { error: "Minimal stok harus berupa angka 0 atau lebih" };
+  }
+
+  try {
+    await prismadb.catalogItem.update({
+      where: { id: catalogItemId },
+      data: { minStock },
+    });
+    revalidatePath("/[locale]/(routes)/mektek/items", "page");
+    revalidatePath("/[locale]/(routes)/mektek/items/spreadsheet", "page");
+    return { data: { catalogItemId, minStock } };
+  } catch (error) {
+    console.log("[SET_MEKTEK_CATALOG_MIN_STOCK]", error);
+    return {
+      error:
+        error instanceof Error ? error.message : "Gagal memperbarui minimal stok",
     };
   }
 }

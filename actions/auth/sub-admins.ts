@@ -11,6 +11,11 @@ import {
   isLogisticsStaffArea,
   type LogisticsStaffArea,
 } from "@/lib/auth/logistics-staff-areas";
+import {
+  isStaffCapability,
+  normalizeStaffCapabilities,
+  type StaffCapability,
+} from "@/lib/auth/staff-capabilities";
 import { hashPassword } from "@/lib/password";
 import { prismadb } from "@/lib/prisma";
 
@@ -20,33 +25,43 @@ function text(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
 }
 
+function parseCapabilities(formData: FormData): StaffCapability[] {
+  const raw = formData.getAll("staffCapabilities");
+  return normalizeStaffCapabilities(raw);
+}
+
 function parseIdentity(formData: FormData) {
   const name = text(formData, "name").slice(0, 120);
   const email = text(formData, "email").toLowerCase();
   const rawDivision = text(formData, "staffDivision");
   const rawLogisticsArea = text(formData, "logisticsStaffArea");
+  const staffCapabilities = parseCapabilities(formData);
 
   if (!name) throw new Error("Nama wajib diisi.");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error("Alamat email tidak valid.");
   }
-  if (!isStaffDivision(rawDivision)) {
-    throw new Error("Divisi staff tidak valid.");
+  if (staffCapabilities.length === 0) {
+    throw new Error("Pilih minimal satu kapabilitas akses sub-admin.");
   }
 
+  // staffDivision is retained as optional metadata for grouping/display only; the
+  // authoritative access control is the capability set above. A division without
+  // an area is allowed because capabilities now drive enforcement.
+  const staffDivision = isStaffDivision(rawDivision)
+    ? (rawDivision as StaffDivision)
+    : null;
   const logisticsStaffArea =
-    rawDivision === "LOGISTICS" && isLogisticsStaffArea(rawLogisticsArea)
+    staffDivision === "LOGISTICS" && isLogisticsStaffArea(rawLogisticsArea)
       ? (rawLogisticsArea as LogisticsStaffArea)
       : null;
-  if (rawDivision === "LOGISTICS" && !logisticsStaffArea) {
-    throw new Error("Bagian Logistics wajib dipilih.");
-  }
 
   return {
     name,
     email,
-    staffDivision: rawDivision as StaffDivision,
+    staffDivision,
     logisticsStaffArea,
+    staffCapabilities,
   };
 }
 
@@ -60,7 +75,11 @@ export async function createSubAdmin(formData: FormData) {
 
   await prismadb.users.create({
     data: {
-      ...identity,
+      name: identity.name,
+      email: identity.email,
+      staffDivision: identity.staffDivision,
+      logisticsStaffArea: identity.logisticsStaffArea,
+      staffCapabilities: identity.staffCapabilities,
       username: identity.name,
       password: await hashPassword(password),
       is_admin: false,
@@ -85,9 +104,20 @@ export async function updateSubAdmin(formData: FormData) {
   }
 
   await prismadb.users.updateMany({
-    where: { id, is_admin: false, staffDivision: { not: null } },
+    where: {
+      id,
+      is_admin: false,
+      OR: [
+        { staffDivision: { not: null } },
+        { staffCapabilities: { isEmpty: false } },
+      ],
+    },
     data: {
-      ...identity,
+      name: identity.name,
+      email: identity.email,
+      staffDivision: identity.staffDivision,
+      logisticsStaffArea: identity.logisticsStaffArea,
+      staffCapabilities: identity.staffCapabilities,
       userStatus,
       authVersion: { increment: 1 },
     },
@@ -102,9 +132,17 @@ export async function deleteSubAdmin(formData: FormData) {
   if (!id) throw new Error("ID sub-admin tidak valid.");
 
   // The predicate makes the owner and any other full admin undeletable through
-  // this surface even if a forged form posts their UUID.
+  // this surface even if a forged form posts their UUID. A sub-admin is any
+  // non-admin account that carries a legacy division or an assigned capability.
   await prismadb.users.deleteMany({
-    where: { id, is_admin: false, staffDivision: { not: null } },
+    where: {
+      id,
+      is_admin: false,
+      OR: [
+        { staffDivision: { not: null } },
+        { staffCapabilities: { isEmpty: false } },
+      ],
+    },
   });
 
   revalidatePath(MANAGEMENT_PATH);

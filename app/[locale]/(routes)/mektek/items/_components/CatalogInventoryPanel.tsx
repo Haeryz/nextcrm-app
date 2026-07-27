@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useTransition } from "react";
 import {
-  AlertTriangle,
   ArrowUpDown,
   Download,
   History,
@@ -17,6 +16,7 @@ import { toast } from "sonner";
 import {
   listMektekCatalogStockMovements,
   recordMektekCatalogStockMovement,
+  setMektekCatalogMinStock,
   setMektekCatalogOpeningStock,
 } from "@/actions/mektek/catalog-inventory";
 import { Badge } from "@/components/ui/badge";
@@ -82,8 +82,6 @@ type HistoryMovement = {
   sourceId: string | null;
   consignmentSiteName: string | null;
 };
-
-const LOW_STOCK_THRESHOLD = 30;
 
 const STOCK_MOVEMENT_SOURCE_LABEL: Record<string, string> = {
   MANUAL: "Manual",
@@ -157,6 +155,10 @@ export default function CatalogInventoryPanel({
   >(null);
   const [openingRearStock, setOpeningRearStock] = useState("");
   const [openingFrontStock, setOpeningFrontStock] = useState("");
+  const [minStockItem, setMinStockItem] = useState<
+    CatalogInventoryPanelProps["items"][number] | null
+  >(null);
+  const [minStockValue, setMinStockValue] = useState("");
   const [draft, setDraft] = useState<MovementDraft>(() =>
     blankMovement(month, daysInMonth),
   );
@@ -228,6 +230,30 @@ export default function CatalogInventoryPanel({
     setOpeningItem(item);
     setOpeningRearStock(String(item.inventory.openingRearStock));
     setOpeningFrontStock(String(item.inventory.openingFrontStock));
+  };
+
+  const openMinStock = (
+    item: CatalogInventoryPanelProps["items"][number],
+  ) => {
+    setMinStockItem(item);
+    setMinStockValue(String(item.inventory.minStock ?? 0));
+  };
+
+  const submitMinStock = () => {
+    if (!minStockItem) return;
+    startTransition(async () => {
+      const result = await setMektekCatalogMinStock({
+        catalogItemId: minStockItem.id,
+        minStock: minStockValue,
+      });
+      if (!result || "error" in result) {
+        toast.error(result?.error || "Gagal memperbarui minimal stok");
+        return;
+      }
+      toast.success("Minimal stok berhasil diperbarui");
+      setMinStockItem(null);
+      router.refresh();
+    });
   };
 
   const openHistory = (
@@ -519,7 +545,9 @@ export default function CatalogInventoryPanel({
                   const inventory = item.inventory;
                   const totalClosingStock =
                     inventory.closingRearStock + inventory.closingFrontStock;
-                  const isLowStock = totalClosingStock < LOW_STOCK_THRESHOLD;
+                  const isLowStock =
+                    inventory.minStock > 0 &&
+                    totalClosingStock < inventory.minStock;
                   return (
                     <tr
                       key={item.id}
@@ -542,15 +570,12 @@ export default function CatalogInventoryPanel({
                         <p className="text-xs text-muted-foreground">
                           {inventory.machine} · {inventory.partNumber || "Tanpa part number"}
                         </p>
-                        {isLowStock && (
-                          <span
-                            className="mt-1 inline-flex items-center gap-1 rounded-md bg-orange-100 px-1.5 py-0.5 text-xs font-medium text-orange-800"
-                            title={`Total stok akhir ${totalClosingStock} di bawah ambang ${LOW_STOCK_THRESHOLD}`}
-                          >
-                            <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
-                            Stok Rendah
-                          </span>
-                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Minimal stok: {inventory.minStock ?? 0}
+                          {isLowStock
+                            ? ` · stok akhir ${totalClosingStock} di bawah ambang`
+                            : ""}
+                        </p>
                         {inventory.openingStockEditable && (
                           <Button
                             type="button"
@@ -562,6 +587,15 @@ export default function CatalogInventoryPanel({
                             Atur stok awal
                           </Button>
                         )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="mt-1 h-7 px-2 text-xs"
+                          onClick={() => openMinStock(item)}
+                        >
+                          Atur minimal stok
+                        </Button>
                       </th>
                       <td className="border-e px-3 py-3">
                         <Badge variant={inventory.productionChannel ? "secondary" : "outline"}>
@@ -866,6 +900,47 @@ export default function CatalogInventoryPanel({
               <Button type="submit" disabled={isPending}>
                 {isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
                 Simpan Stok Awal
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!minStockItem} onOpenChange={(open) => !open && setMinStockItem(null)}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Atur Minimal Stok</DialogTitle>
+            <DialogDescription>
+              {minStockItem?.description} · item berwarna saat stok akhir di bawah ambang ini.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitMinStock();
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="min-stock">Minimal stok</Label>
+              <Input
+                id="min-stock"
+                inputMode="numeric"
+                value={minStockValue}
+                onChange={(event) =>
+                  setMinStockValue(event.target.value.replace(/\D/g, ""))
+                }
+                disabled={isPending}
+                required
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Setiap item memiliki minimal stok yang berbeda. Isi 0 untuk menonaktifkan indikator stok rendah.
+            </p>
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isPending || !minStockItem}>
+                {isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
+                Simpan Minimal Stok
               </Button>
             </div>
           </form>

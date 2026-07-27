@@ -47,6 +47,7 @@ export type CatalogInventorySnapshot = {
   openingFrontStock: number;
   closingRearStock: number;
   closingFrontStock: number;
+  minStock: number;
   openingStockEditable: boolean;
   totalInbound: number;
   totalOutbound: number;

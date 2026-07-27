@@ -36,13 +36,14 @@ describe("Mektek sidebar menu", () => {
   });
 
   it.each([
-    ["MONITORING_PO", ["Catalog / Item", "Monitoring PO"]],
-    ["RECEIVING", ["Catalog / Item", "Receiving"]],
-  ] as const)("shows only Catalog and %s to scoped Logistics staff", (area, expected) => {
+    ["MONITORING_PO", ["Catalog / Item", "Monitoring PO"], ["MEKTEK_CATALOG", "MEKTEK_MONITORING_PO"] as const],
+    ["RECEIVING", ["Catalog / Item", "Receiving"], ["MEKTEK_CATALOG", "MEKTEK_RECEIVING"] as const],
+  ] as const)("shows only Catalog and %s to scoped Logistics staff", (area, expected, capabilities) => {
     const menu = getMektekMenuItems({
       isAdmin: false,
       staffDivision: "LOGISTICS",
       logisticsStaffArea: area,
+      staffCapabilities: [...capabilities],
       userStatus: "ACTIVE",
     });
     const logistics = menu.find((item) => item.title === "Logistics");

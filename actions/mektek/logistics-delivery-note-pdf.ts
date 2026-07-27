@@ -17,6 +17,7 @@ export type MektekDeliveryNoteData = {
   projectName: string;
   poNumber: string;
   picName: string;
+  isReceiving?: boolean;
   items: Array<{
     description: string;
     partNumber: string | null;
@@ -64,7 +65,7 @@ const styles = StyleSheet.create({
   },
   documentTitle: { fontFamily: "Helvetica-Bold", fontSize: 13 },
   documentNumber: { fontFamily: "Helvetica-Bold", fontSize: 12 },
-  documentDate: { fontSize: 8.5 },
+  documentDate: { fontFamily: "Helvetica-Bold", fontSize: 13 },
   table: { borderWidth: 1, borderColor: "#111827" },
   row: { flexDirection: "row" },
   headerRow: { flexDirection: "row", backgroundColor: "#f3f4f6" },
@@ -134,7 +135,7 @@ function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
           { style: styles.recipient },
           React.createElement(Text, { style: styles.recipientLabel }, "KEPADA YTH:"),
           React.createElement(Text, { style: styles.recipientLine }, data.recipientName),
-          React.createElement(Text, { style: styles.recipientLine }, `PROJECT: ${data.projectName}`),
+          React.createElement(Text, { style: styles.recipientLine }, `${data.isReceiving ? "PROJECT" : "JOBSITE/PROJECT"}: ${data.projectName}`),
           React.createElement(Text, { style: styles.recipientLine }, `PO: ${data.poNumber}`),
           React.createElement(Text, { style: styles.recipientLine }, `PIC: ${data.picName}`),
         ),
@@ -196,20 +197,17 @@ function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
           React.createElement(View, { style: styles.signatureSpace }),
           React.createElement(View, { style: styles.signatureLine }),
           React.createElement(Text, { style: styles.signatureLabel }, "Nama & tanda tangan"),
-          React.createElement(
-            Text,
-            { style: styles.signatureLabel },
-            `Tanggal terima: ${dateFormatter.format(data.receivedAt)}`,
-          ),
         ),
-        React.createElement(
-          View,
-          { style: styles.signature },
-          React.createElement(Text, null, "Logistics MekTek"),
-          React.createElement(View, { style: styles.signatureSpace }),
-          React.createElement(View, { style: styles.signatureLine }),
-          React.createElement(Text, { style: styles.signatureLabel }, "Nama & tanda tangan"),
-        ),
+        data.isReceiving
+          ? null
+          : React.createElement(
+              View,
+              { style: styles.signature },
+              React.createElement(Text, null, "Logistics MekTek"),
+              React.createElement(View, { style: styles.signatureSpace }),
+              React.createElement(View, { style: styles.signatureLine }),
+              React.createElement(Text, { style: styles.signatureLabel }, "Nama & tanda tangan"),
+            ),
       ),
       React.createElement(
         Text,

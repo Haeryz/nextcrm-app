@@ -1,0 +1,12 @@
+- Jenis pelanggan bisa langsung dipilih waktu pembuatan order service (CS) 
+- Part number receiving opsional
+- Due date dikembalikan di buat monitoring PO
+- Tulisan Tanggal input di receiving ganti tanggal create
+- di pdf SJ receiving ttd bagian kanan dihapus
+- tanggal pada ttd di kiri di Surat Jalan Monitoring PO dan Surat Jalan Tanda Terima dihilangkan
+- Tanggal Yang ada di Kanan Atas tabel dari PDF Surat Jalan Monitoring PO dan Surat Jalan Tanda Terima, diperbesar (font size nya disamakan sama font SURAT JALAN)
+- di Receiving pada PDF Surat Jalan Tanda Terima hanya ada TTD Penerima. 
+- remarks yang ada pada PDF Purchase order dipindah ke bagian bawah per item
+- PROJECT ... yang ada pada bagian PDF SJ monitoring PO diganti JOBSITE/PROJECT
+- indikasi Stok Rendah yang ada di spreadsheet inventory dipindah ke catalogue/item. sekalian sama filternya
+- di bagian catat mutasi stok atau manual input barang ditambahkan minimal stok yang mengindikasikan barang tersebut stoknya sedikit. Jadi bisa edit minimal quantity per item pada spraedsheet inventory, jadi hal tersebut digunakan karena minimal stok per item itu beda beda. minimal stok item ini yang jika misalkan item tesrebut dibawah (lets say dibawah 20 dan yang lainnya) maka warna nya akan berganti. Tiap item memiliki minimal stok yang berbeda

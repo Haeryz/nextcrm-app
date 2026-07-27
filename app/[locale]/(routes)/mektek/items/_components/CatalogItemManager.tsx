@@ -4,6 +4,7 @@ import { useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   Edit,
   FileSpreadsheet,
   ImagePlus,
@@ -59,6 +60,7 @@ type CatalogItemRow = {
   frontLocation: string | null;
   rearStock: number;
   frontStock: number;
+  minStock: number;
   remark: string | null;
   inventory: Pick<CatalogInventorySnapshot, "totalOutbound">;
 };
@@ -577,6 +579,16 @@ export default function CatalogItemManager({
               <div className="min-w-0">
                 <p className="truncate font-medium">{item.description}</p>
                 <p className="text-sm text-muted-foreground">{formatPrice(item.price)}</p>
+                {item.minStock > 0 &&
+                  item.rearStock + item.frontStock < item.minStock && (
+                    <span
+                      className="mt-1 inline-flex items-center gap-1 rounded-md bg-orange-100 px-1.5 py-0.5 text-xs font-medium text-orange-800"
+                      title={`Total stok ${item.rearStock + item.frontStock} di bawah minimal ${item.minStock}`}
+                    >
+                      <AlertTriangle className="size-3 shrink-0" aria-hidden="true" />
+                      Stok Rendah
+                    </span>
+                  )}
               </div>
               <div>
                 <Badge variant={item.productionChannel ? "secondary" : "outline"}>

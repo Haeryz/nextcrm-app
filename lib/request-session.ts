@@ -46,6 +46,7 @@ export async function getRequestSessionUser(
     mektekRole: user.mektekRole,
     staffDivision: user.staffDivision,
     logisticsStaffArea: user.logisticsStaffArea,
+    staffCapabilities: user.staffCapabilities ?? [],
     userLanguage: user.userLanguage,
     userStatus: user.userStatus,
     lastLoginAt: user.lastLoginAt,

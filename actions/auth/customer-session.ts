@@ -68,6 +68,7 @@ export async function loginCustomer(input: CustomerLoginInput) {
           is_admin: true,
           mektekRole: true,
           staffDivision: true,
+          staffCapabilities: true,
           userStatus: true,
           customerProfile: { select: { id: true } },
         },
@@ -88,6 +89,7 @@ export async function loginCustomer(input: CustomerLoginInput) {
       !user.is_admin &&
       user.mektekRole === null &&
       !user.staffDivision &&
+      (!user.staffCapabilities || user.staffCapabilities.length === 0) &&
       user.customerProfile,
   );
 
