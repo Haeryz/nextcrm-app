@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import type { Session } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { getServerSession } from "@/lib/session";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
+import { hasMektekCapability } from "@/lib/mektek/permissions";
+import { getServerSession } from "@/lib/session";
 
 type SessionUser = NonNullable<Session["user"]>;
 
@@ -41,5 +42,17 @@ export async function requireAdmin(): Promise<SessionUser> {
 export async function requireMektekStaff(): Promise<SessionUser> {
   const user = await requireUser();
   if (!canAccessMektekStaffArea(user)) redirect("/");
+  return user;
+}
+
+/** Admin or Customer Service staff (for Technician directory management). */
+export async function requireMektekCustomerServiceStaff(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (
+    !user.isAdmin &&
+    !hasMektekCapability(user, "MEKTEK_CUSTOMER_SERVICE")
+  ) {
+    redirect("/");
+  }
   return user;
 }

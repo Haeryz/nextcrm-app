@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireAdmin } from "@/lib/auth-guards";
+import { requireMektekCustomerServiceStaff } from "@/lib/auth-guards";
 import {
   isMektekTechnicianRole,
   type MektekTechnicianRole,
@@ -31,7 +31,7 @@ function parseTechnician(formData: FormData) {
 }
 
 export async function createMektekTechnician(formData: FormData) {
-  await requireAdmin();
+  await requireMektekCustomerServiceStaff();
   const technician = parseTechnician(formData);
   await prismadb.mektekTechnician.create({
     data: { ...technician, isActive: true },
@@ -41,7 +41,7 @@ export async function createMektekTechnician(formData: FormData) {
 }
 
 export async function updateMektekTechnician(formData: FormData) {
-  await requireAdmin();
+  await requireMektekCustomerServiceStaff();
   const id = text(formData, "id");
   if (!id) throw new Error("ID technician tidak valid.");
   const technician = parseTechnician(formData);
@@ -55,7 +55,7 @@ export async function updateMektekTechnician(formData: FormData) {
 }
 
 export async function deleteMektekTechnician(formData: FormData) {
-  await requireAdmin();
+  await requireMektekCustomerServiceStaff();
   const id = text(formData, "id");
   if (!id) throw new Error("ID technician tidak valid.");
   await prismadb.mektekTechnician.deleteMany({ where: { id } });

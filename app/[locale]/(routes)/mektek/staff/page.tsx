@@ -3,16 +3,28 @@ import {
   deleteSubAdmin,
   updateSubAdmin,
 } from "@/actions/auth/sub-admins";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requireAdmin } from "@/lib/auth-guards";
+import {
+  STAFF_DIVISION_LABELS,
+  type StaffDivision,
+} from "@/lib/auth/staff-divisions";
+import {
+  STAFF_CAPABILITY_LABELS,
+  type StaffCapability,
+} from "@/lib/auth/staff-capabilities";
+import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 import { prismadb } from "@/lib/prisma";
 import StaffActionForm from "./_components/StaffActionForm";
 import StaffCapabilityFields from "./_components/StaffCapabilityFields";
 import StaffSubmitButton from "./_components/StaffSubmitButton";
 
-const selectClass =
-  "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm";
+const LOGISTICS_STAFF_AREA_LABELS: Record<LogisticsStaffArea, string> = {
+  MONITORING_PO: "Monitoring PO",
+  RECEIVING: "Receiving",
+};
 
 export default async function StaffManagementPage() {
   await requireAdmin();
@@ -130,29 +142,6 @@ export default async function StaffManagementPage() {
                   required
                   aria-label={`Email sub-admin ${member.email}`}
                 />
-                <select
-                  name="staffDivision"
-                  className={selectClass}
-                  defaultValue={member.staffDivision ?? ""}
-                  aria-label={`Divisi sub-admin ${member.email}`}
-                >
-                  <option value="">Tanpa divisi</option>
-                  <option value="OPERATIONS">Operations</option>
-                  <option value="CUSTOMER_SERVICE">Customer Service</option>
-                  <option value="TECHNICAL">Technical</option>
-                  <option value="LOGISTICS">Logistics</option>
-                  <option value="FINANCE">Finance</option>
-                  <option value="HUMAN_RESOURCES">Human Resources</option>
-                </select>
-                <select
-                  name="userStatus"
-                  className={selectClass}
-                  defaultValue={member.userStatus}
-                  aria-label={`Status akun ${member.name ?? member.email}`}
-                >
-                  <option value="ACTIVE">Aktif</option>
-                  <option value="INACTIVE">Nonaktif</option>
-                </select>
                 <StaffCapabilityFields
                   defaultCapabilities={member.staffCapabilities}
                 />
@@ -162,10 +151,26 @@ export default async function StaffManagementPage() {
                   variant="secondary"
                 />
               </StaffActionForm>
-              <div className="mt-3 flex items-center justify-between gap-4 text-xs text-muted-foreground">
-                <span>
-                  Login terakhir: {member.lastLoginAt?.toLocaleString("id-ID") ?? "Belum pernah"}
-                </span>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-4 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>
+                    Login terakhir: {member.lastLoginAt?.toLocaleString("id-ID") ?? "Belum pernah"}
+                  </span>
+                  {member.staffDivision && (
+                    <Badge variant="outline" className="text-xs">
+                      Divisi: {STAFF_DIVISION_LABELS[member.staffDivision]}
+                      {member.logisticsStaffArea
+                        ? ` · ${LOGISTICS_STAFF_AREA_LABELS[member.logisticsStaffArea]}`
+                        : ""}
+                    </Badge>
+                  )}
+                  <Badge
+                    variant={member.userStatus === "ACTIVE" ? "default" : "secondary"}
+                    className="text-xs"
+                  >
+                    {member.userStatus === "ACTIVE" ? "Aktif" : "Nonaktif"}
+                  </Badge>
+                </div>
                 <StaffActionForm
                   action={deleteSubAdmin}
                   successMessage="Sub-admin berhasil dihapus."

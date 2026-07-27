@@ -3,16 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import { requireAdmin } from "@/lib/auth-guards";
+import type { StaffDivision } from "@/lib/auth/staff-divisions";
+import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 import {
-  isStaffDivision,
-  type StaffDivision,
-} from "@/lib/auth/staff-divisions";
-import {
-  isLogisticsStaffArea,
-  type LogisticsStaffArea,
-} from "@/lib/auth/logistics-staff-areas";
-import {
-  isStaffCapability,
   normalizeStaffCapabilities,
   type StaffCapability,
 } from "@/lib/auth/staff-capabilities";
@@ -30,11 +23,36 @@ function parseCapabilities(formData: FormData): StaffCapability[] {
   return normalizeStaffCapabilities(raw);
 }
 
+// Auto-derive the display-only division and logistics area from the selected
+// capabilities. The capability set is the authoritative access control; the
+// division is retained as metadata for grouping/display only.
+function deriveDivisionFromCapabilities(
+  capabilities: StaffCapability[],
+): { staffDivision: StaffDivision | null; logisticsStaffArea: LogisticsStaffArea | null } {
+  if (capabilities.includes("MEKTEK_MONITORING_PO")) {
+    return { staffDivision: "LOGISTICS", logisticsStaffArea: "MONITORING_PO" };
+  }
+  if (capabilities.includes("MEKTEK_RECEIVING")) {
+    return { staffDivision: "LOGISTICS", logisticsStaffArea: "RECEIVING" };
+  }
+  if (capabilities.includes("MEKTEK_CATALOG")) {
+    return { staffDivision: "LOGISTICS", logisticsStaffArea: null };
+  }
+  if (
+    capabilities.includes("MEKTEK_FINANCE") ||
+    capabilities.includes("MEKTEK_ACCOUNTING")
+  ) {
+    return { staffDivision: "FINANCE", logisticsStaffArea: null };
+  }
+  if (capabilities.includes("MEKTEK_CUSTOMER_SERVICE")) {
+    return { staffDivision: "CUSTOMER_SERVICE", logisticsStaffArea: null };
+  }
+  return { staffDivision: null, logisticsStaffArea: null };
+}
+
 function parseIdentity(formData: FormData) {
   const name = text(formData, "name").slice(0, 120);
   const email = text(formData, "email").toLowerCase();
-  const rawDivision = text(formData, "staffDivision");
-  const rawLogisticsArea = text(formData, "logisticsStaffArea");
   const staffCapabilities = parseCapabilities(formData);
 
   if (!name) throw new Error("Nama wajib diisi.");
@@ -45,16 +63,11 @@ function parseIdentity(formData: FormData) {
     throw new Error("Pilih minimal satu kapabilitas akses sub-admin.");
   }
 
-  // staffDivision is retained as optional metadata for grouping/display only; the
-  // authoritative access control is the capability set above. A division without
-  // an area is allowed because capabilities now drive enforcement.
-  const staffDivision = isStaffDivision(rawDivision)
-    ? (rawDivision as StaffDivision)
-    : null;
-  const logisticsStaffArea =
-    staffDivision === "LOGISTICS" && isLogisticsStaffArea(rawLogisticsArea)
-      ? (rawLogisticsArea as LogisticsStaffArea)
-      : null;
+  // The division and logistics area are auto-derived from the capability set so
+  // the admin only needs to pick capabilities — the dropdown is removed from
+  // the form. The division is metadata for display; capabilities drive access.
+  const { staffDivision, logisticsStaffArea } =
+    deriveDivisionFromCapabilities(staffCapabilities);
 
   return {
     name,
@@ -93,15 +106,16 @@ export async function createSubAdmin(formData: FormData) {
   revalidatePath(MANAGEMENT_PATH);
 }
 
+// Updating a sub-admin only changes identity and capabilities — it must NOT
+// touch userStatus. The admin accidentally disabling an account while only
+// trying to change access was a real bug: the old form included a userStatus
+// select that could silently send INACTIVE. Status changes are now a separate
+// concern from capability changes.
 export async function updateSubAdmin(formData: FormData) {
   await requireAdmin();
   const id = text(formData, "id");
   const identity = parseIdentity(formData);
-  const userStatus = text(formData, "userStatus");
   if (!id) throw new Error("ID sub-admin tidak valid.");
-  if (userStatus !== "ACTIVE" && userStatus !== "INACTIVE") {
-    throw new Error("Status sub-admin tidak valid.");
-  }
 
   await prismadb.users.updateMany({
     where: {
@@ -118,7 +132,6 @@ export async function updateSubAdmin(formData: FormData) {
       staffDivision: identity.staffDivision,
       logisticsStaffArea: identity.logisticsStaffArea,
       staffCapabilities: identity.staffCapabilities,
-      userStatus,
       authVersion: { increment: 1 },
     },
   });

@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { requireAdmin } from "@/lib/auth-guards";
+import { requireMektekCustomerServiceStaff } from "@/lib/auth-guards";
 import {
   MEKTEK_TECHNICIAN_ROLES,
   MEKTEK_TECHNICIAN_ROLE_LABELS,
@@ -31,7 +31,7 @@ import { prismadb } from "@/lib/prisma";
 import { Save, Trash2, UserPlus, UsersRound, Wrench } from "lucide-react";
 
 export default async function TechnicianManagementPage() {
-  await requireAdmin();
+  await requireMektekCustomerServiceStaff();
   const technicians = await prismadb.mektekTechnician.findMany({
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
   });

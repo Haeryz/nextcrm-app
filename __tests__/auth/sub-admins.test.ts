@@ -66,15 +66,12 @@ describe("sub-admin lifecycle actions", () => {
     });
   });
 
-  it("updates only non-admin sub-admin accounts", async () => {
+  it("updates only non-admin sub-admin accounts (capabilities only, no status change)", async () => {
     const form = new FormData();
     form.set("id", "staff-id");
     form.set("name", "Logistics Lead");
     form.set("email", "logistics@example.com");
-    form.set("staffDivision", "LOGISTICS");
-    form.set("logisticsStaffArea", "RECEIVING");
     form.set("staffCapabilities", "MEKTEK_RECEIVING");
-    form.set("userStatus", "INACTIVE");
 
     await updateSubAdmin(form);
 
@@ -88,13 +85,18 @@ describe("sub-admin lifecycle actions", () => {
         ],
       },
       data: expect.objectContaining({
+        name: "Logistics Lead",
+        email: "logistics@example.com",
         staffDivision: "LOGISTICS",
         logisticsStaffArea: "RECEIVING",
         staffCapabilities: ["MEKTEK_RECEIVING"],
-        userStatus: "INACTIVE",
         authVersion: { increment: 1 },
       }),
     });
+    // The update must NOT change userStatus — only capabilities and identity.
+    const updateCall = (prismadb.users.updateMany as jest.Mock).mock
+      .calls[0][0];
+    expect(updateCall.data).not.toHaveProperty("userStatus");
   });
 
   it("requires at least one capability before creating a sub-admin", async () => {

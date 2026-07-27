@@ -1,4 +1,6 @@
-jest.mock("@/lib/auth-guards", () => ({ requireAdmin: jest.fn() }));
+jest.mock("@/lib/auth-guards", () => ({
+  requireMektekCustomerServiceStaff: jest.fn(),
+}));
 jest.mock("next/cache", () => ({ revalidatePath: jest.fn() }));
 jest.mock("@/lib/prisma", () => ({
   prismadb: {
@@ -10,7 +12,7 @@ jest.mock("@/lib/prisma", () => ({
   },
 }));
 
-import { requireAdmin } from "@/lib/auth-guards";
+import { requireMektekCustomerServiceStaff } from "@/lib/auth-guards";
 import { prismadb } from "@/lib/prisma";
 import {
   createMektekTechnician,
@@ -23,12 +25,12 @@ import {
   validateMektekTechnicianIds,
 } from "@/lib/mektek/technicians";
 
-const mockedRequireAdmin = requireAdmin as jest.Mock;
+const mockedRequireStaff = requireMektekCustomerServiceStaff as jest.Mock;
 
 describe("Mektek technician directory", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedRequireAdmin.mockResolvedValue({ id: "owner", isAdmin: true });
+    mockedRequireStaff.mockResolvedValue({ id: "owner", isAdmin: true });
   });
 
   it("defines the supplied initial roster exactly", () => {
@@ -60,7 +62,7 @@ describe("Mektek technician directory", () => {
 
     await createMektekTechnician(form);
 
-    expect(mockedRequireAdmin).toHaveBeenCalled();
+    expect(mockedRequireStaff).toHaveBeenCalled();
     expect(prismadb.mektekTechnician.create).toHaveBeenCalledWith({
       data: { name: "Budi", role: "HELPER", isActive: true },
     });
@@ -87,8 +89,8 @@ describe("Mektek technician directory", () => {
     });
   });
 
-  it("does not mutate when the current user is not the main admin", async () => {
-    mockedRequireAdmin.mockRejectedValueOnce(new Error("NEXT_REDIRECT"));
+  it("does not mutate when the current user is not authorized", async () => {
+    mockedRequireStaff.mockRejectedValueOnce(new Error("NEXT_REDIRECT"));
     const form = new FormData();
     form.set("name", "Budi");
     form.set("role", "HELPER");

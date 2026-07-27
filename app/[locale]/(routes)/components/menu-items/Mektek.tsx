@@ -130,13 +130,15 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
     });
   }
 
-  if (user?.isAdmin) {
+  if (hasMektekCapability(user, "MEKTEK_CUSTOMER_SERVICE")) {
     items.push({
       title: "Technician",
       url: "/mektek/technicians",
       icon: Wrench,
     });
+  }
 
+  if (user?.isAdmin) {
     items.push({
       title: "Sub-admin",
       url: "/mektek/staff",
