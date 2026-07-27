@@ -1,10 +1,9 @@
 import type { NextRequest } from "next/server";
 
-import { authOptions } from "@/lib/auth";
 import { canViewMektekFinance } from "@/lib/mektek/permissions";
 import { parseSupplierPayableSnapshot } from "@/lib/mektek/supplier-payment";
 import { prismadb } from "@/lib/prisma";
-import { getServerSession } from "@/lib/session";
+import { getRequestSessionUser } from "@/lib/request-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,15 +23,15 @@ const safeDocumentName = (value: string) =>
   "dokumen";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   {
     params,
   }: {
     params: Promise<{ sourceId: string; document: string }>;
   },
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id || !canViewMektekFinance(session.user)) {
+  const user = await getRequestSessionUser(request);
+  if (!user?.id || !canViewMektekFinance(user)) {
     return new Response("Forbidden", { status: 403 });
   }
 

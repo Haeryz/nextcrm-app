@@ -25,7 +25,9 @@ import {
 } from "@/lib/mektek/catalog-stock-ledger";
 import { canManageMektekCatalog } from "@/lib/mektek/permissions";
 import { prismadb } from "@/lib/prisma";
+import { getRequestSessionUser } from "@/lib/request-session";
 import { getServerSession } from "@/lib/session";
+import type { Session } from "next-auth";
 
 const DEFAULT_PAGE_SIZE = 18;
 
@@ -150,8 +152,17 @@ async function withLowStockFilter(
   return { ...where, id: { in: matchingIds } };
 }
 
-async function ensureCatalogManager() {
-  const session = await getServerSession(authOptions);
+async function ensureCatalogManager(request?: Request) {
+  let session: Session | null = await getServerSession(authOptions);
+  if (!session?.user?.id && request) {
+    const user = await getRequestSessionUser(request);
+    if (user?.id) {
+      session = {
+        user,
+        expires: new Date(Date.now() + 1000 * 60 * 60).toISOString(),
+      } as Session;
+    }
+  }
   if (!session?.user?.id) return { error: "Unauthorized: silakan Login" } as const;
   if (!canManageMektekCatalog(session.user)) {
     return {
@@ -581,8 +592,11 @@ export async function setMektekCatalogMinStock(input: {
   }
 }
 
-export async function getMektekCatalogInventoryExportData(month?: string) {
-  const access = await ensureCatalogManager();
+export async function getMektekCatalogInventoryExportData(
+  month?: string,
+  request?: Request,
+) {
+  const access = await ensureCatalogManager(request);
   if ("error" in access) throw new Error(access.error);
   const range = resolveMonth(month);
   const items = await prismadb.catalogItem.findMany({

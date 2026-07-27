@@ -88,7 +88,7 @@ function buildWorksheet(
 }
 
 export async function GET(request: Request) {
-  const access = await requireMektekLogisticsApiSession("MONITORING_PO");
+  const access = await requireMektekLogisticsApiSession("MONITORING_PO", request);
   if (access.response) return access.response;
   const searchParams = new URL(request.url).searchParams;
   const month = searchParams.get("month") ?? "";

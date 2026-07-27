@@ -53,7 +53,10 @@ describe("Receiving Purchase Order Excel export route", () => {
       { header: 1 },
     );
 
-    expect(requireMektekLogisticsApiSession).toHaveBeenCalledWith("RECEIVING");
+    expect(requireMektekLogisticsApiSession).toHaveBeenCalledWith(
+      "RECEIVING",
+      expect.any(Request),
+    );
     expect(findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({

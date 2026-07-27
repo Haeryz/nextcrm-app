@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const month = new URL(request.url).searchParams.get("month") ?? undefined;
 
   try {
-    const inventory = await getMektekCatalogInventoryExportData(month);
+    const inventory = await getMektekCatalogInventoryExportData(month, request);
     const table = buildCatalogInventoryExportTable(
       inventory.snapshots,
       inventory.month,

@@ -10,10 +10,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const access = await requireMektekLogisticsApiSession("RECEIVING");
+  const access = await requireMektekLogisticsApiSession("RECEIVING", request);
   if (access.response) return access.response;
 
   const { id } = await params;
@@ -44,8 +44,8 @@ export async function GET(
   const isReceiving =
     request.nextUrl.searchParams.get("flow")?.toLowerCase() === "receiving";
   const access = isReceiving
-    ? await requireMektekLogisticsApiSession("RECEIVING")
-    : await requireMektekLogisticsApiSession("MONITORING_PO");
+    ? await requireMektekLogisticsApiSession("RECEIVING", request)
+    : await requireMektekLogisticsApiSession("MONITORING_PO", request);
   if (access.response) return access.response;
   const { id } = await params;
   const reference = request.nextUrl.searchParams.get("reference")?.trim() || null;

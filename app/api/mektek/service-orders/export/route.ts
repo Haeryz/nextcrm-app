@@ -10,7 +10,7 @@ import {
 export async function GET(request: Request) {
   try {
     const month = new URL(request.url).searchParams.get("month") ?? undefined;
-    const data = await getMektekServiceOrderExportData(month);
+    const data = await getMektekServiceOrderExportData(month, request);
     const rows = buildMektekServiceOrderExportRows(data.orders);
     const summaryRows = buildMektekServiceOrderExportSummary(rows, data.month);
     const worksheet = XLSX.utils.json_to_sheet(rows, {

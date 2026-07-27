@@ -1,18 +1,17 @@
 import { NextResponse } from "next/server";
 
 import { renderFinanceInvoicePdf } from "@/actions/mektek/finance-invoice-pdf";
-import { authOptions } from "@/lib/auth";
 import { canViewMektekFinance } from "@/lib/mektek/permissions";
 import { isFinanceInvoiceSigner } from "@/lib/mektek/finance-invoice-signers";
 import { prismadb } from "@/lib/prisma";
-import { getServerSession } from "@/lib/session";
+import { getRequestSessionUser } from "@/lib/request-session";
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id || !canViewMektekFinance(session.user)) {
+  const user = await getRequestSessionUser(request);
+  if (!user?.id || !canViewMektekFinance(user)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

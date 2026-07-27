@@ -44,10 +44,10 @@ describe("Logistics sub-admin scope contract", () => {
       'canManageMektekLogistics(session?.user, "RECEIVING")',
     );
     expect(deliveryNoteRoute).toContain(
-      'requireMektekLogisticsApiSession("MONITORING_PO")',
+      'requireMektekLogisticsApiSession("MONITORING_PO", request)',
     );
     expect(receivingPdfRoute).toContain(
-      'requireMektekLogisticsApiSession("RECEIVING")',
+      'requireMektekLogisticsApiSession("RECEIVING", request)',
     );
   });
 

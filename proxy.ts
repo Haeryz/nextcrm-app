@@ -18,20 +18,6 @@ const ADMIN_ONLY_PATHS = [
 ];
 const MEKTEK_CUSTOMER_TOOL_PATHS = ["/api/whatsapp"];
 
-// Defense-in-depth: verify the request carries a valid JWT. The route handlers
-// re-check capabilities against the live database (JWT.staffCapabilities may be
-// stale for sessions issued before the staff-capabilities migration). We only
-// gate on authentication here; capability enforcement is the route handler's
-// job so stale JWTs never block legitimate sub-admins.
-const MEKTEK_CAPABILITY_PATHS: Array<{ prefix: string; capability: string }> = [
-  { prefix: "/api/mektek/finance", capability: "MEKTEK_FINANCE" },
-  { prefix: "/api/mektek/receiving", capability: "MEKTEK_RECEIVING" },
-  { prefix: "/api/mektek/logistics", capability: "MEKTEK_MONITORING_PO" },
-  { prefix: "/api/mektek/catalog-items", capability: "MEKTEK_CATALOG" },
-  { prefix: "/api/mektek/catalog-inventory", capability: "MEKTEK_CATALOG" },
-  { prefix: "/api/mektek/service-orders", capability: "MEKTEK_SERVICE_ORDERS" },
-];
-
 export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
 
@@ -82,20 +68,12 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Mektek API defense-in-depth: verify the request is authenticated. The
-  // route handlers re-check capabilities against the live database, so we only
-  // gate on authentication here. A stale JWT (staffCapabilities from before
-  // the migration) still passes because the route handler does the real check.
-  const mektekMatch = MEKTEK_CAPABILITY_PATHS.find((entry) =>
-    path.startsWith(entry.prefix),
-  );
-  if (mektekMatch) {
-    const token = await getToken({ req, secret: AUTH_SECRET });
-    if (!token) {
-      return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
-    }
-    return NextResponse.next();
-  }
+  // Mektek API routes: authentication and capability enforcement is handled by
+  // each route handler via getServerSession / getRequestSessionUser, which
+  // re-check against the live database. The middleware does NOT gate these
+  // paths because getToken() on the Vercel Edge runtime can fail to decode the
+  // JWT cookie, causing false "Unauthenticated" 401s that block all file
+  // viewing, PDF generation, and Excel exports after deploy.
 
   // Non-API routes — delegate to next-intl
   return intlMiddleware(req);
@@ -111,13 +89,6 @@ export const config = {
     "/api/user/inviteuser",
     "/api/admin/:path*",
     "/api/whatsapp/:path*",
-    // Mektek API defense-in-depth
-    "/api/mektek/finance/:path*",
-    "/api/mektek/receiving/:path*",
-    "/api/mektek/logistics/:path*",
-    "/api/mektek/catalog-items/:path*",
-    "/api/mektek/catalog-inventory/:path*",
-    "/api/mektek/service-orders/:path*",
     // All non-API routes (existing intl matcher)
     "/((?!api|trpc|_next|_vercel|.*\\..*).*)",
   ],

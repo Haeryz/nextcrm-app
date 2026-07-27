@@ -1,6 +1,6 @@
 "use server";
 
-import { authOptions } from "@/lib/auth";
+import type { Session } from "next-auth";
 import {
   getMektekServiceOrderExportMonthKey,
   getMektekServiceOrderExportMonthRange,
@@ -8,10 +8,23 @@ import {
 import { mektekOrderWhere, mektekPaymentSelect } from "@/lib/mektek/orders";
 import { canViewMektekOrders } from "@/lib/mektek/permissions";
 import { prismadb } from "@/lib/prisma";
+import { getRequestSessionUser } from "@/lib/request-session";
 import { getServerSession } from "@/lib/session";
 
-export async function getMektekServiceOrderExportData(month?: string) {
-  const session = await getServerSession(authOptions);
+export async function getMektekServiceOrderExportData(
+  month?: string,
+  request?: Request,
+) {
+  let session: Session | null = await getServerSession();
+  if (!session?.user?.id && request) {
+    const user = await getRequestSessionUser(request);
+    if (user?.id) {
+      session = {
+        user,
+        expires: new Date(Date.now() + 1000 * 60 * 60).toISOString(),
+      } as Session;
+    }
+  }
   if (!session?.user?.id || !canViewMektekOrders(session.user)) {
     throw new Error("Forbidden");
   }

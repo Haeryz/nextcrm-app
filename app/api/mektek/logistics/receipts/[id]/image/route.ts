@@ -33,8 +33,8 @@ function canAccessReceiptFlow(
   );
 }
 
-export async function GET(_request: Request, { params }: RouteContext) {
-  const access = await requireMektekLogisticsApiSession();
+export async function GET(request: Request, { params }: RouteContext) {
+  const access = await requireMektekLogisticsApiSession(undefined, request);
   if (access.response) return access.response;
 
   const { id } = await params;
@@ -78,7 +78,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 }
 
 export async function PUT(request: Request, { params }: RouteContext) {
-  const access = await requireMektekLogisticsApiSession();
+  const access = await requireMektekLogisticsApiSession(undefined, request);
   if (access.response) return access.response;
 
   const { id } = await params;

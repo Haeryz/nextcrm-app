@@ -1,13 +1,14 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
+import type { Session } from "next-auth";
 
-import { authOptions } from "@/lib/auth";
 import {
   MAX_CATALOG_IMAGE_BYTES,
   validateCatalogImageUpload,
 } from "@/lib/mektek/catalog-image-upload";
 import { canCreateMektekOrders } from "@/lib/mektek/permissions";
 import { prismadb } from "@/lib/prisma";
+import { getRequestSessionUser } from "@/lib/request-session";
 import { getServerSession } from "@/lib/session";
 
 type RouteContext = {
@@ -21,8 +22,17 @@ function noImageResponse() {
   });
 }
 
-async function authorizeUpload() {
-  const session = await getServerSession(authOptions);
+async function authorizeUpload(request?: Request) {
+  let session: Session | null = await getServerSession();
+  if (!session?.user?.id && request) {
+    const user = await getRequestSessionUser(request);
+    if (user?.id) {
+      session = {
+        user,
+        expires: new Date(Date.now() + 1000 * 60 * 60).toISOString(),
+      } as Session;
+    }
+  }
   if (!session?.user?.id) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
@@ -67,7 +77,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 }
 
 export async function PUT(request: Request, { params }: RouteContext) {
-  const access = await authorizeUpload();
+  const access = await authorizeUpload(request);
   if ("error" in access) return access.error;
 
   const declaredLength = Number(request.headers.get("content-length"));
@@ -106,8 +116,8 @@ export async function PUT(request: Request, { params }: RouteContext) {
   });
 }
 
-export async function DELETE(_request: Request, { params }: RouteContext) {
-  const access = await authorizeUpload();
+export async function DELETE(request: Request, { params }: RouteContext) {
+  const access = await authorizeUpload(request);
   if ("error" in access) return access.error;
 
   const { id } = await params;

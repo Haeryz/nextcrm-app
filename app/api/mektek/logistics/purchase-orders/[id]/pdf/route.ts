@@ -12,7 +12,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const access = await requireMektekLogisticsApiSession("RECEIVING");
+  const access = await requireMektekLogisticsApiSession("RECEIVING", request);
   if (access.response) return access.response;
   const { id } = await params;
   const limit = checkRateLimit(

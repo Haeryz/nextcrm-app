@@ -35,13 +35,21 @@ export async function requireMektekStaffApiSession(
   return { session };
 }
 
-export async function requireMektekCustomerToolApiSession(): Promise<ApiGateResult> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
+export async function requireMektekCustomerToolApiSession(
+  request?: NextRequest,
+): Promise<ApiGateResult> {
+  const ambientSession = await getServerSession(authOptions);
+  const user = ambientSession?.user?.id
+    ? ambientSession.user
+    : request
+      ? await getRequestSessionUser(request)
+      : null;
+  if (!user?.id) {
     return { response: jsonError("Unauthenticated", 401) };
   }
-  if (!canUseMektekCustomerTools(session.user)) {
+  if (!canUseMektekCustomerTools(user)) {
     return { response: jsonError("Forbidden", 403) };
   }
+  const session = ambientSession ?? ({ user, expires: new Date(0).toISOString() } as Session);
   return { session };
 }

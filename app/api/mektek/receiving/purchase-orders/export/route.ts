@@ -77,7 +77,7 @@ function buildWhere(searchParams: URLSearchParams) {
 }
 
 export async function GET(request: Request) {
-  const access = await requireMektekLogisticsApiSession("RECEIVING");
+  const access = await requireMektekLogisticsApiSession("RECEIVING", request);
   if (access.response) return access.response;
 
   try {

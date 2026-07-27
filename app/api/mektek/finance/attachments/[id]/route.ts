@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { authOptions } from "@/lib/auth";
 import { canViewMektekFinance } from "@/lib/mektek/permissions";
 import { prismadb } from "@/lib/prisma";
-import { getServerSession } from "@/lib/session";
+import { getRequestSessionUser } from "@/lib/request-session";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id || !canViewMektekFinance(session.user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const user = await getRequestSessionUser(request);
+  if (!user?.id || !canViewMektekFinance(user)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   const { id } = await params;
   const file = await prismadb.financeAttachment.findUnique({ where: { id } });
   if (!file) return NextResponse.json({ error: "Not found" }, { status: 404 });

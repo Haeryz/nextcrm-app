@@ -44,7 +44,7 @@ export async function GET(
   } else if (token) {
     order = await getPublicMektekServiceOrder(id, token);
   } else {
-    const access = await requireMektekStaffApiSession();
+    const access = await requireMektekStaffApiSession(request);
     if (access.response) return access.response;
     order = await getMektekServiceOrderById(id);
   }

@@ -17,7 +17,7 @@ type SessionUser = NonNullable<Session["user"]>;
  * authorization fields from Postgres before granting access.
  */
 export async function getRequestSessionUser(
-  request: NextRequest
+  request: Request | NextRequest,
 ): Promise<SessionUser | null> {
   const ambientUser = await getSessionUser();
   if (ambientUser?.id) return ambientUser;
@@ -25,7 +25,7 @@ export async function getRequestSessionUser(
   const secret = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
   if (!secret) return null;
 
-  const token = await getToken({ req: request, secret });
+  const token = await getToken({ req: request as NextRequest, secret });
   const userId = typeof token?.id === "string" ? token.id : token?.sub;
   if (!userId) return null;
   const tokenAuthVersion = Number(token?.authVersion ?? 0);

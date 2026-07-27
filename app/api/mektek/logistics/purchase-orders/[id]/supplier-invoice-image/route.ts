@@ -19,8 +19,8 @@ function revalidateReceiving() {
   revalidatePath("/[locale]/(routes)/mektek/receiving", "page");
 }
 
-export async function GET(_request: Request, { params }: RouteContext) {
-  const access = await requireMektekLogisticsApiSession("RECEIVING");
+export async function GET(request: Request, { params }: RouteContext) {
+  const access = await requireMektekLogisticsApiSession("RECEIVING", request);
   if (access.response) return access.response;
 
   const { id } = await params;
@@ -54,7 +54,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
 }
 
 export async function PUT(request: Request, { params }: RouteContext) {
-  const access = await requireMektekLogisticsApiSession("RECEIVING");
+  const access = await requireMektekLogisticsApiSession("RECEIVING", request);
   if (access.response) return access.response;
 
   const declaredLength = Number(request.headers.get("content-length"));
