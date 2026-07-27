@@ -1228,13 +1228,14 @@ export default function OutboundLogisticsManager({
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1120px] text-sm">
+            <table className="w-full min-w-[1220px] text-sm">
               <thead className="border-y bg-muted/40 text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 text-left">PO / Batch</th>
                   <th className="px-4 py-3 text-left">Nomor Surat Jalan</th>
                   <th className="px-4 py-3 text-left">User / Project</th>
                   <th className="px-4 py-3 text-left">Tanggal</th>
+                  <th className="px-4 py-3 text-left">Due Date</th>
                   <th className="px-4 py-3 text-right">Item</th>
                   <th className="px-4 py-3 text-right">QTY Order</th>
                   <th className="px-4 py-3 text-right">QTY Keluar</th>
@@ -1298,6 +1299,9 @@ export default function OutboundLogisticsManager({
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {formatDate(purchaseOrder.deliveryDate || purchaseOrder.inputDate)}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      {formatDate(purchaseOrder.dueDate)}
                     </td>
                     <td className="px-4 py-3 text-right font-mono tabular-nums">
                       {purchaseOrder.items.length}

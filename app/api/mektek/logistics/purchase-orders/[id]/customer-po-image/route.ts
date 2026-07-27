@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { requireMektekLogisticsApiSession } from "@/lib/mektek/logistics-api";
 import {
   MAX_LOGISTICS_RECEIPT_IMAGE_BYTES,
-  validateLogisticsReceiptImageUpload,
+  validateLogisticsDocumentUpload,
 } from "@/lib/mektek/logistics-receipt-image";
 import { prismadb } from "@/lib/prisma";
 
@@ -70,13 +70,13 @@ export async function PUT(request: Request, { params }: RouteContext) {
   }
 
   const bytes = new Uint8Array(await request.arrayBuffer());
-  const validation = validateLogisticsReceiptImageUpload(
+  const validation = validateLogisticsDocumentUpload(
     request.headers.get("content-type"),
     bytes,
   );
   if ("error" in validation) {
     return NextResponse.json(
-      { error: validation.error.replace("foto kondisi barang", "PO Customer") },
+      { error: validation.error.replace("dokumen", "PO Customer") },
       { status: 400 },
     );
   }
