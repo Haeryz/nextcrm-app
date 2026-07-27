@@ -18,10 +18,11 @@ const ADMIN_ONLY_PATHS = [
 ];
 const MEKTEK_CUSTOMER_TOOL_PATHS = ["/api/whatsapp"];
 
-// Defense-in-depth only: the route handlers re-check against the live database
-// (JWT.staffCapabilities may be stale). Reject early when the signed JWT clearly
-// lacks the capability for a sensitive Mektek API prefix. Owner (token.isAdmin)
-// always passes. Sorted by longest prefix first so the most specific match wins.
+// Defense-in-depth: verify the request carries a valid JWT. The route handlers
+// re-check capabilities against the live database (JWT.staffCapabilities may be
+// stale for sessions issued before the staff-capabilities migration). We only
+// gate on authentication here; capability enforcement is the route handler's
+// job so stale JWTs never block legitimate sub-admins.
 const MEKTEK_CAPABILITY_PATHS: Array<{ prefix: string; capability: string }> = [
   { prefix: "/api/mektek/finance", capability: "MEKTEK_FINANCE" },
   { prefix: "/api/mektek/receiving", capability: "MEKTEK_RECEIVING" },
@@ -30,16 +31,6 @@ const MEKTEK_CAPABILITY_PATHS: Array<{ prefix: string; capability: string }> = [
   { prefix: "/api/mektek/catalog-inventory", capability: "MEKTEK_CATALOG" },
   { prefix: "/api/mektek/service-orders", capability: "MEKTEK_SERVICE_ORDERS" },
 ];
-
-function tokenHasCapability(
-  token: { isAdmin?: boolean | null; staffCapabilities?: string[] | null } | null,
-  capability: string,
-): boolean {
-  if (!token) return false;
-  if (token.isAdmin) return true;
-  const capabilities = token.staffCapabilities ?? [];
-  return capabilities.includes(capability);
-}
 
 export async function proxy(req: NextRequest) {
   const path = req.nextUrl.pathname;
@@ -91,9 +82,10 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Mektek API defense-in-depth: reject early when the signed JWT lacks the
-  // required capability. Route handlers re-check against the live database, so a
-  // stale JWT that passes here is still caught at the handler. Owner always passes.
+  // Mektek API defense-in-depth: verify the request is authenticated. The
+  // route handlers re-check capabilities against the live database, so we only
+  // gate on authentication here. A stale JWT (staffCapabilities from before
+  // the migration) still passes because the route handler does the real check.
   const mektekMatch = MEKTEK_CAPABILITY_PATHS.find((entry) =>
     path.startsWith(entry.prefix),
   );
@@ -101,9 +93,6 @@ export async function proxy(req: NextRequest) {
     const token = await getToken({ req, secret: AUTH_SECRET });
     if (!token) {
       return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
-    }
-    if (!tokenHasCapability(token, mektekMatch.capability)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     return NextResponse.next();
   }

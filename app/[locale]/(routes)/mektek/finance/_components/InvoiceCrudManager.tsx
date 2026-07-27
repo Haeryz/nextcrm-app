@@ -379,14 +379,12 @@ export default function InvoiceCrudManager({
 
   const applyPurchaseOrder = useCallback(
     (option: FinancePurchaseOrderSuggestion) => {
-      if (
-        option.totalDeliveryNoteCount > 0 &&
+      if (option.totalDeliveryNoteCount > 0 &&
         option.deliveryNotes.length === 0
       ) {
-        toast.error(
-          "Semua Surat Jalan pada PO ini sudah ditagihkan ke invoice lain",
+        toast.warning(
+          "Semua Surat Jalan pada PO ini sudah ditagihkan. Detail PO tetap diisi, tetapi tidak ada Surat Jalan baru yang dapat dipilih.",
         );
-        return;
       }
       if (option.deliveryNotes.length) {
         if (
@@ -432,16 +430,16 @@ export default function InvoiceCrudManager({
       setForm((current) => ({
         ...current,
         purchaseOrderNumber: option.poNumber,
-        customerName: option.customerName,
-        deliveryNoteNumber: option.deliveryNoteNumber,
-        deliveryNoteDate: option.deliveryNoteDate,
-        dueDate: option.dueDate,
-        purchaseOrderDate: option.purchaseOrderDate,
-        description: option.description,
+        customerName: option.customerName || current.customerName,
+        deliveryNoteNumber: option.deliveryNoteNumber || current.deliveryNoteNumber,
+        deliveryNoteDate: option.deliveryNoteDate || current.deliveryNoteDate,
+        dueDate: option.dueDate || current.dueDate,
+        purchaseOrderDate: option.purchaseOrderDate || current.purchaseOrderDate,
+        description: option.description || current.description,
         items: option.items.length
           ? option.items.map((item) => ({ ...item }))
           : current.items,
-        subtotal: option.subtotal,
+        subtotal: option.subtotal || current.subtotal,
       }));
       setPurchaseOrderPricingWarning(
         option.pricingComplete
@@ -483,13 +481,8 @@ export default function InvoiceCrudManager({
           option.poNumber.toLocaleLowerCase("id-ID") === normalizedQuery,
       );
       if (exact) {
-        if (
-          exact.deliveryNotes.length > 0 ||
-          exact.totalDeliveryNoteCount === 0
-        ) {
-          applyPurchaseOrder(exact);
-          return;
-        }
+        applyPurchaseOrder(exact);
+        return;
       }
       setPurchaseOrderSearchOpen(true);
     }, 250);
@@ -511,9 +504,7 @@ export default function InvoiceCrudManager({
       setPurchaseOrderSearchOpen(false);
       setPurchaseOrderSearching(false);
     }
-    if (!selectedInvoiceSources.length) {
-      set("purchaseOrderNumber", value);
-    }
+    set("purchaseOrderNumber", value);
   };
 
   const removeInvoiceSource = (sourceId: string) => {

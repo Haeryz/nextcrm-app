@@ -235,10 +235,9 @@ describe("Session, proxy, and post-login wiring", () => {
     expect(requestSession).toContain("staffCapabilities: user.staffCapabilities");
   });
 
-  it("applies defense-in-depth capability checks in the proxy", () => {
+  it("applies defense-in-depth authentication checks in the proxy", () => {
     const proxy = read("proxy.ts");
     expect(proxy).toContain("MEKTEK_CAPABILITY_PATHS");
-    expect(proxy).toContain("tokenHasCapability");
     expect(proxy).toContain("/api/mektek/finance/:path*");
     expect(proxy).toContain("/api/mektek/logistics/:path*");
     expect(proxy).toContain("/api/mektek/receiving/:path*");
