@@ -1990,8 +1990,8 @@ export default function ReceivingManager({
                           <Upload data-icon="inline-start" />
                         )}
                         {activeReceiptPurchaseOrder.hasSignedPoImage
-                          ? "Ganti PO ditandatangani"
-                          : "Unggah PO ditandatangani"}
+                          ? "Ganti PO yang Sudah Ditandatangani"
+                          : "Unggah PO yang Sudah Ditandatangani"}
                       </Button>
                       <input
                         ref={signedPoInputRef}
@@ -2288,8 +2288,8 @@ export default function ReceivingManager({
                                 <Upload data-icon="inline-start" />
                               )}
                               {activeReceiptPurchaseOrder.hasMektekDeliveryNoteImage
-                                ? "Ganti foto tanda tangan"
-                                : "Unggah foto tanda tangan"}
+                                ? "Ganti Surat Jalan yang Sudah Ditandatangani"
+                                : "Unggah Surat Jalan yang Sudah Ditandatangani"}
                             </Button>
                             <input
                               ref={mektekDeliveryNoteInputRef}
