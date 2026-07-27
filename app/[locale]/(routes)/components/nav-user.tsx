@@ -1,6 +1,7 @@
 "use client"
 
 import { signOut } from "next-auth/react"
+import { useParams } from "next/navigation"
 import { ChevronsUpDown, LogOut } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -30,6 +31,8 @@ interface NavUserProps {
 
 export function NavUser({ user }: NavUserProps) {
   const { isMobile } = useSidebar()
+  const params = useParams<{ locale?: string }>()
+  const locale = params.locale || "id"
   const avatarUrl = user.avatar || undefined
 
   // Get user initials for avatar fallback
@@ -85,7 +88,7 @@ export function NavUser({ user }: NavUserProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => signOut()}>
+            <DropdownMenuItem onClick={() => signOut({ callbackUrl: `/${locale}/sign-in` })}>
               <LogOut className="mr-2 h-4 w-4" />
               Logout
             </DropdownMenuItem>

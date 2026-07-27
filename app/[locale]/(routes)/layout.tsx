@@ -65,8 +65,10 @@ export default async function AppLayout({
   // returns a non-null session with id="". Treat it as "no valid session":
   // clear the NextAuth cookie and redirect to sign-in with a reason param.
   if (!session?.user?.id) {
-    cookieStore.delete("next-auth.session-token");
-    cookieStore.delete("__Secure-next-auth.session-token");
+    try {
+      cookieStore.delete("next-auth.session-token");
+      cookieStore.delete("__Secure-next-auth.session-token");
+    } catch {}
     return redirect(`/${locale}/sign-in?reason=session_invalidated`);
   }
 
@@ -77,8 +79,10 @@ export default async function AppLayout({
   }
 
   if (user?.userStatus === "INACTIVE") {
-    cookieStore.delete("next-auth.session-token");
-    cookieStore.delete("__Secure-next-auth.session-token");
+    try {
+      cookieStore.delete("next-auth.session-token");
+      cookieStore.delete("__Secure-next-auth.session-token");
+    } catch {}
     return redirect(`/${locale}/sign-in?reason=account_inactive`);
   }
 
