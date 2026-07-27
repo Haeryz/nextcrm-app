@@ -399,9 +399,9 @@ export default async function MektekDetailPage({ params }: Props) {
                 )}
                 {canManageOrderItems && !canAddOrderItems && (
                   <div className="break-words rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-                    {order.taskStatus === "COMPLETE"
-                      ? "Item servis dan sparepart dikunci permanen karena pesanan ini telah ditutup."
-                      : "Item servis dan sparepart dikunci selama tinjauan pembayaran. Kembalikan status pesanan ke pengerjaan sebelum menambah pekerjaan."}
+                    {order.taskStatus === "CANCELLED"
+                      ? "Item servis dan sparepart dikunci permanen karena pesanan ini telah dibatalkan."
+                      : "Item servis dan sparepart dikunci permanen karena pesanan ini telah ditutup."}
                   </div>
                 )}
               </CardContent>

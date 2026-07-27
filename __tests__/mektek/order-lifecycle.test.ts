@@ -143,10 +143,10 @@ describe("MekTek order lifecycle", () => {
     ).toBe(false);
   });
 
-  it("locks line-item changes once the invoice enters payment review", () => {
+  it("keeps line items editable until the order is closed or cancelled", () => {
     expect(canEditMektekOrderItems("ACTIVE")).toBe(true);
     expect(canEditMektekOrderItems("PENDING")).toBe(true);
-    expect(canEditMektekOrderItems("AWAITING_PAYMENT")).toBe(false);
+    expect(canEditMektekOrderItems("AWAITING_PAYMENT")).toBe(true);
     expect(canEditMektekOrderItems("COMPLETE")).toBe(false);
     expect(canEditMektekOrderItems("CANCELLED")).toBe(false);
   });

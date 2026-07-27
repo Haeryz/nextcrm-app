@@ -125,4 +125,36 @@ describe("buildMektekFinancialSummary", () => {
     expect(summary.amountPaid).toBe(109000);
     expect(summary.balanceDue).toBe(0);
   });
+
+  it("reopens the balance when items are added after a settled payment", () => {
+    const summary = buildMektekFinancialSummary(
+      {
+        ...baseTags,
+        serviceItems: [
+          ...baseTags.serviceItems,
+          {
+            name: "Servis tambahan",
+            quantity: 1,
+            unitPrice: 50_000,
+            total: 50_000,
+          },
+        ],
+      },
+      null,
+      [
+        {
+          id: "payment-1",
+          midtransOrderId: "MEK-123",
+          grossAmount: 109_000,
+          paymentType: "qris",
+          transactionStatus: "settlement",
+          paidAt: new Date("2026-07-05T01:49:00.000Z"),
+        },
+      ],
+    );
+
+    expect(summary.amountPaid).toBe(109_000);
+    expect(summary.balanceDue).toBe(54_500);
+    expect(summary.payment.status).toBe("partial");
+  });
 });

@@ -37,7 +37,11 @@ export function isMektekReceiptAvailable(input: DocumentAccessInput) {
 }
 
 export function canEditMektekOrderItems(taskStatus?: string | null) {
-  return taskStatus === "ACTIVE" || taskStatus === "PENDING";
+  return (
+    taskStatus === "ACTIVE" ||
+    taskStatus === "PENDING" ||
+    taskStatus === "AWAITING_PAYMENT"
+  );
 }
 
 export function canTransitionMektekOrderStatus(
