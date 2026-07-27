@@ -44,7 +44,7 @@ export function getPostLoginDestination(
   const prefix = `/${locale}`;
 
   if (user?.userStatus === "PENDING") return `${prefix}/pending`;
-  if (user?.userStatus === "INACTIVE") return `${prefix}/inactive`;
+  if (user?.userStatus === "INACTIVE") return `${prefix}/sign-in?reason=account_inactive`;
   if (user?.isAdmin) return `${prefix}/mektek/dashboard`;
 
   const capabilities = user?.staffCapabilities ?? [];

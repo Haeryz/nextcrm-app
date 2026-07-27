@@ -61,18 +61,25 @@ export default async function AppLayout({
 
   //console.log(session, "session");
 
-  if (!session) {
-    return redirect("/sign-in");
+  // A stale JWT (capability change or password reset incremented authVersion)
+  // returns a non-null session with id="". Treat it as "no valid session":
+  // clear the NextAuth cookie and redirect to sign-in with a reason param.
+  if (!session?.user?.id) {
+    cookieStore.delete("next-auth.session-token");
+    cookieStore.delete("__Secure-next-auth.session-token");
+    return redirect(`/${locale}/sign-in?reason=session_invalidated`);
   }
 
   const user = session?.user;
 
   if (user?.userStatus === "PENDING") {
-    return redirect("/pending");
+    return redirect(`/${locale}/pending`);
   }
 
   if (user?.userStatus === "INACTIVE") {
-    return redirect("/inactive");
+    cookieStore.delete("next-auth.session-token");
+    cookieStore.delete("__Secure-next-auth.session-token");
+    return redirect(`/${locale}/sign-in?reason=account_inactive`);
   }
 
   if (!canAccessMektekStaffArea(user)) {

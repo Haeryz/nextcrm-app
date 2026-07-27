@@ -97,7 +97,7 @@ describe("getPostLoginDestination", () => {
     ).toBe("/en/pending");
     expect(
       getPostLoginDestination("en", { userStatus: "INACTIVE" }),
-    ).toBe("/en/inactive");
+    ).toBe("/en/sign-in?reason=account_inactive");
   });
 
   it("keeps the staff login available when a customer session already exists", () => {

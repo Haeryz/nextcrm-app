@@ -27,7 +27,7 @@ export async function requireUser(): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user?.id) redirect("/sign-in");
   if (user.userStatus === "PENDING") redirect("/pending");
-  if (user.userStatus === "INACTIVE") redirect("/inactive");
+  if (user.userStatus === "INACTIVE") redirect("/sign-in?reason=account_inactive");
   return user;
 }
 

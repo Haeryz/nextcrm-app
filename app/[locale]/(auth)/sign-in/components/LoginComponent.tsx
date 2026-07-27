@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { getSession, signIn } from "next-auth/react";
 
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,17 @@ export function LoginComponent() {
   const initialIdentifier =
     searchParams.get("phone") || searchParams.get("email") || "";
   const adminDashboardPath = `/${locale}/mektek/dashboard`;
+
+  useEffect(() => {
+    const reason = searchParams.get("reason");
+    if (reason === "session_invalidated") {
+      toast.error(
+        "Sesi Anda telah berakhir karena akses Anda diperbarui oleh Admin. Silakan masuk kembali.",
+      );
+    } else if (reason === "account_inactive") {
+      toast.error("Akun Anda telah dinonaktifkan oleh Admin.");
+    }
+  }, [searchParams]);
 
   const formSchema = z.object({
     email: z.string().min(3, "Isi Email atau nomor telepon").max(80),

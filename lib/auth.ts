@@ -95,6 +95,10 @@ export const authOptions: NextAuthOptions = {
           throw new Error("Account ini tidak memiliki Staff Access");
         }
 
+        if (user.userStatus === "INACTIVE") {
+          throw new Error("Akun Anda telah dinonaktifkan oleh Admin.");
+        }
+
         if (verification.needsRehash) {
           await prismadb.users.update({
             where: { id: user.id },
@@ -129,8 +133,12 @@ export const authOptions: NextAuthOptions = {
         : null;
 
       if (!user || Number(token.authVersion ?? 0) !== user.authVersion) {
-        // Password changes increment authVersion. Old JWTs remain cryptographically
-        // valid but lose every server-side authorization capability immediately.
+        // Capability changes and password resets increment authVersion. Old JWTs
+        // remain cryptographically valid but the session is treated as having no
+        // authenticated user. We set id="" and userStatus="ACTIVE" (NOT
+        // "INACTIVE") so the layout/guards detect "no valid session" via the
+        // empty id and redirect to /sign-in — NOT to /inactive, which is
+        // reserved for genuinely deactivated accounts.
         session.user.id = "";
         session.user._id = "";
         session.user.isAdmin = false;
@@ -138,7 +146,7 @@ export const authOptions: NextAuthOptions = {
         session.user.staffDivision = null;
         session.user.logisticsStaffArea = null;
         session.user.staffCapabilities = [];
-        session.user.userStatus = "INACTIVE";
+        session.user.userStatus = "ACTIVE";
         return session;
       }
 
