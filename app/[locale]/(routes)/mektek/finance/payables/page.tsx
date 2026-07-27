@@ -18,7 +18,7 @@ export default async function SupplierPaymentsPage() {
       orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
       take: 200,
       include: {
-        counterparty: { select: { legalName: true } },
+        counterparty: { select: { legalName: true, paymentTermsDays: true } },
       },
     }),
     prismadb.financeSupplierBill.findMany({
@@ -92,6 +92,7 @@ export default async function SupplierPaymentsPage() {
         documents?.signedPoImageUpdatedAt,
       ),
       expectedSubtotal: snapshot.expectedSubtotal,
+      paymentTermsDays: source.counterparty.paymentTermsDays,
       pricingIssues: snapshot.pricingIssues,
       lines: snapshot.lines.map((line) => ({
         description: line.description,

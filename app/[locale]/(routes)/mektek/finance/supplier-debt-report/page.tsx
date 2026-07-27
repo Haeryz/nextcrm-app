@@ -6,6 +6,7 @@ import {
 } from "@/lib/mektek/supplier-debt-ledger";
 import type {
   SupplierDebtDetailEntry,
+  SupplierDebtDetailSheet,
   SupplierDebtOverviewRow,
   SupplierDebtRecapEntry,
   SupplierDebtStatus,
@@ -103,10 +104,6 @@ export default async function SupplierDebtReportPage({
   const sort = String(query.sort ?? "number");
   const search = String(query.q ?? "").trim().slice(0, 100);
   const normalizedSearch = search.toLocaleLowerCase("id-ID");
-  const selectedSheet =
-    report.detailSheets.find((sheet) => sheet.sheetKey === query.sheet) ??
-    report.detailSheets[0] ??
-    null;
   const [persistedEntries, persistedTransactions] = await Promise.all([
     prismadb.mektekSupplierDebtEntry.findMany({
       orderBy: [{ sheetKey: "asc" }, { sourceRow: "asc" }],
@@ -163,8 +160,37 @@ export default async function SupplierDebtReportPage({
       row.entry,
     ]),
   );
+  // Pemasok baru yang dibuat via Pembayaran Pemasok tersimpan sebagai
+  // MektekSupplierDebtEntry dengan sheetKey = nama pemasok. Sheet yang tidak
+  // ada di snapshot workbook dibuatkan sheet sintetis di sini agar tampil di
+  // Laporan Hutang Pemasok (tampilan Total Hutang dan Rincian per Pemasok).
+  const snapshotSheetKeys = new Set(
+    report.detailSheets.map((sheet) => sheet.sheetKey),
+  );
+  const dbOnlySheetKeys = Array.from(
+    new Set(persistedEntries.map((row) => row.sheetKey)),
+  ).filter((key) => !snapshotSheetKeys.has(key));
+  const dbOnlySheets: SupplierDebtDetailSheet[] = dbOnlySheetKeys.map(
+    (sheetKey, index) => ({
+      sheetKey,
+      position: report.detailSheets.length + index + 1,
+      supplierName: sheetKey,
+      contactName: null,
+      paymentTermDays: null,
+      phone: null,
+      bankAccount: null,
+      bankAccountName: null,
+      bankName: null,
+      entries: [],
+    }),
+  );
+  const allDetailSheets = [...report.detailSheets, ...dbOnlySheets];
+  const selectedSheet =
+    allDetailSheets.find((sheet) => sheet.sheetKey === query.sheet) ??
+    allDetailSheets[0] ??
+    null;
   const entriesBySheet = new Map(
-    report.detailSheets.map((sheet) => {
+    allDetailSheets.map((sheet) => {
       const importedRows = sheet.entries.map(
         (entry) =>
           persistedByKey.get(`${sheet.sheetKey}:${entry.sourceRow}`) ?? entry,
@@ -196,7 +222,7 @@ export default async function SupplierDebtReportPage({
     (selectedSheet && entriesBySheet.get(selectedSheet.sheetKey)) ?? [];
   const manualRecapEntries: SupplierDebtRecapEntry[] = manualEntries.map(
     ({ sheetKey, entry }, index) => {
-      const sheet = report.detailSheets.find((candidate) => candidate.sheetKey === sheetKey);
+      const sheet = allDetailSheets.find((candidate) => candidate.sheetKey === sheetKey);
       return {
         sourceRow: 2_000_000 + index,
         number: entry.number ?? String(index + 1),
@@ -237,7 +263,7 @@ export default async function SupplierDebtReportPage({
     current.paymentAmount += entry.paymentAmount;
     target.set(key, current);
   };
-  for (const sheet of report.detailSheets) {
+  for (const sheet of allDetailSheets) {
     for (const originalEntry of sheet.entries) {
       if (!originalEntry.invoiceNumber) continue;
       const key = `${supplierKey(sheet.supplierName)}:${originalEntry.invoiceNumber.toLocaleLowerCase("id-ID")}`;
@@ -275,7 +301,7 @@ export default async function SupplierDebtReportPage({
   const combinedRecapEntries = [...adjustedImportedRecap, ...manualRecapEntries];
   const overviewWithLedger = report.overview.rows.map((row) => {
     const rowKey = supplierKey(row.supplierName);
-    const sheet = report.detailSheets.find((candidate) => {
+    const sheet = allDetailSheets.find((candidate) => {
       const keys = [
         supplierKey(candidate.sheetKey),
         supplierKey(candidate.supplierName),
@@ -306,20 +332,47 @@ export default async function SupplierDebtReportPage({
     };
   });
 
+  // Tambahkan pemasok baru (dari Pembayaran Pemasok) sebagai baris overview
+  // sintetis agar tampil di tampilan "Total Hutang".
+  const dbOnlyOverviewRows: SupplierDebtOverviewRow[] = dbOnlySheets.map(
+    (sheet) => {
+      const sheetEntries = entriesBySheet.get(sheet.sheetKey) ?? [];
+      const remainingDebt = sheetEntries.reduce(
+        (sum, entry) => sum + entry.remainingAmount,
+        0,
+      );
+      return {
+        sourceRow: sheet.position,
+        number: String(sheet.position),
+        supplierName: sheet.supplierName,
+        pic: null,
+        location: null,
+        remainingDebt,
+        remainingReceivable: 0,
+        paymentTermDays: null,
+        dueAmount: remainingDebt,
+        dueDescription: null,
+        breakdown: [],
+        breakdownNote: null,
+      };
+    },
+  );
+  const overviewRowsWithDbOnly = [...overviewWithLedger, ...dbOnlyOverviewRows];
+
   const overviewSummary = {
-    total: overviewWithLedger.reduce(
+    total: overviewRowsWithDbOnly.reduce(
       (total, row) => total + row.remainingDebt,
       0,
     ),
-    paid: overviewWithLedger.reduce(
+    paid: overviewRowsWithDbOnly.reduce(
       (total, row) => total + row.remainingReceivable,
       0,
     ),
-    remaining: overviewWithLedger.reduce(
+    remaining: overviewRowsWithDbOnly.reduce(
       (total, row) => total + row.dueAmount,
       0,
     ),
-    count: report.overview.rows.length,
+    count: overviewRowsWithDbOnly.length,
   };
   const recapSummary = {
     total: combinedRecapEntries.reduce((total, row) => total + row.nominal, 0),
@@ -364,7 +417,7 @@ export default async function SupplierDebtReportPage({
       ).length,
   };
 
-  const overviewRows = overviewWithLedger
+  const overviewRows = overviewRowsWithDbOnly
     .filter(
       (row) =>
         !normalizedSearch ||
@@ -468,7 +521,7 @@ export default async function SupplierDebtReportPage({
     target.paidValue += entry.paymentAmount * direction;
     target.remainingDebt += entry.remainingAmount * direction;
   };
-  for (const sheet of report.detailSheets) {
+  for (const sheet of allDetailSheets) {
     for (const originalEntry of sheet.entries) {
       const currentEntry = entriesBySheet
         .get(sheet.sheetKey)
@@ -538,7 +591,7 @@ export default async function SupplierDebtReportPage({
       }
       recapSummary={recapSummary}
       recapMonthlySummary={recapMonthlySummary}
-      sheets={report.detailSheets.map((sheet) => ({
+      sheets={allDetailSheets.map((sheet) => ({
         sheetKey: sheet.sheetKey,
         supplierName: sheet.supplierName,
         contactName: sheet.contactName,

@@ -31,6 +31,7 @@ import {
   type MektekOutboundPurchaseOrderItemInput,
 } from "@/actions/mektek/logistics";
 import { CatalogOrManualItemPicker } from "@/app/[locale]/(routes)/mektek/_components/CatalogOrManualItemPicker";
+import SupplierNameCombobox from "@/app/[locale]/(routes)/mektek/_components/SupplierNameCombobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -143,6 +144,7 @@ type OutboundLogisticsManagerProps = {
   catalogItems: CatalogOption[];
   stats: OutboundStats;
   mode: "overview" | "spreadsheet";
+  supplierNameSuggestions?: string[];
 };
 
 type DispatchItemDraft = {
@@ -285,6 +287,7 @@ export default function OutboundLogisticsManager({
   catalogItems,
   stats,
   mode,
+  supplierNameSuggestions = [],
 }: OutboundLogisticsManagerProps) {
   const router = useRouter();
   // Restored once, via a lazy state initialiser. `useRef(restoreOutboundDraft().nextId)`
@@ -953,10 +956,11 @@ export default function OutboundLogisticsManager({
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="outbound-user">User / PT Tujuan</Label>
-                        <Input
+                        <SupplierNameCombobox
                           id="outbound-user"
                           value={draft.userName}
-                          onChange={(event) => updateDraft("userName", event.target.value)}
+                          onChange={(value) => updateDraft("userName", value)}
+                          suggestions={supplierNameSuggestions}
                           placeholder="Nama perusahaan penerima"
                           disabled={isPending}
                           required

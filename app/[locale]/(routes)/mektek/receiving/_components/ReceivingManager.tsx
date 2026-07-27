@@ -31,6 +31,7 @@ import {
 } from "@/actions/mektek/logistics";
 import { sendMektekLogisticsDocumentWhatsApp } from "@/actions/mektek/logistics-document-whatsapp";
 import { CatalogOrManualItemPicker } from "@/app/[locale]/(routes)/mektek/_components/CatalogOrManualItemPicker";
+import SupplierNameCombobox from "@/app/[locale]/(routes)/mektek/_components/SupplierNameCombobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -149,6 +150,7 @@ type ReceivingManagerProps = {
   managePicsHref?: string;
   showLegacyHistory?: boolean;
   initialPurchaseOrderId?: string;
+  supplierNameSuggestions?: string[];
 };
 
 type PurchaseOrderItemDraft = {
@@ -399,6 +401,7 @@ export default function ReceivingManager({
   managePicsHref,
   showLegacyHistory = false,
   initialPurchaseOrderId,
+  supplierNameSuggestions = [],
 }: ReceivingManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -1120,17 +1123,16 @@ export default function ReceivingManager({
                   />
                 </div>
                 <div className="space-y-1.5">
-                   <Label htmlFor="logistics-supplier">Supplier / tujuan PO</Label>
-                   <Input
-                     id="logistics-supplier"
-                     value={createValue.supplierName}
-                     onChange={(event) =>
-                       updateCreateValue("supplierName", event.target.value)
-                     }
-                     placeholder="Nama supplier"
-                     disabled={isPending}
-                     required
-                   />
+                    <Label htmlFor="logistics-supplier">Supplier / tujuan PO</Label>
+                    <SupplierNameCombobox
+                      id="logistics-supplier"
+                      value={createValue.supplierName}
+                      onChange={(value) => updateCreateValue("supplierName", value)}
+                      suggestions={supplierNameSuggestions}
+                      placeholder="Nama supplier"
+                      disabled={isPending}
+                      required
+                    />
                  </div>
                 <div className="space-y-1.5">
                    <Label htmlFor="logistics-project">Job Site / Project</Label>

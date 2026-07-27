@@ -14,6 +14,7 @@ import { canManageMektekLogistics } from "@/lib/mektek/permissions";
 import { getPaginationItems } from "@/lib/pagination";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { getSupplierNameSuggestions } from "@/lib/mektek/supplier-names";
 import ReceivingManager from "./_components/ReceivingManager";
 
 interface MektekLogisticsPageProps {
@@ -65,7 +66,7 @@ export default async function MektekReceivingPage({
   );
   const rawStatus = readSearchParam(resolvedSearchParams, "status").toUpperCase();
   const status = rawStatus === "OPEN" || rawStatus === "CLOSED" ? rawStatus : "";
-  const [result, pics, catalogItems] = await Promise.all([
+  const [result, pics, catalogItems, supplierNameSuggestions] = await Promise.all([
     listMektekReceivingPurchaseOrders({
       query,
       status,
@@ -89,6 +90,7 @@ export default async function MektekReceivingPage({
         frontStock: true,
       },
     }),
+    getSupplierNameSuggestions(),
   ]);
 
   if ("error" in result) {
@@ -226,6 +228,7 @@ export default async function MektekReceivingPage({
           )}
           stats={stats}
           mode="combined"
+          supplierNameSuggestions={supplierNameSuggestions}
           initialPurchaseOrderId={initialPurchaseOrderId || undefined}
           managePicsHref={
             session?.user?.isAdmin

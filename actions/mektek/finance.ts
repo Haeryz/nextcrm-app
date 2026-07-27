@@ -1892,6 +1892,7 @@ export async function createMatchedFinanceSupplierBill(input: {
       async (tx) => {
         const source = await tx.financePayableSource.findUnique({
           where: { id: payableSourceId },
+          include: { counterparty: { select: { legalName: true } } },
         });
         if (
           !source ||
@@ -1956,6 +1957,41 @@ export async function createMatchedFinanceSupplierBill(input: {
           where: { id: source.id },
           data: { supplierBillId: created.id, status: "DRAFTED" },
         });
+
+        // Buat baris hutang pemasok otomatis agar pemasok (terutama User/PT baru
+        // dari Monitoring PO / Receiving) tampil di Laporan Hutang Pemasok.
+        const sheetKey = source.counterparty.legalName;
+        const lastDebtRow = await tx.mektekSupplierDebtEntry.findFirst({
+          where: { sheetKey },
+          orderBy: { sourceRow: "desc" },
+          select: { sourceRow: true },
+        });
+        const debtSourceRow = Math.max(
+          1_000_001,
+          (lastDebtRow?.sourceRow ?? 1_000_000) + 1,
+        );
+        await tx.mektekSupplierDebtEntry.create({
+          data: {
+            sheetKey,
+            sourceRow: debtSourceRow,
+            number: String(debtSourceRow - 1_000_000),
+            purchaseOrderNumber: snapshot.poNumber,
+            deliveryNoteNumber: source.sourceReference,
+            invoiceNumber: supplierInvoiceNumber,
+            invoiceDate: billDate,
+            dueDate,
+            description: `Invoice ${supplierInvoiceNumber}${
+              snapshot.poNumber ? ` — ${snapshot.poNumber}` : ""
+            }`,
+            quantity: new Prisma.Decimal(1),
+            unitPrice: totalAmount,
+            amount: totalAmount,
+            grandTotal: totalAmount,
+            createdBy: access.current.id,
+            updatedBy: access.current.id,
+          },
+        });
+
         await audit(tx, {
           entityType: "SUPPLIER_BILL",
           entityId: created.id,

@@ -47,6 +47,7 @@ export type SupplierPaymentSource = {
   deliveryNoteImageAvailable: boolean;
   signedPoImageAvailable: boolean;
   expectedSubtotal: number | null;
+  paymentTermsDays: number | null;
   pricingIssues: Array<{
     description: string;
     partNumber: string | null;
@@ -112,6 +113,17 @@ const emptyChecks = {
   purchaseOrder: false,
   supplierInvoice: false,
   goodsReceipt: false,
+};
+
+// Jatuh tempo = tanggal invoice + TOP (hari). Mengembalikan string kosong bila
+// salah satu input belum diisi sehingga field jatuh tempo tetap bisa diedit manual.
+const computeDueDate = (bill: string, days: string) => {
+  if (!bill || !days) return "";
+  const n = Number(days);
+  if (!Number.isFinite(n) || n < 0) return "";
+  const base = new Date(`${bill}T00:00:00.000Z`);
+  base.setUTCDate(base.getUTCDate() + n);
+  return base.toISOString().slice(0, 10);
 };
 
 function InlineDocumentPreview({
@@ -196,6 +208,7 @@ export default function SupplierPaymentManager({
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [billDate, setBillDate] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [topDays, setTopDays] = useState("");
   const [taxAmount, setTaxAmount] = useState("");
   const [expenseCategory, setExpenseCategory] = useState("Pembelian barang");
   const [notes, setNotes] = useState("");
@@ -238,6 +251,7 @@ export default function SupplierPaymentManager({
     setInvoiceNumber("");
     setBillDate("");
     setDueDate("");
+    setTopDays("");
     setTaxAmount("");
     setExpenseCategory("Pembelian barang");
     setNotes("");
@@ -351,8 +365,17 @@ export default function SupplierPaymentManager({
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={sourceId}
                   onChange={(event) => {
+                    const nextSource =
+                      sources.find((source) => source.id === event.target.value) ??
+                      null;
                     setSourceId(event.target.value);
                     setChecks(emptyChecks);
+                    const nextTop = nextSource?.paymentTermsDays
+                      ? String(nextSource.paymentTermsDays)
+                      : "";
+                    setTopDays(nextTop);
+                    const computed = computeDueDate(billDate, nextTop);
+                    if (computed) setDueDate(computed);
                   }}
                   required
                 >
@@ -608,9 +631,35 @@ export default function SupplierPaymentManager({
                   id="supplier-bill-date"
                   type="date"
                   value={billDate}
-                  onChange={(event) => setBillDate(event.target.value)}
+                  onChange={(event) => {
+                    const nextBill = event.target.value;
+                    setBillDate(nextBill);
+                    const computed = computeDueDate(nextBill, topDays);
+                    if (computed) setDueDate(computed);
+                  }}
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="supplier-top">TOP (hari)</Label>
+                <Input
+                  id="supplier-top"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={topDays}
+                  onChange={(event) => {
+                    const nextTop = event.target.value;
+                    setTopDays(nextTop);
+                    const computed = computeDueDate(billDate, nextTop);
+                    if (computed) setDueDate(computed);
+                  }}
+                  placeholder="Contoh: 60"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Jumlah hari dari tanggal invoice ke jatuh tempo. Jatuh tempo
+                  terisi otomatis.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="supplier-due-date">Jatuh tempo</Label>

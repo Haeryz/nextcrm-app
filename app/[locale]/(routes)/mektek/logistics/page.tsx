@@ -13,6 +13,7 @@ import { canManageMektekLogistics } from "@/lib/mektek/permissions";
 import { getPaginationItems } from "@/lib/pagination";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
+import { getSupplierNameSuggestions } from "@/lib/mektek/supplier-names";
 import OutboundLogisticsManager from "./_components/OutboundLogisticsManager";
 
 interface MektekLogisticsPageProps {
@@ -54,7 +55,7 @@ export default async function MektekLogisticsPage({
   const rawStatus = param(resolvedSearchParams, "status").toUpperCase();
   const status = rawStatus === "OPEN" || rawStatus === "CLOSED" ? rawStatus : "";
   const page = Math.max(Number(param(resolvedSearchParams, "page")) || 1, 1);
-  const [result, catalogItems, pics] = await Promise.all([
+  const [result, catalogItems, pics, supplierNameSuggestions] = await Promise.all([
     listMektekOutboundPurchaseOrders({
       query,
       status,
@@ -77,6 +78,7 @@ export default async function MektekLogisticsPage({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    getSupplierNameSuggestions(),
   ]);
   if ("error" in result) {
     return (
@@ -200,6 +202,7 @@ export default async function MektekLogisticsPage({
           }))}
           stats={result.data.stats}
           mode="overview"
+          supplierNameSuggestions={supplierNameSuggestions}
         />
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground">
