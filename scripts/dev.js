@@ -46,6 +46,7 @@ if (process.env.NEXTCRM_KEEP_DEV_CACHE !== "true") {
 execFileSync("pnpm", ["exec", "prisma", "generate"], {
   stdio: "inherit",
   env: process.env,
+  shell: process.platform === "win32",
 });
 
 try {
