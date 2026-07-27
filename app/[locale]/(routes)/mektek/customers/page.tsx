@@ -81,7 +81,7 @@ export default async function MektekCustomersPage({
       description="Buat, perbarui, dan hapus Customer Profile beserta User Account yang terhubung"
     >
       <div className="flex flex-col gap-6">
-        <Card>
+        <Card className="md:sticky md:top-0 md:z-30">
           <CardContent className="p-4">
             <form
               action={`/${locale}/mektek/customers`}

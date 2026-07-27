@@ -93,7 +93,7 @@ export default async function MektekVouchersPage({
       description="Buat discount untuk semua Customer, Customer type, atau Customer tertentu"
     >
       <div className="flex flex-col gap-6">
-        <Card>
+        <Card className="md:sticky md:top-0 md:z-30">
           <CardContent className="p-4">
             <form
               action={`/${locale}/mektek/vouchers`}

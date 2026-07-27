@@ -55,11 +55,21 @@ export default async function MektekCatalogItemsPage({
     rawProductionChannel === "POWERTRAIN" || rawProductionChannel === "THERMAL"
       ? rawProductionChannel
       : "";
+  const rawMovementCategory = readSearchParam(
+    resolvedSearchParams,
+    "movement",
+  );
+  const movementCategory =
+    rawMovementCategory === "FAST_MOVING" ||
+    rawMovementCategory === "SLOW_MOVING"
+      ? rawMovementCategory
+      : "";
   const page = Math.max(Number(readSearchParam(resolvedSearchParams, "page")) || 1, 1);
   const catalog = await listMektekCatalogInventoryItems({
     query,
     machine,
     productionChannel,
+    movementCategory,
     page,
     pageSize: 18,
   });
@@ -71,6 +81,7 @@ export default async function MektekCatalogItemsPage({
   if (query) queryString.set("q", query);
   if (machine) queryString.set("machine", machine);
   if (productionChannel) queryString.set("channel", productionChannel);
+  if (movementCategory) queryString.set("movement", movementCategory);
   const itemsBase = `/${locale}/mektek/items`;
   const currentQuery = queryString.toString();
 
@@ -88,7 +99,7 @@ export default async function MektekCatalogItemsPage({
       <div className="flex flex-col gap-6">
         <Card className="md:sticky md:top-0 md:z-30">
           <CardContent className="p-4">
-            <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_190px_auto]">
+            <div className="grid gap-3 lg:grid-cols-[minmax(220px,1fr)_minmax(180px,0.8fr)_190px_190px_auto]">
               <LiveSearchInput
                 basePath={itemsBase}
                 currentQuery={currentQuery}
@@ -117,7 +128,19 @@ export default async function MektekCatalogItemsPage({
                   { value: "THERMAL", label: "Thermal" },
                 ]}
               />
-              {(query || machine || productionChannel) && (
+              <LiveFilterSelect
+                basePath={itemsBase}
+                currentQuery={currentQuery}
+                paramName="movement"
+                defaultValue={movementCategory}
+                ariaLabel="Filter Pergerakan"
+                options={[
+                  { value: "ALL", label: "Semua pergerakan" },
+                  { value: "FAST_MOVING", label: "Fast Moving" },
+                  { value: "SLOW_MOVING", label: "Slow Moving" },
+                ]}
+              />
+              {(query || machine || productionChannel || movementCategory) && (
                 <Button asChild type="button" variant="ghost" className="w-full lg:w-auto">
                   <Link href={itemsBase}>Reset Filter</Link>
                 </Button>

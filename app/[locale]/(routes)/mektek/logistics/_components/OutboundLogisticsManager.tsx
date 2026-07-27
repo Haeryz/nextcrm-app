@@ -867,7 +867,7 @@ export default function OutboundLogisticsManager({
                         />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="outbound-po-type">Supply mode</Label>
+                        <Label htmlFor="outbound-po-type">Tipe PO</Label>
                         <Select
                           value={draft.poType}
                           onValueChange={(value) => updateDraft("poType", value)}
@@ -877,8 +877,8 @@ export default function OutboundLogisticsManager({
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Manual">Manual · one-off PO</SelectItem>
-                            <SelectItem value="Consignment">Consignment · contract supply</SelectItem>
+                            <SelectItem value="Manual">Normal</SelectItem>
+                            <SelectItem value="Consignment">Consignment</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

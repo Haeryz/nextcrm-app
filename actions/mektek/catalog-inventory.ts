@@ -11,6 +11,7 @@ import { revalidatePath } from "next/cache";
 import { authOptions } from "@/lib/auth";
 import { getCatalogImageSource } from "@/lib/catalog-images";
 import {
+  CATALOG_MOVEMENT_FAST_THRESHOLD,
   calculateCatalogInventoryMonth,
   getCatalogInventoryLocalDateKey,
   getCatalogInventoryMonthKey,
@@ -91,6 +92,42 @@ function catalogWhere(input?: {
         }
       : {}),
   };
+}
+
+async function withMovementCategoryFilter(
+  where: Prisma.CatalogItemWhereInput,
+  movementCategory: string,
+  range: { start: Date; end: Date },
+): Promise<Prisma.CatalogItemWhereInput> {
+  const category = compactText(movementCategory).toUpperCase();
+  if (category !== "FAST_MOVING" && category !== "SLOW_MOVING") return where;
+
+  const baseItems = await prismadb.catalogItem.findMany({
+    where,
+    select: { id: true },
+  });
+  const baseIds = baseItems.map((item) => item.id);
+  if (baseIds.length === 0) return { ...where, id: { in: [] } };
+
+  const grouped = await prismadb.catalogStockMovement.groupBy({
+    by: ["catalogItemId"],
+    where: {
+      catalogItemId: { in: baseIds },
+      direction: "OUT",
+      occurredAt: { gte: range.start, lt: range.end },
+    },
+    _sum: { quantity: true },
+  });
+  const outboundByItem = new Map(
+    grouped.map((row) => [row.catalogItemId, row._sum.quantity ?? 0]),
+  );
+  const matchingIds = baseIds.filter((id) => {
+    const total = outboundByItem.get(id) ?? 0;
+    return category === "FAST_MOVING"
+      ? total > CATALOG_MOVEMENT_FAST_THRESHOLD
+      : total <= CATALOG_MOVEMENT_FAST_THRESHOLD;
+  });
+  return { ...where, id: { in: matchingIds } };
 }
 
 async function ensureCatalogManager() {
@@ -233,6 +270,7 @@ export async function listMektekCatalogInventoryItems(input?: {
   query?: string;
   machine?: string;
   productionChannel?: string;
+  movementCategory?: string;
   month?: string;
   page?: number;
   pageSize?: number;
@@ -246,7 +284,12 @@ export async function listMektekCatalogInventoryItems(input?: {
     60,
   );
   const requestedPage = Math.max(Number(input?.page) || 1, 1);
-  const where = catalogWhere(input);
+  const baseWhere = catalogWhere(input);
+  const where = await withMovementCategoryFilter(
+    baseWhere,
+    input?.movementCategory ?? "",
+    range,
+  );
   const [totalCount, machines] = await Promise.all([
     prismadb.catalogItem.count({ where }),
     prismadb.catalogItem.findMany({

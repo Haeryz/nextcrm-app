@@ -259,6 +259,14 @@ function Header({ title, description }: { title: string; description: string }) 
   );
 }
 
+function StickyFilterBar({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="md:sticky md:top-0 md:z-30 md:-mt-4 md:bg-background md:px-6 md:pb-3 md:pt-4 md:-mx-6 md:border-b">
+      {children}
+    </div>
+  );
+}
+
 /**
  * Narrows the invoice query in the database so a search is not limited to the
  * page of most recent invoices we would otherwise load into memory.
@@ -580,11 +588,13 @@ export default async function FinanceWorkspace({
             </p>
           </div>
         </div>
-        <ReportFilter
-          query={query}
-          placeholder="Cari invoice, pelanggan, SJ, PO, atau faktur pajak"
-          classification={classification}
-        />
+        <StickyFilterBar>
+          <ReportFilter
+            query={query}
+            placeholder="Cari invoice, pelanggan, SJ, PO, atau faktur pajak"
+            classification={classification}
+          />
+        </StickyFilterBar>
         {classification === "unclassified" ? (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
             <div>
@@ -643,13 +653,15 @@ export default async function FinanceWorkspace({
           title="Rekap surat jalan"
           description={`${synchronizedCount.toLocaleString("id-ID")} baris otomatis dari invoice dan Surat Jalan Logistics yang terhubung.`}
         />
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <ReportFilter
-            query={query}
-            placeholder="Cari perusahaan, nomor SJ, invoice, atau PO"
-          />
-          <RecapCreateButton />
-        </div>
+        <StickyFilterBar>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ReportFilter
+              query={query}
+              placeholder="Cari perusahaan, nomor SJ, invoice, atau PO"
+            />
+            <RecapCreateButton />
+          </div>
+        </StickyFilterBar>
         {rows.length ? (
           <>
             <div className="overflow-hidden rounded-xl border bg-card">
@@ -760,13 +772,15 @@ export default async function FinanceWorkspace({
           title="Rekapitulasi invoice jasa & part"
           description="Terbentuk otomatis dari rekap invoice dan pembayaran yang sudah diposting."
         />
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <ReportFilter
-            query={query}
-            placeholder="Cari perusahaan atau status piutang"
-          />
-          <RecapCreateButton />
-        </div>
+        <StickyFilterBar>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ReportFilter
+              query={query}
+              placeholder="Cari perusahaan atau status piutang"
+            />
+            <RecapCreateButton />
+          </div>
+        </StickyFilterBar>
         {receivableRows.length ? (
           <>
             <section className="space-y-2" aria-labelledby="invoice-customer-table">
@@ -986,13 +1000,15 @@ export default async function FinanceWorkspace({
           title="Pendapatan spare part"
           description="Terbentuk otomatis dari baris spare part pada rekap invoice, termasuk invoice campuran."
         />
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <ReportFilter
-            query={query}
-            placeholder="Cari pelanggan, invoice, SJ, PO, atau faktur pajak"
-          />
-          <RecapCreateButton />
-        </div>
+        <StickyFilterBar>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ReportFilter
+              query={query}
+              placeholder="Cari pelanggan, invoice, SJ, PO, atau faktur pajak"
+            />
+            <RecapCreateButton />
+          </div>
+        </StickyFilterBar>
         {report.unclassifiedCount > 0 ? (
           <RevenueClassificationWarning
             count={report.unclassifiedCount}
@@ -1076,13 +1092,15 @@ export default async function FinanceWorkspace({
           title="Pendapatan jasa"
           description="Terbentuk otomatis dari baris jasa pada rekap invoice, termasuk invoice campuran."
         />
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <ReportFilter
-            query={query}
-            placeholder="Cari pelanggan, invoice, PO, atau keterangan"
-          />
-          <RecapCreateButton />
-        </div>
+        <StickyFilterBar>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ReportFilter
+              query={query}
+              placeholder="Cari pelanggan, invoice, PO, atau keterangan"
+            />
+            <RecapCreateButton />
+          </div>
+        </StickyFilterBar>
         {report.unclassifiedCount > 0 ? (
           <RevenueClassificationWarning
             count={report.unclassifiedCount}
@@ -1163,10 +1181,12 @@ export default async function FinanceWorkspace({
           title="Rekap pendapatan jasa & suku cadang"
           description="Rekap otomatis dari baris invoice; invoice campuran dibagi menurut nilai setiap baris."
         />
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <ReportFilter query={query} placeholder="Cari pelanggan" />
-          <RecapCreateButton />
-        </div>
+        <StickyFilterBar>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <ReportFilter query={query} placeholder="Cari pelanggan" />
+            <RecapCreateButton />
+          </div>
+        </StickyFilterBar>
         {report.unclassifiedCount > 0 ? (
           <RevenueClassificationWarning
             count={report.unclassifiedCount}
