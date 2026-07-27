@@ -1,4 +1,8 @@
-export const CATALOG_PRODUCTION_CHANNELS = ["POWERTRAIN", "THERMAL"] as const;
+export const CATALOG_PRODUCTION_CHANNELS = [
+  "POWERTRAIN",
+  "THERMAL",
+  "AC_RUANGAN",
+] as const;
 export const CATALOG_WAREHOUSES = ["REAR", "FRONT"] as const;
 export const CATALOG_STOCK_DIRECTIONS = ["IN", "OUT"] as const;
 export const CATALOG_MOVEMENT_CATEGORIES = ["FAST_MOVING", "SLOW_MOVING"] as const;
@@ -80,6 +84,7 @@ export function getCatalogProductionChannelLabel(
 ) {
   if (channel === "POWERTRAIN") return "Powertrain";
   if (channel === "THERMAL") return "Thermal";
+  if (channel === "AC_RUANGAN") return "AC Ruangan";
   return "";
 }
 
@@ -387,6 +392,122 @@ export function buildCatalogInventoryExportTable(
     row.Remark = snapshot.remark ?? "";
     row["Lokasi G. Belakang"] = snapshot.rearLocation ?? "";
     row["Lokasi G. Depan"] = snapshot.frontLocation ?? "";
+    return row;
+  });
+
+  return { headers, rows };
+}
+
+export const CATALOG_INVENTORY_ANNUAL_MONTH_LABELS = [
+  "Januari",
+  "Februari",
+  "Maret",
+  "April",
+  "Mei",
+  "Juni",
+  "Juli",
+  "Agustus",
+  "September",
+  "Oktober",
+  "November",
+  "Desember",
+] as const;
+
+export type CatalogInventoryAnnualMonthSummary = {
+  inbound: number;
+  outbound: number;
+  closingRearStock: number;
+  closingFrontStock: number;
+};
+
+export type CatalogInventoryAnnualSnapshot = {
+  id: string;
+  itemName: string;
+  productionChannel: CatalogProductionChannel | null;
+  machine: string;
+  partNumber: string | null;
+  remark: string | null;
+  openingRearStock: number;
+  openingFrontStock: number;
+  months: CatalogInventoryAnnualMonthSummary[];
+  totalInbound: number;
+  totalOutbound: number;
+  closingRearStock: number;
+  closingFrontStock: number;
+};
+
+export function getCatalogInventoryYearRange(year: number) {
+  if (!Number.isInteger(year) || year < 2000 || year > 9999) {
+    throw new Error("Tahun inventory harus berupa angka 4 digit yang valid");
+  }
+  return {
+    year,
+    start: new Date(Date.UTC(year, 0, 1)),
+    end: new Date(Date.UTC(year + 1, 0, 1)),
+    monthKeys: Array.from(
+      { length: 12 },
+      (_, index) => `${year}-${String(index + 1).padStart(2, "0")}`,
+    ),
+  };
+}
+
+export function buildCatalogInventoryAnnualExportTable(
+  snapshots: CatalogInventoryAnnualSnapshot[],
+  year: number,
+) {
+  const monthHeaders = CATALOG_INVENTORY_ANNUAL_MONTH_LABELS.map(
+    (label, index) => `${label} ${year}`,
+  );
+  const headers = [
+    "No",
+    "Item Name",
+    "Production Channel",
+    "Machine",
+    "Part Number",
+    "Stok Awal G. Belakang",
+    "Stok Awal G. Depan",
+    ...monthHeaders.flatMap((label) => [
+      `${label} Masuk`,
+      `${label} Keluar`,
+    ]),
+    "Total Masuk",
+    "Total Keluar",
+    "Stok Akhir G. Belakang",
+    "Stok Akhir G. Depan",
+    "Total Stok Akhir",
+    "Remark",
+  ];
+  const rows = snapshots.map((snapshot, index) => {
+    const row: Record<string, string | number> = {
+      No: index + 1,
+      "Item Name": snapshot.itemName,
+      "Production Channel": getCatalogProductionChannelLabel(
+        snapshot.productionChannel,
+      ),
+      Machine: snapshot.machine,
+      "Part Number": snapshot.partNumber ?? "",
+      "Stok Awal G. Belakang": snapshot.openingRearStock,
+      "Stok Awal G. Depan": snapshot.openingFrontStock,
+    };
+
+    CATALOG_INVENTORY_ANNUAL_MONTH_LABELS.forEach((_, monthIndex) => {
+      const summary = snapshot.months?.[monthIndex] ?? {
+        inbound: 0,
+        outbound: 0,
+        closingRearStock: 0,
+        closingFrontStock: 0,
+      };
+      row[`${monthHeaders[monthIndex]} Masuk`] = summary.inbound;
+      row[`${monthHeaders[monthIndex]} Keluar`] = summary.outbound;
+    });
+
+    row["Total Masuk"] = snapshot.totalInbound;
+    row["Total Keluar"] = snapshot.totalOutbound;
+    row["Stok Akhir G. Belakang"] = snapshot.closingRearStock;
+    row["Stok Akhir G. Depan"] = snapshot.closingFrontStock;
+    row["Total Stok Akhir"] =
+      snapshot.closingRearStock + snapshot.closingFrontStock;
+    row.Remark = snapshot.remark ?? "";
     return row;
   });
 

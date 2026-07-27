@@ -74,6 +74,7 @@ enum CatalogCustomerType {
 enum CatalogProductionChannel {
   POWERTRAIN
   THERMAL
+  AC_RUANGAN
 }
 
 enum CatalogWarehouse {

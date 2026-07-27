@@ -14,61 +14,63 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getMektekServiceOrderExportMonthKey } from "@/lib/mektek/service-order-export";
+import { getCatalogInventoryLocalDateKey } from "@/lib/mektek/catalog-inventory";
 
-interface ExcelExportButtonProps {
-  initialMonth: string;
+type ExportMode = "all" | "range" | "year";
+
+interface ReceivingExportButtonProps {
+  baseQuery: string;
 }
-
-type ExportMode = "month" | "range" | "year";
 
 function getDownloadFilename(response: Response, fallback: string) {
   const disposition = response.headers.get("content-disposition") ?? "";
   const match = /filename="?([^";]+)"?/i.exec(disposition);
-  return match?.[1] || `mektek-service-orders-${fallback}.xlsx`;
+  return match?.[1] || `mektek-receiving-po-${fallback}.xlsx`;
 }
 
-export default function ExcelExportButton({
-  initialMonth,
-}: ExcelExportButtonProps) {
-  const currentMonth = getMektekServiceOrderExportMonthKey();
+export default function ReceivingExportButton({
+  baseQuery,
+}: ReceivingExportButtonProps) {
+  const currentMonth = getCatalogInventoryLocalDateKey().slice(0, 7);
   const currentYear = currentMonth.slice(0, 4);
-  const [mode, setMode] = useState<ExportMode>("month");
-  const [month, setMonth] = useState(initialMonth);
-  const [fromMonth, setFromMonth] = useState(initialMonth);
-  const [toMonth, setToMonth] = useState(initialMonth);
+  const [mode, setMode] = useState<ExportMode>("all");
+  const [fromMonth, setFromMonth] = useState(currentMonth);
+  const [toMonth, setToMonth] = useState(currentMonth);
   const [year, setYear] = useState(currentYear);
   const [isExporting, setIsExporting] = useState(false);
 
+  const buildUrl = () => {
+    const params = new URLSearchParams(baseQuery);
+    if (mode === "range") {
+      params.set("fromMonth", fromMonth);
+      params.set("toMonth", toMonth);
+    } else if (mode === "year" && year) {
+      params.set("year", year);
+    }
+    const suffix = params.toString();
+    return `/api/mektek/receiving/purchase-orders/export${suffix ? `?${suffix}` : ""}`;
+  };
+
+  const label =
+    mode === "range"
+      ? fromMonth === toMonth
+        ? fromMonth
+        : `${fromMonth}_${toMonth}`
+      : mode === "year"
+        ? year
+        : "semua";
+
   const handleExport = async () => {
     if (isExporting) return;
-    let url = "/api/mektek/service-orders/export?";
-    let label = "";
-    if (mode === "month") {
-      if (!month) return;
-      url += `month=${encodeURIComponent(month)}`;
-      label = month;
-    } else if (mode === "range") {
-      if (!fromMonth || !toMonth) return;
-      url += `fromMonth=${encodeURIComponent(fromMonth)}&toMonth=${encodeURIComponent(toMonth)}`;
-      label =
-        fromMonth === toMonth ? fromMonth : `${fromMonth}_${toMonth}`;
-    } else {
-      if (!year) return;
-      url += `year=${encodeURIComponent(year)}`;
-      label = year;
-    }
-
     setIsExporting(true);
     try {
-      const response = await fetch(url);
+      const response = await fetch(buildUrl());
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as {
           error?: string;
         } | null;
         throw new Error(payload?.error || "Gagal menyiapkan export Excel");
       }
-
       const objectUrl = URL.createObjectURL(await response.blob());
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
@@ -77,10 +79,10 @@ export default function ExcelExportButton({
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(objectUrl);
-      toast.success(`Export order ${label} berhasil disiapkan`);
+      toast.success(`Export Receiving ${label} berhasil disiapkan`);
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Gagal export order",
+        error instanceof Error ? error.message : "Gagal export Receiving",
       );
     } finally {
       setIsExporting(false);
@@ -88,47 +90,31 @@ export default function ExcelExportButton({
   };
 
   const canExport =
-    mode === "month"
-      ? Boolean(month)
-      : mode === "range"
-        ? Boolean(fromMonth && toMonth)
-        : Boolean(year);
+    mode === "all" ||
+    (mode === "range" && fromMonth && toMonth) ||
+    (mode === "year" && year);
 
   return (
     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-end">
       <div className="space-y-1">
-        <Label htmlFor="service-order-export-mode">Rentang export</Label>
+        <Label htmlFor="receiving-export-mode">Rentang export</Label>
         <Select value={mode} onValueChange={(value) => setMode(value as ExportMode)}>
-          <SelectTrigger id="service-order-export-mode" className="sm:w-44">
+          <SelectTrigger id="receiving-export-mode" className="sm:w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="month">Per bulan</SelectItem>
+            <SelectItem value="all">Semua (filter aktif)</SelectItem>
             <SelectItem value="range">Rentang bulan</SelectItem>
             <SelectItem value="year">Per tahun</SelectItem>
           </SelectContent>
         </Select>
       </div>
-      {mode === "month" && (
-        <div className="space-y-1">
-          <Label htmlFor="service-order-export-month">Bulan export</Label>
-          <Input
-            id="service-order-export-month"
-            type="month"
-            value={month}
-            max={currentMonth}
-            onChange={(event) => setMonth(event.target.value)}
-            disabled={isExporting}
-            className="sm:w-44"
-          />
-        </div>
-      )}
       {mode === "range" && (
         <>
           <div className="space-y-1">
-            <Label htmlFor="service-order-export-from">Dari bulan</Label>
+            <Label htmlFor="receiving-export-from">Dari bulan</Label>
             <Input
-              id="service-order-export-from"
+              id="receiving-export-from"
               type="month"
               value={fromMonth}
               max={toMonth || currentMonth}
@@ -138,9 +124,9 @@ export default function ExcelExportButton({
             />
           </div>
           <div className="space-y-1">
-            <Label htmlFor="service-order-export-to">Sampai bulan</Label>
+            <Label htmlFor="receiving-export-to">Sampai bulan</Label>
             <Input
-              id="service-order-export-to"
+              id="receiving-export-to"
               type="month"
               value={toMonth}
               min={fromMonth}
@@ -154,9 +140,9 @@ export default function ExcelExportButton({
       )}
       {mode === "year" && (
         <div className="space-y-1">
-          <Label htmlFor="service-order-export-year">Tahun export</Label>
+          <Label htmlFor="receiving-export-year">Tahun export</Label>
           <Input
-            id="service-order-export-year"
+            id="receiving-export-year"
             type="number"
             min={2000}
             max={Number(currentYear)}

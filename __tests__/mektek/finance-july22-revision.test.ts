@@ -10,11 +10,13 @@ describe("July 22 Finance and Logistics revision", () => {
       "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
     );
     const action = read("actions/mektek/logistics.ts");
+    const outboundStart = action.indexOf("createMektekOutboundPurchaseOrder");
+    const outboundSection = action.slice(outboundStart);
 
     expect(manager).not.toContain("Harga satuan");
     expect(manager).not.toContain("Total harga");
     expect(manager).not.toContain("calculateLogisticsPurchaseOrderTotal");
-    expect(action).not.toContain("requireUnitPrice: true");
+    expect(outboundSection).not.toContain("requireUnitPrice: true");
     expect(action.match(/agreedUnitPrice: null/g)).toHaveLength(2);
   });
 

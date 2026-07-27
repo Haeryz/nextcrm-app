@@ -29,7 +29,15 @@ describe("monthly catalogue inventory panel", () => {
     expect(source).toContain('SelectItem value="FRONT"');
     expect(source).toContain('SelectItem value="IN"');
     expect(source).toContain('SelectItem value="OUT"');
-    expect(source).toContain("/api/mektek/catalog-inventory/export?month=${month}");
+    expect(source).toContain(
+      "/api/mektek/catalog-inventory/export?month=${encodeURIComponent(exportMonth)}",
+    );
+    expect(source).toContain(
+      "/api/mektek/catalog-inventory/export?fromMonth=",
+    );
+    expect(source).toContain(
+      "/api/mektek/catalog-inventory/export?year=${encodeURIComponent(exportYear)}",
+    );
   });
 
   it("edits a per-item minimal stock threshold instead of a fixed low-stock constant", () => {

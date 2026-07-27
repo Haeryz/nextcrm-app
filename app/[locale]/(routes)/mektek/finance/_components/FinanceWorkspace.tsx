@@ -394,15 +394,22 @@ export default async function FinanceWorkspace({
   query = "",
   classification = "",
   inspectInvoiceId = "",
+  overviewMonth = "",
+  overviewYear = "",
 }: {
   section: FinanceSection;
   deliveryNotesPage?: number;
   query?: string;
   classification?: string;
   inspectInvoiceId?: string;
+  overviewMonth?: string;
+  overviewYear?: string;
 }) {
   if (section === "overview") {
-    const result = await getFinanceOverview();
+    const result = await getFinanceOverview({
+      month: overviewMonth || undefined,
+      year: overviewYear || undefined,
+    });
     if (!("data" in result)) return <Empty>Data keuangan tidak dapat dimuat.</Empty>;
     const value = result.data;
     const cards = [
@@ -410,6 +417,10 @@ export default async function FinanceWorkspace({
       ["Kas keluar", money(value.cashOut), ArrowUpRight],
       ["Piutang terbuka", money(value.receivable), ReceiptText],
       ["Utang terbuka", money(value.payable), Landmark],
+    ] as const;
+    const sparepartCards = [
+      ["Penjualan sparepart", money(value.sparepartSalesTotal), ReceiptText],
+      ["Baris sparepart", String(value.sparepartSalesCount), FileCheck2],
     ] as const;
     const queues = [
       ["Persetujuan menunggu", value.pendingApprovals, ShieldCheck],
@@ -424,8 +435,51 @@ export default async function FinanceWorkspace({
           title="Ringkasan keuangan"
           description="Posisi kas, piutang, utang, dan pekerjaan yang perlu ditindaklanjuti."
         />
+        <Card>
+          <CardHeader><CardTitle className="text-base">Periode ringkasan</CardTitle></CardHeader>
+          <CardContent>
+            <form className="flex flex-col gap-3 sm:flex-row sm:items-end" action="?" method="get">
+              <div className="space-y-1.5">
+                <label htmlFor="finance-overview-month" className="text-xs font-medium text-muted-foreground">Bulan (opsional)</label>
+                <input
+                  id="finance-overview-month"
+                  type="month"
+                  name="month"
+                  defaultValue={overviewMonth}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-44"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="finance-overview-year" className="text-xs font-medium text-muted-foreground">Tahun (opsional)</label>
+                <input
+                  id="finance-overview-year"
+                  type="number"
+                  name="year"
+                  min={2000}
+                  max={new Date().getFullYear()}
+                  defaultValue={overviewYear}
+                  placeholder="Contoh: 2026"
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-1 focus-visible:ring-ring sm:w-32"
+                />
+              </div>
+              <Button type="submit" variant="outline">Terapkan periode</Button>
+              <p className="text-xs text-muted-foreground">Periode aktif: {value.periodLabel}</p>
+            </form>
+          </CardContent>
+        </Card>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cards.map(([label, amount, Icon]) => (
+            <Card key={label}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm">{label}</CardTitle>
+                <Icon className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent><p className="text-2xl font-semibold">{amount}</p></CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {sparepartCards.map(([label, amount, Icon]) => (
             <Card key={label}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm">{label}</CardTitle>

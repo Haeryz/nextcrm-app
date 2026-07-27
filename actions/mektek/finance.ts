@@ -2117,19 +2117,70 @@ export async function submitFinanceSupplierBillForApproval(billId: string) {
   return { data: result };
 }
 
-export async function getFinanceOverview() {
+export async function getFinanceOverview(input?: {
+  month?: string;
+  year?: string;
+}) {
   const access = await ensureFinanceManager();
   if ("error" in access) return access;
   const now = new Date();
-  const [invoices, bills, receipts, disbursements, approvals, contracts, billingSources, payableSources] = await Promise.all([
-    prismadb.financeInvoice.findMany({ where: { status: { not: "VOID" } }, select: { netAmount: true, dueDate: true, status: true, allocations: { where: { receipt: { status: "POSTED" } }, select: { amount: true } } } }),
-    prismadb.financeSupplierBill.findMany({ where: { status: { not: "VOID" } }, select: { totalAmount: true, dueDate: true, status: true, allocations: { where: { disbursement: { status: "POSTED" } }, select: { amount: true } } } }),
-    prismadb.financeReceipt.aggregate({ where: { status: "POSTED" }, _sum: { amount: true } }),
-    prismadb.financeDisbursement.aggregate({ where: { status: "POSTED" }, _sum: { amount: true } }),
+
+  let dateFilter: { gte?: Date; lt?: Date } = {};
+  let periodLabel = "Semua periode";
+  if (input?.month) {
+    const match = /^(\d{4})-(\d{2})$/.exec(input.month);
+    if (match) {
+      const year = Number(match[1]);
+      const monthNumber = Number(match[2]);
+      if (monthNumber >= 1 && monthNumber <= 12) {
+        dateFilter = {
+          gte: new Date(Date.UTC(year, monthNumber - 1, 1)),
+          lt: new Date(Date.UTC(year, monthNumber, 1)),
+        };
+        periodLabel = input.month;
+      }
+    }
+  } else if (input?.year) {
+    const parsedYear = Number(input.year);
+    if (Number.isInteger(parsedYear) && parsedYear >= 2000 && parsedYear <= 9999) {
+      dateFilter = {
+        gte: new Date(Date.UTC(parsedYear, 0, 1)),
+        lt: new Date(Date.UTC(parsedYear + 1, 0, 1)),
+      };
+      periodLabel = String(parsedYear);
+    }
+  }
+
+  const invoiceDateWhere =
+    dateFilter.gte && dateFilter.lt
+      ? { invoiceDate: { gte: dateFilter.gte, lt: dateFilter.lt } }
+      : {};
+  const receiptDateWhere =
+    dateFilter.gte && dateFilter.lt
+      ? { receivedAt: { gte: dateFilter.gte, lt: dateFilter.lt } }
+      : {};
+  const disbursementDateWhere =
+    dateFilter.gte && dateFilter.lt
+      ? { disbursementAt: { gte: dateFilter.gte, lt: dateFilter.lt } }
+      : {};
+
+  const [invoices, bills, receipts, disbursements, approvals, contracts, billingSources, payableSources, sparepartInvoices] = await Promise.all([
+    prismadb.financeInvoice.findMany({ where: { status: { not: "VOID" }, ...invoiceDateWhere }, select: { netAmount: true, dueDate: true, status: true, allocations: { where: { receipt: { status: "POSTED" } }, select: { amount: true } } } }),
+    prismadb.financeSupplierBill.findMany({ where: { status: { not: "VOID" }, ...invoiceDateWhere }, select: { totalAmount: true, dueDate: true, status: true, allocations: { where: { disbursement: { status: "POSTED" } }, select: { amount: true } } } }),
+    prismadb.financeReceipt.aggregate({ where: { status: "POSTED", ...receiptDateWhere }, _sum: { amount: true } }),
+    prismadb.financeDisbursement.aggregate({ where: { status: "POSTED", ...disbursementDateWhere }, _sum: { amount: true } }),
     prismadb.financeApproval.count({ where: { status: "PENDING" } }),
     prismadb.financeContract.count({ where: { status: "ACTIVE", endDate: { lte: new Date(now.getTime() + 30 * 86_400_000), gte: now } } }),
     prismadb.financeBillingSource.count({ where: { status: { in: [FinanceSourceStatus.UNBILLED, FinanceSourceStatus.NEEDS_REVIEW] } } }),
     prismadb.financePayableSource.count({ where: { status: { in: [FinanceSourceStatus.UNBILLED, FinanceSourceStatus.NEEDS_REVIEW] } } }),
+    prismadb.financeInvoice.findMany({
+      where: { status: { not: "VOID" }, ...invoiceDateWhere },
+      select: {
+        lines: {
+          select: { kind: true, description: true, lineTotal: true },
+        },
+      },
+    }),
   ]);
   const receivable = invoices.reduce((sum, invoice) => {
     const paid = invoice.allocations.reduce((value, row) => value + numberValue(row.amount), 0);
@@ -2141,6 +2192,22 @@ export async function getFinanceOverview() {
   }, 0);
   const cashIn = numberValue(receipts._sum.amount);
   const cashOut = numberValue(disbursements._sum.amount);
+
+  let sparepartSalesTotal = 0;
+  let sparepartSalesCount = 0;
+  for (const invoice of sparepartInvoices) {
+    for (const line of invoice.lines) {
+      const category = classifyFinanceRevenueLine({
+        kind: line.kind,
+        description: line.description,
+      });
+      if (category === "sparepart") {
+        sparepartSalesTotal += numberValue(line.lineTotal);
+        sparepartSalesCount += 1;
+      }
+    }
+  }
+
   return {
     data: {
       cashIn,
@@ -2154,6 +2221,9 @@ export async function getFinanceOverview() {
       expiringContracts: contracts,
       unbilledSources: billingSources,
       unmatchedPayables: payableSources,
+      periodLabel,
+      sparepartSalesTotal,
+      sparepartSalesCount,
     },
   };
 }

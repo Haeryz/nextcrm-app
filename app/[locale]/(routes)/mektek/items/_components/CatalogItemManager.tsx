@@ -55,7 +55,7 @@ type CatalogItemRow = {
   partNumber: string | null;
   description: string;
   price: number | null;
-  productionChannel: "POWERTRAIN" | "THERMAL" | null;
+  productionChannel: "POWERTRAIN" | "THERMAL" | "AC_RUANGAN" | null;
   rearLocation: string | null;
   frontLocation: string | null;
   rearStock: number;
@@ -289,6 +289,7 @@ function CatalogItemForm({
               <SelectItem value="NONE">Tidak diatur</SelectItem>
               <SelectItem value="POWERTRAIN">Powertrain</SelectItem>
               <SelectItem value="THERMAL">Thermal</SelectItem>
+              <SelectItem value="AC_RUANGAN">AC Ruangan</SelectItem>
             </SelectContent>
           </Select>
         </Field>

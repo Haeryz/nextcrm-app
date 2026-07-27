@@ -30,6 +30,9 @@ describe("Catalogue Item form field mapping", () => {
     expect(source).toContain(
       '<SelectItem value="THERMAL">Thermal</SelectItem>',
     );
+    expect(source).toContain(
+      '<SelectItem value="AC_RUANGAN">AC Ruangan</SelectItem>',
+    );
     expect(source).not.toContain("jarang bergerak");
     expect(source).not.toContain("sering bergerak");
     expect(source).toContain('label="Lokasi Gudang Belakang"');

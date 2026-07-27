@@ -7,6 +7,7 @@ import {
   LOGISTICS_DELIVERY_NOTE_EXPORT_HEADERS,
   LOGISTICS_PO_MONTHLY_EXPORT_HEADERS,
   parseLogisticsPoExportType,
+  resolveLogisticsPoExportRange,
 } from "@/lib/mektek/logistics-export";
 import { requireMektekLogisticsApiSession } from "@/lib/mektek/logistics-api";
 import { prismadb } from "@/lib/prisma";
@@ -91,13 +92,17 @@ export async function GET(request: Request) {
   const access = await requireMektekLogisticsApiSession("MONITORING_PO", request);
   if (access.response) return access.response;
   const searchParams = new URL(request.url).searchParams;
-  const month = searchParams.get("month") ?? "";
 
   try {
     const exportType = parseLogisticsPoExportType(
       searchParams.get("type") ?? "delivery-note",
     );
-    const range = getLogisticsPoExportRange(month, month);
+    const range = resolveLogisticsPoExportRange(
+      searchParams.get("fromMonth"),
+      searchParams.get("toMonth"),
+      searchParams.get("year"),
+      searchParams.get("month"),
+    );
     const orders = await prismadb.logisticsPurchaseOrder.findMany({
       where:
         exportType === "delivery-note"
@@ -164,8 +169,13 @@ export async function GET(request: Request) {
         : [8, 30, 20, 24, 26, 28, 22, 16, 12, 12, 12, 12],
     );
 
+    const periodLabel =
+      range.fromMonth === range.toMonth
+        ? range.fromMonth
+        : `${range.fromMonth}_${range.toMonth}`;
+
     const summaryRows = [
-      { Ringkasan: "Periode", Nilai: range.fromMonth },
+      { Ringkasan: "Periode", Nilai: periodLabel },
       {
         Ringkasan: "Jenis recap",
         Nilai: isDeliveryNote ? "SJ Bulanan" : "Recap PO Bulanan",
@@ -224,7 +234,7 @@ export async function GET(request: Request) {
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="mektek-monitoring-po-${suffix}-${range.fromMonth}.xlsx"`,
+        "Content-Disposition": `attachment; filename="mektek-monitoring-po-${suffix}-${periodLabel}.xlsx"`,
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
       },

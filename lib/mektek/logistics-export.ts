@@ -60,6 +60,42 @@ export function getLogisticsPoExportRange(fromMonth: string, toMonth: string) {
   };
 }
 
+export function getLogisticsPoExportYearRange(year: number) {
+  if (!Number.isInteger(year) || year < 2000 || year > 9999) {
+    throw new Error("Tahun export tidak valid");
+  }
+  return {
+    year,
+    start: new Date(Date.UTC(year, 0, 1)),
+    end: new Date(Date.UTC(year + 1, 0, 1)),
+  };
+}
+
+export function resolveLogisticsPoExportRange(
+  fromMonth: string | null,
+  toMonth: string | null,
+  year: string | null,
+  month: string | null,
+) {
+  if (fromMonth || toMonth) {
+    const from = fromMonth || toMonth || "";
+    const to = toMonth || fromMonth || "";
+    return getLogisticsPoExportRange(from, to);
+  }
+  if (year) {
+    const parsedYear = Number(year);
+    const range = getLogisticsPoExportYearRange(parsedYear);
+    return {
+      fromMonth: String(parsedYear),
+      toMonth: String(parsedYear),
+      start: range.start,
+      end: range.end,
+    };
+  }
+  const single = month || "";
+  return getLogisticsPoExportRange(single, single);
+}
+
 export function parseLogisticsPoExportType(
   value: string | null,
 ): LogisticsPoExportType {

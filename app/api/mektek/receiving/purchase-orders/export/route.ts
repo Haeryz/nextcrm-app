@@ -7,6 +7,7 @@ import {
   buildReceivingPurchaseOrderExportRows,
   RECEIVING_PURCHASE_ORDER_EXPORT_HEADERS,
 } from "@/lib/mektek/receiving-export";
+import { getLogisticsPoExportRange } from "@/lib/mektek/logistics-export";
 import { prismadb } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -81,9 +82,39 @@ export async function GET(request: Request) {
   if (access.response) return access.response;
 
   try {
-    const { where, query, status } = buildWhere(new URL(request.url).searchParams);
+    const searchParams = new URL(request.url).searchParams;
+    const fromMonth = searchParams.get("fromMonth") ?? "";
+    const toMonth = searchParams.get("toMonth") ?? "";
+    const year = searchParams.get("year") ?? "";
+    const { where, query, status } = buildWhere(searchParams);
+
+    let dateFilter: Prisma.LogisticsPurchaseOrderWhereInput = {};
+    let periodLabel = "Semua periode";
+    if (fromMonth || toMonth) {
+      const from = fromMonth || toMonth;
+      const to = toMonth || fromMonth;
+      const range = getLogisticsPoExportRange(from, to);
+      dateFilter = { inputDate: { gte: range.start, lt: range.end } };
+      periodLabel =
+        range.fromMonth === range.toMonth
+          ? range.fromMonth
+          : `${range.fromMonth}_${range.toMonth}`;
+    } else if (year) {
+      const parsedYear = Number(year);
+      if (!Number.isInteger(parsedYear) || parsedYear < 2000 || parsedYear > 9999) {
+        return Response.json(
+          { error: "Tahun export tidak valid" },
+          { status: 400 },
+        );
+      }
+      const start = new Date(Date.UTC(parsedYear, 0, 1));
+      const end = new Date(Date.UTC(parsedYear + 1, 0, 1));
+      dateFilter = { inputDate: { gte: start, lt: end } };
+      periodLabel = String(parsedYear);
+    }
+
     const orders = await prismadb.logisticsPurchaseOrder.findMany({
-      where,
+      where: { ...where, ...dateFilter },
       orderBy: [{ status: "asc" }, { dueDate: "asc" }, { updatedAt: "desc" }],
       select: {
         projectName: true,
@@ -149,6 +180,7 @@ export async function GET(request: Request) {
     const summary = XLSX.utils.json_to_sheet([
       { Ringkasan: "Filter pencarian", Nilai: query || "Semua" },
       { Ringkasan: "Filter status", Nilai: status || "Semua" },
+      { Ringkasan: "Periode", Nilai: periodLabel },
       { Ringkasan: "Jumlah Purchase Order", Nilai: orders.length },
       { Ringkasan: "Total QTY Masuk", Nilai: totalReceived },
       { Ringkasan: "Total QTY Order", Nilai: totalOrdered },
@@ -164,13 +196,16 @@ export async function GET(request: Request) {
       bookType: "xlsx",
       cellStyles: true,
     });
-    const dateKey = getCatalogInventoryLocalDateKey();
+    const fileSuffix =
+      periodLabel === "Semua periode"
+        ? getCatalogInventoryLocalDateKey()
+        : periodLabel;
 
     return new Response(new Uint8Array(file), {
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="mektek-receiving-po-${dateKey}.xlsx"`,
+        "Content-Disposition": `attachment; filename="mektek-receiving-po-${fileSuffix}.xlsx"`,
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
       },

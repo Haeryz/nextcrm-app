@@ -153,6 +153,8 @@ export type MektekCustomerSearchResult = {
   vehicles: MektekCustomerVehicleSearchResult[];
   address: string | null;
   source: "customer" | "user";
+  serviceCount: number;
+  lastServiceAt: string | null;
 };
 
 export type MektekCustomerVehicleSearchResult = {
@@ -816,11 +818,12 @@ export const searchMektekCustomers = async (
           },
           serviceLinks: {
             orderBy: { createdAt: "desc" },
-            take: 1,
             select: {
+              createdAt: true,
               serviceOrder: {
                 select: {
                   tags: true,
+                  createdAt: true,
                 },
               },
             },
@@ -844,6 +847,14 @@ export const searchMektekCustomers = async (
     const results: MektekCustomerSearchResult[] = customers.map((customer) => {
       const tags = parseTagsObject(customer.serviceLinks[0]?.serviceOrder?.tags);
       const address = typeof tags.address === "string" ? tags.address : null;
+      const serviceLinks = customer.serviceLinks ?? [];
+      const lastServiceLink =
+        serviceLinks.find((link) => link.serviceOrder?.createdAt) ?? null;
+      const lastServiceAt = lastServiceLink
+        ? (lastServiceLink.serviceOrder?.createdAt ??
+          lastServiceLink.createdAt ??
+          null)
+        : null;
       const vehicles: MektekCustomerVehicleSearchResult[] =
         customer.vehicles.length > 0
           ? customer.vehicles
@@ -874,6 +885,8 @@ export const searchMektekCustomers = async (
         vehicles,
         address,
         source: "customer",
+        serviceCount: serviceLinks.length,
+        lastServiceAt: lastServiceAt ? lastServiceAt.toISOString() : null,
       };
     });
 
@@ -894,6 +907,8 @@ export const searchMektekCustomers = async (
         vehicles: [],
         address: null,
         source: "user",
+        serviceCount: 0,
+        lastServiceAt: null,
       });
       seenPhones.add(phoneNormalized);
     }
@@ -902,6 +917,136 @@ export const searchMektekCustomers = async (
   } catch (error) {
     console.log("[SEARCH_MEKTEK_CUSTOMERS]", error);
     return { error: "Gagal mencari Customer" };
+  }
+};
+
+export type MektekCustomerServiceHistoryEntry = {
+  id: string;
+  title: string;
+  content: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  dueDateAt: string | null;
+  taskStatus: string | null;
+  technician: string;
+  vehicle: string;
+  plateNumber: string;
+  vehicleMileageKm: number | null;
+};
+
+export type MektekCustomerServiceHistoryResult = {
+  customerName: string;
+  entries: MektekCustomerServiceHistoryEntry[];
+};
+
+export const getMektekCustomerServiceHistory = async (
+  customerId: string,
+): Promise<{
+  data?: MektekCustomerServiceHistoryResult;
+  error?: string;
+}> => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return { error: "Unauthorized: silakan Login" };
+  }
+  if (!canCreateMektekOrders(session.user)) {
+    return { error: "Forbidden: hanya Admin atau CS MekTek yang dapat melihat riwayat servis" };
+  }
+
+  if (!isUuid(customerId)) {
+    return { error: "ID pelanggan tidak valid" };
+  }
+
+  try {
+    const customer = await prismadb.catalogCustomer.findUnique({
+      where: { id: customerId },
+      select: {
+        id: true,
+        username: true,
+        serviceLinks: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            createdAt: true,
+            serviceOrder: {
+              select: {
+                id: true,
+                title: true,
+                content: true,
+                createdAt: true,
+                updatedAt: true,
+                dueDateAt: true,
+                taskStatus: true,
+                tags: true,
+                assigned_user: {
+                  select: { name: true, email: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!customer) {
+      return { error: "Pelanggan tidak ditemukan" };
+    }
+
+    const entries: MektekCustomerServiceHistoryEntry[] = customer.serviceLinks.map(
+      (link) => {
+        const order = link.serviceOrder;
+        const tags = parseTagsObject(order?.tags);
+        const vehicle =
+          typeof tags.vehicle === "string" && tags.vehicle.trim()
+            ? tags.vehicle
+            : order?.title ?? "Servis";
+        const plateNumber =
+          typeof tags.vehiclePlateNumber === "string"
+            ? tags.vehiclePlateNumber
+            : "";
+        const vehicleMileageKm =
+          typeof tags.vehicleMileageKm === "number"
+            ? tags.vehicleMileageKm
+            : null;
+        const technicianTag =
+          tags.technician &&
+          typeof tags.technician === "object" &&
+          !Array.isArray(tags.technician)
+            ? (tags.technician as Record<string, unknown>)
+            : {};
+        const technician =
+          (typeof tags.technicians === "string" ? tags.technicians : "") ||
+          order?.assigned_user?.name ||
+          order?.assigned_user?.email ||
+          (typeof technicianTag.name === "string" ? technicianTag.name : "") ||
+          "Belum ditugaskan";
+
+        return {
+          id: order?.id ?? "",
+          title: order?.title ?? "",
+          content: order?.content ?? null,
+          createdAt: order?.createdAt
+            ? order.createdAt.toISOString()
+            : link.createdAt.toISOString(),
+          updatedAt: order?.updatedAt ? order.updatedAt.toISOString() : null,
+          dueDateAt: order?.dueDateAt ? order.dueDateAt.toISOString() : null,
+          taskStatus: order?.taskStatus ?? null,
+          technician,
+          vehicle,
+          plateNumber,
+          vehicleMileageKm,
+        };
+      },
+    );
+
+    return {
+      data: {
+        customerName: customer.username,
+        entries,
+      },
+    };
+  } catch (error) {
+    console.log("[GET_MEKTEK_CUSTOMER_SERVICE_HISTORY]", error);
+    return { error: "Gagal memuat riwayat servis" };
   }
 };
 

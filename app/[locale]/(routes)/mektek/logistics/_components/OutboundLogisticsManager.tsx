@@ -324,7 +324,14 @@ export default function OutboundLogisticsManager({
   const [isSavingDispatchRevision, startSavingDispatchRevision] =
     useTransition();
   const currentMonth = getCatalogInventoryLocalDateKey().slice(0, 7);
+  const currentYear = currentMonth.slice(0, 4);
+  const [exportMode, setExportMode] = useState<"month" | "range" | "year">(
+    "month",
+  );
   const [exportMonth, setExportMonth] = useState(currentMonth);
+  const [exportFromMonth, setExportFromMonth] = useState(currentMonth);
+  const [exportToMonth, setExportToMonth] = useState(currentMonth);
+  const [exportYear, setExportYear] = useState(currentYear);
   const [exportType, setExportType] =
     useState<LogisticsPoExportType>("delivery-note");
 
@@ -363,13 +370,32 @@ export default function OutboundLogisticsManager({
     }
   }, [draft]);
   let exportRangeError: string | null = null;
+  let exportHref = "";
+  let exportPeriodLabel = "";
   try {
-    getLogisticsPoExportRange(exportMonth, exportMonth);
+    if (exportMode === "range") {
+      getLogisticsPoExportRange(exportFromMonth, exportToMonth);
+      exportHref = `/api/mektek/logistics/purchase-orders/export?type=${encodeURIComponent(exportType)}&fromMonth=${encodeURIComponent(exportFromMonth)}&toMonth=${encodeURIComponent(exportToMonth)}`;
+      exportPeriodLabel =
+        exportFromMonth === exportToMonth
+          ? exportFromMonth
+          : `${exportFromMonth}_${exportToMonth}`;
+    } else if (exportMode === "year") {
+      const parsedYear = Number(exportYear);
+      if (!Number.isInteger(parsedYear) || parsedYear < 2000 || parsedYear > 9999) {
+        throw new Error("Tahun export tidak valid");
+      }
+      exportHref = `/api/mektek/logistics/purchase-orders/export?type=${encodeURIComponent(exportType)}&year=${encodeURIComponent(exportYear)}`;
+      exportPeriodLabel = exportYear;
+    } else {
+      getLogisticsPoExportRange(exportMonth, exportMonth);
+      exportHref = `/api/mektek/logistics/purchase-orders/export?type=${encodeURIComponent(exportType)}&month=${encodeURIComponent(exportMonth)}`;
+      exportPeriodLabel = exportMonth;
+    }
   } catch (error) {
     exportRangeError =
-      error instanceof Error ? error.message : "Bulan export tidak valid";
+      error instanceof Error ? error.message : "Periode export tidak valid";
   }
-  const exportHref = `/api/mektek/logistics/purchase-orders/export?type=${encodeURIComponent(exportType)}&month=${encodeURIComponent(exportMonth)}`;
 
   const updateDraft = <K extends keyof OutboundDraft>(
     key: K,
@@ -890,6 +916,26 @@ export default function OutboundLogisticsManager({
                       </Select>
                     </div>
                     <div className="space-y-1.5">
+                      <Label htmlFor="po-export-mode">Rentang export</Label>
+                      <Select
+                        value={exportMode}
+                        onValueChange={(value: "month" | "range" | "year") =>
+                          setExportMode(value)
+                        }
+                      >
+                        <SelectTrigger id="po-export-mode" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="month">Per bulan</SelectItem>
+                          <SelectItem value="range">Rentang bulan</SelectItem>
+                          <SelectItem value="year">Per tahun</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {exportMode === "month" && (
+                    <div className="space-y-1.5">
                       <Label htmlFor="po-export-month">Bulan</Label>
                       <Input
                         id="po-export-month"
@@ -899,7 +945,45 @@ export default function OutboundLogisticsManager({
                         onChange={(event) => setExportMonth(event.target.value)}
                       />
                     </div>
-                  </div>
+                  )}
+                  {exportMode === "range" && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="po-export-from">Dari bulan</Label>
+                        <Input
+                          id="po-export-from"
+                          type="month"
+                          max={exportToMonth || currentMonth}
+                          value={exportFromMonth}
+                          onChange={(event) => setExportFromMonth(event.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="po-export-to">Sampai bulan</Label>
+                        <Input
+                          id="po-export-to"
+                          type="month"
+                          min={exportFromMonth}
+                          max={currentMonth}
+                          value={exportToMonth}
+                          onChange={(event) => setExportToMonth(event.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {exportMode === "year" && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="po-export-year">Tahun</Label>
+                      <Input
+                        id="po-export-year"
+                        type="number"
+                        min={2000}
+                        max={Number(currentYear)}
+                        value={exportYear}
+                        onChange={(event) => setExportYear(event.target.value)}
+                      />
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     {exportRangeError ??
                       (exportType === "delivery-note"
@@ -994,7 +1078,7 @@ export default function OutboundLogisticsManager({
                         </Select>
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="outbound-input-date">Tanggal Pengiriman</Label>
+                        <Label htmlFor="outbound-input-date">Tanggal Terima PO</Label>
                         <Input
                           id="outbound-input-date"
                           type="date"

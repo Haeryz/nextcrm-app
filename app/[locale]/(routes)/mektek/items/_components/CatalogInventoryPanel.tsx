@@ -178,6 +178,13 @@ export default function CatalogInventoryPanel({
     [],
   );
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [exportMode, setExportMode] = useState<"month" | "range" | "year">(
+    "month",
+  );
+  const [exportMonth, setExportMonth] = useState(month);
+  const [exportFromMonth, setExportFromMonth] = useState(month);
+  const [exportToMonth, setExportToMonth] = useState(month);
+  const [exportYear, setExportYear] = useState(month.slice(0, 4));
   const filteredItems = useMemo(() => {
     const matchingIds = new Set(
       filterCatalogInventorySnapshots(
@@ -185,7 +192,9 @@ export default function CatalogInventoryPanel({
         {
           query,
           productionChannel:
-            productionChannel === "POWERTRAIN" || productionChannel === "THERMAL"
+            productionChannel === "POWERTRAIN" ||
+            productionChannel === "THERMAL" ||
+            productionChannel === "AC_RUANGAN"
               ? productionChannel
               : "",
           quantityField,
@@ -206,6 +215,17 @@ export default function CatalogInventoryPanel({
   const hasActiveFilters = Boolean(
     query || productionChannel || quantityValue,
   );
+  const exportHref = useMemo(() => {
+    if (exportMode === "range") {
+      const from = exportFromMonth || exportToMonth;
+      const to = exportToMonth || exportFromMonth;
+      return `/api/mektek/catalog-inventory/export?fromMonth=${encodeURIComponent(from)}&toMonth=${encodeURIComponent(to)}`;
+    }
+    if (exportMode === "year") {
+      return `/api/mektek/catalog-inventory/export?year=${encodeURIComponent(exportYear)}`;
+    }
+    return `/api/mektek/catalog-inventory/export?month=${encodeURIComponent(exportMonth)}`;
+  }, [exportMode, exportMonth, exportFromMonth, exportToMonth, exportYear]);
   const totalRearStock = filteredItems.reduce(
     (sum, item) => sum + item.inventory.closingRearStock,
     0,
@@ -396,16 +416,86 @@ export default function CatalogInventoryPanel({
                     defaultValue={month}
                   />
                 </div>
-                <Button type="submit" variant="outline">
-                  Tampilkan
-                </Button>
-              </form>
+              <Button type="submit" variant="outline">
+                Tampilkan
+              </Button>
+            </form>
+            <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3 sm:flex-row sm:items-end sm:gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="inventory-export-mode">Rentang export</Label>
+                <Select
+                  value={exportMode}
+                  onValueChange={(value: "month" | "range" | "year") =>
+                    setExportMode(value)
+                  }
+                >
+                  <SelectTrigger id="inventory-export-mode" className="w-full sm:w-[160px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="month">Per bulan</SelectItem>
+                    <SelectItem value="range">Rentang bulan</SelectItem>
+                    <SelectItem value="year">Per tahun</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {exportMode === "month" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="inventory-export-month">Bulan</Label>
+                  <Input
+                    id="inventory-export-month"
+                    type="month"
+                    max={currentMonth}
+                    value={exportMonth}
+                    onChange={(event) => setExportMonth(event.target.value)}
+                  />
+                </div>
+              )}
+              {exportMode === "range" && (
+                <>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="inventory-export-from">Dari bulan</Label>
+                    <Input
+                      id="inventory-export-from"
+                      type="month"
+                      max={exportToMonth || currentMonth}
+                      value={exportFromMonth}
+                      onChange={(event) => setExportFromMonth(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="inventory-export-to">Sampai bulan</Label>
+                    <Input
+                      id="inventory-export-to"
+                      type="month"
+                      min={exportFromMonth}
+                      max={currentMonth}
+                      value={exportToMonth}
+                      onChange={(event) => setExportToMonth(event.target.value)}
+                    />
+                  </div>
+                </>
+              )}
+              {exportMode === "year" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="inventory-export-year">Tahun</Label>
+                  <Input
+                    id="inventory-export-year"
+                    type="number"
+                    min={2000}
+                    max={Number(currentMonth.slice(0, 4))}
+                    value={exportYear}
+                    onChange={(event) => setExportYear(event.target.value)}
+                  />
+                </div>
+              )}
               <Button asChild variant="outline">
-                <a href={`/api/mektek/catalog-inventory/export?month=${month}`}>
+                <a href={exportHref}>
                   <Download data-icon="inline-start" />
                   Export Excel
                 </a>
               </Button>
+            </div>
             </div>
           </div>
           <div>
@@ -434,6 +524,7 @@ export default function CatalogInventoryPanel({
                     <SelectItem value="ALL">Semua channel</SelectItem>
                     <SelectItem value="POWERTRAIN">Powertrain</SelectItem>
                     <SelectItem value="THERMAL">Thermal</SelectItem>
+                    <SelectItem value="AC_RUANGAN">AC Ruangan</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

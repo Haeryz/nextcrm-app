@@ -172,7 +172,7 @@ export default function ServiceOrderItemsEditor({
             onChange={setSparepartItems}
             label="Daftar Sparepart"
             itemLabel="Sparepart"
-            descriptionLabel="Nama sparepart"
+            descriptionLabel="Nama Sparepart / Part Number"
             addLabel="Tambah sparepart"
             emptyMessage="Belum ada sparepart."
             descriptionPlaceholder={(index) => `Sparepart ${index + 1}`}

@@ -87,10 +87,10 @@ const styles = StyleSheet.create({
   quantityCell: { width: "10%", alignItems: "center" },
   noteCell: { width: "18%" },
   footer: {
-    marginTop: 42,
     flexDirection: "row",
     justifyContent: "space-between",
   },
+  spacer: { flexGrow: 1 },
   signature: { width: "34%", alignItems: "center" },
   signatureSpace: { height: 62 },
   signatureLine: { width: "90%", borderTopWidth: 0.8, borderTopColor: "#111827" },
@@ -187,6 +187,7 @@ function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
           );
         }),
       ),
+      React.createElement(View, { style: styles.spacer }),
       React.createElement(
         View,
         { style: styles.footer },

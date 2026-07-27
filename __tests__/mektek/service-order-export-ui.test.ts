@@ -12,7 +12,11 @@ describe("service-order export controls", () => {
     );
 
     expect(source).toContain('type="month"');
-    expect(source).toContain("/api/mektek/service-orders/export?month=");
+    expect(source).toContain("/api/mektek/service-orders/export");
+    expect(source).toContain("month=");
+    expect(source).toContain("fromMonth=");
+    expect(source).toContain("toMonth=");
+    expect(source).toContain("year=");
     expect(source).not.toContain("XLSX.writeFile");
     expect(source).not.toContain("orders: ServiceOrder[]");
   });

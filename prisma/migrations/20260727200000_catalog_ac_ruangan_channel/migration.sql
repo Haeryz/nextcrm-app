@@ -1,0 +1,1 @@
+ALTER TYPE "CatalogProductionChannel" ADD VALUE IF NOT EXISTS 'AC_RUANGAN';

@@ -467,9 +467,15 @@ export default function DamageItemsInput({
                         onValueChange={(value) =>
                           updateItem(index, "estimatedCost", value)
                         }
-                        disabled={disabled}
+                        disabled={disabled || (catalogSearch && !!item.catalogItemId)}
                         required
                       />
+                      {catalogSearch && item.catalogItemId && (
+                        <p className="text-xs text-muted-foreground">
+                          Harga sparepart katalog terkunci otomatis sesuai
+                          Catalog / Item.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

@@ -554,7 +554,7 @@ export default function ReceivingManager({
               ...item,
               catalogItemId: catalogItem.id,
               catalogQuery: `${catalogItem.description} · ${catalogItem.partNumber || "Tanpa PN"}`,
-              unitPrice: catalogItem.price ? String(catalogItem.price) : "",
+              unitPrice: "",
             }
           : item,
       ),
@@ -1314,14 +1314,14 @@ export default function ReceivingManager({
                               required
                             />
                             <Label htmlFor={`logistics-price-${item.clientId}`}>
-                              Harga Satuan
+                              Harga Supplier
                             </Label>
                             <Input
                               id={`logistics-price-${item.clientId}`}
                               className="h-11 bg-background font-mono text-base"
                               type="number"
                               inputMode="decimal"
-                              min={1}
+                              min={0}
                               step="0.01"
                               value={item.unitPrice}
                               onChange={(event) =>
@@ -1331,14 +1331,13 @@ export default function ReceivingManager({
                                   event.target.value,
                                 )
                               }
-                              disabled={isPending || item.source === "CATALOG"}
+                              disabled={isPending}
                               required
                             />
-                            {item.source === "MANUAL" && (
-                              <p className="text-xs text-muted-foreground">
-                                Wajib diisi untuk item manual.
-                              </p>
-                            )}
+                            <p className="text-xs text-muted-foreground">
+                              Harga modal dari supplier. Harga jual diatur
+                              terpisah di Catalog / Item setelah barang diterima.
+                            </p>
                             <Separator />
                             <div className="space-y-1">
                               <p className="text-xs text-muted-foreground">

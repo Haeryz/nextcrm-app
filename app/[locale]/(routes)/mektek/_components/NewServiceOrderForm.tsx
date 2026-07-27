@@ -21,16 +21,26 @@ import { toast } from "sonner";
 
 import {
   createMektekServiceOrder,
+  getMektekCustomerServiceHistory,
   searchMektekCustomers,
   type MektekCustomerSearchResult,
+  type MektekCustomerServiceHistoryEntry,
   type MektekTechnicianOption,
 } from "@/actions/mektek/service-orders";
 import { ServiceCreatedBurst } from "@/components/mektek/ServiceCreatedBurst";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { getStatusMeta } from "../_lib/constants";
 import {
   formatMektekVehicleChoiceLabel,
   normalizeMektekVehiclePlateNumber,
@@ -54,6 +64,16 @@ import {
 import DamageItemsInput, { DamageItem } from "./DamageItemsInput";
 
 const NEW_CUSTOMER_VEHICLE = "NEW_CUSTOMER_VEHICLE";
+
+const formatServiceDate = (value: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeZone: "Asia/Makassar",
+  }).format(date);
+};
 
 type TechnicianSelection = {
   id: string | null;
@@ -220,6 +240,20 @@ export default function NewServiceOrderForm({
   const [customerSuggestionsOpen, setCustomerSuggestionsOpen] = useState(false);
   const [hasCustomerSearchResult, setHasCustomerSearchResult] = useState(false);
   const [isSearchingCustomers, startCustomerSearch] = useTransition();
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    null,
+  );
+  const [selectedCustomerSource, setSelectedCustomerSource] = useState<
+    "customer" | "user" | null
+  >(null);
+  const [selectedCustomerServiceCount, setSelectedCustomerServiceCount] =
+    useState(0);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, startHistoryFetch] = useTransition();
+  const [historyEntries, setHistoryEntries] = useState<
+    MektekCustomerServiceHistoryEntry[]
+  >([]);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const selectedCustomerSearchRef = useRef("");
 
@@ -441,9 +475,28 @@ export default function NewServiceOrderForm({
     if (customer.address && !address.trim()) {
       setAddress(customer.address);
     }
+    setSelectedCustomerId(customer.id);
+    setSelectedCustomerSource(customer.source);
+    setSelectedCustomerServiceCount(customer.serviceCount);
     setCustomerSuggestions([]);
     setCustomerSuggestionsOpen(false);
     setHasCustomerSearchResult(false);
+  };
+
+  const openHistory = () => {
+    if (!selectedCustomerId || selectedCustomerSource !== "customer") return;
+    setHistoryOpen(true);
+    setHistoryError(null);
+    startHistoryFetch(async () => {
+      const result = await getMektekCustomerServiceHistory(selectedCustomerId);
+      if (result.error) {
+        setHistoryError(result.error);
+        setHistoryEntries([]);
+      } else {
+        setHistoryEntries(result.data?.entries ?? []);
+        setHistoryError(null);
+      }
+    });
   };
 
   const selectCustomerVehicle = (vehicleId: string) => {
@@ -549,6 +602,9 @@ export default function NewServiceOrderForm({
                   setCustomerSearchQuery(event.target.value);
                   setCustomerVehicles([]);
                   setSelectedVehicleId("");
+                  setSelectedCustomerId(null);
+                  setSelectedCustomerSource(null);
+                  setSelectedCustomerServiceCount(0);
                   setCustomerSuggestionsOpen(true);
                 }}
                 disabled={isPending}
@@ -598,6 +654,20 @@ export default function NewServiceOrderForm({
                                 .join(", ")}
                             </span>
                           )}
+                          {customer.serviceCount > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              {customer.serviceCount}× servis
+                              {customer.lastServiceAt
+                                ? ` · terakhir ${formatServiceDate(customer.lastServiceAt)}`
+                                : ""}
+                            </span>
+                          )}
+                          {customer.serviceCount === 0 &&
+                            customer.source === "customer" && (
+                              <span className="text-xs text-muted-foreground">
+                                Belum pernah servis
+                              </span>
+                            )}
                         </button>
                       ))}
                     {!isSearchingCustomers &&
@@ -615,6 +685,32 @@ export default function NewServiceOrderForm({
               Cari dengan nama atau nomor plat, lalu pilih pelanggan untuk mengisi
               data otomatis.
             </p>
+            {selectedCustomerId &&
+              selectedCustomerSource === "customer" && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={openHistory}
+                    disabled={historyLoading}
+                  >
+                    {historyLoading ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <ClipboardList className="size-4" />
+                    )}
+                    Lihat riwayat servis
+                    {selectedCustomerServiceCount > 0
+                      ? ` (${selectedCustomerServiceCount})`
+                      : ""}
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    Pelanggan tersimpan dipilih. Riwayat servis akan tampil di
+                    sini tanpa menghapus riwayat di halaman detail pelanggan.
+                  </span>
+                </div>
+              )}
           </div>
             <div className="space-y-1.5">
               <Label htmlFor="customer-name">
@@ -912,7 +1008,7 @@ export default function NewServiceOrderForm({
               label="Sparepart"
               helperText="Opsional. Cari dari katalog atau masukkan sparepart manual jika diperlukan."
               itemLabel="Sparepart"
-              descriptionLabel="Nama sparepart"
+              descriptionLabel="Nama Sparepart / Part Number"
               addLabel="Tambah sparepart"
               emptyMessage="Belum ada sparepart"
               descriptionPlaceholder={(index) =>
@@ -990,6 +1086,70 @@ export default function NewServiceOrderForm({
           </div>
         </div>
       )}
+
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Riwayat servis pelanggan</DialogTitle>
+            <DialogDescription>
+              Daftar service order tersimpan untuk pelanggan ini. Riwayat ini
+              juga tetap tersedia di halaman detail pelanggan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            {historyLoading && (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Memuat riwayat servis...
+              </div>
+            )}
+            {historyError && !historyLoading && (
+              <div className="py-10 text-center text-sm text-destructive">
+                {historyError}
+              </div>
+            )}
+            {!historyLoading && !historyError && historyEntries.length === 0 && (
+              <div className="py-10 text-center text-sm text-muted-foreground">
+                Belum ada riwayat servis untuk pelanggan ini.
+              </div>
+            )}
+            {!historyLoading && !historyError && historyEntries.length > 0 && (
+              <div className="divide-y">
+                {historyEntries.map((entry) => {
+                  const status = getStatusMeta(entry.taskStatus);
+                  return (
+                    <a
+                      key={entry.id}
+                      href={`/${locale}/mektek/${entry.id}`}
+                      className="group grid gap-2 px-4 py-3 transition-colors hover:bg-muted/40 md:grid-cols-[minmax(0,1.4fr)_minmax(140px,0.7fr)_auto] md:items-center"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium group-hover:underline">
+                          {entry.vehicle}
+                          {entry.plateNumber ? ` · ${entry.plateNumber}` : ""}
+                          {entry.vehicleMileageKm !== null
+                            ? ` · ${entry.vehicleMileageKm.toLocaleString("id-ID")} KM`
+                            : ""}
+                        </p>
+                        <p className="line-clamp-1 text-xs text-muted-foreground">
+                          {entry.content || "Belum ada catatan servis"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Teknisi: {entry.technician}
+                        </p>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatServiceDate(entry.createdAt)}
+                      </div>
+                      <Badge variant={status.badgeVariant}>{status.label}</Badge>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import crypto from "crypto";
 import { revalidatePath, unstable_cache } from "next/cache";
 import type { CatalogProductionChannel, Prisma } from "@prisma/client";
+import { CATALOG_PRODUCTION_CHANNELS } from "@/lib/mektek/catalog-inventory";
 
 import { authOptions } from "@/lib/auth";
 import { prismadb } from "@/lib/prisma";
@@ -116,8 +117,10 @@ function normalizeCatalogInput(input: CatalogItemInput) {
   const frontStockProvided = compactText(input.initialFrontStock) !== "";
   const rawProductionChannel = compactText(input.productionChannel).toUpperCase();
   const productionChannel: CatalogProductionChannel | null =
-    rawProductionChannel === "POWERTRAIN" || rawProductionChannel === "THERMAL"
-      ? rawProductionChannel
+    (CATALOG_PRODUCTION_CHANNELS as readonly string[]).includes(
+      rawProductionChannel,
+    )
+      ? (rawProductionChannel as CatalogProductionChannel)
       : null;
 
   if (!machine) return { error: "Machine wajib diisi" };

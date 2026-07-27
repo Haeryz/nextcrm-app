@@ -12,11 +12,15 @@ import { authOptions } from "@/lib/auth";
 import { getCatalogImageSource } from "@/lib/catalog-images";
 import {
   CATALOG_MOVEMENT_FAST_THRESHOLD,
+  CATALOG_PRODUCTION_CHANNELS,
   calculateCatalogInventoryMonth,
   getCatalogInventoryLocalDateKey,
   getCatalogInventoryMonthKey,
   getCatalogInventoryMonthRange,
+  getCatalogInventoryYearRange,
   parseCatalogInventoryDateKey,
+  type CatalogInventoryAnnualMonthSummary,
+  type CatalogInventoryAnnualSnapshot,
   type CatalogInventorySnapshot,
 } from "@/lib/mektek/catalog-inventory";
 import {
@@ -76,8 +80,8 @@ function catalogWhere(input?: {
   const machine = compactText(input?.machine);
   const rawChannel = compactText(input?.productionChannel).toUpperCase();
   const productionChannel: CatalogProductionChannel | undefined =
-    rawChannel === "POWERTRAIN" || rawChannel === "THERMAL"
-      ? rawChannel
+    (CATALOG_PRODUCTION_CHANNELS as readonly string[]).includes(rawChannel)
+      ? (rawChannel as CatalogProductionChannel)
       : undefined;
 
   return {
@@ -605,4 +609,175 @@ export async function getMektekCatalogInventoryExportData(
   });
   const snapshots = await loadInventorySnapshots(items, range.month);
   return { month: range.month, snapshots };
+}
+
+function resolveYear(year: unknown) {
+  const text = compactText(year);
+  if (!text) return new Date().getUTCFullYear();
+  const parsed = Number(text);
+  if (!Number.isInteger(parsed) || parsed < 2000 || parsed > 9999) {
+    throw new Error("Tahun inventory tidak valid");
+  }
+  return parsed;
+}
+
+type AnnualLedgerRow = {
+  catalogItemId: string;
+  month: Date;
+  closingRearStock: number;
+  closingFrontStock: number;
+  movements: Array<{
+    warehouse: CatalogWarehouse;
+    direction: CatalogStockDirection;
+    quantity: number;
+    occurredAt: Date;
+  }>;
+};
+
+export async function getMektekCatalogInventoryAnnualExportData(
+  year?: string,
+  request?: Request,
+) {
+  const access = await ensureCatalogManager(request);
+  if ("error" in access) throw new Error(access.error);
+  const resolvedYear = resolveYear(year);
+  const yearRange = getCatalogInventoryYearRange(resolvedYear);
+  const items = await prismadb.catalogItem.findMany({
+    orderBy: [{ description: "asc" }, { machine: "asc" }],
+    select: inventoryItemSelect,
+  });
+
+  if (items.length === 0) {
+    return { year: resolvedYear, snapshots: [] };
+  }
+
+  const itemIds = items.map((item) => item.id);
+  const [ledgers, initialLedgers] = await Promise.all([
+    prismadb.catalogInventoryMonth.findMany({
+      where: {
+        catalogItemId: { in: itemIds },
+        month: { gte: yearRange.start, lt: yearRange.end },
+      },
+      orderBy: [{ catalogItemId: "asc" }, { month: "asc" }],
+      select: {
+        catalogItemId: true,
+        month: true,
+        openingRearStock: true,
+        openingFrontStock: true,
+        closingRearStock: true,
+        closingFrontStock: true,
+        movements: {
+          orderBy: { occurredAt: "asc" },
+          select: {
+            warehouse: true,
+            direction: true,
+            quantity: true,
+            occurredAt: true,
+          },
+        },
+      },
+    }),
+    prismadb.catalogInventoryMonth.findMany({
+      where: {
+        catalogItemId: { in: itemIds },
+        month: { lt: yearRange.start },
+      },
+      distinct: ["catalogItemId"],
+      orderBy: [{ catalogItemId: "asc" }, { month: "desc" }],
+      select: {
+        catalogItemId: true,
+        closingRearStock: true,
+        closingFrontStock: true,
+      },
+    }),
+  ]);
+
+  const initialByItem = new Map(
+    initialLedgers.map((ledger) => [
+      ledger.catalogItemId,
+      { rear: ledger.closingRearStock, front: ledger.closingFrontStock },
+    ]),
+  );
+  const ledgersByItem = new Map<string, AnnualLedgerRow[]>();
+  for (const ledger of ledgers) {
+    const list = ledgersByItem.get(ledger.catalogItemId) ?? [];
+    list.push({
+      catalogItemId: ledger.catalogItemId,
+      month: ledger.month,
+      closingRearStock: ledger.closingRearStock,
+      closingFrontStock: ledger.closingFrontStock,
+      movements: ledger.movements.map((movement) => ({
+        warehouse: movement.warehouse,
+        direction: movement.direction,
+        quantity: movement.quantity,
+        occurredAt: movement.occurredAt,
+      })),
+    });
+    ledgersByItem.set(ledger.catalogItemId, list);
+  }
+
+  const snapshots: CatalogInventoryAnnualSnapshot[] = items.map((item) => {
+    const initial = initialByItem.get(item.id);
+    let openingRearStock = initial?.rear ?? item.rearStock;
+    let openingFrontStock = initial?.front ?? item.frontStock;
+    const months: CatalogInventoryAnnualMonthSummary[] = Array.from(
+      { length: 12 },
+      () => ({
+        inbound: 0,
+        outbound: 0,
+        closingRearStock: openingRearStock,
+        closingFrontStock: openingFrontStock,
+      }),
+    );
+
+    const ledgerMonths = ledgersByItem.get(item.id) ?? [];
+    ledgerMonths.forEach((ledger) => {
+      const monthIndex = new Date(ledger.month).getUTCMonth();
+      const monthInbound = ledger.movements
+        .filter((movement) => movement.direction === "IN")
+        .reduce((total, movement) => total + movement.quantity, 0);
+      const monthOutbound = ledger.movements
+        .filter((movement) => movement.direction === "OUT")
+        .reduce((total, movement) => total + movement.quantity, 0);
+      months[monthIndex] = {
+        inbound: monthInbound,
+        outbound: monthOutbound,
+        closingRearStock: ledger.closingRearStock,
+        closingFrontStock: ledger.closingFrontStock,
+      };
+      openingRearStock = ledger.closingRearStock;
+      openingFrontStock = ledger.closingFrontStock;
+    });
+
+    const totalInbound = months.reduce(
+      (total, summary) => total + summary.inbound,
+      0,
+    );
+    const totalOutbound = months.reduce(
+      (total, summary) => total + summary.outbound,
+      0,
+    );
+
+    return {
+      id: item.id,
+      itemName: item.description,
+      productionChannel: item.productionChannel,
+      machine: item.machine,
+      partNumber: item.partNumber,
+      remark: item.remark,
+      openingRearStock: initialByItem.has(item.id)
+        ? initialByItem.get(item.id)!.rear
+        : item.rearStock,
+      openingFrontStock: initialByItem.has(item.id)
+        ? initialByItem.get(item.id)!.front
+        : item.frontStock,
+      months,
+      totalInbound,
+      totalOutbound,
+      closingRearStock: openingRearStock,
+      closingFrontStock: openingFrontStock,
+    };
+  });
+
+  return { year: resolvedYear, snapshots };
 }

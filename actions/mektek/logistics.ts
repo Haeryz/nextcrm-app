@@ -324,7 +324,8 @@ function normalizePurchaseOrderLines(
       } as const;
     }
     const note = boundedText(item?.note, MAX_NOTE_LEN) || null;
-    const unitPriceText = compactText(item?.agreedUnitPrice);
+    const unitPriceText =
+      compactText(item?.agreedUnitPrice) || compactText(item?.unitPrice);
     const agreedUnitPriceNumber = unitPriceText ? Number(unitPriceText) : null;
     if (
       options.requireUnitPrice &&
@@ -463,7 +464,6 @@ async function ensureManualReceivingCatalogItem(
     partNumber: string | null;
     machine: string;
     poNumber: string;
-    unitPrice?: string;
   },
 ) {
   if (input.partNumber) {
@@ -489,6 +489,11 @@ async function ensureManualReceivingCatalogItem(
     if (existing) return existing;
   }
 
+  // The supplier price (Harga Supplier) is a cost basis, not the selling price.
+  // It is persisted on the Receiving PO line as `agreedUnitPrice` and surfaced
+  // in the Receiving PDF only. The catalog `price` (Harga Jual) stays null here
+  // and must be set manually by logistics in Catalog / Item after the item is
+  // received, so selling prices are never silently overwritten by receiving.
   return tx.catalogItem.create({
     data: {
       id: `manual-receiving-${randomUUID()}`,
@@ -496,9 +501,6 @@ async function ensureManualReceivingCatalogItem(
       rowNumber: 0,
       description: input.partName,
       partNumber: input.partNumber,
-      price: input.unitPrice
-        ? Math.round(Number(input.unitPrice))
-        : undefined,
       rearStock: 0,
       frontStock: 0,
       searchText: [
@@ -508,7 +510,7 @@ async function ensureManualReceivingCatalogItem(
       ]
         .join(" ")
         .toLocaleLowerCase("id-ID"),
-      remark: `Ditambahkan otomatis dari Receiving PO ${input.poNumber}`,
+      remark: `Ditambahkan otomatis dari Receiving PO ${input.poNumber}. Harga jual belum diisi, isi manual di Catalog / Item.`,
     },
     select: { id: true },
   });
@@ -701,13 +703,14 @@ export async function createMektekReceivingPurchaseOrder(
     requireManualWarehouse: true,
     requireManualUnitPrice: true,
     requireManualPartNumber: false,
+    requireUnitPrice: true,
     emptyError: "Minimal satu item Receiving wajib diisi",
   });
   if ("error" in lines) return { error: lines.error };
 
   try {
     const purchaseOrder = await prismadb.$transaction(async (tx) => {
-      const hydrated = await hydratePurchaseOrderLines(tx, lines.data, true);
+      const hydrated = await hydratePurchaseOrderLines(tx, lines.data, false);
       const manualCatalogIds = new Map<number, string>();
       for (const line of hydrated) {
         if (line.source !== "MANUAL") continue;
@@ -716,7 +719,6 @@ export async function createMektekReceivingPurchaseOrder(
           partNumber: line.partNumber,
           machine: line.machine!,
           poNumber: header.data.poNumber,
-          unitPrice: line.unitPrice!,
         });
         manualCatalogIds.set(line.position, catalogItem.id);
       }
@@ -750,7 +752,7 @@ export async function createMektekReceivingPurchaseOrder(
                       line.catalogItem.catalogPartNumber,
                     machine: line.catalogItem.machine,
                     orderedQuantity: line.orderedQuantity,
-                    agreedUnitPrice: line.catalogItem.price,
+                    agreedUnitPrice: line.agreedUnitPrice ?? line.unitPrice,
                     note: line.note,
                   },
             ),

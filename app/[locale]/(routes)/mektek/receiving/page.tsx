@@ -16,6 +16,7 @@ import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { getSupplierNameSuggestions } from "@/lib/mektek/supplier-names";
 import ReceivingManager from "./_components/ReceivingManager";
+import ReceivingExportButton from "./_components/ReceivingExportButton";
 
 interface MektekLogisticsPageProps {
   params?: Promise<{ locale: string }>;
@@ -117,6 +118,7 @@ export default async function MektekReceivingPage({
   const exportHref = `/api/mektek/receiving/purchase-orders/export${
     exportQuery ? `?${exportQuery}` : ""
   }`;
+  const exportBaseQuery = exportQuery;
   const pageHref = (targetPage: number) => {
     const paramsForPage = new URLSearchParams(queryString);
     paramsForPage.set("page", String(targetPage));
@@ -132,7 +134,7 @@ export default async function MektekReceivingPage({
       description="Kelola PO ke supplier dan catat barang masuk ke Catalog / Item"
     >
       <div className="flex flex-col gap-6">
-        <div className="flex justify-end">
+        <div className="flex flex-col justify-end gap-3 sm:flex-row sm:items-center">
           <Button asChild type="button">
             <Link
               href={exportHref}
@@ -142,6 +144,7 @@ export default async function MektekReceivingPage({
               Export Excel
             </Link>
           </Button>
+          <ReceivingExportButton baseQuery={exportBaseQuery} />
         </div>
 
         <Card className="md:sticky md:top-0 md:z-30">

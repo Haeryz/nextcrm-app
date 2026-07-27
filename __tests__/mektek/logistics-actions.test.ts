@@ -484,7 +484,7 @@ describe("MekTek Logistics and Receiving actions", () => {
       inputDate: "2026-07-10",
       dueDate: "2026-07-20",
       poType: "Normal",
-      items: [{ catalogItemId: "catalog-1", orderedQuantity: 5 }],
+      items: [{ catalogItemId: "catalog-1", orderedQuantity: 5, unitPrice: "5675000" }],
     });
 
     expect(result).toEqual(expect.objectContaining({ data: expect.any(Object) }));
@@ -499,7 +499,7 @@ describe("MekTek Logistics and Receiving actions", () => {
                 catalogItemId: "catalog-1",
                 partName: "Compressor",
                 partNumber: "CMP-001",
-                agreedUnitPrice: 5_675_000,
+                agreedUnitPrice: "5675000.00",
               }),
             ],
           },
@@ -586,6 +586,7 @@ describe("MekTek Logistics and Receiving actions", () => {
           partName: "",
           partNumber: "SK-CUSTOM-01",
           orderedQuantity: 3,
+          unitPrice: 50_000,
         },
       ],
     });

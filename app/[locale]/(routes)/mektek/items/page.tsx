@@ -52,7 +52,9 @@ export default async function MektekCatalogItemsPage({
   const machine = readSearchParam(resolvedSearchParams, "machine");
   const rawProductionChannel = readSearchParam(resolvedSearchParams, "channel");
   const productionChannel =
-    rawProductionChannel === "POWERTRAIN" || rawProductionChannel === "THERMAL"
+    rawProductionChannel === "POWERTRAIN" ||
+    rawProductionChannel === "THERMAL" ||
+    rawProductionChannel === "AC_RUANGAN"
       ? rawProductionChannel
       : "";
   const rawMovementCategory = readSearchParam(
@@ -129,6 +131,7 @@ export default async function MektekCatalogItemsPage({
                   { value: "ALL", label: "Semua channel" },
                   { value: "POWERTRAIN", label: "Powertrain" },
                   { value: "THERMAL", label: "Thermal" },
+                  { value: "AC_RUANGAN", label: "AC Ruangan" },
                 ]}
               />
               <LiveFilterSelect

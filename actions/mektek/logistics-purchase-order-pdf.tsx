@@ -239,7 +239,7 @@ function PurchaseOrderDocument({ data }: { data: MektekPurchaseOrderPdfData }) {
             <Text style={[styles.cell, styles.description]}>DESCRIPTION</Text>
             <Text style={[styles.cell, styles.partNumber]}>PART NUMBER</Text>
             <Text style={[styles.cell, styles.quantity]}>QTY</Text>
-            <Text style={[styles.cell, styles.price]}>PRICE</Text>
+            <Text style={[styles.cell, styles.price]}>HARGA SUPPLIER</Text>
             <Text style={[styles.cell, styles.amount]}>AMOUNT</Text>
           </View>
           {items.map((item) => (

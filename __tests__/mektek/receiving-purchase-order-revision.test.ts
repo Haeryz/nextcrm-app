@@ -13,8 +13,7 @@ describe("Receiving Purchase Order revision", () => {
 
     expect(actionSource).toContain("unitPrice");
     expect(actionSource).toContain("agreedUnitPrice");
-    expect(managerSource).toContain("Harga Satuan");
-    expect(managerSource).toContain("catalogItem.price");
+    expect(managerSource).toContain("Harga Supplier");
     expect(managerSource).toContain("Total Purchase Order");
   });
 
