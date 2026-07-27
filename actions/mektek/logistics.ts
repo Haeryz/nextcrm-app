@@ -144,6 +144,15 @@ export type MektekOutboundDispatchInput = {
   }>;
 };
 
+export type MektekOutboundDispatchRevisionInput = {
+  purchaseOrderId: string;
+  dispatchReference: string;
+  items: Array<{
+    receiptId: string;
+    quantity: string | number;
+  }>;
+};
+
 class LogisticsActionError extends Error {}
 
 const LOGISTICS_TRANSACTION_OPTIONS = {
@@ -1115,6 +1124,296 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
     const retryMessage = getTransactionRetryMessage(error, "Barang Keluar");
     if (retryMessage) return { error: retryMessage };
     return { error: "Gagal mencatat Barang Keluar Monitoring PO" };
+  }
+}
+
+export async function updateMektekOutboundDispatchQuantities(
+  input: MektekOutboundDispatchRevisionInput,
+) {
+  const access = await ensureLogisticsManager("MONITORING_PO");
+  if ("error" in access) return { error: access.error };
+  const purchaseOrderId = compactText(input?.purchaseOrderId);
+  const dispatchReference = normalizeLogisticsReference(input?.dispatchReference);
+  const rawItems = Array.isArray(input?.items) ? input.items : [];
+  const items = rawItems.map((item) => ({
+    receiptId: compactText(item?.receiptId),
+    quantity: parsePositiveInteger(item?.quantity),
+  }));
+  if (!purchaseOrderId) return { error: "Purchase Order wajib dipilih" };
+  if (!dispatchReference) return { error: "Nomor Surat Jalan wajib diisi" };
+  if (items.length === 0) {
+    return { error: "Pilih minimal satu item yang direvisi" };
+  }
+  if (items.some((item) => !item.receiptId || !item.quantity)) {
+    return { error: "QTY setiap item Surat Jalan wajib valid" };
+  }
+  if (new Set(items.map((item) => item.receiptId)).size !== items.length) {
+    return { error: "Item Surat Jalan tidak boleh duplikat" };
+  }
+
+  try {
+    const result = await prismadb.$transaction(async (tx) => {
+      const purchaseOrder = await tx.logisticsPurchaseOrder.findUnique({
+        where: { id: purchaseOrderId },
+        select: {
+          id: true,
+          poNumber: true,
+          flow: true,
+          poMode: true,
+          projectName: true,
+          userName: true,
+          items: {
+            orderBy: { position: "asc" },
+            select: {
+              id: true,
+              catalogItemId: true,
+              source: true,
+              partName: true,
+              orderedQuantity: true,
+              receivedQuantity: true,
+              status: true,
+              receipts: {
+                where: { receivingReference: dispatchReference },
+                select: {
+                  id: true,
+                  quantity: true,
+                  warehouse: true,
+                  receivedAt: true,
+                  note: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      if (!purchaseOrder || purchaseOrder.flow !== "OUTBOUND") {
+        throw new LogisticsActionError("Monitoring PO tidak ditemukan");
+      }
+
+      const billingSourceKey = `OUTBOUND:${purchaseOrder.id}:${dispatchReference}`;
+      const billingSource = await tx.financeBillingSource.findUnique({
+        where: { sourceKey: billingSourceKey },
+        select: { status: true },
+      });
+      if (
+        billingSource &&
+        billingSource.status !== "UNBILLED" &&
+        billingSource.status !== "NEEDS_REVIEW"
+      ) {
+        throw new LogisticsActionError(
+          "Surat Jalan sudah masuk Faktur, tidak dapat direvisi",
+        );
+      }
+
+      const receiptByItem = new Map(
+        purchaseOrder.items.flatMap((item) =>
+          item.receipts.map((receipt) => [
+            receipt.id,
+            { item, receipt },
+          ]),
+        ),
+      );
+      const validated = items.map((inputItem) => {
+        const matched = receiptByItem.get(inputItem.receiptId);
+        if (!matched) {
+          throw new LogisticsActionError(
+            "Terdapat item yang bukan bagian dari Surat Jalan ini",
+          );
+        }
+        const { item, receipt } = matched;
+        const oldBatchQty = receipt.quantity;
+        const newQty = inputItem.quantity!;
+        const projectedShipped = item.receivedQuantity - oldBatchQty + newQty;
+        if (projectedShipped > item.orderedQuantity) {
+          throw new LogisticsActionError(
+            `Total QTY keluar untuk "${item.partName}" melebihi QTY Order (${item.orderedQuantity})`,
+          );
+        }
+        if (projectedShipped < 0) {
+          throw new LogisticsActionError(
+            `Total QTY keluar untuk "${item.partName}" tidak valid`,
+          );
+        }
+        const newStatus: LogisticsPurchaseOrderStatus =
+          projectedShipped === item.orderedQuantity ? "CLOSED" : "OPEN";
+        return {
+          item,
+          receipt,
+          oldBatchQty,
+          newQty,
+          delta: newQty - oldBatchQty,
+          newStatus,
+        };
+      });
+
+      const revisionOccurredAt =
+        parseDateOnly(getCatalogInventoryLocalDateKey()) ?? new Date();
+      const revisionStamp = Date.now();
+      const movementInputs: Array<{
+        catalogItemId: string;
+        warehouse: CatalogWarehouse;
+        delta: number;
+        receiptId: string;
+        note: string;
+      }> = [];
+      const itemProgresses: Array<{
+        purchaseOrderItemId: string;
+        orderedQuantity: number;
+        receivedQuantity: number;
+        remainingQuantity: number;
+        status: LogisticsPurchaseOrderStatus;
+      }> = [];
+
+      for (const entry of validated) {
+        const { item, receipt, oldBatchQty, newQty, delta, newStatus } = entry;
+        await tx.logisticsReceipt.update({
+          where: { id: receipt.id },
+          data: { quantity: newQty },
+        });
+        const updated = await tx.logisticsPurchaseOrderItem.updateMany({
+          where: {
+            id: item.id,
+            purchaseOrderId: purchaseOrder.id,
+            receivedQuantity: item.receivedQuantity,
+          },
+          data: {
+            receivedQuantity: { increment: delta },
+            status: newStatus,
+          },
+        });
+        if (updated.count !== 1) {
+          throw new LogisticsActionError(
+            "QTY item telah berubah. Muat ulang halaman sebelum revisi kembali.",
+          );
+        }
+        if (item.catalogItemId && delta !== 0) {
+          movementInputs.push({
+            catalogItemId: item.catalogItemId,
+            warehouse: receipt.warehouse,
+            delta,
+            receiptId: receipt.id,
+            note: `Revisi Surat Jalan ${dispatchReference} ${purchaseOrder.poNumber}${receipt.note ? ` · ${receipt.note}` : ""}`,
+          });
+        }
+        const projectedReceived = item.receivedQuantity + delta;
+        itemProgresses.push({
+          purchaseOrderItemId: item.id,
+          orderedQuantity: item.orderedQuantity,
+          receivedQuantity: projectedReceived,
+          remainingQuantity: Math.max(0, item.orderedQuantity - projectedReceived),
+          status: newStatus,
+        });
+      }
+
+      for (const movement of movementInputs.sort((a, b) =>
+        a.catalogItemId.localeCompare(b.catalogItemId),
+      )) {
+        const sourceId = `${movement.receiptId}#revisi-${revisionStamp}`;
+        if (movement.delta > 0) {
+          await applyCatalogStockMovement(tx, {
+            catalogItemId: movement.catalogItemId,
+            warehouse: movement.warehouse,
+            direction: "OUT",
+            quantity: movement.delta,
+            occurredAt: revisionOccurredAt,
+            note: movement.note,
+            createdBy: access.session.user.id,
+            source: "OUTBOUND_PO",
+            sourceId,
+            preventNegativeStock: true,
+          });
+        } else if (movement.delta < 0) {
+          await applyCatalogStockMovement(tx, {
+            catalogItemId: movement.catalogItemId,
+            warehouse: movement.warehouse,
+            direction: "IN",
+            quantity: -movement.delta,
+            occurredAt: revisionOccurredAt,
+            note: movement.note,
+            createdBy: access.session.user.id,
+            source: "OUTBOUND_PO",
+            sourceId,
+            preventNegativeStock: false,
+          });
+        }
+      }
+
+      if (purchaseOrder.poMode === "CONSIGNMENT") {
+        const siteName = purchaseOrder.projectName || purchaseOrder.userName;
+        for (const movement of movementInputs.sort((a, b) =>
+          a.catalogItemId.localeCompare(b.catalogItemId),
+        )) {
+          const sourceId = `${movement.receiptId}#revisi-${revisionStamp}`;
+          if (movement.delta > 0) {
+            await applyCatalogConsignmentSiteStock(tx, {
+              catalogItemId: movement.catalogItemId,
+              siteName,
+              projectKey: normalizeFinanceKey(purchaseOrder.projectName),
+              direction: "IN",
+              quantity: movement.delta,
+              occurredAt: revisionOccurredAt,
+              note: `Revisi Consignment ${purchaseOrder.poNumber}`,
+              counterpartyName: purchaseOrder.userName,
+              createdBy: access.session.user.id,
+              source: "OUTBOUND_PO",
+              sourceId,
+            });
+          } else if (movement.delta < 0) {
+            await applyCatalogConsignmentSiteStock(tx, {
+              catalogItemId: movement.catalogItemId,
+              siteName,
+              projectKey: normalizeFinanceKey(purchaseOrder.projectName),
+              direction: "OUT",
+              quantity: -movement.delta,
+              occurredAt: revisionOccurredAt,
+              note: `Revisi Consignment ${purchaseOrder.poNumber}`,
+              counterpartyName: purchaseOrder.userName,
+              createdBy: access.session.user.id,
+              source: "OUTBOUND_PO",
+              sourceId,
+            });
+          }
+        }
+      }
+
+      const openItems = await tx.logisticsPurchaseOrderItem.count({
+        where: { purchaseOrderId: purchaseOrder.id, status: "OPEN" },
+      });
+      const purchaseOrderStatus: LogisticsPurchaseOrderStatus =
+        openItems === 0 ? "CLOSED" : "OPEN";
+      await tx.logisticsPurchaseOrder.update({
+        where: { id: purchaseOrder.id },
+        data: { status: purchaseOrderStatus },
+      });
+
+      const firstReceiptAt = validated[0]?.receipt.receivedAt;
+      await syncOutboundDispatchBillingSource(tx, {
+        purchaseOrderId: purchaseOrder.id,
+        dispatchReference,
+        occurredAt: firstReceiptAt ?? revisionOccurredAt,
+      });
+
+      return {
+        dispatchReference,
+        purchaseOrderId: purchaseOrder.id,
+        purchaseOrderStatus,
+        itemProgresses,
+      };
+    }, LOGISTICS_TRANSACTION_OPTIONS);
+    revalidatePath("/[locale]/(routes)/mektek/logistics", "page");
+    revalidatePath("/[locale]/(routes)/mektek/logistics/spreadsheet", "page");
+    revalidatePath("/[locale]/(routes)/mektek/items", "page");
+    revalidatePath("/[locale]/(routes)/mektek/items/spreadsheet", "page");
+    return { data: result };
+  } catch (error) {
+    console.log("[UPDATE_MEKTEK_OUTBOUND_DISPATCH]", error);
+    if (error instanceof LogisticsActionError) return { error: error.message };
+    if (error instanceof Error && error.message.includes("Stok")) {
+      return { error: error.message };
+    }
+    const retryMessage = getTransactionRetryMessage(error, "Barang Keluar");
+    if (retryMessage) return { error: retryMessage };
+    return { error: "Gagal merevisi quantity Surat Jalan Monitoring PO" };
   }
 }
 

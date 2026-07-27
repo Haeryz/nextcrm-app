@@ -11,9 +11,11 @@ import {
   ImagePlus,
   Loader2,
   PackageMinus,
+  Pencil,
   Plus,
   Printer,
   ReceiptText,
+  Save,
   Trash2,
   Truck,
 } from "lucide-react";
@@ -24,6 +26,7 @@ import { toast } from "sonner";
 import {
   createMektekOutboundPurchaseOrder,
   recordMektekOutboundPurchaseOrderDispatch,
+  updateMektekOutboundDispatchQuantities,
   type MektekOutboundPurchaseOrderInput,
   type MektekOutboundPurchaseOrderItemInput,
 } from "@/actions/mektek/logistics";
@@ -309,6 +312,14 @@ export default function OutboundLogisticsManager({
   >({});
   const [dispatchImage, setDispatchImage] = useState<File | null>(null);
   const [dispatchImageError, setDispatchImageError] = useState<string | null>(null);
+  const [editingDispatchReference, setEditingDispatchReference] = useState<
+    string | null
+  >(null);
+  const [dispatchRevisionDrafts, setDispatchRevisionDrafts] = useState<
+    Record<string, string>
+  >({});
+  const [isSavingDispatchRevision, startSavingDispatchRevision] =
+    useTransition();
   const currentMonth = getCatalogInventoryLocalDateKey().slice(0, 7);
   const [exportMonth, setExportMonth] = useState(currentMonth);
   const [exportType, setExportType] =
@@ -640,6 +651,102 @@ export default function OutboundLogisticsManager({
       }
       setActivePurchaseOrder(null);
       router.refresh();
+    });
+  };
+
+  const startEditDispatch = (batch: OutboundBatchGroup) => {
+    const drafts: Record<string, string> = {};
+    for (const { receipt } of batch.lines) {
+      drafts[receipt.id] = String(receipt.quantity);
+    }
+    setDispatchRevisionDrafts(drafts);
+    setEditingDispatchReference(batch.dispatchReference);
+  };
+
+  const cancelEditDispatch = () => {
+    setEditingDispatchReference(null);
+  };
+
+  const updateDispatchRevisionDraft = (
+    receiptId: string,
+    quantity: string,
+  ) => {
+    setDispatchRevisionDrafts((current) => ({
+      ...current,
+      [receiptId]: quantity,
+    }));
+  };
+
+  const saveDispatchRevision = (batch: OutboundBatchGroup) => {
+    if (!activePurchaseOrder) return;
+    const items = batch.lines.map(({ receipt }) => {
+      const raw = (dispatchRevisionDrafts[receipt.id] ?? "").trim();
+      const quantity = Number(raw);
+      if (!raw || !Number.isSafeInteger(quantity) || quantity <= 0) {
+        throw new Error("QTY Surat Jalan harus berupa angka bulat lebih dari 0");
+      }
+      return { receiptId: receipt.id, quantity };
+    });
+    startSavingDispatchRevision(async () => {
+      try {
+        const result = await updateMektekOutboundDispatchQuantities({
+          purchaseOrderId: activePurchaseOrder.id,
+          dispatchReference: batch.dispatchReference,
+          items,
+        });
+        if (!result || "error" in result) {
+          toast.error(result?.error || "Gagal merevisi quantity Surat Jalan");
+          return;
+        }
+        const deltas = new Map(
+          batch.lines.map(({ receipt }) => [
+            receipt.id,
+            Number(dispatchRevisionDrafts[receipt.id] ?? receipt.quantity) -
+              receipt.quantity,
+          ]),
+        );
+        setActivePurchaseOrder((current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            status: result.data.purchaseOrderStatus,
+            items: current.items.map((item) => {
+              const match = batch.lines.find((line) => line.item.id === item.id);
+              if (!match) return item;
+              const delta = deltas.get(match.receipt.id) ?? 0;
+              if (delta === 0) return item;
+              const receivedQuantity = item.receivedQuantity + delta;
+              return {
+                ...item,
+                receivedQuantity,
+                status:
+                  receivedQuantity === item.orderedQuantity ? "CLOSED" : "OPEN",
+                receipts: item.receipts.map((receipt) =>
+                  receipt.id === match.receipt.id
+                    ? {
+                        ...receipt,
+                        quantity: Number(
+                          dispatchRevisionDrafts[receipt.id] ?? receipt.quantity,
+                        ),
+                      }
+                    : receipt,
+                ),
+              };
+            }),
+          };
+        });
+        setEditingDispatchReference(null);
+        toast.success(
+          `Surat Jalan ${result.data.dispatchReference} berhasil direvisi`,
+        );
+        router.refresh();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Gagal merevisi quantity Surat Jalan",
+        );
+      }
     });
   };
 
@@ -1676,6 +1783,8 @@ export default function OutboundLogisticsManager({
                       const imageReceipt = batch.lines.find(
                         ({ receipt }) => receipt.imageMimeType,
                       )?.receipt;
+                      const isEditing =
+                        editingDispatchReference === batch.dispatchReference;
                       return (
                         <div
                           key={batch.dispatchReference}
@@ -1723,6 +1832,17 @@ export default function OutboundLogisticsManager({
                                   PDF Surat Jalan
                                 </a>
                               </Button>
+                              {!isEditing && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => startEditDispatch(batch)}
+                                >
+                                  <Pencil data-icon="inline-start" />
+                                  Edit QTY Surat Jalan
+                                </Button>
+                              )}
                             </div>
                           </div>
                           <div className="mt-3 divide-y rounded-md border">
@@ -1731,33 +1851,98 @@ export default function OutboundLogisticsManager({
                                 (left, right) =>
                                   left.item.position - right.item.position,
                               )
-                              .map(({ item, receipt }) => (
-                                <div key={receipt.id} className="p-3 text-sm">
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="font-medium">{item.partName}</p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {item.partNumber || "Tanpa Part Number"} ·{" "}
-                                        {receipt.warehouse === "FRONT"
-                                          ? "Gudang Depan"
-                                          : "Gudang Belakang"}
-                                      </p>
+                              .map(({ item, receipt }) => {
+                                const draft =
+                                  dispatchRevisionDrafts[receipt.id] ??
+                                  String(receipt.quantity);
+                                return (
+                                  <div key={receipt.id} className="p-3 text-sm">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="font-medium">
+                                          {item.partName}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {item.partNumber ||
+                                            "Tanpa Part Number"}{" "}
+                                          ·{" "}
+                                          {receipt.warehouse === "FRONT"
+                                            ? "Gudang Depan"
+                                            : "Gudang Belakang"}
+                                        </p>
+                                        {isEditing && (
+                                          <p className="text-xs text-muted-foreground">
+                                            QTY Order: {item.orderedQuantity} ·
+                                            QTY Keluar (termasuk batch lain):{" "}
+                                            {item.receivedQuantity}
+                                          </p>
+                                        )}
+                                      </div>
+                                      {isEditing ? (
+                                        <Input
+                                          type="number"
+                                          inputMode="numeric"
+                                          min={1}
+                                          max={item.orderedQuantity}
+                                          step={1}
+                                          value={draft}
+                                          onChange={(event) =>
+                                            updateDispatchRevisionDraft(
+                                              receipt.id,
+                                              event.target.value,
+                                            )
+                                          }
+                                          disabled={isSavingDispatchRevision}
+                                          className="w-24 text-right"
+                                          aria-label={`QTY Surat Jalan untuk ${item.partName}`}
+                                        />
+                                      ) : (
+                                        <span className="font-mono font-semibold tabular-nums text-destructive">
+                                          -{receipt.quantity}
+                                        </span>
+                                      )}
                                     </div>
-                                    <span className="font-mono font-semibold tabular-nums text-destructive">
-                                      -{receipt.quantity}
-                                    </span>
+                                    {receipt.note && !isEditing && (
+                                      <p className="mt-2 text-xs text-muted-foreground">
+                                        <span className="font-medium text-foreground">
+                                          Keterangan:
+                                        </span>{" "}
+                                        {receipt.note}
+                                      </p>
+                                    )}
                                   </div>
-                                  {receipt.note && (
-                                    <p className="mt-2 text-xs text-muted-foreground">
-                                      <span className="font-medium text-foreground">
-                                        Keterangan:
-                                      </span>{" "}
-                                      {receipt.note}
-                                    </p>
-                                  )}
-                                </div>
-                              ))}
+                                );
+                              })}
                           </div>
+                          {isEditing && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() => saveDispatchRevision(batch)}
+                                disabled={isSavingDispatchRevision}
+                              >
+                                {isSavingDispatchRevision ? (
+                                  <Loader2
+                                    data-icon="inline-start"
+                                    className="animate-spin"
+                                  />
+                                ) : (
+                                  <Save data-icon="inline-start" />
+                                )}
+                                Simpan Revisi
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={cancelEditDispatch}
+                                disabled={isSavingDispatchRevision}
+                              >
+                                Batal
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

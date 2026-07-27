@@ -116,7 +116,20 @@ export async function syncOutboundDispatchBillingSource(
         items,
       },
     },
-    update: {},
+    update: {
+      subtotal,
+      totalAmount: subtotal,
+      status: priced ? "UNBILLED" : "NEEDS_REVIEW",
+      snapshot: {
+        purchaseOrderId: purchaseOrder.id,
+        poNumber: purchaseOrder.poNumber,
+        deliveryNoteNumber: purchaseOrder.deliveryNoteNumber,
+        dispatchReference: input.dispatchReference,
+        poMode: purchaseOrder.poMode,
+        projectName: purchaseOrder.projectName,
+        items,
+      },
+    },
   });
 }
 
