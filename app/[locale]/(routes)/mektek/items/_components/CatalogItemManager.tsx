@@ -47,6 +47,7 @@ import {
   getCatalogProductionChannelLabel,
   type CatalogInventorySnapshot,
 } from "@/lib/mektek/catalog-inventory";
+import { isMeterBasedMektekCatalogItem } from "@/lib/mektek/items";
 
 type CatalogItemRow = {
   id: string;
@@ -565,7 +566,14 @@ export default function CatalogItemManager({
           <span className="text-right">Actions</span>
         </div>
         <div className="divide-y">
-          {items.map((item) => (
+          {items.map((item) => {
+            const stockUnit = isMeterBasedMektekCatalogItem({
+              catalogItemId: item.id,
+              description: item.description,
+            })
+              ? "meter"
+              : "unit";
+            return (
             <div
               key={item.id}
               className="grid gap-3 px-4 py-4 xl:grid-cols-[72px_minmax(0,1.2fr)_110px_120px_minmax(140px,0.8fr)_minmax(120px,0.7fr)_minmax(120px,0.7fr)_128px] xl:items-center xl:gap-4"
@@ -608,13 +616,13 @@ export default function CatalogItemManager({
                 </p>
               </div>
               <div className="text-sm">
-                <p className="font-semibold tabular-nums">{item.rearStock} unit</p>
+                <p className="font-semibold tabular-nums">{item.rearStock} {stockUnit}</p>
                 <p className="truncate text-xs text-muted-foreground">
                   {item.rearLocation || "Lokasi belum diatur"}
                 </p>
               </div>
               <div className="text-sm">
-                <p className="font-semibold tabular-nums">{item.frontStock} unit</p>
+                <p className="font-semibold tabular-nums">{item.frontStock} {stockUnit}</p>
                 <p className="truncate text-xs text-muted-foreground">
                   {item.frontLocation || "Lokasi belum diatur"}
                 </p>
@@ -644,7 +652,8 @@ export default function CatalogItemManager({
                 </Button>
               </div>
             </div>
-          ))}
+            );
+          })}
           {items.length === 0 && (
             <div className="flex flex-col items-center gap-3 px-4 py-12 text-center">
               <ImagePlus className="size-8 text-muted-foreground" aria-hidden="true" />
