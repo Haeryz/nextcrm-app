@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 
 import {
   buildFinancePurchaseOrderSuggestion,
+  findExactFinancePurchaseOrderSuggestion,
   MIN_FINANCE_PURCHASE_ORDER_QUERY_LENGTH,
   shouldSearchFinancePurchaseOrders,
 } from "@/lib/mektek/finance-po";
@@ -12,6 +13,27 @@ describe("Finance invoice PO autocomplete", () => {
     expect(MIN_FINANCE_PURCHASE_ORDER_QUERY_LENGTH).toBe(3);
     expect(shouldSearchFinancePurchaseOrders("12")).toBe(false);
     expect(shouldSearchFinancePurchaseOrders(" 123 ")).toBe(true);
+  });
+
+  it("finds an exact PO regardless of surrounding spaces or letter case", () => {
+    const suggestion = buildFinancePurchaseOrderSuggestion({
+      id: "po-exact",
+      poNumber: "PO-ABC-123",
+      userName: "PT Pelanggan",
+      projectName: "",
+      inputDate: new Date("2026-07-20T00:00:00.000Z"),
+      dueDate: new Date("2026-08-20T00:00:00.000Z"),
+      deliveryNoteNumber: null,
+      deliveryDate: null,
+      items: [],
+    });
+
+    expect(
+      findExactFinancePurchaseOrderSuggestion(
+        [suggestion],
+        "  po-abc-123  ",
+      ),
+    ).toBe(suggestion);
   });
 
   it("maps an outbound Logistics PO into invoice fields and totals its priced items", () => {
@@ -118,6 +140,17 @@ describe("Finance invoice PO autocomplete", () => {
     expect(source).toContain("customerName: option.customerName");
     expect(source).toContain("description: option.description");
     expect(source).toContain("subtotal: option.subtotal");
+
+    const deliveryNoteSelection = source.slice(
+      source.indexOf("if (option.deliveryNotes.length)"),
+      source.indexOf("setForm((current)", source.indexOf("if (option.deliveryNotes.length)")),
+    );
+    expect(deliveryNoteSelection).toContain(
+      "setAppliedPurchaseOrderQuery(option.poNumber)",
+    );
+    expect(deliveryNoteSelection).not.toContain(
+      'setPurchaseOrderQuery("")',
+    );
   });
 
   it("keeps multiple PO delivery notes as relational invoice sources", () => {
