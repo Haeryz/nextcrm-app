@@ -48,13 +48,19 @@ describe("27 July revisions", () => {
       expect(deliveryNoteRoute).toContain("isReceiving");
     });
 
-    it("keeps the signature block close to the item table when printing", () => {
+    it("anchors the signature block near the bottom of the page, slightly above the very bottom", () => {
       expect(deliveryNotePdf).toMatch(
-        /footer:\s*\{[\s\S]*?marginTop:\s*32,[\s\S]*?\}/,
+        /footer:\s*\{[\s\S]*?position:\s*"absolute"[\s\S]*?bottom:\s*130,[\s\S]*?\}/,
       );
-      expect(deliveryNotePdf).toContain("spacer: { height: 0 }");
+      expect(deliveryNotePdf).not.toContain("marginTop: 32");
+      expect(deliveryNotePdf).not.toContain("spacer: { height: 0 }");
       expect(deliveryNotePdf).not.toContain("spacer: { flexGrow: 1 }");
-      expect(deliveryNotePdf).toContain("{ style: styles.footer, wrap: false }");
+      expect(deliveryNotePdf).not.toContain("{ style: styles.footer, wrap: false }");
+      expect(deliveryNotePdf).toContain("{ style: styles.footer }");
+      expect(deliveryNotePdf).not.toContain("footerNote");
+      expect(deliveryNotePdf).not.toContain(
+        "Dokumen operasional Logistics PT. Mektek Tanjung Lestari",
+      );
     });
   });
 

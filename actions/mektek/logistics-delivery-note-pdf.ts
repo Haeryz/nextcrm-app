@@ -85,16 +85,17 @@ const styles = StyleSheet.create({
   quantityCell: { width: "10%", alignItems: "center" },
   noteCell: { width: "18%" },
   footer: {
+    position: "absolute",
+    bottom: 130,
+    left: 30,
+    right: 30,
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 32,
   },
-  spacer: { height: 0 },
   signature: { width: "34%", alignItems: "center" },
   signatureSpace: { height: 56 },
   signatureLine: { width: "90%", borderTopWidth: 0.8, borderTopColor: "#111827" },
   signatureLabel: { marginTop: 4, fontSize: 8.5 },
-  footerNote: { marginTop: 20, fontSize: 7.5, color: "#4b5563", textAlign: "center" },
 });
 
 const dateFormatter = new Intl.DateTimeFormat("id-ID", {
@@ -189,10 +190,9 @@ function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
           );
         }),
       ),
-      React.createElement(View, { style: styles.spacer }),
       React.createElement(
         View,
-        { style: styles.footer, wrap: false },
+        { style: styles.footer },
         React.createElement(
           View,
           { style: styles.signature },
@@ -211,11 +211,6 @@ function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
               React.createElement(View, { style: styles.signatureLine }),
               React.createElement(Text, { style: styles.signatureLabel }, "Nama & tanda tangan"),
             ),
-      ),
-      React.createElement(
-        Text,
-        { style: styles.footerNote },
-        "Dokumen operasional Logistics PT. MekTek Tanjung Lestari",
       ),
     ),
   );
