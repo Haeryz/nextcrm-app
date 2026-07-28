@@ -46,6 +46,8 @@ import {
   type FinanceInvoiceSigner,
 } from "@/lib/mektek/finance-invoice-signers";
 import {
+  findExactFinancePurchaseOrderSuggestion,
+  normalizeFinancePurchaseOrderNumber,
   shouldSearchFinancePurchaseOrders,
   type FinancePurchaseOrderSuggestion,
 } from "@/lib/mektek/finance-po";
@@ -225,9 +227,7 @@ export default function InvoiceCrudManager({
   const [purchaseOrderSearching, setPurchaseOrderSearching] = useState(false);
   const [activePurchaseOrderIndex, setActivePurchaseOrderIndex] = useState(0);
   const [purchaseOrderQuery, setPurchaseOrderQuery] = useState(
-    initialInvoice?.sources.length
-      ? ""
-      : initialInvoice?.purchaseOrderNumber ?? "",
+    initialInvoice?.purchaseOrderNumber ?? "",
   );
   const [selectedInvoiceSources, setSelectedInvoiceSources] = useState<
     FinanceInvoiceSourceRow[]
@@ -235,6 +235,13 @@ export default function InvoiceCrudManager({
   const [purchaseOrderPricingWarning, setPurchaseOrderPricingWarning] =
     useState("");
   const purchaseOrderRequestId = useRef(0);
+  const appliedPurchaseOrderQuery = useRef(
+    initialInvoice
+      ? normalizeFinancePurchaseOrderNumber(
+          initialInvoice.purchaseOrderNumber,
+        )
+      : "",
+  );
   // Item rows drive the pre-PPN value whenever they are filled in; the manual
   // subtotal field stays as a fallback for invoices without a line breakdown.
   const itemsProvided = useMemo(() => hasInvoiceItems(form.items), [form.items]);
@@ -288,12 +295,19 @@ export default function InvoiceCrudManager({
       return { ...current, items: items.length ? items : [{ ...emptyItem }] };
     });
 
+  const setAppliedPurchaseOrderQuery = useCallback((value: string) => {
+    appliedPurchaseOrderQuery.current =
+      normalizeFinancePurchaseOrderNumber(value);
+    setPurchaseOrderQuery(value);
+  }, []);
+
   const resetPurchaseOrderSearch = () => {
     purchaseOrderRequestId.current += 1;
     setPurchaseOrderOptions([]);
     setPurchaseOrderSearchOpen(false);
     setPurchaseOrderSearching(false);
     setActivePurchaseOrderIndex(0);
+    appliedPurchaseOrderQuery.current = "";
     setPurchaseOrderQuery("");
     setSelectedInvoiceSources([]);
     setPurchaseOrderPricingWarning("");
@@ -422,7 +436,7 @@ export default function InvoiceCrudManager({
         const merged = [...byId.values()];
         setSelectedInvoiceSources(merged);
         applySourceAggregate(merged);
-        setPurchaseOrderQuery("");
+        setAppliedPurchaseOrderQuery(option.poNumber);
         setPurchaseOrderSearchOpen(false);
         setActivePurchaseOrderIndex(0);
         return;
@@ -446,17 +460,27 @@ export default function InvoiceCrudManager({
           ? ""
           : "Harga yang disetujui belum lengkap pada PO ini. Isi nilai sebelum PPN secara manual.",
       );
-      setPurchaseOrderQuery(option.poNumber);
+      setAppliedPurchaseOrderQuery(option.poNumber);
       setPurchaseOrderSearchOpen(false);
       setActivePurchaseOrderIndex(0);
     },
-    [applySourceAggregate, selectedInvoiceSources],
+    [
+      applySourceAggregate,
+      selectedInvoiceSources,
+      setAppliedPurchaseOrderQuery,
+    ],
   );
 
   useEffect(() => {
     if (!open) return;
     const query = purchaseOrderQuery.trim();
     if (!shouldSearchFinancePurchaseOrders(query)) return;
+    if (
+      appliedPurchaseOrderQuery.current ===
+      normalizeFinancePurchaseOrderNumber(query)
+    ) {
+      return;
+    }
 
     const requestId = ++purchaseOrderRequestId.current;
     const timer = window.setTimeout(async () => {
@@ -475,10 +499,9 @@ export default function InvoiceCrudManager({
       }
       setPurchaseOrderOptions(result.data);
       setActivePurchaseOrderIndex(0);
-      const normalizedQuery = query.toLocaleLowerCase("id-ID");
-      const exact = result.data.find(
-        (option) =>
-          option.poNumber.toLocaleLowerCase("id-ID") === normalizedQuery,
+      const exact = findExactFinancePurchaseOrderSuggestion(
+        result.data,
+        query,
       );
       if (exact) {
         applyPurchaseOrder(exact);
@@ -496,6 +519,7 @@ export default function InvoiceCrudManager({
   ]);
 
   const changePurchaseOrderNumber = (value: string) => {
+    appliedPurchaseOrderQuery.current = "";
     setPurchaseOrderPricingWarning("");
     setPurchaseOrderQuery(value);
     if (!shouldSearchFinancePurchaseOrders(value)) {
@@ -504,7 +528,9 @@ export default function InvoiceCrudManager({
       setPurchaseOrderSearchOpen(false);
       setPurchaseOrderSearching(false);
     }
-    set("purchaseOrderNumber", value);
+    if (selectedInvoiceSources.length === 0) {
+      set("purchaseOrderNumber", value);
+    }
   };
 
   const removeInvoiceSource = (sourceId: string) => {
@@ -513,6 +539,13 @@ export default function InvoiceCrudManager({
     );
     setSelectedInvoiceSources(remaining);
     applySourceAggregate(remaining);
+    setAppliedPurchaseOrderQuery(
+      [
+        ...new Set(
+          remaining.map((source) => source.purchaseOrderNumber),
+        ),
+      ].join(", "),
+    );
   };
 
   const handlePurchaseOrderKeyDown = (
@@ -567,7 +600,7 @@ export default function InvoiceCrudManager({
     resetPurchaseOrderSearch();
     setForm(invoiceFormFromRow(row));
     setSelectedInvoiceSources(row.sources);
-    setPurchaseOrderQuery(row.sources.length ? "" : row.purchaseOrderNumber);
+    setAppliedPurchaseOrderQuery(row.purchaseOrderNumber);
     setOpen(true);
   };
 

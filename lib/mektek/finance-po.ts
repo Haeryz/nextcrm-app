@@ -23,6 +23,10 @@ export function shouldSearchFinancePurchaseOrders(query: string) {
   return query.trim().length >= MIN_FINANCE_PURCHASE_ORDER_QUERY_LENGTH;
 }
 
+export function normalizeFinancePurchaseOrderNumber(value: string) {
+  return value.trim().toLocaleLowerCase("id-ID");
+}
+
 /** A single billable line carried alongside a PO/Surat Jalan suggestion. */
 export type FinancePurchaseOrderItemSuggestion = {
   description: string;
@@ -48,6 +52,18 @@ export type FinancePurchaseOrderSuggestion = {
   deliveryNotes: FinancePurchaseOrderDeliveryNoteSuggestion[];
   totalDeliveryNoteCount: number;
 };
+
+export function findExactFinancePurchaseOrderSuggestion(
+  suggestions: FinancePurchaseOrderSuggestion[],
+  query: string,
+) {
+  const normalizedQuery = normalizeFinancePurchaseOrderNumber(query);
+  return suggestions.find(
+    (suggestion) =>
+      normalizeFinancePurchaseOrderNumber(suggestion.poNumber) ===
+      normalizedQuery,
+  );
+}
 
 export type FinancePurchaseOrderDeliveryNoteSuggestion = {
   id: string;
