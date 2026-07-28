@@ -102,6 +102,22 @@ describe("service order stock", () => {
     ).toEqual([]);
   });
 
+  it("does not write fractional meter usage into the whole-unit stock ledger", () => {
+    expect(
+      calculateServiceOrderStockAdjustments(
+        [],
+        [
+          {
+            catalogItemId: "hose-half",
+            quantity: 2.5,
+            unit: "M",
+            stockWarehouse: "FRONT",
+          },
+        ],
+      ),
+    ).toEqual([]);
+  });
+
   it("requires a warehouse for every new catalogue sparepart", () => {
     expect(
       validateServiceOrderStockItems([

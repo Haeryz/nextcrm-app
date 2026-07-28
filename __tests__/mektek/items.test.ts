@@ -1,10 +1,75 @@
 import {
   appendMektekLineItems,
+  buildMektekStoredItems,
   haveRequiredMektekItemInputPrices,
   haveRequiredMektekItemPrices,
+  isMeterBasedMektekCatalogItem,
   mergeMektekLineItemInputs,
   normalizeMektekLineItems,
 } from "@/lib/mektek/items";
+
+describe("meter-based Mektek catalog items", () => {
+  const meterItemNames = [
+    "HOSE 1/2",
+    "HOSE 3/8",
+    "HOSE 5/8",
+    "HOSE DISCHARGE ASSY HD-7",
+    "Hose",
+    "Everseal",
+    "Hirotape",
+  ];
+
+  it.each(meterItemNames)('uses meters for the catalog item "%s"', (name) => {
+    expect(
+      isMeterBasedMektekCatalogItem({
+        catalogItemId: `catalog-${name}`,
+        name,
+      }),
+    ).toBe(true);
+  });
+
+  it("does not broaden the rule to other hose products or manual rows", () => {
+    expect(
+      isMeterBasedMektekCatalogItem({
+        catalogItemId: "cover-hose",
+        name: "Cover Hose",
+      }),
+    ).toBe(false);
+    expect(
+      isMeterBasedMektekCatalogItem({
+        catalogItemId: "pajero-hose",
+        name: "Hose 1/2 Pajero",
+      }),
+    ).toBe(false);
+    expect(
+      isMeterBasedMektekCatalogItem({
+        catalogItemId: null,
+        name: "Hose",
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps decimal meters and prices the line per meter", () => {
+    const [item] = buildMektekStoredItems(
+      [
+        {
+          catalogItemId: "hose-half",
+          description: "HOSE 1/2",
+          quantity: 2.5,
+          estimatedCost: 10_000,
+        },
+      ],
+      "sparepart",
+    );
+
+    expect(item).toMatchObject({
+      quantity: 2.5,
+      unit: "M",
+      unitPrice: 10_000,
+      total: 25_000,
+    });
+  });
+});
 
 describe("normalizeMektekLineItems", () => {
   it("preserves the selected warehouse for catalogue spareparts", () => {
@@ -194,5 +259,25 @@ describe("mergeMektekLineItemInputs", () => {
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({ description: "Servis AC", quantity: 3 });
     expect(result[1]).toMatchObject({ catalogItemId: "filter-1", quantity: 4 });
+  });
+
+  it("adds repeated meter-based quantities without rounding them", () => {
+    const result = mergeMektekLineItemInputs([
+      {
+        description: "HOSE 3/8",
+        catalogItemId: "hose-three-eighths",
+        quantity: 1.25,
+        estimatedCost: "10000",
+      },
+      {
+        description: "HOSE 3/8",
+        catalogItemId: "hose-three-eighths",
+        quantity: 1.25,
+        estimatedCost: "10000",
+      },
+    ]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ quantity: 2.5 });
   });
 });

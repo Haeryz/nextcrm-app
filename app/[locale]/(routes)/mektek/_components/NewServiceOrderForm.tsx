@@ -47,6 +47,7 @@ import {
 } from "@/lib/mektek/customer-vehicles";
 import {
   haveRequiredMektekItemInputPrices,
+  isMeterBasedMektekCatalogItem,
   mergeMektekLineItemInputs,
   parseMoney,
 } from "@/lib/mektek/items";
@@ -350,7 +351,15 @@ export default function NewServiceOrderForm({
         .map((item) =>
           [
             item.description.trim(),
-            item.quantity && item.quantity > 1 ? `x${item.quantity}` : "",
+            item.quantity &&
+            isMeterBasedMektekCatalogItem({
+              catalogItemId: item.catalogItemId,
+              description: item.description,
+            })
+              ? `${item.quantity} m`
+              : item.quantity && item.quantity > 1
+                ? `x${item.quantity}`
+                : "",
             item.partNumber ? `(${item.partNumber})` : "",
             item.estimatedCost ? `(Estimasi Rp ${item.estimatedCost})` : "",
           ]

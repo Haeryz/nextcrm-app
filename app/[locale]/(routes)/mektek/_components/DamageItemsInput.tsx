@@ -9,7 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { mergeMektekLineItemInputs, parseMoney } from "@/lib/mektek/items";
+import {
+  isMeterBasedMektekCatalogItem,
+  mergeMektekLineItemInputs,
+  normalizeMektekItemQuantity,
+  parseMoney,
+} from "@/lib/mektek/items";
 
 export type DamageItem = {
   clientId?: string;
@@ -23,6 +28,7 @@ export type DamageItem = {
   stockWarehouse?: "FRONT" | "REAR";
   frontStock?: number;
   rearStock?: number;
+  catalogPrice?: number | null;
 };
 
 interface DamageItemsInputProps {
@@ -130,6 +136,10 @@ export default function DamageItemsInput({
   }, [activeCatalogQuery, catalogSearch]);
 
   const selectCatalogItem = (index: number, catalogItem: CatalogSearchItem) => {
+    const usesMeters = isMeterBasedMektekCatalogItem({
+      catalogItemId: catalogItem.id,
+      description: catalogItem.description,
+    });
     onChange(
       mergeMektekLineItemInputs(
         items.map((item, itemIndex) =>
@@ -146,8 +156,12 @@ export default function DamageItemsInput({
                     : "REAR",
                 frontStock: catalogItem.frontStock,
                 rearStock: catalogItem.rearStock,
+                catalogPrice: catalogItem.price,
                 description: catalogItem.description,
-                quantity: Math.max(1, Number(item.quantity) || 1),
+                quantity: normalizeMektekItemQuantity(
+                  item.quantity,
+                  usesMeters,
+                ),
                 estimatedCost:
                   typeof catalogItem.price === "number"
                     ? String(catalogItem.price)
@@ -219,7 +233,18 @@ export default function DamageItemsInput({
       ) : (
         <div className="space-y-3">
           {items.map((item, index) => {
-            const quantity = Math.max(1, Number(item.quantity) || 1);
+            const usesMeters = isMeterBasedMektekCatalogItem({
+              catalogItemId: item.catalogItemId,
+              description: item.description,
+            });
+            const quantity = normalizeMektekItemQuantity(
+              item.quantity,
+              usesMeters,
+            );
+            const quantityStep = usesMeters ? 0.1 : 1;
+            const quantityInputStep = usesMeters ? "any" : 1;
+            const minimumQuantity = usesMeters ? 0.1 : 1;
+            const stockUnit = usesMeters ? "m" : "PCS";
             const lineTotal = parseMoney(item.estimatedCost) * quantity;
             const canRemove = items.length > minimumItems;
             const descriptionId = `${instanceId}-description-${index}`;
@@ -238,6 +263,9 @@ export default function DamageItemsInput({
                     </Badge>
                     {item.catalogItemId && (
                       <Badge variant="secondary">Dari katalog</Badge>
+                    )}
+                    {usesMeters && (
+                      <Badge variant="secondary">Satuan meter</Badge>
                     )}
                   </div>
                   <div className="flex w-full items-center justify-between gap-2 min-[420px]:w-auto min-[420px]:justify-start">
@@ -274,10 +302,14 @@ export default function DamageItemsInput({
                       <span>{item.machine}</span>
                       <span>{item.partNumber || "Tanpa nomor komponen"}</span>
                       {typeof item.frontStock === "number" && (
-                        <span>Gudang Depan: {item.frontStock} PCS</span>
+                        <span>
+                          Gudang Depan: {item.frontStock} {stockUnit}
+                        </span>
                       )}
                       {typeof item.rearStock === "number" && (
-                        <span>Gudang Belakang: {item.rearStock} PCS</span>
+                        <span>
+                          Gudang Belakang: {item.rearStock} {stockUnit}
+                        </span>
                       )}
                     </div>
                     <div className="max-w-xs space-y-1.5">
@@ -300,13 +332,13 @@ export default function DamageItemsInput({
                         <option value="FRONT">
                           Gudang Depan
                           {typeof item.frontStock === "number"
-                            ? ` · ${item.frontStock} PCS`
+                            ? ` · ${item.frontStock} ${stockUnit}`
                             : ""}
                         </option>
                         <option value="REAR">
                           Gudang Belakang
                           {typeof item.rearStock === "number"
-                            ? ` · ${item.rearStock} PCS`
+                            ? ` · ${item.rearStock} ${stockUnit}`
                             : ""}
                         </option>
                       </select>
@@ -367,8 +399,20 @@ export default function DamageItemsInput({
                                       "Tanpa nomor komponen"}
                                   </span>
                                   <span className="text-xs text-muted-foreground">
-                                    Depan {catalogItem.frontStock} PCS · Belakang{" "}
-                                    {catalogItem.rearStock} PCS
+                                    Depan {catalogItem.frontStock}{" "}
+                                    {isMeterBasedMektekCatalogItem({
+                                      catalogItemId: catalogItem.id,
+                                      description: catalogItem.description,
+                                    })
+                                      ? "m"
+                                      : "PCS"}{" "}
+                                    · Belakang {catalogItem.rearStock}{" "}
+                                    {isMeterBasedMektekCatalogItem({
+                                      catalogItemId: catalogItem.id,
+                                      description: catalogItem.description,
+                                    })
+                                      ? "m"
+                                      : "PCS"}
                                   </span>
                                 </button>
                               ))}
@@ -403,7 +447,9 @@ export default function DamageItemsInput({
 
                   <div className="grid min-w-0 gap-3 sm:grid-cols-2">
                     <div className="min-w-0 space-y-1.5">
-                      <Label htmlFor={quantityId}>Jumlah</Label>
+                      <Label htmlFor={quantityId}>
+                        {usesMeters ? "Panjang (m)" : "Jumlah"}
+                      </Label>
                       <div className="grid grid-cols-[2.75rem_minmax(4rem,1fr)_2.75rem] items-center gap-2">
                         <Button
                           type="button"
@@ -411,9 +457,19 @@ export default function DamageItemsInput({
                           size="icon"
                           aria-label={`Kurangi jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
                           onClick={() =>
-                            updateItem(index, "quantity", Math.max(1, quantity - 1))
+                            updateItem(
+                              index,
+                              "quantity",
+                              normalizeMektekItemQuantity(
+                                Math.max(
+                                  minimumQuantity,
+                                  quantity - quantityStep,
+                                ),
+                                usesMeters,
+                              ),
+                            )
                           }
-                          disabled={disabled || quantity <= 1}
+                          disabled={disabled || quantity <= minimumQuantity}
                           className="size-11 shrink-0"
                         >
                           <Minus className="size-4" aria-hidden="true" />
@@ -422,19 +478,17 @@ export default function DamageItemsInput({
                           id={quantityId}
                           aria-label={`Jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
                           type="number"
-                          inputMode="numeric"
-                          min={1}
-                          step={1}
+                          inputMode={usesMeters ? "decimal" : "numeric"}
+                          min={minimumQuantity}
+                          step={quantityInputStep}
                           value={String(quantity)}
                           onChange={(event) =>
                             updateItem(
                               index,
                               "quantity",
-                              Math.max(
-                                1,
-                                Math.floor(
-                                  Number(event.target.value.replace(/\D/g, "")) || 1,
-                                ),
+                              normalizeMektekItemQuantity(
+                                event.target.value,
+                                usesMeters,
                               ),
                             )
                           }
@@ -446,7 +500,16 @@ export default function DamageItemsInput({
                           variant="outline"
                           size="icon"
                           aria-label={`Tambah jumlah ${itemLabel.toLowerCase()} ${index + 1}`}
-                          onClick={() => updateItem(index, "quantity", quantity + 1)}
+                          onClick={() =>
+                            updateItem(
+                              index,
+                              "quantity",
+                              normalizeMektekItemQuantity(
+                                quantity + quantityStep,
+                                usesMeters,
+                              ),
+                            )
+                          }
                           disabled={disabled}
                           className="size-11 shrink-0"
                         >
@@ -457,7 +520,8 @@ export default function DamageItemsInput({
 
                     <div className="min-w-0 space-y-1.5">
                       <Label htmlFor={priceId}>
-                        Harga satuan <span className="text-destructive">*</span>
+                        {usesMeters ? "Harga per meter" : "Harga satuan"}{" "}
+                        <span className="text-destructive">*</span>
                       </Label>
                       <RupiahInput
                         id={priceId}
@@ -467,13 +531,23 @@ export default function DamageItemsInput({
                         onValueChange={(value) =>
                           updateItem(index, "estimatedCost", value)
                         }
-                        disabled={disabled || (catalogSearch && !!item.catalogItemId)}
+                        disabled={
+                          disabled ||
+                          (catalogSearch &&
+                            !!item.catalogItemId &&
+                            item.catalogPrice !== null)
+                        }
                         required
                       />
                       {catalogSearch && item.catalogItemId && (
                         <p className="text-xs text-muted-foreground">
-                          Harga sparepart katalog terkunci otomatis sesuai
-                          Catalog / Item.
+                          {item.catalogPrice === null
+                            ? usesMeters
+                              ? "Harga per meter belum tersedia di Catalog / Item. Isi harga per meter untuk pesanan ini."
+                              : "Harga belum tersedia di Catalog / Item. Isi harga satuan untuk pesanan ini."
+                            : usesMeters
+                              ? "Harga terkunci sesuai harga per meter di Catalog / Item."
+                              : "Harga sparepart katalog terkunci otomatis sesuai Catalog / Item."}
                         </p>
                       )}
                     </div>

@@ -41,7 +41,9 @@ describe("New service order form UI", () => {
     expect(itemsSource).toContain("descriptionLabel");
     expect(itemsSource).toContain("Harga satuan");
     expect(itemsSource).toContain("Total baris");
-    expect(itemsSource).toMatch(/type="number"[\s\S]*inputMode="numeric"/);
+    expect(itemsSource).toMatch(
+      /type="number"[\s\S]*inputMode=\{usesMeters \? "decimal" : "numeric"\}/,
+    );
     expect(itemsSource).toContain("minimumItems");
   });
 
@@ -89,5 +91,16 @@ describe("New service order form UI", () => {
     expect(itemsSource).toContain("mergeMektekLineItemInputs");
     expect(itemsSource).toContain("Tambah jumlah");
     expect(itemsSource).toContain("Kurangi jumlah");
+  });
+
+  it("shows decimal meter controls only for configured catalog items", () => {
+    expect(itemsSource).toContain("isMeterBasedMektekCatalogItem");
+    expect(itemsSource).toContain("Panjang (m)");
+    expect(itemsSource).toContain("Harga per meter");
+    expect(itemsSource).toContain('inputMode={usesMeters ? "decimal" : "numeric"}');
+    expect(itemsSource).toContain(
+      "Harga per meter belum tersedia di Catalog / Item.",
+    );
+    expect(formSource).toContain("`${item.quantity} m`");
   });
 });

@@ -595,6 +595,9 @@ export const createMektekServiceOrder = async (
       });
 
       if (serviceItems.length === 0) {
+        const wholeUnitSparepartItems = sparepartItems.filter(
+          (item) => item.unit !== "M",
+        );
         await tx.logisticsPurchaseOrder.create({
           data: {
             sourceServiceOrderId: serviceOrder.id,
@@ -611,20 +614,22 @@ export const createMektekServiceOrder = async (
             notes:
               "Pesanan sparepart dari CS. Pendapatan dan stok dikelola melalui pesanan CS.",
             createdBy: session.user.id,
-            items: {
-              create: sparepartItems.map((item, index) => ({
-                source: "MANUAL",
-                catalogItemId: null,
-                position: index + 1,
-                partName: item.name,
-                partNumber: item.partNumber ?? item.catalogPartNumber,
-                machine: item.machine,
-                orderedQuantity: item.quantity,
-                receivedQuantity: 0,
-                note: `Stok dikelola melalui pesanan CS ${serviceNumber}`,
-                status: "OPEN",
-              })),
-            },
+            items: wholeUnitSparepartItems.length
+              ? {
+                  create: wholeUnitSparepartItems.map((item, index) => ({
+                    source: "MANUAL",
+                    catalogItemId: null,
+                    position: index + 1,
+                    partName: item.name,
+                    partNumber: item.partNumber ?? item.catalogPartNumber,
+                    machine: item.machine,
+                    orderedQuantity: item.quantity,
+                    receivedQuantity: 0,
+                    note: `Stok dikelola melalui pesanan CS ${serviceNumber}`,
+                    status: "OPEN",
+                  })),
+                }
+              : undefined,
           },
         });
       }
@@ -1562,7 +1567,11 @@ export const appendMektekServiceOrderItems = async (input: {
       const describeAddedItems = (label: string, items: MektekLineItem[]) =>
         items.length
           ? `${label}: ${items
-              .map((item) => `${item.name} (x${item.quantity})`)
+              .map((item) =>
+                item.unit === "M"
+                  ? `${item.name} (${item.quantity} m)`
+                  : `${item.name} (x${item.quantity})`,
+              )
               .join(", ")}.`
           : "";
       const timelineDraft = [

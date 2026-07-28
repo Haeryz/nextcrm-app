@@ -4,6 +4,7 @@ export type ServiceOrderStockItem = {
   catalogItemId?: string | null;
   name?: string | null;
   quantity?: number | null;
+  unit?: "JOB" | "PCS" | "M" | null;
   stockWarehouse?: ServiceOrderStockWarehouse | null;
 };
 
@@ -35,6 +36,10 @@ const aggregateAllocations = (
   >();
 
   for (const item of items) {
+    // Catalog stock is currently stored as whole units. Meter-based consumables
+    // remain price-tracked on the service order without writing a rounded,
+    // therefore incorrect, stock movement.
+    if (item.unit === "M") continue;
     const catalogItemId = item.catalogItemId?.trim();
     const warehouse = item.stockWarehouse;
     if (!catalogItemId || (warehouse !== "FRONT" && warehouse !== "REAR")) {

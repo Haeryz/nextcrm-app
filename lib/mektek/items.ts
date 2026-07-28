@@ -22,10 +22,60 @@ export type MektekLineItem = {
   catalogPartNumber: string | null;
   stockWarehouse: "FRONT" | "REAR" | null;
   quantity: number;
-  unit: "JOB" | "PCS";
+  unit: "JOB" | "PCS" | "M";
   unitPrice: number;
   total: number;
 };
+
+const METER_BASED_CATALOG_ITEM_IDS = new Set([
+  "spare-part-2026-0805-1bb9832cf80c1b38",
+  "spare-part-2026-0804-c9e7e33d6e01640e",
+  "spare-part-2026-0803-02ed76f72b84d64f",
+  "spare-part-2026-0808-e387d8e18e538672",
+  "spare-part-2026-0370-734348b0d63ddacc",
+  "spare-part-2026-0167-33bea5df50cf6e23",
+  "spare-part-2026-0824-14b33e919c7a12cf",
+]);
+
+const METER_BASED_CATALOG_ITEM_NAMES = new Set([
+  "hose12",
+  "hose38",
+  "hose58",
+  "hosedischargeassyhd7",
+  "hose",
+  "everseal",
+  "hirotape",
+]);
+
+const compactMeterItemName = (value: unknown) =>
+  String(value ?? "")
+    .trim()
+    .toLocaleLowerCase("id-ID")
+    .replace(/[^a-z0-9]+/g, "");
+
+export function isMeterBasedMektekCatalogItem(item: {
+  catalogItemId?: string | null;
+  name?: string | null;
+  description?: string | null;
+}) {
+  const catalogItemId = item.catalogItemId?.trim();
+  if (!catalogItemId) return false;
+  if (METER_BASED_CATALOG_ITEM_IDS.has(catalogItemId)) return true;
+
+  return METER_BASED_CATALOG_ITEM_NAMES.has(
+    compactMeterItemName(item.name ?? item.description),
+  );
+}
+
+export function normalizeMektekItemQuantity(
+  value: unknown,
+  usesMeters: boolean,
+) {
+  const parsed = Number(String(value ?? "").replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed <= 0) return 1;
+  if (!usesMeters) return Math.max(1, Math.floor(parsed));
+  return Math.max(0.001, Math.round(parsed * 1000) / 1000);
+}
 
 export const haveRequiredMektekItemPrices = (
   items: ReadonlyArray<Pick<MektekLineItem, "unitPrice">>,
@@ -49,8 +99,11 @@ export const haveRequiredMektekItemInputPrices = (
   items: ReadonlyArray<Pick<MektekLineItemInput, "estimatedCost">>,
 ) => items.every((item) => parseMoney(item.estimatedCost) > 0);
 
-const parseQuantity = (value: unknown) =>
-  Math.max(1, Math.floor(Number(value) || 1));
+const usesMeterUnit = (item: MektekLineItemInput) =>
+  isMeterBasedMektekCatalogItem({
+    catalogItemId: item.catalogItemId,
+    description: item.description,
+  });
 
 export const mergeMektekLineItemInputs = <T extends MektekLineItemInput>(
   items: ReadonlyArray<T>,
@@ -79,11 +132,16 @@ export const mergeMektekLineItemInputs = <T extends MektekLineItemInput>(
     }
 
     const current = merged[matchingIndex];
+    const usesMeters = usesMeterUnit(current) || usesMeterUnit(item);
     merged[matchingIndex] = {
       ...current,
       description: current.description?.trim() || description,
       estimatedCost: current.estimatedCost || item.estimatedCost,
-      quantity: parseQuantity(current.quantity) + parseQuantity(item.quantity),
+      quantity: normalizeMektekItemQuantity(
+        normalizeMektekItemQuantity(current.quantity, usesMeters) +
+          normalizeMektekItemQuantity(item.quantity, usesMeters),
+        usesMeters,
+      ),
     };
   }
 
@@ -109,7 +167,10 @@ const toLineItem = (
   if (!name) return null;
 
   const catalogItemId = toStringOrNull(row.catalogItemId);
-  const quantity = parseQuantity(row.quantity);
+  const usesMeters =
+    kind === "sparepart" &&
+    isMeterBasedMektekCatalogItem({ catalogItemId, name });
+  const quantity = normalizeMektekItemQuantity(row.quantity, usesMeters);
   const unitPrice = parseMoney(row.unitPrice ?? row.estimatedCost);
   const total = parseMoney(row.total) || unitPrice * quantity;
   const stockWarehouse =
@@ -127,7 +188,7 @@ const toLineItem = (
     catalogPartNumber: toStringOrNull(row.catalogPartNumber),
     stockWarehouse,
     quantity,
-    unit: kind === "service" ? "JOB" : "PCS",
+    unit: kind === "service" ? "JOB" : usesMeters ? "M" : "PCS",
     unitPrice,
     total,
   };
