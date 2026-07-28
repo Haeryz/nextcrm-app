@@ -221,7 +221,7 @@ export default async function MektekDetailPage({ params }: Props) {
                   size="sm"
                   className="-ms-2 h-8 w-fit shrink-0 text-muted-foreground"
                 >
-                  <Link href={`/${locale}/mektek`}>
+                  <Link href={`/${locale}/mektek/history`}>
                     <ArrowLeft data-icon="inline-start" />
                     Kembali
                   </Link>

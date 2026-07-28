@@ -48,9 +48,11 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
   if (canViewMektekOrders(user)) {
     items.push({
       title: "Pesanan",
-      url: "/mektek",
-      exact: true,
       icon: ClipboardList,
+      items: [
+        { title: "Buat Pesanan", url: "/mektek", exact: true },
+        { title: "History", url: "/mektek/history" },
+      ],
     });
   }
 
