@@ -18,6 +18,9 @@ import { prismadb } from "@/lib/prisma";
 import SupplierDebtReportManager from "../_components/SupplierDebtReportManager";
 import { requireFinanceSection } from "../_lib/gate";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 const PAGE_SIZE = 50;
 const report = snapshot.report as SupplierDebtWorkbookReport;
 const dateOnly = (value: Date | null) => value?.toISOString().slice(0, 10) ?? null;
@@ -112,9 +115,47 @@ export default async function SupplierDebtReportPage({
   const [persistedEntries, persistedTransactions] = await Promise.all([
     prismadb.mektekSupplierDebtEntry.findMany({
       orderBy: [{ sheetKey: "asc" }, { sourceRow: "asc" }],
+      select: {
+        id: true,
+        sheetKey: true,
+        sourceRow: true,
+        number: true,
+        purchaseOrderDate: true,
+        purchaseOrderNumber: true,
+        goodsReceiptDate: true,
+        receivedBy: true,
+        deliveryNoteNumber: true,
+        invoiceDate: true,
+        invoiceNumber: true,
+        taxInvoiceNumber: true,
+        dueDate: true,
+        partNumber: true,
+        description: true,
+        quantity: true,
+        unitPrice: true,
+        amount: true,
+        grandTotal: true,
+        partsEntryDate: true,
+        paymentDate: true,
+        paymentAmount: true,
+        pbkDate: true,
+        accountCode: true,
+      },
     }),
     prismadb.mektekSupplierDebtTransaction.findMany({
       orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
+      select: {
+        id: true,
+        sheetKey: true,
+        sourceRow: true,
+        kind: true,
+        paymentSource: true,
+        amount: true,
+        transactionDate: true,
+        reference: true,
+        note: true,
+        proofImageUpdatedAt: true,
+      },
     }),
   ]);
   const ledgerTransactions = persistedTransactions.map((transaction) => ({
