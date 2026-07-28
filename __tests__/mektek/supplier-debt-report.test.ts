@@ -11,18 +11,18 @@ import {
 const worksheet = (rows: unknown[][]) => XLSX.utils.aoa_to_sheet(rows);
 
 describe("Supplier debt report workbook contract", () => {
-  it("preserves every supplied workbook sheet in the verified snapshot", () => {
+  it("preserves every supplier sheet in the wiped snapshot with zeroed debt", () => {
     const report = snapshot.report as SupplierDebtWorkbookReport;
 
     expect(report.overview.rows).toHaveLength(31);
-    expect(report.recap.entries).toHaveLength(172);
+    expect(report.recap.entries).toHaveLength(0);
     expect(report.detailSheets).toHaveLength(31);
     expect(
       report.detailSheets.reduce(
         (total, sheet) => total + sheet.entries.length,
         0,
       ),
-    ).toBe(701);
+    ).toBe(0);
     expect(report.detailSheets[0]).toMatchObject({
       sheetKey: "REKAP HUTANG LOKAL",
       entries: [],
@@ -31,8 +31,12 @@ describe("Supplier debt report workbook contract", () => {
       report.detailSheets
         .find((sheet) => sheet.sheetKey === "ALVINDO")
         ?.entries.reduce((total, row) => total + row.grandTotal, 0),
-    ).toBe(57_317_000);
+    ).toBe(0);
     expect(report.detailSheets.at(-1)?.sheetKey).toBe("VARIASI AC");
+    expect(report.overview.rows[0].remainingDebt).toBe(0);
+    expect(report.recap.monthlySummary.every(
+      (m) => m.debtValue === 0 && m.paidValue === 0 && m.remainingDebt === 0,
+    )).toBe(true);
   });
 
   it("separates the two recap sheets from the detail sheets", () => {

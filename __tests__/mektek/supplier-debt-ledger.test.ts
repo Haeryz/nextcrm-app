@@ -12,6 +12,7 @@ const transactions = [
     kind: "DEPOSIT" as const,
     paymentSource: null,
     amount: 500_000,
+    transactionDate: "2026-07-20" as const,
   },
   {
     sheetKey: "SUPPLIER A",
@@ -19,6 +20,7 @@ const transactions = [
     kind: "PAYMENT" as const,
     paymentSource: "DEPOSIT" as const,
     amount: 300_000,
+    transactionDate: "2026-07-21" as const,
   },
   {
     sheetKey: "SUPPLIER A",
@@ -26,6 +28,7 @@ const transactions = [
     kind: "PAYMENT" as const,
     paymentSource: "CASH" as const,
     amount: 100_000,
+    transactionDate: "2026-07-22" as const,
   },
 ];
 
@@ -50,6 +53,10 @@ describe("supplier debt transaction ledger", () => {
       remainingAmount: 400_000,
       status: "CICILAN",
       ledgerPaymentAmount: 400_000,
+      ledgerPayments: [
+        { transactionDate: "2026-07-21", amount: 300_000 },
+        { transactionDate: "2026-07-22", amount: 100_000 },
+      ],
     });
   });
 

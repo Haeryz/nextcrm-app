@@ -2043,12 +2043,30 @@ export async function createMatchedFinanceSupplierBill(input: {
           1_000_001,
           (lastDebtRow?.sourceRow ?? 1_000_000) + 1,
         );
+        const receivingPicNames = snapshot.purchaseOrderId
+          ? await tx.logisticsReceipt.findMany({
+              where: {
+                purchaseOrderItem: {
+                  purchaseOrderId: snapshot.purchaseOrderId,
+                },
+              },
+              select: { picId: true, pic: { select: { name: true } } },
+              distinct: ["picId"],
+            })
+          : [];
+        const receivedBy = receivingPicNames
+          .map((row) => row.pic.name)
+          .filter(Boolean)
+          .join(", ") || null;
         await tx.mektekSupplierDebtEntry.create({
           data: {
             sheetKey,
             sourceRow: debtSourceRow,
             number: String(debtSourceRow - 1_000_000),
+            purchaseOrderDate: source.occurredAt,
             purchaseOrderNumber: snapshot.poNumber,
+            goodsReceiptDate: source.occurredAt,
+            receivedBy,
             deliveryNoteNumber: source.sourceReference,
             invoiceNumber: supplierInvoiceNumber,
             invoiceDate: billDate,
@@ -2085,12 +2103,12 @@ export async function createMatchedFinanceSupplierBill(input: {
             },
           },
         });
-        return created;
+        return { id: created.id };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
     revalidatePath(financePath, "layout");
-    return { data: bill };
+    return { data: { id: bill.id } };
   } catch (error) {
     console.error("[CREATE_MATCHED_FINANCE_SUPPLIER_BILL]", error);
     if (error instanceof Error && error.message === "SOURCE_INCOMPLETE") {

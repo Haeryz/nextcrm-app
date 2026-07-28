@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { HandCoins, Loader2, WalletCards } from "lucide-react";
 import { toast } from "sonner";
 
-import { recordSupplierDebtTransaction } from "@/actions/mektek/supplier-debt-report";
+import { recordSupplierDebtTransaction, deleteSupplierDebtTransactions } from "@/actions/mektek/supplier-debt-report";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -35,6 +35,30 @@ const today = () => {
   return new Date(now.getTime() - offset).toISOString().slice(0, 10);
 };
 
+const ACCEPTED_PROOF_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+];
+
+async function uploadProofImage(transactionId: string, file: File) {
+  const response = await fetch(
+    `/api/mektek/finance/supplier-debt/transactions/${encodeURIComponent(transactionId)}/proof-image`,
+    {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": file.type },
+    },
+  );
+  const payload = (await response.json().catch(() => null)) as
+    | { error?: string }
+    | null;
+  if (!response.ok) {
+    throw new Error(payload?.error || "Gagal mengunggah bukti pembayaran");
+  }
+}
+
 export default function SupplierDebtTransactionDialog({
   kind,
   sheetKey,
@@ -60,6 +84,8 @@ export default function SupplierDebtTransactionDialog({
   const [transactionDate, setTransactionDate] = useState(today);
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofError, setProofError] = useState<string | null>(null);
   const isDeposit = kind === "DEPOSIT";
   const numericAmount = Number(amount) || 0;
   const numericApplied = Number(appliedAmount) || 0;
@@ -75,10 +101,36 @@ export default function SupplierDebtTransactionDialog({
     setTransactionDate(today());
     setReference("");
     setNote("");
+    setProofFile(null);
+    setProofError(null);
+  };
+
+  const selectProofFile = (file: File | null) => {
+    if (!file) {
+      setProofFile(null);
+      setProofError(null);
+      return;
+    }
+    if (!ACCEPTED_PROOF_TYPES.includes(file.type)) {
+      setProofFile(null);
+      setProofError("Bukti pembayaran harus berupa JPEG, PNG, WebP, atau PDF");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setProofFile(null);
+      setProofError("Ukuran bukti pembayaran maksimal 5 MB");
+      return;
+    }
+    setProofFile(file);
+    setProofError(null);
   };
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!isDeposit && !proofFile) {
+      setProofError("Bukti pembayaran wajib diunggah");
+      return;
+    }
     startTransition(async () => {
       const result = await recordSupplierDebtTransaction(
         { sheetKey, sourceRow },
@@ -97,6 +149,23 @@ export default function SupplierDebtTransactionDialog({
           "error" in result ? result.error : "Transaksi pemasok gagal disimpan",
         );
         return;
+      }
+      if (proofFile && result.data.transactionIds?.length) {
+        const primaryId = result.data.transactionIds[result.data.transactionIds.length - 1];
+        try {
+          await uploadProofImage(primaryId, proofFile);
+        } catch (error) {
+          await deleteSupplierDebtTransactions(result.data.transactionIds);
+          toast.error(
+            `Pembayaran dibatalkan. ${
+              error instanceof Error
+                ? error.message
+                : "Gagal mengunggah bukti pembayaran"
+            }`,
+          );
+          router.refresh();
+          return;
+        }
       }
       toast.success(
         isDeposit
@@ -241,6 +310,36 @@ export default function SupplierDebtTransactionDialog({
               rows={3}
             />
           </div>
+          {!isDeposit && (
+            <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
+              <Label htmlFor={`${kind}-${sourceRow}-proof`}>
+                Bukti pembayaran{" "}
+                <span className="font-normal text-destructive">(wajib)</span>
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Unggah foto atau PDF bukti transfer / pembayaran.
+              </p>
+              <input
+                id={`${kind}-${sourceRow}-proof`}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                onChange={(event) =>
+                  selectProofFile(event.target.files?.[0] ?? null)
+                }
+                disabled={pending}
+                required={!isDeposit}
+                className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-accent"
+              />
+              {proofFile && (
+                <p className="text-xs text-muted-foreground">
+                  Terpilih: {proofFile.name}
+                </p>
+              )}
+              {proofError && (
+                <p className="text-xs text-destructive">{proofError}</p>
+              )}
+            </div>
+          )}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Batal

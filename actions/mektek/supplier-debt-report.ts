@@ -201,10 +201,11 @@ export async function recordSupplierDebtTransaction(
   ) {
     return { error: "Baris hutang pemasok tidak valid" };
   }
-  if ("error" in parsed) return parsed;
+  if ("error" in parsed) return { error: parsed.error };
 
   try {
     const result = await prismadb.$transaction(async (transaction) => {
+      const transactionIds: string[] = [];
       const state = await debtState(transaction, sheetKey, sourceRow);
       if (!state) throw new Error("ENTRY_NOT_FOUND");
       const appliedAmount =
@@ -226,7 +227,7 @@ export async function recordSupplierDebtTransaction(
       }
 
       if (parsed.data.kind === "DEPOSIT") {
-        await transaction.mektekSupplierDebtTransaction.create({
+        const depositTx = await transaction.mektekSupplierDebtTransaction.create({
           data: {
             sheetKey,
             sourceRow,
@@ -240,8 +241,9 @@ export async function recordSupplierDebtTransaction(
             createdBy: access.current.id,
           },
         });
+        transactionIds.push(depositTx.id);
         if (parsed.data.appliedAmount > 0) {
-          await transaction.mektekSupplierDebtTransaction.create({
+          const paymentTx = await transaction.mektekSupplierDebtTransaction.create({
             data: {
               sheetKey,
               sourceRow,
@@ -256,9 +258,10 @@ export async function recordSupplierDebtTransaction(
               createdBy: access.current.id,
             },
           });
+          transactionIds.push(paymentTx.id);
         }
       } else {
-        await transaction.mektekSupplierDebtTransaction.create({
+        const paymentTx = await transaction.mektekSupplierDebtTransaction.create({
           data: {
             sheetKey,
             sourceRow,
@@ -273,6 +276,7 @@ export async function recordSupplierDebtTransaction(
             createdBy: access.current.id,
           },
         });
+        transactionIds.push(paymentTx.id);
       }
 
       return {
@@ -281,6 +285,7 @@ export async function recordSupplierDebtTransaction(
           parsed.data.kind === "DEPOSIT"
             ? parsed.data.remainingDeposit
             : await depositBalance(transaction, sheetKey),
+        transactionIds,
       };
     });
     revalidatePath(supplierDebtPath, "page");
@@ -299,6 +304,26 @@ export async function recordSupplierDebtTransaction(
     }
     console.error("[RECORD_SUPPLIER_DEBT_TRANSACTION]", error);
     return { error: "Transaksi pemasok gagal disimpan" };
+  }
+}
+
+export async function deleteSupplierDebtTransactions(transactionIds: string[]) {
+  const access = await ensureFinanceManager();
+  if ("error" in access) return access;
+  const ids = transactionIds
+    .map((value) => text(value, 36))
+    .filter(Boolean);
+  if (!ids.length) return { error: "ID transaksi tidak valid" };
+
+  try {
+    await prismadb.mektekSupplierDebtTransaction.deleteMany({
+      where: { id: { in: ids } },
+    });
+    revalidatePath(supplierDebtPath, "page");
+    return { data: { deleted: ids.length } };
+  } catch (error) {
+    console.error("[DELETE_SUPPLIER_DEBT_TRANSACTIONS]", error);
+    return { error: "Gagal menghapus transaksi" };
   }
 }
 

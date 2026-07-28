@@ -12,6 +12,7 @@ export type SupplierDebtLedgerTransaction = {
   kind: SupplierDebtTransactionKind;
   paymentSource: SupplierDebtPaymentSource | null;
   amount: number;
+  transactionDate: string | null;
 };
 
 export type SupplierDebtTransactionInput = {
@@ -104,13 +105,18 @@ export function applySupplierDebtPayments(
   sheetKey: string,
   sourceRow: number,
 ) {
-  const ledgerPaymentAmount = transactions.reduce(
-    (total, transaction) =>
-      transaction.sheetKey === sheetKey &&
-      transaction.sourceRow === sourceRow &&
-      transaction.kind === "PAYMENT"
-        ? total + transaction.amount
-        : total,
+  const ledgerPayments = transactions
+    .filter(
+      (transaction) =>
+        transaction.sheetKey === sheetKey &&
+        transaction.sourceRow === sourceRow &&
+        transaction.kind === "PAYMENT",
+    )
+    .sort((a, b) =>
+      (a.transactionDate ?? "").localeCompare(b.transactionDate ?? ""),
+    );
+  const ledgerPaymentAmount = ledgerPayments.reduce(
+    (total, transaction) => total + transaction.amount,
     0,
   );
   const paymentAmount = Math.min(
@@ -130,6 +136,10 @@ export function applySupplierDebtPayments(
     remainingAmount,
     status,
     ledgerPaymentAmount,
+    ledgerPayments: ledgerPayments.map((transaction) => ({
+      transactionDate: transaction.transactionDate,
+      amount: transaction.amount,
+    })),
   };
 }
 

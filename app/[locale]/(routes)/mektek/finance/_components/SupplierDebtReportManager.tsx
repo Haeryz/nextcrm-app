@@ -9,6 +9,7 @@ import {
   BellRing,
   ChevronLeft,
   ChevronRight,
+  Eye,
   FileSpreadsheet,
   Filter,
   Search,
@@ -19,6 +20,13 @@ import { toast } from "sonner";
 import { deleteSupplierDebtEntry } from "@/actions/mektek/supplier-debt-report";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type {
   SupplierDebtDetailEntry,
@@ -139,6 +147,8 @@ export default function SupplierDebtReportManager({
   depositBalance,
   dueAlertSummary,
   recentTransactions,
+  transactionsBySourceRow,
+  billLinesByInvoice,
   monthlyTotals,
   search,
   status,
@@ -175,7 +185,31 @@ export default function SupplierDebtReportManager({
     transactionDate: string;
     reference: string | null;
     note: string | null;
+    hasProofImage: boolean;
   }>;
+  transactionsBySourceRow: Record<
+    number,
+    Array<{
+      id: string;
+      kind: "DEPOSIT" | "PAYMENT";
+      paymentSource: "CASH" | "DEPOSIT" | null;
+      amount: number;
+      transactionDate: string;
+      reference: string | null;
+      note: string | null;
+      hasProofImage: boolean;
+    }>
+  >;
+  billLinesByInvoice: Record<
+    string,
+    Array<{
+      description: string;
+      partNumber: string | null;
+      quantity: number;
+      unitCost: number;
+      lineTotal: number;
+    }>
+  >;
   monthlyTotals: number[];
   search: string;
   status: "SEMUA" | SupplierDebtStatus;
@@ -190,6 +224,7 @@ export default function SupplierDebtReportManager({
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [searchValue, setSearchValue] = useState(search);
+  const [detailEntry, setDetailEntry] = useState<SupplierDebtDetailEntry | null>(null);
   const selectedSheet = sheets.find(
     (sheet) => sheet.sheetKey === selectedSheetKey,
   );
@@ -454,7 +489,7 @@ export default function SupplierDebtReportManager({
                     <th className="px-3 py-3 text-right">Sisa hutang</th>
                     <th className="px-3 py-3 text-right">Sisa piutang</th>
                     <th className="px-3 py-3 text-right">TOP</th>
-                    <th className="px-3 py-3 text-right">Jatuh tempo</th>
+                    <th className="px-3 py-3">Jatuh tempo</th>
                     <th className="px-3 py-3">Catatan jatuh tempo</th>
                     <th className="px-3 py-3">Rincian</th>
                   </tr>
@@ -479,8 +514,8 @@ export default function SupplierDebtReportManager({
                           ? `${row.paymentTermDays} hari`
                           : "—"}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-3 text-right">
-                        {rupiah.format(row.dueAmount)}
+                      <td className="whitespace-nowrap px-3 py-3">
+                        {dateLabel(row.dueDate ?? null)}
                       </td>
                       <td className="max-w-96 px-3 py-3">
                         {row.dueDescription || "—"}
@@ -638,12 +673,6 @@ export default function SupplierDebtReportManager({
                   </option>
                 ))}
               </select>
-              {selectedSheet && selectedSheetKey && (
-                <SupplierDebtEntryDialog
-                  sheetKey={selectedSheetKey}
-                  supplierName={selectedSheet.supplierName}
-                />
-              )}
             </div>
           </div>
 
@@ -746,7 +775,7 @@ export default function SupplierDebtReportManager({
                 Riwayat deposit & pembayaran ({recentTransactions.length})
               </summary>
               <div className="overflow-x-auto border-t">
-                <table className="w-full min-w-[760px] text-sm">
+                <table className="w-full min-w-[860px] text-sm">
                   <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
                     <tr>
                       <th className="px-3 py-2">Tanggal</th>
@@ -755,6 +784,7 @@ export default function SupplierDebtReportManager({
                       <th className="px-3 py-2">Referensi</th>
                       <th className="px-3 py-2">Catatan</th>
                       <th className="px-3 py-2 text-right">Nominal</th>
+                      <th className="px-3 py-2">Bukti</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -783,6 +813,20 @@ export default function SupplierDebtReportManager({
                         </td>
                         <td className="px-3 py-2 text-right font-medium">
                           {rupiah.format(transaction.amount)}
+                        </td>
+                        <td className="px-3 py-2">
+                          {transaction.hasProofImage ? (
+                            <a
+                              href={`/api/mektek/finance/supplier-debt/transactions/${encodeURIComponent(transaction.id)}/proof-image`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sm font-medium text-primary hover:underline"
+                            >
+                              Lihat bukti
+                            </a>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -917,11 +961,25 @@ export default function SupplierDebtReportManager({
                       <td className="px-3 py-3">
                         {dateLabel(row.partsEntryDate)}
                       </td>
-                      <td className="px-3 py-3">{dateLabel(row.paymentDate)}</td>
+                      <td className="px-3 py-3">
+                        {row.ledgerPayments.length > 0
+                          ? row.ledgerPayments.map((payment, index) => (
+                              <div key={index} className="whitespace-nowrap">
+                                {dateLabel(payment.transactionDate)}
+                              </div>
+                            ))
+                          : dateLabel(row.paymentDate)}
+                      </td>
                       <td className="whitespace-nowrap px-3 py-3 text-right">
-                        {row.paymentAmount
-                          ? rupiah.format(row.paymentAmount)
-                          : "—"}
+                        {row.ledgerPayments.length > 0
+                          ? row.ledgerPayments.map((payment, index) => (
+                              <div key={index}>
+                                {rupiah.format(payment.amount)}
+                              </div>
+                            ))
+                          : row.paymentAmount
+                            ? rupiah.format(row.paymentAmount)
+                            : "—"}
                       </td>
                       <td className="px-3 py-3">{dateLabel(row.pbkDate)}</td>
                       <td className="max-w-60 px-3 py-3">{row.accountCode || "—"}</td>
@@ -942,6 +1000,16 @@ export default function SupplierDebtReportManager({
                       <td className="sticky right-0 bg-background px-3 py-2 text-right">
                         {selectedSheet && selectedSheetKey ? (
                           <div className="flex justify-end gap-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setDetailEntry(row)}
+                              aria-label="Lihat detail"
+                              title="Lihat detail"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                             <SupplierDebtTransactionDialog
                               kind="DEPOSIT"
                               sheetKey={selectedSheetKey}
@@ -1010,6 +1078,178 @@ export default function SupplierDebtReportManager({
           {pagination}
         </>
       )}
+      <Dialog
+        open={Boolean(detailEntry)}
+        onOpenChange={(nextOpen) => { if (!nextOpen) setDetailEntry(null); }}
+      >
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Detail Hutang Pemasok</DialogTitle>
+            <DialogDescription>
+              {detailEntry?.invoiceNumber ??
+                detailEntry?.purchaseOrderNumber ??
+                detailEntry?.deliveryNoteNumber ??
+                `Baris ${detailEntry?.number ?? detailEntry?.sourceRow}`}
+            </DialogDescription>
+          </DialogHeader>
+          {detailEntry && (
+            <div className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Nomor PO</p>
+                  <p className="font-medium">{detailEntry.purchaseOrderNumber || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Tanggal PO</p>
+                  <p className="font-medium">{dateLabel(detailEntry.purchaseOrderDate)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Nomor SJ</p>
+                  <p className="font-medium">{detailEntry.deliveryNoteNumber || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Nomor invoice</p>
+                  <p className="font-medium">{detailEntry.invoiceNumber || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Tanggal invoice</p>
+                  <p className="font-medium">{dateLabel(detailEntry.invoiceDate)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Jatuh tempo</p>
+                  <p className="font-medium">{dateLabel(detailEntry.dueDate)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Grand total</p>
+                  <p className="font-medium">{rupiah.format(detailEntry.grandTotal)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Nominal bayar</p>
+                  <p className="font-medium">{rupiah.format(detailEntry.paymentAmount)}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Sisa hutang</p>
+                  <p className="font-medium">{rupiah.format(detailEntry.remainingAmount)}</p>
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 font-semibold">Deskripsi</p>
+                <p className="text-sm text-muted-foreground">{detailEntry.description || "—"}</p>
+              </div>
+              {detailEntry.invoiceNumber &&
+                billLinesByInvoice[detailEntry.invoiceNumber]?.length > 0 && (
+                  <div>
+                    <p className="mb-2 font-semibold">Barang yang dipesan</p>
+                    <div className="overflow-hidden rounded-lg border">
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[480px] text-sm">
+                          <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+                            <tr>
+                              <th className="px-3 py-2">Deskripsi</th>
+                              <th className="px-3 py-2">Part Number</th>
+                              <th className="px-3 py-2 text-right">Qty</th>
+                              <th className="px-3 py-2 text-right">Harga</th>
+                              <th className="px-3 py-2 text-right">Jumlah</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y">
+                            {billLinesByInvoice[detailEntry.invoiceNumber].map((line, index) => (
+                              <tr key={index}>
+                                <td className="px-3 py-2 font-medium">{line.description}</td>
+                                <td className="px-3 py-2 text-muted-foreground">
+                                  {line.partNumber || "—"}
+                                </td>
+                                <td className="px-3 py-2 text-right">{line.quantity}</td>
+                                <td className="px-3 py-2 text-right">
+                                  {rupiah.format(line.unitCost)}
+                                </td>
+                                <td className="px-3 py-2 text-right font-medium">
+                                  {rupiah.format(line.lineTotal)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              {transactionsBySourceRow[detailEntry.sourceRow]?.length > 0 && (
+                <div>
+                  <p className="mb-2 font-semibold">
+                    Riwayat cicilan & pembayaran
+                  </p>
+                  <div className="overflow-hidden rounded-lg border">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[640px] text-sm">
+                        <thead className="bg-muted/50 text-left text-xs uppercase text-muted-foreground">
+                          <tr>
+                            <th className="px-3 py-2">Tanggal</th>
+                            <th className="px-3 py-2">Jenis</th>
+                            <th className="px-3 py-2">Sumber</th>
+                            <th className="px-3 py-2">Referensi</th>
+                            <th className="px-3 py-2">Catatan</th>
+                            <th className="px-3 py-2 text-right">Nominal</th>
+                            <th className="px-3 py-2">Bukti</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {transactionsBySourceRow[detailEntry.sourceRow].map(
+                            (transaction) => (
+                              <tr key={transaction.id}>
+                                <td className="px-3 py-2">
+                                  {dateLabel(transaction.transactionDate)}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {transaction.kind === "DEPOSIT"
+                                    ? "Deposit"
+                                    : "Pembayaran"}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {transaction.paymentSource === "DEPOSIT"
+                                    ? "Saldo deposit"
+                                    : transaction.paymentSource === "CASH"
+                                      ? "Kas / transfer"
+                                      : "—"}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {transaction.reference || "—"}
+                                </td>
+                                <td className="max-w-60 px-3 py-2">
+                                  {transaction.note || "—"}
+                                </td>
+                                <td className="px-3 py-2 text-right font-medium">
+                                  {rupiah.format(transaction.amount)}
+                                </td>
+                                <td className="px-3 py-2">
+                                  {transaction.hasProofImage ? (
+                                    <a
+                                      href={`/api/mektek/finance/supplier-debt/transactions/${encodeURIComponent(transaction.id)}/proof-image`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-sm font-medium text-primary hover:underline"
+                                    >
+                                      Lihat bukti
+                                    </a>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground">
+                                      —
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ),
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

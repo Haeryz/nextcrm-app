@@ -12,6 +12,7 @@ export type SupplierDebtOverviewRow = {
   remainingReceivable: number;
   paymentTermDays: number | null;
   dueAmount: number;
+  dueDate?: string | null;
   dueDescription: string | null;
   breakdown: number[];
   breakdownNote: string | null;
@@ -64,6 +65,7 @@ export type SupplierDebtDetailEntry = {
   partsEntryDate: string | null;
   paymentDate: string | null;
   paymentAmount: number;
+  ledgerPayments: Array<{ transactionDate: string | null; amount: number }>;
   pbkDate: string | null;
   accountCode: string | null;
   status: SupplierDebtStatus;
@@ -372,6 +374,7 @@ const extractDetailSheet = (
               accountCode: text(row[21 + detailColumnOffset]),
               status: supplierDebtStatus(grandTotal, paymentAmount),
               remainingAmount: Math.max(grandTotal - paymentAmount, 0),
+              ledgerPayments: [],
             };
           })
           .filter((row): row is SupplierDebtDetailEntry => Boolean(row));

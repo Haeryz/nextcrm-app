@@ -855,17 +855,20 @@ enum MektekSupplierDebtPaymentSource {
 }
 
 model MektekSupplierDebtTransaction {
-  id              String                            @id @default(uuid()) @db.Uuid
-  sheetKey        String
-  sourceRow       Int?
-  kind            MektekSupplierDebtTransactionKind
-  paymentSource   MektekSupplierDebtPaymentSource?
-  amount          Decimal                           @db.Decimal(18, 2)
-  transactionDate DateTime                          @db.Date
-  reference       String?
-  note            String?
-  createdBy       String?                           @db.Uuid
-  createdAt       DateTime                          @default(now())
+  id                    String                            @id @default(uuid()) @db.Uuid
+  sheetKey              String
+  sourceRow             Int?
+  kind                  MektekSupplierDebtTransactionKind
+  paymentSource         MektekSupplierDebtPaymentSource?
+  amount                Decimal                           @db.Decimal(18, 2)
+  transactionDate       DateTime                          @db.Date
+  reference             String?
+  note                  String?
+  proofImageData        Bytes?
+  proofImageMimeType    String?
+  proofImageUpdatedAt   DateTime?
+  createdBy             String?                           @db.Uuid
+  createdAt             DateTime                          @default(now())
 
   @@index([sheetKey, sourceRow])
   @@index([sheetKey, kind, transactionDate])

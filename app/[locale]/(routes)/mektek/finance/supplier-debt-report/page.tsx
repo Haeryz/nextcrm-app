@@ -123,7 +123,40 @@ export default async function SupplierDebtReportPage({
     kind: transaction.kind,
     paymentSource: transaction.paymentSource,
     amount: Number(transaction.amount),
+    transactionDate: dateOnly(transaction.transactionDate),
   }));
+  const entryInvoiceNumbers = Array.from(
+    new Set(
+      persistedEntries
+        .map((entry) => entry.invoiceNumber)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+  const matchedBills = entryInvoiceNumbers.length
+    ? await prismadb.financeSupplierBill.findMany({
+        where: { supplierInvoiceNumber: { in: entryInvoiceNumbers } },
+        include: { lines: { orderBy: { position: "asc" } } },
+      })
+    : [];
+  const billLinesByInvoice: Record<
+    string,
+    Array<{
+      description: string;
+      partNumber: string | null;
+      quantity: number;
+      unitCost: number;
+      lineTotal: number;
+    }>
+  > = {};
+  for (const bill of matchedBills) {
+    billLinesByInvoice[bill.supplierInvoiceNumber] = bill.lines.map((line) => ({
+      description: line.description,
+      partNumber: line.partNumber,
+      quantity: Number(line.quantity),
+      unitCost: Number(line.unitCost),
+      lineTotal: Number(line.lineTotal),
+    }));
+  }
   const persistedRows = persistedEntries.map((row) => {
     const grandTotal = Number(row.grandTotal);
     const paymentAmount = Number(row.paymentAmount);
@@ -156,6 +189,7 @@ export default async function SupplierDebtReportPage({
         accountCode: row.accountCode,
         status: supplierDebtStatus(grandTotal, paymentAmount),
         remainingAmount: Math.max(grandTotal - paymentAmount, 0),
+        ledgerPayments: [],
       } satisfies SupplierDebtDetailEntry,
     };
   });
@@ -322,11 +356,16 @@ export default async function SupplierDebtReportPage({
       (total, entry) => total + entry.remainingAmount,
       0,
     );
-    const currentRemaining = (entriesBySheet.get(sheet.sheetKey) ?? []).reduce(
+    const currentEntries = entriesBySheet.get(sheet.sheetKey) ?? [];
+    const currentRemaining = currentEntries.reduce(
       (total, entry) => total + entry.remainingAmount,
       0,
     );
     const remainingDelta = currentRemaining - originalRemaining;
+    const pendingDueDates = currentEntries
+      .filter((entry) => entry.dueDate && entry.status !== "LUNAS" && entry.remainingAmount > 0)
+      .map((entry) => entry.dueDate!)
+      .sort();
     return {
       ...row,
       remainingDebt: Math.max(row.remainingDebt + remainingDelta, 0),
@@ -334,6 +373,7 @@ export default async function SupplierDebtReportPage({
         row.remainingReceivable +
         supplierDepositBalance(ledgerTransactions, sheet.sheetKey),
       dueAmount: Math.max(row.dueAmount + remainingDelta, 0),
+      dueDate: pendingDueDates[0] ?? null,
     };
   });
 
@@ -346,6 +386,10 @@ export default async function SupplierDebtReportPage({
         (sum, entry) => sum + entry.remainingAmount,
         0,
       );
+      const pendingDueDates = sheetEntries
+        .filter((entry) => entry.dueDate && entry.status !== "LUNAS" && entry.remainingAmount > 0)
+        .map((entry) => entry.dueDate!)
+        .sort();
       return {
         sourceRow: sheet.position,
         number: String(sheet.position),
@@ -356,6 +400,7 @@ export default async function SupplierDebtReportPage({
         remainingReceivable: 0,
         paymentTermDays: null,
         dueAmount: remainingDebt,
+        dueDate: pendingDueDates[0] ?? null,
         dueDescription: null,
         breakdown: [],
         breakdownNote: null,
@@ -576,7 +621,40 @@ export default async function SupplierDebtReportPage({
       transactionDate: dateOnly(transaction.transactionDate) ?? "",
       reference: transaction.reference,
       note: transaction.note,
+      hasProofImage: Boolean(transaction.proofImageUpdatedAt),
     }));
+  const transactionsBySourceRow: Record<
+    number,
+    Array<{
+      id: string;
+      kind: "DEPOSIT" | "PAYMENT";
+      paymentSource: "CASH" | "DEPOSIT" | null;
+      amount: number;
+      transactionDate: string;
+      reference: string | null;
+      note: string | null;
+      hasProofImage: boolean;
+    }>
+  > = {};
+  for (const transaction of persistedTransactions) {
+    if (
+      transaction.sheetKey !== selectedSheet?.sheetKey ||
+      transaction.sourceRow == null
+    )
+      continue;
+    const row = transaction.sourceRow;
+    if (!transactionsBySourceRow[row]) transactionsBySourceRow[row] = [];
+    transactionsBySourceRow[row].push({
+      id: transaction.id,
+      kind: transaction.kind,
+      paymentSource: transaction.paymentSource,
+      amount: Number(transaction.amount),
+      transactionDate: dateOnly(transaction.transactionDate) ?? "",
+      reference: transaction.reference,
+      note: transaction.note,
+      hasProofImage: Boolean(transaction.proofImageUpdatedAt),
+    });
+  }
 
   return (
     <SupplierDebtReportManager
@@ -615,6 +693,8 @@ export default async function SupplierDebtReportPage({
       depositBalance={selectedDepositBalance}
       dueAlertSummary={dueAlertSummary}
       recentTransactions={recentTransactions}
+      transactionsBySourceRow={transactionsBySourceRow}
+      billLinesByInvoice={billLinesByInvoice}
       monthlyTotals={monthlyTotals}
       search={search}
       status={status}
