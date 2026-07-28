@@ -4,7 +4,12 @@ import { getToken } from "next-auth/jwt";
 import { NextRequest, NextResponse } from "next/server";
 
 const intlMiddleware = createMiddleware(routing);
-const AUTH_DISABLED = process.env.NEXTCRM_DISABLE_AUTH === "true";
+// No-auth mode is for local development only. Hard-disable it in production so
+// a stray NEXTCRM_DISABLE_AUTH=true in the hosting dashboard can never bypass
+// the API auth gates below (or the page-level session checks).
+const AUTH_DISABLED =
+  process.env.NEXTCRM_DISABLE_AUTH === "true" &&
+  process.env.NODE_ENV !== "production";
 const AUTH_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET;
 
 // Admin-only: require session.user.isAdmin

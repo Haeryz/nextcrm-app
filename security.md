@@ -48,18 +48,23 @@ Bound `customerName` / `address` length before persisting (see item 6).
 **File:** `lib/session.ts`
 
 ```ts
-const NO_AUTH_ENABLED = process.env.NEXTCRM_DISABLE_AUTH !== "false";
+const NO_AUTH_ENABLED =
+  process.env.NEXTCRM_DISABLE_AUTH === "true" &&
+  process.env.NODE_ENV !== "production";
 ```
 
-Auth is **disabled unless the env var is exactly the string `"false"`**. In no-auth mode
-every request resolves to a guest user with `isAdmin: true` (`toSession`/`normalizeSession`
-hard-code `isAdmin: true` and `userStatus: "ACTIVE"`). If production ever ships without
-`NEXTCRM_DISABLE_AUTH=false`, the entire admin surface is wide open.
+In no-auth mode every request resolves to a guest user with `isAdmin: true`
+(`toSession`/`normalizeSession` hard-code `isAdmin: true` and `userStatus: "ACTIVE"`).
+If production ever ships with no-auth on, the entire admin surface would be wide open.
 
-**Fix:** Confirm the Vercel/production env has `NEXTCRM_DISABLE_AUTH=false`. Add a startup
-assertion that refuses to boot in production (`NODE_ENV=production`) when no-auth is on,
-unless an explicit `NEXTCRM_ALLOW_NOAUTH_IN_PROD=true` override is present. Document it in
-CLAUDE.md's env section.
+**Fix (hardened):** No-auth mode is now force-disabled in production at the code level —
+`NODE_ENV === "production"` always wins, regardless of `NEXTCRM_DISABLE_AUTH` or the old
+`NEXTCRM_ALLOW_NOAUTH_IN_PROD` override (which is now ignored). A stray
+`NEXTCRM_DISABLE_AUTH=true` in the Vercel dashboard can no longer bypass login; pages fall
+back to real NextAuth sessions and the `(routes)/layout.tsx` redirects unauthenticated
+visitors to sign-in. `proxy.ts` mirrors the same production guard for its API auth gates.
+Still keep `NEXTCRM_DISABLE_AUTH=false` in deployed env for cleanliness, but it is no longer
+a single point of failure.
 
 ### [x] 4. `/api/whatsapp/status` is unauthenticated and exposes the pairing QR
 **File:** `app/api/whatsapp/status/route.ts`

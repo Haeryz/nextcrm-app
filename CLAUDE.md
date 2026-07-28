@@ -49,7 +49,7 @@ Auth is handled by **next-auth v4** (JWT strategy) in `lib/auth.ts`. Always impo
 
 **No-auth mode** (default in `.env.example`): set `NEXTCRM_DISABLE_AUTH=true`. The app upserts a guest user in the DB and every session resolves to that user with `isAdmin: true`. Useful for local development without OAuth.
 
-⚠️ **Production must set `NEXTCRM_DISABLE_AUTH=false`.** No-auth mode makes every request an admin guest. `lib/session.ts` refuses to boot when `NODE_ENV=production` and no-auth is enabled, unless `NEXTCRM_ALLOW_NOAUTH_IN_PROD=true` is set as an explicit override. Never set that override on a real deployment.
+⚠️ **No-auth mode is force-disabled in production.** `lib/session.ts` ignores `NEXTCRM_DISABLE_AUTH` whenever `NODE_ENV === "production"`, so a stray `NEXTCRM_DISABLE_AUTH=true` (or the legacy `NEXTCRM_ALLOW_NOAUTH_IN_PROD=true` override, now ignored) in the hosting dashboard can never bypass login. In production, pages fall back to real NextAuth sessions and the `(routes)` layout redirects unauthenticated visitors to `/sign-in`; `proxy.ts` mirrors the same guard for API routes. Still set `NEXTCRM_DISABLE_AUTH=false` in deployed env for cleanliness, but it is no longer a single point of failure.
 
 **Prototype mode**: `NEXTCRM_PROTOTYPE_MODE=true` or `DISABLE_EXTERNAL_APIS=true` disables OAuth providers, AI services, Resend, MinIO, Inngest, and IMAP/SMTP. Check `lib/external-apis.ts` (`areExternalApisDisabled()`) before calling any external API.
 

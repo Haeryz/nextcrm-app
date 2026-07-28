@@ -7,29 +7,16 @@ import type { StaffDivision } from "@/lib/auth/staff-divisions";
 import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 import type { StaffCapability } from "@/lib/auth/staff-capabilities";
 
-// No-auth mode is opt-in: it is enabled only when explicitly set to "true".
-const NO_AUTH_ENABLED = process.env.NEXTCRM_DISABLE_AUTH === "true";
+// No-auth mode is opt-in for local development only. In production it would
+// resolve every unauthenticated request to an admin guest user, opening the
+// entire admin surface without login. Hard-disable it in production regardless
+// of the env var, so a misconfigured deployment (e.g. NEXTCRM_DISABLE_AUTH=true
+// left in the Vercel dashboard) can never bypass authentication. The escape
+// hatch NEXTCRM_ALLOW_NOAUTH_IN_PROD is intentionally ignored in production.
+const NO_AUTH_ENABLED =
+  process.env.NEXTCRM_DISABLE_AUTH === "true" &&
+  process.env.NODE_ENV !== "production";
 
-// Fail fast rather than silently shipping an open admin surface: in production,
-// no-auth mode resolves every request to a guest with isAdmin:true. Refuse to
-// boot unless an operator has explicitly acknowledged the risk.
-//
-// Skip during `next build` (NEXT_PHASE === "phase-production-build"): the build
-// sets NODE_ENV=production and imports this module to collect page data, but env
-// like NEXTCRM_DISABLE_AUTH is a *runtime* concern. We only want to block a
-// real running server, not the build.
-if (
-  NO_AUTH_ENABLED &&
-  process.env.NODE_ENV === "production" &&
-  process.env.NEXT_PHASE !== "phase-production-build" &&
-  process.env.NEXTCRM_ALLOW_NOAUTH_IN_PROD !== "true"
-) {
-  throw new Error(
-    "[session] Refusing to boot: NEXTCRM_DISABLE_AUTH is enabled in production, " +
-      "so authentication is disabled and every request resolves to an admin guest user. " +
-      "Unset NEXTCRM_DISABLE_AUTH (or set it to \"false\"), or set NEXTCRM_ALLOW_NOAUTH_IN_PROD=true to override intentionally."
-  );
-}
 const GUEST_USER_ID =
   process.env.NEXTCRM_GUEST_USER_ID || "00000000-0000-0000-0000-000000000001";
 const GUEST_USER_EMAIL =
