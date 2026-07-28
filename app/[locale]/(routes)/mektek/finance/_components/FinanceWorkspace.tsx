@@ -33,6 +33,7 @@ import {
 } from "@/lib/mektek/finance-search";
 import { buildFinancePurchaseOrderDeliveryNoteSuggestion } from "@/lib/mektek/finance-po";
 import { prismadb } from "@/lib/prisma";
+import { cn } from "@/lib/utils";
 
 import MektekPagination from "../../_components/MektekPagination";
 import ContractCrudManager from "./ContractCrudManager";
@@ -40,6 +41,13 @@ import ContractReminderDemo from "./ContractReminderDemo";
 import RecapCreateButton from "./RecapCreateButton";
 import RecapRowActions from "./RecapRowActions";
 import InvoiceCrudManager, { type FinanceInvoiceCrudRow } from "./InvoiceCrudManager";
+import { FinancePeriodFilter } from "./FinancePeriodFilter";
+import {
+  formatFinancePeriodLabel,
+  resolveFinanceDateRange,
+  type FinanceDateRange,
+  type FinancePeriodFilter as FinancePeriodFilterValue,
+} from "../_lib/period-filter";
 
 export type FinanceSection =
   | "overview"
@@ -76,8 +84,17 @@ type FinanceRevenueInspection = {
   descriptions: string[];
 };
 
-async function getFinanceSynchronizedReport() {
+async function getFinanceSynchronizedReport(dateRange?: FinanceDateRange | null) {
   const invoices = await prismadb.financeInvoice.findMany({
+    where: dateRange
+      ? {
+          invoiceDate: {
+            not: null,
+            gte: dateRange.from,
+            lt: dateRange.to,
+          },
+        }
+      : undefined,
     orderBy: [{ invoiceDate: "desc" }, { createdAt: "desc" }],
     take: 5000,
     include: {
@@ -268,6 +285,90 @@ function StickyFilterBar({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * Sticky search + period filter bar shared by the four recap pages. The search
+ * form carries the active period as hidden fields (and vice-versa) so changing
+ * one filter never resets the other. The create button is passed in as a slot
+ * so each page keeps its own `RecapCreateButton` instance.
+ */
+function PeriodFilterBar({
+  query,
+  placeholder,
+  period,
+  action,
+  createButton,
+}: {
+  query: string;
+  placeholder: string;
+  period: FinancePeriodFilterValue;
+  action: string;
+  createButton?: React.ReactNode;
+}) {
+  return (
+    <StickyFilterBar>
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <ReportFilter
+            query={query}
+            placeholder={placeholder}
+            period={period}
+          />
+          {createButton}
+        </div>
+        <FinancePeriodFilter
+          query={query}
+          mode={period.mode}
+          month={period.month}
+          fromMonth={period.fromMonth}
+          toMonth={period.toMonth}
+          year={period.year}
+          action={action}
+        />
+      </div>
+    </StickyFilterBar>
+  );
+}
+
+/**
+ * Period totals card — surfaces the revenue/ receivable totals for the active
+ * period (single month, month range, or whole year), plus the period label.
+ */
+function PeriodTotalsCard({
+  periodLabel,
+  totals,
+}: {
+  periodLabel: string;
+  totals: Array<{ label: string; value: string; emphasis?: boolean }>;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+          <span>Ringkasan periode</span>
+          <Badge variant="secondary">{periodLabel}</Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {totals.map((entry) => (
+            <div key={entry.label} className="rounded-lg border p-3">
+              <p className="text-xs text-muted-foreground">{entry.label}</p>
+              <p
+                className={cn(
+                  "mt-1 text-lg font-semibold tabular-nums",
+                  entry.emphasis && "text-primary",
+                )}
+              >
+                {entry.value}
+              </p>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
  * Narrows the invoice query in the database so a search is not limited to the
  * page of most recent invoices we would otherwise load into memory.
  */
@@ -310,15 +411,38 @@ function ReportFilter({
   query,
   placeholder = "Cari data rekap",
   classification = "",
+  period,
 }: {
   query: string;
   placeholder?: string;
   classification?: string;
+  period?: FinancePeriodFilterValue;
 }) {
   return (
     <form className="flex max-w-xl gap-2">
       {classification ? (
         <input type="hidden" name="classification" value={classification} />
+      ) : null}
+      {period && period.mode !== "all" ? (
+        <>
+          <input type="hidden" name="periodMode" value={period.mode} />
+          {period.mode === "month" && period.month ? (
+            <input type="hidden" name="month" value={period.month} />
+          ) : null}
+          {period.mode === "range" ? (
+            <>
+              {period.fromMonth ? (
+                <input type="hidden" name="fromMonth" value={period.fromMonth} />
+              ) : null}
+              {period.toMonth ? (
+                <input type="hidden" name="toMonth" value={period.toMonth} />
+              ) : null}
+            </>
+          ) : null}
+          {period.mode === "year" && period.year ? (
+            <input type="hidden" name="year" value={period.year} />
+          ) : null}
+        </>
       ) : null}
       <div className="relative flex-1">
         <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -396,6 +520,7 @@ export default async function FinanceWorkspace({
   inspectInvoiceId = "",
   overviewMonth = "",
   overviewYear = "",
+  period,
 }: {
   section: FinanceSection;
   deliveryNotesPage?: number;
@@ -404,6 +529,7 @@ export default async function FinanceWorkspace({
   inspectInvoiceId?: string;
   overviewMonth?: string;
   overviewYear?: string;
+  period?: FinancePeriodFilterValue;
 }) {
   if (section === "overview") {
     const result = await getFinanceOverview({
@@ -779,7 +905,9 @@ export default async function FinanceWorkspace({
   }
 
   if (section === "receivables") {
-    const synchronizedReport = await getFinanceSynchronizedReport();
+    const receivablesPeriod = period ?? { mode: "all", month: "", fromMonth: "", toMonth: "", year: "" };
+    const receivablesDateRange = resolveFinanceDateRange(receivablesPeriod);
+    const synchronizedReport = await getFinanceSynchronizedReport(receivablesDateRange);
     const months = [
       ["jan", "Jan"], ["feb", "Feb"], ["mar", "Mar"], ["apr", "Apr"],
       ["may", "Mei"], ["jun", "Jun"], ["jul", "Jul"], ["aug", "Agu"],
@@ -792,6 +920,19 @@ export default async function FinanceWorkspace({
         row.customer,
         row.notes,
       ),
+    );
+    const periodLabel = formatFinancePeriodLabel(receivablesPeriod);
+    const totalReceivableSum = receivableRows.reduce(
+      (total, row) => total + demoNumber(row.totalReceivable),
+      0,
+    );
+    const totalPaidSum = receivableRows.reduce(
+      (total, row) => total + demoNumber(row.paid),
+      0,
+    );
+    const totalBalanceSum = receivableRows.reduce(
+      (total, row) => total + demoNumber(row.balance),
+      0,
     );
     const monthlyTotals = Object.fromEntries(
       months.map(([key]) => [
@@ -826,15 +967,25 @@ export default async function FinanceWorkspace({
           title="Rekapitulasi invoice jasa & part"
           description="Terbentuk otomatis dari rekap invoice dan pembayaran yang sudah diposting."
         />
-        <StickyFilterBar>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <ReportFilter
-              query={query}
-              placeholder="Cari perusahaan atau status piutang"
-            />
-            <RecapCreateButton />
-          </div>
-        </StickyFilterBar>
+        <PeriodFilterBar
+          query={query}
+          placeholder="Cari perusahaan atau status piutang"
+          period={receivablesPeriod}
+          action="/mektek/finance/receivables"
+          createButton={<RecapCreateButton />}
+        />
+        <PeriodTotalsCard
+          periodLabel={periodLabel}
+          totals={[
+            { label: "Total piutang", value: money(totalReceivableSum), emphasis: true },
+            { label: "Piutang dibayar", value: money(totalPaidSum) },
+            { label: "Sisa piutang", value: money(totalBalanceSum) },
+            {
+              label: "Jumlah perusahaan",
+              value: receivableRows.length.toLocaleString("id-ID"),
+            },
+          ]}
+        />
         {receivableRows.length ? (
           <>
             <section className="space-y-2" aria-labelledby="invoice-customer-table">
@@ -1033,7 +1184,8 @@ export default async function FinanceWorkspace({
   }
 
   if (section === "spare-parts") {
-    const report = await getFinanceSynchronizedReport();
+    const sparePartsPeriod = period ?? { mode: "all", month: "", fromMonth: "", toMonth: "", year: "" };
+    const report = await getFinanceSynchronizedReport(resolveFinanceDateRange(sparePartsPeriod));
     const rows = report.revenueRows.filter(
       (row) =>
         row.category === "sparepart" &&
@@ -1048,21 +1200,32 @@ export default async function FinanceWorkspace({
           row.description,
         ),
     );
+    const periodLabel = formatFinancePeriodLabel(sparePartsPeriod);
+    const sparePartsSubtotal = rows.reduce((total, row) => total + demoNumber(row.subtotal), 0);
+    const sparePartsTax = rows.reduce((total, row) => total + demoNumber(row.taxAmount), 0);
+    const sparePartsTotal = rows.reduce((total, row) => total + demoNumber(row.total), 0);
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
           title="Pendapatan spare part"
           description="Terbentuk otomatis dari baris spare part pada rekap invoice, termasuk invoice campuran."
         />
-        <StickyFilterBar>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <ReportFilter
-              query={query}
-              placeholder="Cari pelanggan, invoice, SJ, PO, atau faktur pajak"
-            />
-            <RecapCreateButton />
-          </div>
-        </StickyFilterBar>
+        <PeriodFilterBar
+          query={query}
+          placeholder="Cari pelanggan, invoice, SJ, PO, atau faktur pajak"
+          period={sparePartsPeriod}
+          action="/mektek/finance/spare-parts"
+          createButton={<RecapCreateButton />}
+        />
+        <PeriodTotalsCard
+          periodLabel={periodLabel}
+          totals={[
+            { label: "Total pendapatan spare part", value: money(sparePartsSubtotal), emphasis: true },
+            { label: "Total PPN", value: money(sparePartsTax) },
+            { label: "Total keseluruhan", value: money(sparePartsTotal) },
+            { label: "Jumlah baris", value: rows.length.toLocaleString("id-ID") },
+          ]}
+        />
         {report.unclassifiedCount > 0 ? (
           <RevenueClassificationWarning
             count={report.unclassifiedCount}
@@ -1126,7 +1289,8 @@ export default async function FinanceWorkspace({
   }
 
   if (section === "services") {
-    const report = await getFinanceSynchronizedReport();
+    const servicesPeriod = period ?? { mode: "all", month: "", fromMonth: "", toMonth: "", year: "" };
+    const report = await getFinanceSynchronizedReport(resolveFinanceDateRange(servicesPeriod));
     const rows = report.revenueRows.filter(
       (row) =>
         row.category === "service" &&
@@ -1140,21 +1304,32 @@ export default async function FinanceWorkspace({
           row.description,
         ),
     );
+    const periodLabel = formatFinancePeriodLabel(servicesPeriod);
+    const servicesSubtotal = rows.reduce((total, row) => total + demoNumber(row.subtotal), 0);
+    const servicesTax = rows.reduce((total, row) => total + demoNumber(row.taxAmount), 0);
+    const servicesTotal = rows.reduce((total, row) => total + demoNumber(row.total), 0);
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
         <Header
           title="Pendapatan jasa"
           description="Terbentuk otomatis dari baris jasa pada rekap invoice, termasuk invoice campuran."
         />
-        <StickyFilterBar>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <ReportFilter
-              query={query}
-              placeholder="Cari pelanggan, invoice, PO, atau keterangan"
-            />
-            <RecapCreateButton />
-          </div>
-        </StickyFilterBar>
+        <PeriodFilterBar
+          query={query}
+          placeholder="Cari pelanggan, invoice, PO, atau keterangan"
+          period={servicesPeriod}
+          action="/mektek/finance/services"
+          createButton={<RecapCreateButton />}
+        />
+        <PeriodTotalsCard
+          periodLabel={periodLabel}
+          totals={[
+            { label: "Total pendapatan jasa", value: money(servicesSubtotal), emphasis: true },
+            { label: "Total PPN", value: money(servicesTax) },
+            { label: "Total keseluruhan", value: money(servicesTotal) },
+            { label: "Jumlah baris", value: rows.length.toLocaleString("id-ID") },
+          ]}
+        />
         {report.unclassifiedCount > 0 ? (
           <RevenueClassificationWarning
             count={report.unclassifiedCount}
@@ -1216,7 +1391,8 @@ export default async function FinanceWorkspace({
   }
 
   if (section === "revenue") {
-    const report = await getFinanceSynchronizedReport();
+    const revenuePeriod = period ?? { mode: "all", month: "", fromMonth: "", toMonth: "", year: "" };
+    const report = await getFinanceSynchronizedReport(resolveFinanceDateRange(revenuePeriod));
     const totals = new Map<string, { jasa: number; sukuCadang: number; ppn: number }>();
     for (const row of report.revenueRows) {
       const current = totals.get(row.customer) ?? { jasa: 0, sukuCadang: 0, ppn: 0 };
@@ -1228,6 +1404,11 @@ export default async function FinanceWorkspace({
     const rows = [...totals.entries()]
       .filter(([customer]) => matchesReportQuery(query, customer))
       .sort(([a], [b]) => a.localeCompare(b, "id"));
+    const periodLabel = formatFinancePeriodLabel(revenuePeriod);
+    const totalJasa = rows.reduce((sum, [, value]) => sum + value.jasa, 0);
+    const totalSukuCadang = rows.reduce((sum, [, value]) => sum + value.sukuCadang, 0);
+    const totalPpn = rows.reduce((sum, [, value]) => sum + value.ppn, 0);
+    const totalAkhir = totalJasa + totalSukuCadang + totalPpn;
 
     return (
       <main className="space-y-4 px-4 pb-8 sm:px-6">
@@ -1235,12 +1416,22 @@ export default async function FinanceWorkspace({
           title="Rekap pendapatan jasa & suku cadang"
           description="Rekap otomatis dari baris invoice; invoice campuran dibagi menurut nilai setiap baris."
         />
-        <StickyFilterBar>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <ReportFilter query={query} placeholder="Cari pelanggan" />
-            <RecapCreateButton />
-          </div>
-        </StickyFilterBar>
+        <PeriodFilterBar
+          query={query}
+          placeholder="Cari pelanggan"
+          period={revenuePeriod}
+          action="/mektek/finance/revenue"
+          createButton={<RecapCreateButton />}
+        />
+        <PeriodTotalsCard
+          periodLabel={periodLabel}
+          totals={[
+            { label: "Pendapatan jasa", value: money(totalJasa) },
+            { label: "Pendapatan suku cadang", value: money(totalSukuCadang) },
+            { label: "Total PPN", value: money(totalPpn) },
+            { label: "Total akhir", value: money(totalAkhir), emphasis: true },
+          ]}
+        />
         {report.unclassifiedCount > 0 ? (
           <RevenueClassificationWarning
             count={report.unclassifiedCount}
