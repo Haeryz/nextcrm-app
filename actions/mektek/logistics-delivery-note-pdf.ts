@@ -89,13 +89,14 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",
+    marginTop: 32,
   },
-  spacer: { flexGrow: 1 },
+  spacer: { height: 0 },
   signature: { width: "34%", alignItems: "center" },
-  signatureSpace: { height: 62 },
+  signatureSpace: { height: 56 },
   signatureLine: { width: "90%", borderTopWidth: 0.8, borderTopColor: "#111827" },
   signatureLabel: { marginTop: 4, fontSize: 8.5 },
-  footerNote: { marginTop: 24, fontSize: 7.5, color: "#4b5563", textAlign: "center" },
+  footerNote: { marginTop: 20, fontSize: 7.5, color: "#4b5563", textAlign: "center" },
 });
 
 const dateFormatter = new Intl.DateTimeFormat("id-ID", {
@@ -190,7 +191,7 @@ function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
       React.createElement(View, { style: styles.spacer }),
       React.createElement(
         View,
-        { style: styles.footer },
+        { style: styles.footer, wrap: false },
         React.createElement(
           View,
           { style: styles.signature },

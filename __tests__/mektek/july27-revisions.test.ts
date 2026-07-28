@@ -47,6 +47,15 @@ describe("27 July revisions", () => {
       expect(deliveryNotePdf).toContain("JOBSITE/PROJECT");
       expect(deliveryNoteRoute).toContain("isReceiving");
     });
+
+    it("keeps the signature block close to the item table when printing", () => {
+      expect(deliveryNotePdf).toMatch(
+        /footer:\s*\{[\s\S]*?marginTop:\s*32,[\s\S]*?\}/,
+      );
+      expect(deliveryNotePdf).toContain("spacer: { height: 0 }");
+      expect(deliveryNotePdf).not.toContain("spacer: { flexGrow: 1 }");
+      expect(deliveryNotePdf).toContain("{ style: styles.footer, wrap: false }");
+    });
   });
 
   describe("Purchase Order PDF remarks", () => {
