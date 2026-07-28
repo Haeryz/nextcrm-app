@@ -22,6 +22,9 @@ function createMockPrisma(): PrismaClient {
   return new Proxy({} as PrismaClient, {
     get(_t, prop: string) {
       if (prop === "$connect" || prop === "$disconnect") return () => Promise.resolve();
+      if (prop === "$queryRaw" || prop === "$queryRawUnsafe") {
+        return () => Promise.resolve([{ ok: 1 }]);
+      }
       if (prop === "$transaction") {
         return (arg: unknown) =>
           Array.isArray(arg) ? Promise.resolve(arg.map(() => null)) : Promise.resolve(null);

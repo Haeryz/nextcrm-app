@@ -232,6 +232,16 @@ pnpm test:e2e
 - Keep `NEXTCRM_DISABLE_AUTH="false"` outside local prototype environments.
 - Keep Midtrans production mode disabled until sandbox payments are verified.
 
+For the self-hosted production stack (Docker, Traefik, PostgreSQL, scheduler,
+backup, Cloudflare, and Resend), use:
+
+```bash
+./deploy-production.sh
+```
+
+Read the complete Bahasa Indonesia runbook in
+[`docs/deployment-production-self-hosted.md`](docs/deployment-production-self-hosted.md).
+
 ## Operational Documentation
 
 Additional usage and testing guidance is available in:

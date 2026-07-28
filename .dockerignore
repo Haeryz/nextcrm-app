@@ -17,6 +17,24 @@ __tests__
 tests
 playwright-report
 test-results
+coverage
+tmp
+output
+backups
+invoice_payment
+tsconfig.tsbuildinfo
+
+# Local runtime state and credentials (never send to the build context)
+.wwebjs_auth
+.wwebjs_cache
+*.session
+*.sqlite
+*.sqlite3
+
+# Local business exports and office files
+*.xlsx
+*.xls
+*.csv
 
 # Git & CI
 .git

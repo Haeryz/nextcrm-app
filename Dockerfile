@@ -62,7 +62,13 @@ COPY . .
 # This URL is only used during image build and is not contacted
 # by `prisma generate`.
 ARG BUILD_DATABASE_URL="postgresql://postgres:build-only@localhost:5432/nextcrm?schema=public"
+ARG NEXT_PUBLIC_APP_NAME="MektekCRM"
+ARG NEXT_PUBLIC_APP_URL="http://localhost:3000"
+ARG NEXT_PUBLIC_MIDTRANS_CLIENT_KEY=""
 ENV DATABASE_URL="${BUILD_DATABASE_URL}"
+ENV NEXT_PUBLIC_APP_NAME="${NEXT_PUBLIC_APP_NAME}"
+ENV NEXT_PUBLIC_APP_URL="${NEXT_PUBLIC_APP_URL}"
+ENV NEXT_PUBLIC_MIDTRANS_CLIENT_KEY="${NEXT_PUBLIC_MIDTRANS_CLIENT_KEY}"
 
 RUN pnpm exec prisma generate
 
@@ -74,7 +80,26 @@ RUN pnpm exec next build
 
 
 # ============================================================
-# Stage 4 — runner: production image
+# Stage 4 — migrator: one-shot Prisma migrations
+# ============================================================
+FROM deps AS migrator
+
+COPY prisma ./prisma
+COPY prisma.config.ts ./prisma.config.ts
+COPY scripts/bootstrap-admin.ts ./scripts/bootstrap-admin.ts
+COPY lib/password-core.ts ./lib/password-core.ts
+
+ARG BUILD_DATABASE_URL="postgresql://postgres:build-only@localhost:5432/nextcrm?schema=public"
+RUN DATABASE_URL="${BUILD_DATABASE_URL}" ./node_modules/.bin/prisma generate
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+CMD ["./node_modules/.bin/prisma", "migrate", "deploy"]
+
+
+# ============================================================
+# Stage 5 — runner: production image
 # ============================================================
 FROM node:22-slim AS runner
 
@@ -93,6 +118,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV NEXTCRM_MIGRATIONS_MANAGED=true
 
 ENV PUPPETEER_EXECUTABLE_PATH="/usr/bin/chromium"
 ENV WHATSAPP_CHROME_PATH="/usr/bin/chromium"
@@ -120,31 +146,6 @@ COPY --from=builder --chown=nextjs:nodejs \
 COPY --from=builder --chown=nextjs:nodejs \
     /app/.next/static \
     ./.next/static
-
-
-# ============================================================
-# Runtime dependencies
-# ============================================================
-# Copy the complete pnpm node_modules tree.
-#
-# pnpm stores real packages inside node_modules/.pnpm and exposes
-# packages through symlinks. Copying Prisma, Sharp, or the CLI
-# separately would break those symlinks.
-COPY --from=builder --chown=nextjs:nodejs \
-    /app/node_modules \
-    ./node_modules
-
-
-# ============================================================
-# Prisma configuration and migrations
-# ============================================================
-COPY --from=builder --chown=nextjs:nodejs \
-    /app/prisma \
-    ./prisma
-
-COPY --from=builder --chown=nextjs:nodejs \
-    /app/prisma.config.ts \
-    ./prisma.config.ts
 
 
 # ============================================================

@@ -8,8 +8,15 @@ echo "[entrypoint] NextCRM starting up..."
 # validates the database URL when it is loaded.
 MIGRATION_DATABASE_URL="${DIRECT_DATABASE_URL:-${DATABASE_URL_UNPOOLED:-${DATABASE_URL:-}}}"
 
-if [ -n "$MIGRATION_DATABASE_URL" ]; then
+if [ "${NEXTCRM_MIGRATIONS_MANAGED:-false}" = "true" ]; then
+    echo "[entrypoint] Database migrations are managed by the one-shot migrator."
+elif [ -n "$MIGRATION_DATABASE_URL" ]; then
     echo "[entrypoint] Running database migrations..."
+
+    if [ ! -x ./node_modules/.bin/prisma ]; then
+        echo "[entrypoint] ERROR: Prisma CLI is unavailable in this image." >&2
+        exit 1
+    fi
 
     ./node_modules/.bin/prisma migrate deploy
 
