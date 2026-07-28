@@ -6,7 +6,7 @@ import {
   MAX_CATALOG_IMAGE_BYTES,
   validateCatalogImageUpload,
 } from "@/lib/mektek/catalog-image-upload";
-import { canCreateMektekOrders } from "@/lib/mektek/permissions";
+import { canManageMektekCatalog } from "@/lib/mektek/permissions";
 import { prismadb } from "@/lib/prisma";
 import { getRequestSessionUser } from "@/lib/request-session";
 import { getServerSession } from "@/lib/session";
@@ -36,7 +36,7 @@ async function authorizeUpload(request?: Request) {
   if (!session?.user?.id) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  if (!canCreateMektekOrders(session.user)) {
+  if (!canManageMektekCatalog(session.user)) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
   return { session };
