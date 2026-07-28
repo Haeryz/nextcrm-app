@@ -248,6 +248,9 @@ export default function NewServiceOrderForm({
     MektekCustomerServiceHistoryEntry[]
   >([]);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const hasServiceItems = serviceItems.some((item) =>
+    item.description.trim(),
+  );
   const formRef = useRef<HTMLFormElement>(null);
   const selectedCustomerSearchRef = useRef("");
 
@@ -324,6 +327,16 @@ export default function NewServiceOrderForm({
       return;
     }
 
+    if (
+      describedServiceItems.length > 0 &&
+      (!vehicle.trim() || !vehiclePlateNumber.trim())
+    ) {
+      toast.error(
+        "Data kendaraan wajib diisi untuk pesanan yang memiliki jasa servis",
+      );
+      return;
+    }
+
     const selectedTechnicians = technicianSelections.filter(
       (selection) => selection.name.trim(),
     );
@@ -371,10 +384,13 @@ export default function NewServiceOrderForm({
       const result = await createMektekServiceOrder({
         locale,
         customerName,
-        vehicle,
-        vehiclePlateNumber,
-        vehicleFleetNumber,
-        vehicleMileageKm,
+        vehicle: describedServiceItems.length > 0 ? vehicle : "",
+        vehiclePlateNumber:
+          describedServiceItems.length > 0 ? vehiclePlateNumber : "",
+        vehicleFleetNumber:
+          describedServiceItems.length > 0 ? vehicleFleetNumber : "",
+        vehicleMileageKm:
+          describedServiceItems.length > 0 ? vehicleMileageKm : "",
         complaint: complaint || "-",
         technicianAssignments: selectedTechnicians.map((selection) => ({
           id: selection.id ?? undefined,
@@ -796,7 +812,7 @@ export default function NewServiceOrderForm({
           id="vehicle-section"
           step={2}
           title="Data Kendaraan"
-          description="Pastikan kendaraan, nomor plat, dan kilometer sesuai saat diterima."
+          description="Wajib jika pesanan memiliki pekerjaan servis. Boleh dikosongkan untuk pembelian sparepart saja."
           icon={CarFront}
         >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -836,7 +852,10 @@ export default function NewServiceOrderForm({
           )}
             <div className="space-y-1.5">
               <Label htmlFor="vehicle-name">
-                Kendaraan <span className="text-destructive">*</span>
+                Kendaraan{" "}
+                {hasServiceItems && (
+                  <span className="text-destructive">*</span>
+                )}
               </Label>
               <Input
                 id="vehicle-name"
@@ -844,12 +863,15 @@ export default function NewServiceOrderForm({
                 value={vehicle}
                 onChange={(event) => setVehicle(event.target.value)}
                 disabled={isPending}
-                required
+                required={hasServiceItems}
               />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="vehicle-plate">
-                Nomor plat <span className="text-destructive">*</span>
+                Nomor plat{" "}
+                {hasServiceItems && (
+                  <span className="text-destructive">*</span>
+                )}
               </Label>
               <Input
                 id="vehicle-plate"
@@ -861,7 +883,7 @@ export default function NewServiceOrderForm({
                 }}
                 disabled={isPending}
                 autoCapitalize="characters"
-                required
+                required={hasServiceItems}
               />
             </div>
             <div className="space-y-1.5">

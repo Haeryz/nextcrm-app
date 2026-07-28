@@ -55,6 +55,32 @@ describe("business and private invoice data", () => {
     expect(invoice.service.mileageKm).toBe(125000);
   });
 
+  it("omits vehicle details from a sparepart-only invoice", () => {
+    const invoice = buildMektekInvoiceData(
+      order({
+        customerType: "STANDARD",
+        orderType: "SPAREPART_ONLY",
+        vehicle: "Toyota Avanza",
+        vehiclePlateNumber: "DK 1234 AB",
+        vehicleMileageKm: 125000,
+        serviceItems: [],
+        sparepartItems: [
+          {
+            name: "Hose",
+            quantity: 2.5,
+            unit: "M",
+            unitPrice: 10000,
+            total: 25000,
+          },
+        ],
+      }),
+    );
+
+    expect(invoice.service.unit).toBeUndefined();
+    expect(invoice.service.mileageKm).toBeUndefined();
+    expect(invoice.service.technicians).toBeUndefined();
+  });
+
   it("renders admin-only PPN and business-only PPH switches", () => {
     const paymentCard = readFileSync(
       resolve(

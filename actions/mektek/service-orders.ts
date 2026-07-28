@@ -269,7 +269,6 @@ export const createMektekServiceOrder = async (
     input?.vehicleFleetNumber,
     MAX_VEHICLE_FLEET_NUMBER_LEN,
   );
-  const vehicleMileage = parseVehicleMileageKm(input?.vehicleMileageKm);
   const complaint = boundedText(input?.complaint, MAX_COMPLAINT_LEN);
   const phone = String(input?.phone ?? "").trim();
   const address = boundedText(input?.address, MAX_ADDRESS_LEN);
@@ -318,17 +317,31 @@ export const createMektekServiceOrder = async (
   const phoneNormalized = normalizePhoneNumber(phone);
   const manualDiscount = parseMoney(input?.manualDiscount);
   const voucherCode = String(input?.voucherCode ?? "").trim();
+  const serviceItems = buildMektekStoredItems(input?.serviceItems, "service");
+  const sparepartItems = buildMektekStoredItems(
+    input?.sparepartItems,
+    "sparepart",
+  );
+  const hasServiceItems = serviceItems.length > 0;
+  const vehicleMileage = hasServiceItems
+    ? parseVehicleMileageKm(input?.vehicleMileageKm)
+    : ({ data: null } as const);
 
-  if (!customerName || !vehicle || !vehiclePlateNumber || !complaint) {
+  if (!customerName || !complaint) {
     return {
-      error:
-        "Nama pelanggan, kendaraan, nomor plat, dan detail pesanan wajib diisi",
+      error: "Nama pelanggan dan detail pesanan wajib diisi",
     };
   }
-  const plateNumberNormalized = normalizeMektekVehiclePlateNumber(
-    vehiclePlateNumber,
-  );
-  if (!plateNumberNormalized) {
+  if (hasServiceItems && (!vehicle || !vehiclePlateNumber)) {
+    return {
+      error:
+        "Data kendaraan wajib diisi untuk pesanan yang memiliki jasa servis",
+    };
+  }
+  const plateNumberNormalized = hasServiceItems
+    ? normalizeMektekVehiclePlateNumber(vehiclePlateNumber)
+    : "";
+  if (hasServiceItems && !plateNumberNormalized) {
     return { error: "Nomor plat kendaraan tidak valid" };
   }
   if ("error" in vehicleMileage) return { error: vehicleMileage.error };
@@ -348,8 +361,6 @@ export const createMektekServiceOrder = async (
 
   const customerToken = crypto.randomBytes(20).toString("hex");
   const customerCode = createCustomerCode();
-  const serviceItems = buildMektekStoredItems(input?.serviceItems, "service");
-  const sparepartItems = buildMektekStoredItems(input?.sparepartItems, "sparepart");
 
   if (serviceItems.length === 0 && sparepartItems.length === 0) {
     return {
@@ -409,9 +420,13 @@ export const createMektekServiceOrder = async (
           phone,
           phoneNormalized,
           customerType,
-          vehicleName: vehicle,
-          vehiclePlateNumber,
-          vehicleFleetNumber,
+          ...(hasServiceItems
+            ? {
+                vehicleName: vehicle,
+                vehiclePlateNumber,
+                vehicleFleetNumber,
+              }
+            : {}),
         }),
         select: {
           id: true,
@@ -419,38 +434,41 @@ export const createMektekServiceOrder = async (
           customerType: true,
         },
       });
-      const existingVehicleCount = await tx.catalogCustomerVehicle.count({
-        where: { customerId: catalogCustomer.id },
-      });
-      const catalogCustomerVehicle = await tx.catalogCustomerVehicle.upsert({
-        where: {
-          customerId_plateNumberNormalized: {
-            customerId: catalogCustomer.id,
-            plateNumberNormalized,
+      let catalogCustomerVehicle: { id: string } | null = null;
+      if (hasServiceItems) {
+        const existingVehicleCount = await tx.catalogCustomerVehicle.count({
+          where: { customerId: catalogCustomer.id },
+        });
+        catalogCustomerVehicle = await tx.catalogCustomerVehicle.upsert({
+          where: {
+            customerId_plateNumberNormalized: {
+              customerId: catalogCustomer.id,
+              plateNumberNormalized,
+            },
           },
-        },
-        update: {
-          name: vehicle,
-          plateNumber: vehiclePlateNumber,
-          fleetNumber:
-            catalogCustomer.customerType === "B2B"
-              ? vehicleFleetNumber
-              : null,
-          lastServiceAt: new Date(),
-        },
-        create: {
-          customerId: catalogCustomer.id,
-          name: vehicle,
-          plateNumber: vehiclePlateNumber,
-          plateNumberNormalized,
-          fleetNumber:
-            catalogCustomer.customerType === "B2B"
-              ? vehicleFleetNumber
-              : null,
-          isPrimary: existingVehicleCount === 0,
-          lastServiceAt: new Date(),
-        },
-      });
+          update: {
+            name: vehicle,
+            plateNumber: vehiclePlateNumber,
+            fleetNumber:
+              catalogCustomer.customerType === "B2B"
+                ? vehicleFleetNumber
+                : null,
+            lastServiceAt: new Date(),
+          },
+          create: {
+            customerId: catalogCustomer.id,
+            name: vehicle,
+            plateNumber: vehiclePlateNumber,
+            plateNumberNormalized,
+            fleetNumber:
+              catalogCustomer.customerType === "B2B"
+                ? vehicleFleetNumber
+                : null,
+            isPrimary: existingVehicleCount === 0,
+            lastServiceAt: new Date(),
+          },
+        });
+      }
       const completedVisitCount = await tx.catalogServiceLink.count({
         where: {
           customerId: catalogCustomer.id,
@@ -510,7 +528,9 @@ export const createMektekServiceOrder = async (
         data: {
           serviceNumber,
           v: 0,
-          title: `${MEKTEK_TITLE_PREFIX} ${vehicle}`,
+          title: hasServiceItems
+            ? `${MEKTEK_TITLE_PREFIX} ${vehicle}`
+            : `${MEKTEK_TITLE_PREFIX} Sparepart - ${customerName}`,
           content: complaint,
           priority: "medium",
           taskStatus:
@@ -524,20 +544,24 @@ export const createMektekServiceOrder = async (
           createdAt: serviceCreatedAt,
           tags: {
             module: "mektek",
-            serviceType: "Vehicle Service",
+            serviceType: hasServiceItems
+              ? "Vehicle Service"
+              : "Sparepart Sale",
             customerToken,
             customerCode,
-            vehicle,
+            vehicle: hasServiceItems ? vehicle : null,
             customerName,
             customerCompanyName: companyNames.companyName,
             customerContactName: companyNames.contactName,
             phone,
             phoneNormalized,
             customerType: catalogCustomer.customerType,
-            vehiclePlateNumber,
+            vehiclePlateNumber: hasServiceItems ? vehiclePlateNumber : null,
             vehicleFleetNumber:
-              catalogCustomer.customerType === "B2B" ? vehicleFleetNumber : null,
-            vehicleMileageKm: vehicleMileage.data,
+              hasServiceItems && catalogCustomer.customerType === "B2B"
+                ? vehicleFleetNumber
+                : null,
+            vehicleMileageKm: hasServiceItems ? vehicleMileage.data : null,
             address: address || null,
             technician: technician
               ? {
@@ -554,7 +578,7 @@ export const createMektekServiceOrder = async (
             technicians: technicians.map((row) => row.name).join(", "),
             catalogCustomerId: catalogCustomer.id,
             catalogCustomerNumber: catalogCustomer.customerNumber,
-            catalogCustomerVehicleId: catalogCustomerVehicle.id,
+            catalogCustomerVehicleId: catalogCustomerVehicle?.id ?? null,
             orderType:
               serviceItems.length === 0 ? "SPAREPART_ONLY" : "SERVICE",
             completedVisitCount,

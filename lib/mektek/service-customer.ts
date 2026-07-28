@@ -5,16 +5,26 @@ type MektekServiceCustomerInput = {
   phone: string;
   phoneNormalized: string;
   customerType: MektekServiceCustomerType;
-  vehicleName: string;
-  vehiclePlateNumber: string;
-  vehicleFleetNumber: string;
+  vehicleName?: string;
+  vehiclePlateNumber?: string;
+  vehicleFleetNumber?: string;
 };
 
 export function buildMektekServiceCustomerUpsert(
   input: MektekServiceCustomerInput,
 ) {
+  const hasVehicle = Boolean(
+    input.vehicleName?.trim() && input.vehiclePlateNumber?.trim(),
+  );
   const vehicleFleetNumber =
-    input.customerType === "B2B" ? input.vehicleFleetNumber : null;
+    input.customerType === "B2B" ? input.vehicleFleetNumber ?? null : null;
+  const vehicleFields = hasVehicle
+    ? {
+        vehicleName: input.vehicleName,
+        vehiclePlateNumber: input.vehiclePlateNumber,
+        vehicleFleetNumber,
+      }
+    : {};
 
   return {
     where: {
@@ -23,9 +33,7 @@ export function buildMektekServiceCustomerUpsert(
     update: {
       phone: input.phone,
       customerType: input.customerType,
-      vehicleName: input.vehicleName,
-      vehiclePlateNumber: input.vehiclePlateNumber,
-      vehicleFleetNumber,
+      ...vehicleFields,
     },
     create: {
       customerNumber: createMektekCustomerNumber(),
@@ -33,9 +41,7 @@ export function buildMektekServiceCustomerUpsert(
       phone: input.phone,
       phoneNormalized: input.phoneNormalized,
       customerType: input.customerType,
-      vehicleName: input.vehicleName,
-      vehiclePlateNumber: input.vehiclePlateNumber,
-      vehicleFleetNumber,
+      ...vehicleFields,
     },
   };
 }

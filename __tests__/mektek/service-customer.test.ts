@@ -49,6 +49,23 @@ describe("buildMektekServiceCustomerUpsert", () => {
     expect(result.update.vehicleFleetNumber).toBeNull();
     expect(result.create.vehicleFleetNumber).toBeNull();
   });
+
+  it("does not overwrite stored vehicle data for a sparepart-only order", () => {
+    const result = buildMektekServiceCustomerUpsert({
+      customerName: "Dewi",
+      phone: "081234567890",
+      phoneNormalized: "6281234567890",
+      customerType: "STANDARD",
+    });
+
+    expect(result.update).toEqual({
+      phone: "081234567890",
+      customerType: "STANDARD",
+    });
+    expect(result.create).not.toHaveProperty("vehicleName");
+    expect(result.create).not.toHaveProperty("vehiclePlateNumber");
+    expect(result.create).not.toHaveProperty("vehicleFleetNumber");
+  });
 });
 
 describe("formatMektekCustomerNumber", () => {

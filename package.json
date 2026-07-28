@@ -21,6 +21,8 @@
     "finance:payment-faktur:import": "tsx scripts/import-payment-faktur.ts",
     "finance:payment-faktur:import:commit": "tsx scripts/import-payment-faktur.ts --commit",
     "finance:supplier-debt:extract": "tsx scripts/extract-supplier-debt-report.ts",
+    "finance:supplier-debt:wipe": "tsx scripts/wipe-supplier-debt-report.ts",
+    "finance:supplier-debt:wipe:commit": "tsx scripts/wipe-supplier-debt-report.ts --commit",
     "build:full": "prisma generate && prisma migrate deploy && next build",
     "migrate:deploy": "pnpm exec prisma migrate deploy",
     "start": "next start",

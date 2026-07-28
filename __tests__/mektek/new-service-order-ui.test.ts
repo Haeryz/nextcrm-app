@@ -103,4 +103,24 @@ describe("New service order form UI", () => {
     );
     expect(formSource).toContain("`${item.quantity} m`");
   });
+
+  it("allows CS to override catalog prices only for the current order", () => {
+    expect(itemsSource).toMatch(
+      /Harga katalog hanya menjadi harga awal\. Perubahan\s+harga hanya berlaku untuk pesanan ini dan tidak\s+mengubah Catalog \/ Item\./,
+    );
+    expect(itemsSource).not.toMatch(
+      /disabled=\{[\s\S]*catalogSearch[\s\S]*item\.catalogPrice !== null/,
+    );
+  });
+
+  it("requires vehicle data only when the order contains service work", () => {
+    expect(formSource).toContain("const hasServiceItems =");
+    expect(formSource).toContain("required={hasServiceItems}");
+    expect(formSource).toContain(
+      "Wajib jika pesanan memiliki pekerjaan servis. Boleh dikosongkan untuk pembelian sparepart saja.",
+    );
+    expect(formSource).toContain(
+      "Data kendaraan wajib diisi untuk pesanan yang memiliki jasa servis",
+    );
+  });
 });

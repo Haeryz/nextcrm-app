@@ -531,24 +531,24 @@ export default function DamageItemsInput({
                         onValueChange={(value) =>
                           updateItem(index, "estimatedCost", value)
                         }
-                        disabled={
-                          disabled ||
-                          (catalogSearch &&
-                            !!item.catalogItemId &&
-                            item.catalogPrice !== null)
-                        }
+                        disabled={disabled}
                         required
                       />
                       {catalogSearch && item.catalogItemId && (
-                        <p className="text-xs text-muted-foreground">
-                          {item.catalogPrice === null
-                            ? usesMeters
-                              ? "Harga per meter belum tersedia di Catalog / Item. Isi harga per meter untuk pesanan ini."
-                              : "Harga belum tersedia di Catalog / Item. Isi harga satuan untuk pesanan ini."
-                            : usesMeters
-                              ? "Harga terkunci sesuai harga per meter di Catalog / Item."
-                              : "Harga sparepart katalog terkunci otomatis sesuai Catalog / Item."}
-                        </p>
+                        <div className="space-y-1 text-xs text-muted-foreground">
+                          {item.catalogPrice === null && (
+                            <p>
+                              {usesMeters
+                                ? "Harga per meter belum tersedia di Catalog / Item."
+                                : "Harga satuan belum tersedia di Catalog / Item."}
+                            </p>
+                          )}
+                          <p>
+                            Harga katalog hanya menjadi harga awal. Perubahan
+                            harga hanya berlaku untuk pesanan ini dan tidak
+                            mengubah Catalog / Item.
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>

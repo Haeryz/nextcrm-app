@@ -33,6 +33,12 @@ describe("CS sparepart-only logistics flow", () => {
     );
     expect(serviceForm).toContain("Pekerjaan Servis (opsional)");
     expect(serviceForm).toContain("minimumItems={0}");
+    expect(serviceAction).toContain(
+      "Data kendaraan wajib diisi untuk pesanan yang memiliki jasa servis",
+    );
+    expect(serviceAction).toContain(
+      "catalogCustomerVehicleId: catalogCustomerVehicle?.id ?? null",
+    );
   });
 
   it("starts sparepart-only orders at awaiting payment without skipping service work", () => {

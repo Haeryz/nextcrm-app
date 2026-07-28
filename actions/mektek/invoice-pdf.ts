@@ -339,6 +339,12 @@ const fmt = (n: number) =>
 function buildPdfDocument(data: MektekInvoiceData) {
   const { company, customer, service, items, financials, signatures } = data;
   const isBusiness = customer.type === "B2B";
+  const hasServiceDetails = Boolean(
+    service.unit ||
+      service.usage ||
+      service.mileageKm !== undefined ||
+      service.technicians,
+  );
   const documentTitle =
     data.type === "receipt"
       ? "BUKTI PEMBAYARAN"
@@ -452,7 +458,12 @@ function buildPdfDocument(data: MektekInvoiceData) {
         // Left: No + Date
         React.createElement(
           View,
-          { style: S.infoLeft },
+          {
+            style: {
+              ...S.infoLeft,
+              width: hasServiceDetails ? "30%" : "40%",
+            },
+          },
           React.createElement(
             View,
             { style: S.infoRow },
@@ -471,45 +482,76 @@ function buildPdfDocument(data: MektekInvoiceData) {
         // Middle: MR / Work Order
         React.createElement(
           View,
-          { style: S.infoMiddle },
+          {
+            style: {
+              ...S.infoMiddle,
+              width: hasServiceDetails ? "25%" : "60%",
+              borderRightWidth: hasServiceDetails ? 1 : 0,
+            },
+          },
           React.createElement(Text, { style: S.mrText }, data.workOrder || data.reference || "")
         ),
         // Right: Unit + HM
-        React.createElement(
-          View,
-          { style: S.infoRight },
-          React.createElement(
-            View,
-            { style: S.infoRow },
-            React.createElement(Text, { style: { ...S.infoLabel, width: 30 } }, "Unit :"),
-            React.createElement(Text, { style: { ...S.infoValue, fontFamily: "Helvetica-Bold" } }, service.unit || "")
-          ),
-          React.createElement(
-            View,
-            { style: S.infoRow },
-            React.createElement(
-              Text,
-              { style: { ...S.infoLabel, width: 30 } },
-              service.mileageKm !== undefined ? "KM :" : "HM :",
-            ),
-            React.createElement(
-              Text,
-              { style: S.infoValue },
-              service.mileageKm !== undefined
-                ? service.mileageKm.toLocaleString("id-ID")
-                : service.usage || "",
+        hasServiceDetails
+          ? React.createElement(
+              View,
+              { style: S.infoRight },
+              React.createElement(
+                View,
+                { style: S.infoRow },
+                React.createElement(
+                  Text,
+                  { style: { ...S.infoLabel, width: 30 } },
+                  "Unit :",
+                ),
+                React.createElement(
+                  Text,
+                  {
+                    style: {
+                      ...S.infoValue,
+                      fontFamily: "Helvetica-Bold",
+                    },
+                  },
+                  service.unit || "",
+                ),
+              ),
+              React.createElement(
+                View,
+                { style: S.infoRow },
+                React.createElement(
+                  Text,
+                  { style: { ...S.infoLabel, width: 30 } },
+                  service.mileageKm !== undefined ? "KM :" : "HM :",
+                ),
+                React.createElement(
+                  Text,
+                  { style: S.infoValue },
+                  service.mileageKm !== undefined
+                    ? service.mileageKm.toLocaleString("id-ID")
+                    : service.usage || "",
+                ),
+              ),
             )
-          )
-        )
+          : null,
       ),
 
       // ── Mekanik ────────────────────────────────────────────────────────────
-      React.createElement(
-        View,
-        { style: S.mekanikRow },
-        React.createElement(Text, { style: S.mekanikLabel }, "Mekanik :"),
-        React.createElement(Text, { style: S.mekanikValue }, service.technicians || "")
-      ),
+      service.technicians
+        ? React.createElement(
+            View,
+            { style: S.mekanikRow },
+            React.createElement(
+              Text,
+              { style: S.mekanikLabel },
+              "Mekanik :",
+            ),
+            React.createElement(
+              Text,
+              { style: S.mekanikValue },
+              service.technicians,
+            ),
+          )
+        : null,
 
       // ── Item Table ─────────────────────────────────────────────────────────
       React.createElement(
@@ -662,6 +704,7 @@ function parseTags(tags: unknown): Record<string, unknown> {
 
 export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoiceData {
   const tags = parseTags(order.tags);
+  const isSparepartOnly = tags.orderType === "SPAREPART_ONLY";
   const serviceNumber = order.serviceNumber ?? order.id.slice(0, 8);
   const financialSummary = buildMektekFinancialSummary(
     tags,
@@ -725,7 +768,7 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
     },
     service: {
       unit:
-        typeof tags.vehicle === "string"
+        !isSparepartOnly && typeof tags.vehicle === "string"
           ? [
               typeof tags.vehiclePlateNumber === "string"
                 ? tags.vehiclePlateNumber
@@ -735,12 +778,18 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
               .filter(Boolean)
               .join(" / ")
           : undefined,
-      usage: typeof tags.usage === "string" ? tags.usage : undefined,
+      usage:
+        !isSparepartOnly && typeof tags.usage === "string"
+          ? tags.usage
+          : undefined,
       mileageKm:
-        typeof tags.vehicleMileageKm === "number"
+        !isSparepartOnly && typeof tags.vehicleMileageKm === "number"
           ? tags.vehicleMileageKm
           : undefined,
-      technicians: typeof tags.technicians === "string" ? tags.technicians : undefined,
+      technicians:
+        !isSparepartOnly && typeof tags.technicians === "string"
+          ? tags.technicians
+          : undefined,
     },
     items,
     financials: {

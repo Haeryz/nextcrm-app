@@ -22,7 +22,9 @@ describe("NewServiceOrderForm success reset", () => {
   it("collects, submits, and resets the saved vehicle identity fields", () => {
     expect(source).toMatch(/id="vehicle-plate"/);
     expect(source).toMatch(/customerType === "B2B"[\s\S]*id="vehicle-fleet-number"/);
-    expect(source).toMatch(/createMektekServiceOrder\(\{[\s\S]*vehiclePlateNumber,[\s\S]*vehicleFleetNumber,/);
+    expect(source).toMatch(
+      /createMektekServiceOrder\(\{[\s\S]*vehiclePlateNumber:[\s\S]*vehicleFleetNumber:/,
+    );
     expect(source).toMatch(/setVehiclePlateNumber\(""\)/);
     expect(source).toMatch(/setVehicleFleetNumber\(""\)/);
   });
@@ -30,7 +32,9 @@ describe("NewServiceOrderForm success reset", () => {
   it("restricts KM mobil to a persisted whole-number input", () => {
     expect(source).toMatch(/id="vehicle-mileage"[\s\S]*type="number"/);
     expect(source).toMatch(/inputMode="numeric"/);
-    expect(source).toMatch(/createMektekServiceOrder\(\{[\s\S]*vehicleMileageKm,/);
+    expect(source).toMatch(
+      /createMektekServiceOrder\(\{[\s\S]*vehicleMileageKm:/,
+    );
     expect(source).toMatch(/setVehicleMileageKm\(""\)/);
   });
 
