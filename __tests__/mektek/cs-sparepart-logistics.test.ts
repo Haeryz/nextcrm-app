@@ -49,7 +49,8 @@ describe("CS sparepart-only logistics flow", () => {
 
   it("marks CS-origin logistics rows in orange", () => {
     expect(outboundManager).toContain("sourceServiceOrderId");
-    expect(outboundManager).toContain("bg-orange-50");
+    expect(outboundManager).toContain("bg-orange-300/70 hover:bg-orange-400/70");
+    expect(outboundManager).toContain("bg-orange-500 text-white");
     expect(outboundManager).toContain("Pesanan CS");
   });
 

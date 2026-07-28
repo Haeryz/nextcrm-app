@@ -1339,7 +1339,7 @@ export default function OutboundLogisticsManager({
                     key={purchaseOrder.id}
                     className={
                       purchaseOrder.sourceServiceOrderId
-                        ? "bg-orange-50 hover:bg-orange-100/80 dark:bg-orange-950/30 dark:hover:bg-orange-950/50"
+                        ? "bg-orange-300/70 hover:bg-orange-400/70 dark:bg-orange-700/40 dark:hover:bg-orange-600/40"
                         : "hover:bg-muted/20"
                     }
                   >
@@ -1349,7 +1349,7 @@ export default function OutboundLogisticsManager({
                           {purchaseOrder.poNumber}
                         </p>
                         {purchaseOrder.sourceServiceOrderId ? (
-                          <Badge className="border-orange-300 bg-orange-100 text-orange-800 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-200">
+                          <Badge className="border-orange-500 bg-orange-500 text-white hover:bg-orange-500 dark:border-orange-400 dark:bg-orange-500 dark:text-white">
                             Pesanan CS
                           </Badge>
                         ) : null}
