@@ -112,6 +112,18 @@ export function canManageMektekLogistics(
   );
 }
 
+// PIC (person in charge) directory management is a shared Logistics concern: the
+// same PICs are assigned to inbound Receiving shipments and outbound Monitoring
+// PO dispatch. Any active Logistics staff (either area) plus the owner may manage
+// them. Gating follows the same capability-driven pattern as the other `canX`
+// predicates so server actions and the page enforce the same rule.
+export function canManageMektekLogisticsPics(user?: MektekSessionUser | null) {
+  return (
+    canManageMektekLogistics(user, "MONITORING_PO") ||
+    canManageMektekLogistics(user, "RECEIVING")
+  );
+}
+
 // Finance (Pembayaran Pemasok + Laporan Hutang Pemasok) is a confidential ledger
 // workspace. Only the owner or an active account with the MEKTEK_FINANCE capability
 // may view, manage, or approve it.

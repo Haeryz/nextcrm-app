@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireAdmin } from "@/lib/auth-guards";
+import { requireMektekLogisticsPicsStaff } from "@/lib/auth-guards";
 import { prismadb } from "@/lib/prisma";
 
 const MANAGEMENT_PATH = "/mektek/receiving/pics";
@@ -24,14 +24,14 @@ function revalidatePicPaths() {
 }
 
 export async function createMektekLogisticsPic(formData: FormData) {
-  await requireAdmin();
+  await requireMektekLogisticsPicsStaff();
   const name = parseName(formData);
   await prismadb.logisticsPic.create({ data: { name, isActive: true } });
   revalidatePicPaths();
 }
 
 export async function updateMektekLogisticsPic(formData: FormData) {
-  await requireAdmin();
+  await requireMektekLogisticsPicsStaff();
   const id = text(formData, "id");
   if (!id) throw new Error("ID PIC tidak valid.");
   const name = parseName(formData);
@@ -44,7 +44,7 @@ export async function updateMektekLogisticsPic(formData: FormData) {
 }
 
 export async function deleteMektekLogisticsPic(formData: FormData) {
-  await requireAdmin();
+  await requireMektekLogisticsPicsStaff();
   const id = text(formData, "id");
   if (!id) throw new Error("ID PIC tidak valid.");
 

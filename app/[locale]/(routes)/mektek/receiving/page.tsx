@@ -10,7 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
-import { canManageMektekLogistics } from "@/lib/mektek/permissions";
+import { canManageMektekLogistics, canManageMektekLogisticsPics } from "@/lib/mektek/permissions";
 import { getPaginationItems } from "@/lib/pagination";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
@@ -234,7 +234,7 @@ export default async function MektekReceivingPage({
           supplierNameSuggestions={supplierNameSuggestions}
           initialPurchaseOrderId={initialPurchaseOrderId || undefined}
           managePicsHref={
-            session?.user?.isAdmin
+            canManageMektekLogisticsPics(session?.user)
               ? `/${locale}/mektek/receiving/pics`
               : undefined
           }

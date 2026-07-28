@@ -122,12 +122,13 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
     expect(outboundManager).toContain("PDF Surat Jalan");
   });
 
-  it("keeps Receiving PIC management exclusive to the main admin", () => {
-    expect(picPageSource).toContain("await requireAdmin()");
+  it("grants Receiving PIC management to Logistics staff", () => {
+    expect(picPageSource).toContain("await requireMektekLogisticsPicsStaff()");
     expect(picPageSource).toContain("createMektekLogisticsPic");
     expect(picPageSource).toContain("updateMektekLogisticsPic");
     expect(picPageSource).toContain("deleteMektekLogisticsPic");
-    expect(picActionSource.match(/await requireAdmin\(\)/g)).toHaveLength(3);
+    expect(picActionSource.match(/await requireMektekLogisticsPicsStaff\(\)/g)).toHaveLength(3);
+    expect(picActionSource).not.toContain("requireAdmin");
     expect(receivingManager).toContain("Kelola PIC");
   });
 });

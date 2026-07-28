@@ -5,6 +5,7 @@ import type { Session } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
 import { hasMektekCapability } from "@/lib/mektek/permissions";
+import { canManageMektekLogisticsPics } from "@/lib/mektek/permissions";
 import { getServerSession } from "@/lib/session";
 
 type SessionUser = NonNullable<Session["user"]>;
@@ -54,5 +55,12 @@ export async function requireMektekCustomerServiceStaff(): Promise<SessionUser> 
   ) {
     redirect("/");
   }
+  return user;
+}
+
+/** Admin or Logistics staff (either area) for the shared PIC directory. */
+export async function requireMektekLogisticsPicsStaff(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!canManageMektekLogisticsPics(user)) redirect("/");
   return user;
 }

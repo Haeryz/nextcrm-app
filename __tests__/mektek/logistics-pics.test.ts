@@ -1,4 +1,4 @@
-jest.mock("@/lib/auth-guards", () => ({ requireAdmin: jest.fn() }));
+jest.mock("@/lib/auth-guards", () => ({ requireMektekLogisticsPicsStaff: jest.fn() }));
 jest.mock("next/cache", () => ({ revalidatePath: jest.fn() }));
 jest.mock("@/lib/prisma", () => ({
   prismadb: {
@@ -16,21 +16,21 @@ import {
   deleteMektekLogisticsPic,
   updateMektekLogisticsPic,
 } from "@/actions/mektek/logistics-pics";
-import { requireAdmin } from "@/lib/auth-guards";
+import { requireMektekLogisticsPicsStaff } from "@/lib/auth-guards";
 import { prismadb } from "@/lib/prisma";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const mockedRequireAdmin = requireAdmin as jest.Mock;
+const mockedRequireLogisticsPics = requireMektekLogisticsPicsStaff as jest.Mock;
 
 describe("MekTek Logistics PIC directory", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockedRequireAdmin.mockResolvedValue({ id: "owner", isAdmin: true });
+    mockedRequireLogisticsPics.mockResolvedValue({ id: "owner", isAdmin: true });
     (prismadb.logisticsReceipt.count as jest.Mock).mockResolvedValue(0);
   });
 
-  it("creates and updates PICs after main-admin authorization", async () => {
+  it("creates and updates PICs after Logistics staff authorization", async () => {
     const createForm = new FormData();
     createForm.set("name", "PIC 4");
     await createMektekLogisticsPic(createForm);
@@ -47,7 +47,7 @@ describe("MekTek Logistics PIC directory", () => {
       where: { id: "pic-4" },
       data: { name: "Warehouse Lead", isActive: false },
     });
-    expect(mockedRequireAdmin).toHaveBeenCalledTimes(2);
+    expect(mockedRequireLogisticsPics).toHaveBeenCalledTimes(2);
   });
 
   it("deletes only unused PICs and preserves shipment history", async () => {
@@ -59,14 +59,14 @@ describe("MekTek Logistics PIC directory", () => {
     });
 
     jest.clearAllMocks();
-    mockedRequireAdmin.mockResolvedValue({ id: "owner", isAdmin: true });
+    mockedRequireLogisticsPics.mockResolvedValue({ id: "owner", isAdmin: true });
     (prismadb.logisticsReceipt.count as jest.Mock).mockResolvedValue(2);
     await expect(deleteMektekLogisticsPic(form)).rejects.toThrow("Nonaktifkan PIC");
     expect(prismadb.logisticsPic.delete).not.toHaveBeenCalled();
   });
 
-  it("does not mutate when the current user is not the main admin", async () => {
-    mockedRequireAdmin.mockRejectedValueOnce(new Error("NEXT_REDIRECT"));
+  it("does not mutate when the current user is not a Logistics staff member", async () => {
+    mockedRequireLogisticsPics.mockRejectedValueOnce(new Error("NEXT_REDIRECT"));
     const form = new FormData();
     form.set("name", "Unauthorized PIC");
 

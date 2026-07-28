@@ -7,7 +7,7 @@ import {
 } from "@/actions/mektek/logistics-pics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { requireAdmin } from "@/lib/auth-guards";
+import { requireMektekLogisticsPicsStaff } from "@/lib/auth-guards";
 import { prismadb } from "@/lib/prisma";
 import StaffSubmitButton from "@/app/[locale]/(routes)/mektek/staff/_components/StaffSubmitButton";
 
@@ -19,7 +19,7 @@ export default async function ReceivingPicManagementPage({
 }: {
   params: Promise<{ locale: string }>;
 }) {
-  await requireAdmin();
+  await requireMektekLogisticsPicsStaff();
   const { locale } = await params;
   const pics = await prismadb.logisticsPic.findMany({
     orderBy: [{ isActive: "desc" }, { name: "asc" }],

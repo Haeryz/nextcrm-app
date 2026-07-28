@@ -19,6 +19,7 @@ import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 import { prismadb } from "@/lib/prisma";
 import StaffActionForm from "./_components/StaffActionForm";
 import StaffCapabilityFields from "./_components/StaffCapabilityFields";
+import StaffPasswordField from "./_components/StaffPasswordField";
 import StaffSubmitButton from "./_components/StaffSubmitButton";
 
 const LOGISTICS_STAFF_AREA_LABELS: Record<LogisticsStaffArea, string> = {
@@ -68,7 +69,7 @@ export default async function StaffManagementPage() {
           className="grid gap-3 md:grid-cols-2 lg:grid-cols-6"
         >
           {/* Labels, not placeholders: a placeholder disappears the moment the user
-              types, which for the password field took the "min. 12" rule with it. */}
+              types, which for the password field took the "min. 8" rule with it. */}
           <div className="space-y-1.5">
             <Label htmlFor="new-subadmin-name">Nama</Label>
             <Input
@@ -87,24 +88,7 @@ export default async function StaffManagementPage() {
               required
             />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="new-subadmin-password">Password</Label>
-            <Input
-              id="new-subadmin-password"
-              name="password"
-              type="password"
-              required
-              minLength={12}
-              maxLength={50}
-              aria-describedby="new-subadmin-password-hint"
-            />
-            <p
-              id="new-subadmin-password-hint"
-              className="text-xs text-muted-foreground"
-            >
-              Minimal 12 karakter.
-            </p>
-          </div>
+          <StaffPasswordField />
           <StaffCapabilityFields />
           <StaffSubmitButton
             idleLabel="Buat sub-admin"

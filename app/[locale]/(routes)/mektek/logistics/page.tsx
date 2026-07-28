@@ -174,20 +174,11 @@ export default async function MektekLogisticsPage({
                   { value: "CLOSED", label: "Closed" },
                 ]}
               />
-              {(session?.user?.isAdmin || query || status) && (
+              {(query || status) && (
                 <div className="flex flex-wrap gap-2">
-                  {session?.user?.isAdmin && (
-                    <Button asChild type="button" variant="outline">
-                      <Link href={`/${locale}/mektek/receiving/pics`}>
-                        Kelola PIC
-                      </Link>
-                    </Button>
-                  )}
-                  {(query || status) && (
-                    <Button asChild type="button" variant="ghost">
-                      <Link href={logisticsBase}>Reset Filter</Link>
-                    </Button>
-                  )}
+                  <Button asChild type="button" variant="ghost">
+                    <Link href={logisticsBase}>Reset Filter</Link>
+                  </Button>
                 </div>
               )}
             </div>

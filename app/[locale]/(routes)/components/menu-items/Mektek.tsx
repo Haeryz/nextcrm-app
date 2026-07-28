@@ -19,6 +19,7 @@ import {
   canManageMektekCatalog,
   canManageMektekFinance,
   canManageMektekLogistics,
+  canManageMektekLogisticsPics,
   canViewMektekOrders,
   hasMektekCapability,
 } from "@/lib/mektek/permissions";
@@ -56,6 +57,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
   const canUseCatalog = canManageMektekCatalog(user);
   const canUseMonitoring = canManageMektekLogistics(user, "MONITORING_PO");
   const canUseReceiving = canManageMektekLogistics(user, "RECEIVING");
+  const canUseLogisticsPics = canManageMektekLogisticsPics(user);
   if (canUseCatalog || canUseMonitoring || canUseReceiving) {
     items.push({
       title: "Logistics",
@@ -69,6 +71,9 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
           : []),
         ...(canUseReceiving
           ? [{ title: "Receiving", url: "/mektek/receiving" }]
+          : []),
+        ...(canUseLogisticsPics
+          ? [{ title: "Kelola PIC", url: "/mektek/receiving/pics" }]
           : []),
       ],
     });

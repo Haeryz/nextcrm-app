@@ -82,8 +82,8 @@ export async function createSubAdmin(formData: FormData) {
   await requireAdmin();
   const identity = parseIdentity(formData);
   const password = text(formData, "password");
-  if (password.length < 12 || password.length > 50) {
-    throw new Error("Password harus berisi 12 sampai 50 karakter.");
+  if (password.length < 8 || password.length > 50) {
+    throw new Error("Password harus berisi 8 sampai 50 karakter.");
   }
 
   await prismadb.users.create({
