@@ -15,9 +15,9 @@ describe("Finance navigation hierarchy", () => {
     "app/[locale]/(routes)/mektek/finance/payment-faktur/page.tsx",
   );
 
-  it("groups every existing Finance destination inside Accounting", () => {
-    expect(menu).toContain('title: "Finance"');
-    expect(menu).toContain('title: "Accounting"');
+  it("groups every existing finance destination inside the localized sections", () => {
+    expect(menu).toContain('title: "Keuangan"');
+    expect(menu).toContain('title: "Akuntansi"');
     expect(menu).toContain(
       '{ title: "Ringkasan", url: "/mektek/finance", exact: true }',
     );

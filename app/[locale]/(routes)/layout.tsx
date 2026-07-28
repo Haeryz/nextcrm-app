@@ -10,6 +10,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
 import { AppSidebar } from "./components/app-sidebar";
 import { CommandPaletteLazy } from "./components/command-palette-lazy";
 import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
@@ -95,7 +96,7 @@ export default async function AppLayout({
   return (
     <SidebarProvider defaultOpen={sidebarOpen}>
       <AppSidebar session={session} />
-      <SidebarInset className="h-svh overflow-hidden">
+      <SidebarInset className="h-svh overflow-hidden md:h-[calc(100svh-1rem)]">
         <CommandPaletteLazy user={session?.user ?? null} locale={locale} />
         <a
           href="#main-content"
@@ -103,16 +104,21 @@ export default async function AppLayout({
         >
           Lompat ke konten utama
         </a>
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <SidebarTrigger
-            aria-label="Buka menu navigasi"
-            className="size-9 shrink-0"
+            className="size-9 shrink-0 rounded-lg"
           />
-          <div className="min-w-0">
+          <Separator orientation="vertical" className="h-5 md:hidden" />
+          <div className="min-w-0 md:hidden">
             <p className="truncate text-sm font-semibold">
               {APP_NAME}
             </p>
           </div>
+          <kbd className="ml-auto hidden select-none items-center gap-1 rounded-md border bg-muted/60 px-2 py-1 font-sans text-[10px] font-medium text-muted-foreground md:flex">
+            <span>Ctrl</span>
+            <span aria-hidden="true">/</span>
+            <span>⌘ B</span>
+          </kbd>
         </header>
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto w-full min-w-0">
           <div className="w-full min-w-0 py-5">

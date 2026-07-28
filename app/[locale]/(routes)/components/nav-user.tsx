@@ -34,10 +34,11 @@ export function NavUser({ user }: NavUserProps) {
   const params = useParams<{ locale?: string }>()
   const locale = params.locale || "id"
   const avatarUrl = user.avatar || undefined
+  const displayName = user.name?.trim() || "Pengguna"
+  const secondaryLabel = user.email?.trim() || "Akun staf"
 
-  // Get user initials for avatar fallback
-  const userInitials = user.name
-    ? user.name
+  const userInitials = displayName
+    ? displayName
         .split(" ")
         .map((n) => n[0])
         .join("")
@@ -52,45 +53,53 @@ export function NavUser({ user }: NavUserProps) {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              aria-label={`Buka menu akun ${displayName}`}
+              className="rounded-xl px-2.5 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarImage src={avatarUrl} alt={user.name || "Pengguna"} />
-                <AvatarFallback className="rounded-lg">
+              <Avatar className="size-8 rounded-lg ring-1 ring-sidebar-border">
+                <AvatarImage src={avatarUrl} alt={displayName} />
+                <AvatarFallback className="rounded-lg bg-primary/10 font-semibold text-primary">
                   {userInitials}
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{user.name}</span>
-                <span className="truncate text-xs">{user.email}</span>
+                <span className="truncate font-semibold">{displayName}</span>
+                <span className="truncate text-xs text-sidebar-foreground/60">
+                  {secondaryLabel}
+                </span>
               </div>
-              <ChevronsUpDown className="ml-auto size-4" />
+              <ChevronsUpDown aria-hidden="true" className="ml-auto size-4" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+            className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-56 rounded-xl"
             side={isMobile ? "bottom" : "right"}
             align="end"
-            sideOffset={4}
+            sideOffset={8}
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={avatarUrl} alt={user.name || "Pengguna"} />
+                <Avatar className="size-8 rounded-lg">
+                  <AvatarImage src={avatarUrl} alt={displayName} />
                   <AvatarFallback className="rounded-lg">
                     {userInitials}
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{user.name}</span>
-                  <span className="truncate text-xs">{user.email}</span>
+                  <span className="truncate font-semibold">{displayName}</span>
+                  <span className="truncate text-xs">{secondaryLabel}</span>
                 </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => signOut({ callbackUrl: `/${locale}/sign-in` })}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Logout
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() =>
+                signOut({ callbackUrl: `/${locale}/sign-in` })
+              }
+            >
+              <LogOut aria-hidden="true" className="mr-2 size-4" />
+              Keluar
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

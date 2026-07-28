@@ -39,7 +39,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
 
   if (hasMektekCapability(user, "MEKTEK_CUSTOMER_SERVICE")) {
     items.push({
-      title: "Dashboard",
+      title: "Dasbor",
       url: "/mektek/dashboard",
       icon: Activity,
     });
@@ -51,7 +51,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
       icon: ClipboardList,
       items: [
         { title: "Buat Pesanan", url: "/mektek", exact: true },
-        { title: "History", url: "/mektek/history" },
+        { title: "Riwayat", url: "/mektek/history" },
       ],
     });
   }
@@ -62,7 +62,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
   const canUseLogisticsPics = canManageMektekLogisticsPics(user);
   if (canUseCatalog || canUseMonitoring || canUseReceiving) {
     items.push({
-      title: "Logistics",
+      title: "Logistik",
       icon: Truck,
       items: [
         ...(canUseCatalog
@@ -83,7 +83,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
 
   if (canManageMektekAccounting(user)) {
     items.push({
-      title: "Accounting",
+      title: "Akuntansi",
       icon: Calculator,
       items: [
         { title: "Ringkasan", url: "/mektek/finance", exact: true },
@@ -102,7 +102,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
 
   if (canManageMektekFinance(user)) {
     items.push({
-      title: "Finance",
+      title: "Keuangan",
       icon: CircleDollarSign,
       items: [
         { title: "Pembayaran Pemasok", url: "/mektek/finance/payables" },
@@ -139,7 +139,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
 
   if (hasMektekCapability(user, "MEKTEK_CUSTOMER_SERVICE")) {
     items.push({
-      title: "Technician",
+      title: "Teknisi",
       url: "/mektek/technicians",
       icon: Wrench,
     });
@@ -147,7 +147,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
 
   if (user?.isAdmin) {
     items.push({
-      title: "Sub-admin",
+      title: "Admin divisi",
       url: "/mektek/staff",
       icon: UserCog,
     });

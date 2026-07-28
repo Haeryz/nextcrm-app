@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
   SidebarRail,
+  SidebarSeparator,
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -18,34 +21,6 @@ import { canAccessMektekStaffArea } from "@/lib/mektek/permissions";
 import type { StaffDivision } from "@/lib/auth/staff-divisions";
 import type { LogisticsStaffArea } from "@/lib/auth/logistics-staff-areas";
 import { APP_NAME } from "@/lib/brand";
-
-/**
- * AppSidebar Component - Task Groups 1.2, 2.2-2.7, 3.1, 5.3, 5.4
- *
- * Core sidebar component for MektekCRM application layout.
- * Implements shadcn/ui sidebar pattern with:
- * - Logo and "N" branding symbol with rotation animation
- * - Build version display in footer (when expanded)
- * - Navigation with Mektek workspace items
- * - Nav-user section in footer for user profile and actions
- *
- * Phase 3 Updates:
- * - Task 3.1: Added NavUser component in SidebarFooter
- * - NavUser displays user avatar, name, email
- * - NavUser provides dropdown with user actions (Profile, Settings, Logout)
- * - NavUser adapts to collapsed/expanded sidebar states
- * - Build version moved above NavUser in footer
- *
- * Phase 5 Updates (Design Consistency):
- * - Task 5.3: Removed duration-200 from app name animation (uses Tailwind default)
- * - Task 5.3: Kept duration-500 on "N" symbol for intentional brand emphasis
- * - Task 5.4: Changed build version text-gray-500 to text-muted-foreground for theme support
- *
- * @param modules - Array of enabled modules from system_Modules_Enabled table
- * @param dict - Localization dictionary for navigation labels
- * @param build - Build number for version display
- * @param session - User session data for role-based navigation and user profile
- */
 
 interface User {
   id: string;
@@ -74,6 +49,8 @@ export function AppSidebar({
   ...props
 }: AppSidebarProps) {
   const { state, isMobile } = useSidebar();
+  const params = useParams<{ locale?: string }>();
+  const locale = params.locale || "id";
   const isExpanded = isMobile || state === "expanded";
 
   const navItems = canAccessMektekStaffArea(session?.user)
@@ -89,55 +66,55 @@ export function AppSidebar({
   };
 
   return (
-    <Sidebar collapsible="icon" {...props}>
-      {/* Header with Logo and Branding */}
-      <SidebarHeader>
+    <Sidebar variant="inset" collapsible="icon" {...props}>
+      <SidebarHeader className="px-3 pb-2 pt-3 group-data-[collapsible=icon]:px-2">
         <div
           className={cn(
-            "flex items-center py-1",
-            isExpanded ? "gap-x-4" : "justify-center",
+            "flex min-h-11 items-center",
+            isExpanded ? "gap-x-3" : "justify-center",
           )}
         >
-          {/* Brand mark with rotation animation. Kept in sync with the product
-              name beside it — it read "N" long after the rename to MektekCRM. */}
-          <div
-            className={cn(
-              "flex-shrink-0 border rounded-full px-4 py-2 transition-transform duration-500",
-              isExpanded && "rotate-[360deg]",
-            )}
-            aria-hidden="true"
+          <Link
+            href={`/${locale}/mektek/dashboard`}
+            className="flex min-w-0 items-center gap-x-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label={`${APP_NAME} — Dasbor`}
           >
-            M
-          </div>
-
-          {/* App Name - visible when expanded, hidden when collapsed */}
-          <h1
-            className={cn(
-              "origin-left font-medium text-xl transition-all overflow-hidden whitespace-nowrap",
-              !isExpanded ? "w-0 opacity-0" : "w-auto opacity-100",
-            )}
-          >
-            {APP_NAME}
-          </h1>
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/75 text-primary-foreground shadow-sm ring-1 ring-primary-foreground/10">
+              <span className="text-base font-bold leading-none">M</span>
+            </div>
+            <div
+              className={cn(
+                "min-w-0 overflow-hidden whitespace-nowrap transition-[max-width,opacity,transform] duration-200 ease-out",
+                !isExpanded
+                  ? "max-w-0 -translate-x-1 opacity-0"
+                  : "max-w-48 translate-x-0 opacity-100",
+              )}
+            >
+              <h1 className="truncate text-base font-semibold leading-tight">
+                {APP_NAME}
+              </h1>
+              <p className="mt-0.5 truncate text-xs text-sidebar-foreground/60">
+                Workspace staf
+              </p>
+            </div>
+          </Link>
           <SidebarTrigger
             aria-label="Tutup menu navigasi"
-            className="ml-auto size-9 md:hidden"
+            className="ml-auto size-10 shrink-0 rounded-lg md:hidden"
           />
         </div>
       </SidebarHeader>
 
-      {/* Main Content - Navigation */}
-      <SidebarContent>
+      <SidebarSeparator className="opacity-70" />
+
+      <SidebarContent className="overscroll-contain">
         <NavMain items={navItems} />
       </SidebarContent>
 
-      {/* Footer with NavUser and Build Version */}
-      <SidebarFooter>
-        {/* Task 3.1: NavUser component with user profile and actions */}
+      <SidebarFooter className="border-t border-sidebar-border/70 px-3 py-3 group-data-[collapsible=icon]:px-2">
         <NavUser user={userData} />
       </SidebarFooter>
 
-      {/* Rail for toggling sidebar on desktop */}
       <SidebarRail />
     </Sidebar>
   );

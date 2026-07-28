@@ -14,10 +14,15 @@ describe("staff mobile navigation", () => {
     resolve(process.cwd(), "app/[locale]/(routes)/components/nav-main.tsx"),
     "utf8",
   );
+  const sidebarPrimitiveSource = readFileSync(
+    resolve(process.cwd(), "components/ui/sidebar.tsx"),
+    "utf8",
+  );
 
   it("provides an accessible mobile header that opens the shared sidebar", () => {
     expect(layoutSource).toContain("SidebarTrigger");
-    expect(layoutSource).toContain('aria-label="Buka menu navigasi"');
+    expect(sidebarPrimitiveSource).toContain('"Buka menu navigasi"');
+    expect(sidebarPrimitiveSource).toContain('"Tutup menu navigasi"');
     expect(layoutSource).toContain("md:hidden");
   });
 
@@ -29,5 +34,15 @@ describe("staff mobile navigation", () => {
   it("closes the mobile drawer after navigating", () => {
     expect(navigationSource).toContain("setOpenMobile(false)");
     expect(navigationSource).toContain("onClick={closeMobileNavigation}");
+  });
+
+  it("expands a collapsed desktop sidebar before opening a menu group", () => {
+    expect(navigationSource).toContain('state === "collapsed"');
+    expect(navigationSource).toContain("setOpen(true)");
+  });
+
+  it("uses localized navigation copy and touch-friendly menu controls", () => {
+    expect(navigationSource).toContain("Menu utama");
+    expect(navigationSource).toContain("min-h-10");
   });
 });
