@@ -31,6 +31,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   }
 
   const { id } = await params;
+  const download = request.nextUrl.searchParams.get("download") === "1";
   const transaction = await prismadb.mektekSupplierDebtTransaction.findUnique({
     where: { id },
     select: {
@@ -47,15 +48,18 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   }
 
   const etag = `W/"${transaction.proofImageUpdatedAt?.getTime() ?? 0}-${transaction.proofImageData.byteLength}"`;
-  return new Response(Buffer.from(transaction.proofImageData), {
-    headers: {
-      "Cache-Control": "private, no-store",
-      "Content-Length": String(transaction.proofImageData.byteLength),
-      "Content-Type": transaction.proofImageMimeType,
-      ETag: etag,
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  const extension = transaction.proofImageMimeType === "application/pdf" ? "pdf" : transaction.proofImageMimeType === "image/png" ? "png" : transaction.proofImageMimeType === "image/webp" ? "webp" : "jpg";
+  const headers: Record<string, string> = {
+    "Cache-Control": "private, no-store",
+    "Content-Length": String(transaction.proofImageData.byteLength),
+    "Content-Type": transaction.proofImageMimeType,
+    ETag: etag,
+    "X-Content-Type-Options": "nosniff",
+  };
+  if (download) {
+    headers["Content-Disposition"] = `attachment; filename="bukti-pembayaran-${id}.${extension}"`;
+  }
+  return new Response(Buffer.from(transaction.proofImageData), { headers });
 }
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {

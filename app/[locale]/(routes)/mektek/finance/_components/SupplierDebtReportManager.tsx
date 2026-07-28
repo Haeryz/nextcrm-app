@@ -9,6 +9,7 @@ import {
   BellRing,
   ChevronLeft,
   ChevronRight,
+  Download,
   Eye,
   FileSpreadsheet,
   Filter,
@@ -816,14 +817,25 @@ export default function SupplierDebtReportManager({
                         </td>
                         <td className="px-3 py-2">
                           {transaction.hasProofImage ? (
-                            <a
-                              href={`/api/mektek/finance/supplier-debt/transactions/${encodeURIComponent(transaction.id)}/proof-image`}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-sm font-medium text-primary hover:underline"
-                            >
-                              Lihat bukti
-                            </a>
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={`/api/mektek/finance/supplier-debt/transactions/${encodeURIComponent(transaction.id)}/proof-image`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm font-medium text-primary hover:underline"
+                              >
+                                Lihat bukti
+                              </a>
+                              <a
+                                href={`/api/mektek/finance/supplier-debt/transactions/${encodeURIComponent(transaction.id)}/proof-image?download=1`}
+                                download
+                                className="inline-flex items-center text-sm text-muted-foreground hover:text-primary"
+                                title="Unduh bukti"
+                                aria-label="Unduh bukti"
+                              >
+                                <Download className="h-4 w-4" />
+                              </a>
+                            </div>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
@@ -1223,14 +1235,25 @@ export default function SupplierDebtReportManager({
                                 </td>
                                 <td className="px-3 py-2">
                                   {transaction.hasProofImage ? (
-                                    <a
-                                      href={`/api/mektek/finance/supplier-debt/transactions/${encodeURIComponent(transaction.id)}/proof-image`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-sm font-medium text-primary hover:underline"
-                                    >
-                                      Lihat bukti
-                                    </a>
+                                    <div className="flex items-center gap-2">
+                                      <a
+                                        href={`/api/mektek/finance/supplier-debt/transactions/${encodeURIComponent(transaction.id)}/proof-image`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-sm font-medium text-primary hover:underline"
+                                      >
+                                        Lihat bukti
+                                      </a>
+                                      <a
+                                        href={`/api/mektek/finance/supplier-debt/transactions/${encodeURIComponent(transaction.id)}/proof-image?download=1`}
+                                        download
+                                        className="inline-flex items-center text-sm text-muted-foreground hover:text-primary"
+                                        title="Unduh bukti"
+                                        aria-label="Unduh bukti"
+                                      >
+                                        <Download className="h-4 w-4" />
+                                      </a>
+                                    </div>
                                   ) : (
                                     <span className="text-xs text-muted-foreground">
                                       —
