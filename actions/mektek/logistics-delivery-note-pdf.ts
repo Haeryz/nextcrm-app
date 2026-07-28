@@ -1,5 +1,4 @@
 import React from "react";
-import { resolve } from "node:path";
 import {
   Document,
   Image,
@@ -9,6 +8,7 @@ import {
   View,
   renderToBuffer,
 } from "@react-pdf/renderer";
+import { MEKTEK_PDF_LOGO_PATH } from "@/lib/mektek/pdf-assets";
 
 export type MektekDeliveryNoteData = {
   deliveryNoteNumber: string | null;
@@ -25,8 +25,6 @@ export type MektekDeliveryNoteData = {
     note: string | null;
   }>;
 };
-
-const logoPath = resolve(process.cwd(), "public/images/logo-pt-mektek-tanjung-lestari.jpg");
 
 const styles = StyleSheet.create({
   page: {
@@ -119,7 +117,10 @@ function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
         React.createElement(
           View,
           { style: styles.identity },
-          React.createElement(Image, { src: logoPath, style: styles.logo }),
+          React.createElement(Image, {
+            src: MEKTEK_PDF_LOGO_PATH,
+            style: styles.logo,
+          }),
           React.createElement(
             View,
             { style: styles.company },

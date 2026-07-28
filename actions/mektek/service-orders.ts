@@ -84,6 +84,8 @@ import {
 
 const DEFAULT_TIMELINE_MESSAGE =
   "Layanan Anda telah terbuat. Tim kami sedang menyiapkan pemeriksaan awal kendaraan.";
+const SPAREPART_ONLY_TIMELINE_MESSAGE =
+  "Pesanan sparepart telah selesai disiapkan dan menunggu pembayaran.";
 
 /**
  * Constant-time string comparison for access secrets (customer tokens). Hashing
@@ -318,7 +320,10 @@ export const createMektekServiceOrder = async (
   const voucherCode = String(input?.voucherCode ?? "").trim();
 
   if (!customerName || !vehicle || !vehiclePlateNumber || !complaint) {
-    return { error: "Nama Customer, kendaraan, nomor plat, dan jasa wajib diisi" };
+    return {
+      error:
+        "Nama pelanggan, kendaraan, nomor plat, dan detail pesanan wajib diisi",
+    };
   }
   const plateNumberNormalized = normalizeMektekVehiclePlateNumber(
     vehiclePlateNumber,
@@ -346,9 +351,15 @@ export const createMektekServiceOrder = async (
   const serviceItems = buildMektekStoredItems(input?.serviceItems, "service");
   const sparepartItems = buildMektekStoredItems(input?.sparepartItems, "sparepart");
 
-  if (serviceItems.length === 0) {
+  if (serviceItems.length === 0 && sparepartItems.length === 0) {
     return {
-      error: "Tambahkan minimal satu Service Description beserta Estimated Cost",
+      error: "Tambahkan minimal satu pekerjaan servis atau sparepart",
+    };
+  }
+
+  if (serviceItems.length > 0 && technicianSelections.length === 0) {
+    return {
+      error: "Pilih minimal satu teknisi untuk pesanan yang memiliki jasa servis",
     };
   }
 
@@ -404,6 +415,7 @@ export const createMektekServiceOrder = async (
         }),
         select: {
           id: true,
+          customerNumber: true,
           customerType: true,
         },
       });
@@ -501,7 +513,8 @@ export const createMektekServiceOrder = async (
           title: `${MEKTEK_TITLE_PREFIX} ${vehicle}`,
           content: complaint,
           priority: "medium",
-          taskStatus: "ACTIVE",
+          taskStatus:
+            serviceItems.length === 0 ? "AWAITING_PAYMENT" : "ACTIVE",
           // Technician directory records are not login Users. Keep the durable
           // assignment snapshot in tags; legacy orders may still use `user`.
           user: null,
@@ -540,7 +553,10 @@ export const createMektekServiceOrder = async (
             })),
             technicians: technicians.map((row) => row.name).join(", "),
             catalogCustomerId: catalogCustomer.id,
+            catalogCustomerNumber: catalogCustomer.customerNumber,
             catalogCustomerVehicleId: catalogCustomerVehicle.id,
+            orderType:
+              serviceItems.length === 0 ? "SPAREPART_ONLY" : "SERVICE",
             completedVisitCount,
             loyaltyTier: loyalty.tier?.label ?? null,
             loyaltyDiscountRate: loyalty.discountRate,
@@ -567,13 +583,51 @@ export const createMektekServiceOrder = async (
             timeline: [
               {
                 id: crypto.randomUUID(),
-                description: DEFAULT_TIMELINE_MESSAGE,
+                description:
+                  serviceItems.length === 0
+                    ? SPAREPART_ONLY_TIMELINE_MESSAGE
+                    : DEFAULT_TIMELINE_MESSAGE,
                 createdAt: serviceCreatedAt.toISOString(),
               },
             ],
           },
         },
       });
+
+      if (serviceItems.length === 0) {
+        await tx.logisticsPurchaseOrder.create({
+          data: {
+            sourceServiceOrderId: serviceOrder.id,
+            poNumber: serviceNumber,
+            flow: "OUTBOUND",
+            supplierName: "PT. Mektek Tanjung Lestari",
+            userName: customerName,
+            projectName: "",
+            inputDate: serviceCreatedAt,
+            dueDate: dueDateAt ?? serviceCreatedAt,
+            poType: "Pesanan CS",
+            poMode: "MANUAL",
+            status: "OPEN",
+            notes:
+              "Pesanan sparepart dari CS. Pendapatan dan stok dikelola melalui pesanan CS.",
+            createdBy: session.user.id,
+            items: {
+              create: sparepartItems.map((item, index) => ({
+                source: "MANUAL",
+                catalogItemId: null,
+                position: index + 1,
+                partName: item.name,
+                partNumber: item.partNumber ?? item.catalogPartNumber,
+                machine: item.machine,
+                orderedQuantity: item.quantity,
+                receivedQuantity: 0,
+                note: `Stok dikelola melalui pesanan CS ${serviceNumber}`,
+                status: "OPEN",
+              })),
+            },
+          },
+        });
+      }
 
       await syncServiceOrderStock(tx, {
         serviceOrderId: serviceOrder.id,
@@ -608,6 +662,12 @@ export const createMektekServiceOrder = async (
         if (!reserved) {
           throw new Error("LOCKED_VOUCHER");
         }
+      }
+
+      if (serviceItems.length === 0) {
+        await syncServiceOrderBillingSource(tx, {
+          serviceOrderId: serviceOrder.id,
+        });
       }
 
       return {
@@ -683,6 +743,7 @@ export const createMektekServiceOrder = async (
     revalidatePath("/[locale]/(routes)/mektek", "page");
     revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
     revalidatePath("/[locale]/(routes)/mektek/customers", "page");
+    revalidatePath("/[locale]/(routes)/mektek/logistics", "page");
     revalidatePath("/[locale]/service-status/[id]", "page");
     return {
       data: {
@@ -1203,6 +1264,35 @@ export const getMektekServiceOrderById = async (id: string) => {
           createdAt: "desc",
         },
         select: mektekPaymentSelect,
+      },
+      catalogServiceLinks: {
+        take: 1,
+        select: {
+          customer: {
+            select: {
+              id: true,
+              customerNumber: true,
+            },
+          },
+        },
+      },
+      logisticsPurchaseOrder: {
+        select: {
+          id: true,
+          items: {
+            select: {
+              receipts: {
+                orderBy: {
+                  receivedAt: "desc",
+                },
+                select: {
+                  receivingReference: true,
+                  receivedAt: true,
+                },
+              },
+            },
+          },
+        },
       },
     },
   });

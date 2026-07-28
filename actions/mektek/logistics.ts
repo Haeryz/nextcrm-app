@@ -939,6 +939,7 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
         where: { id: purchaseOrderId },
         select: {
           id: true,
+          sourceServiceOrderId: true,
           poNumber: true,
           flow: true,
           poMode: true,
@@ -1100,11 +1101,13 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
         where: { id: purchaseOrder.id },
         data: { status: purchaseOrderStatus },
       });
-      await syncOutboundDispatchBillingSource(tx, {
-        purchaseOrderId: purchaseOrder.id,
-        dispatchReference: reference,
-        occurredAt: dispatchedAt,
-      });
+      if (!purchaseOrder.sourceServiceOrderId) {
+        await syncOutboundDispatchBillingSource(tx, {
+          purchaseOrderId: purchaseOrder.id,
+          dispatchReference: reference,
+          occurredAt: dispatchedAt,
+        });
+      }
       return {
         receipts,
         dispatchReference: reference,
@@ -1120,6 +1123,7 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
     revalidatePath("/[locale]/(routes)/mektek/logistics/spreadsheet", "page");
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
     revalidatePath("/[locale]/(routes)/mektek/items/spreadsheet", "page");
+    revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
     return { data: result };
   } catch (error) {
     console.log("[RECORD_MEKTEK_OUTBOUND_DISPATCH]", error);
@@ -1163,6 +1167,7 @@ export async function updateMektekOutboundDispatchQuantities(
         where: { id: purchaseOrderId },
         select: {
           id: true,
+          sourceServiceOrderId: true,
           poNumber: true,
           flow: true,
           poMode: true,
@@ -1196,19 +1201,21 @@ export async function updateMektekOutboundDispatchQuantities(
         throw new LogisticsActionError("Monitoring PO tidak ditemukan");
       }
 
-      const billingSourceKey = `OUTBOUND:${purchaseOrder.id}:${dispatchReference}`;
-      const billingSource = await tx.financeBillingSource.findUnique({
-        where: { sourceKey: billingSourceKey },
-        select: { status: true },
-      });
-      if (
-        billingSource &&
-        billingSource.status !== "UNBILLED" &&
-        billingSource.status !== "NEEDS_REVIEW"
-      ) {
-        throw new LogisticsActionError(
-          "Surat Jalan sudah masuk Faktur, tidak dapat direvisi",
-        );
+      if (!purchaseOrder.sourceServiceOrderId) {
+        const billingSourceKey = `OUTBOUND:${purchaseOrder.id}:${dispatchReference}`;
+        const billingSource = await tx.financeBillingSource.findUnique({
+          where: { sourceKey: billingSourceKey },
+          select: { status: true },
+        });
+        if (
+          billingSource &&
+          billingSource.status !== "UNBILLED" &&
+          billingSource.status !== "NEEDS_REVIEW"
+        ) {
+          throw new LogisticsActionError(
+            "Surat Jalan sudah masuk Faktur, tidak dapat direvisi",
+          );
+        }
       }
 
       const receiptByItem = new Map(
@@ -1393,11 +1400,13 @@ export async function updateMektekOutboundDispatchQuantities(
       });
 
       const firstReceiptAt = validated[0]?.receipt.receivedAt;
-      await syncOutboundDispatchBillingSource(tx, {
-        purchaseOrderId: purchaseOrder.id,
-        dispatchReference,
-        occurredAt: firstReceiptAt ?? revisionOccurredAt,
-      });
+      if (!purchaseOrder.sourceServiceOrderId) {
+        await syncOutboundDispatchBillingSource(tx, {
+          purchaseOrderId: purchaseOrder.id,
+          dispatchReference,
+          occurredAt: firstReceiptAt ?? revisionOccurredAt,
+        });
+      }
 
       return {
         dispatchReference,
@@ -1410,6 +1419,7 @@ export async function updateMektekOutboundDispatchQuantities(
     revalidatePath("/[locale]/(routes)/mektek/logistics/spreadsheet", "page");
     revalidatePath("/[locale]/(routes)/mektek/items", "page");
     revalidatePath("/[locale]/(routes)/mektek/items/spreadsheet", "page");
+    revalidatePath("/[locale]/(routes)/mektek/[id]", "page");
     return { data: result };
   } catch (error) {
     console.log("[UPDATE_MEKTEK_OUTBOUND_DISPATCH]", error);

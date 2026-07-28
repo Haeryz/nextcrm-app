@@ -345,10 +345,11 @@ model crm_Accounts_Tasks {
   user          String?     @db.Uuid
   taskStatus    taskStatus? @default(ACTIVE)
 
-  comments            tasksComments[]
-  assigned_user       Users?               @relation(fields: [user], references: [id])
-  catalogServiceLinks CatalogServiceLink[]
-  mektekPayments      MektekPayment[]
+  comments               tasksComments[]
+  assigned_user          Users?                  @relation(fields: [user], references: [id])
+  catalogServiceLinks    CatalogServiceLink[]
+  mektekPayments         MektekPayment[]
+  logisticsPurchaseOrder LogisticsPurchaseOrder?
 
   @@index([user])
   @@index([createdBy])
@@ -385,6 +386,7 @@ model tasksComments {
 
 model CatalogCustomer {
   id                 String              @id @default(uuid()) @db.Uuid
+  customerNumber     String?             @unique @db.VarChar(24)
   username           String
   phone              String
   phoneNormalized    String              @unique
@@ -572,6 +574,7 @@ model CatalogServiceLink {
 
 model LogisticsPurchaseOrder {
   id                               String                                @id @default(uuid()) @db.Uuid
+  sourceServiceOrderId             String?                               @unique @db.Uuid
   poNumber                         String
   flow                             LogisticsPurchaseOrderFlow            @default(RECEIVING)
   supplierName                     String
@@ -615,6 +618,7 @@ model LogisticsPurchaseOrder {
   financeCounterparty FinanceCounterparty?         @relation(fields: [financeCounterpartyId], references: [id], onDelete: SetNull)
   financeContract     FinanceContract?             @relation(fields: [financeContractId], references: [id], onDelete: SetNull)
   financeQuote        FinanceQuote?                @relation(fields: [financeQuoteId], references: [id], onDelete: SetNull)
+  sourceServiceOrder  crm_Accounts_Tasks?          @relation(fields: [sourceServiceOrderId], references: [id], onDelete: Cascade)
 
   @@unique([flow, poNumber])
   @@index([flow, status, dueDate])

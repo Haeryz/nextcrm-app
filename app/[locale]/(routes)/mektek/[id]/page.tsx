@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   CalendarClock,
   CircleDollarSign,
+  FileText,
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
@@ -46,6 +47,7 @@ import {
   isMektekStorefrontPurchase,
 } from "@/lib/mektek/order-lifecycle";
 import { isUuid } from "@/lib/uuid";
+import { formatMektekCustomerNumber } from "@/lib/mektek/customer-number";
 
 interface Props {
   params: Promise<{ id: string; locale: string }>;
@@ -107,10 +109,18 @@ export default async function MektekDetailPage({ params }: Props) {
     typeof tags.customerContactName === "string" && tags.customerContactName.trim()
       ? tags.customerContactName
       : undefined;
-  const customerId =
+  const customerInternalId =
     typeof tags.catalogCustomerId === "string" && tags.catalogCustomerId.length > 0
       ? tags.catalogCustomerId
-      : "Tidak diketahui";
+      : order.catalogServiceLinks[0]?.customer.id;
+  const catalogCustomerNumber =
+    typeof tags.catalogCustomerNumber === "string"
+      ? tags.catalogCustomerNumber
+      : order.catalogServiceLinks[0]?.customer.customerNumber;
+  const customerNumber = formatMektekCustomerNumber(
+    catalogCustomerNumber,
+    customerInternalId,
+  );
   const phone = typeof tags.phone === "string" ? tags.phone : undefined;
   const address = typeof tags.address === "string" ? tags.address : undefined;
   const technicianTag =
@@ -143,6 +153,13 @@ export default async function MektekDetailPage({ params }: Props) {
     : [];
 
   const trackingResult = await getMektekCustomerTrackingLink(order.id, locale);
+  const deliveryNotes = Array.from(
+    new Map(
+      (order.logisticsPurchaseOrder?.items ?? [])
+        .flatMap((item) => item.receipts)
+        .map((receipt) => [receipt.receivingReference, receipt] as const),
+    ).values(),
+  );
   const customerTrackingLink = trackingResult?.data?.link;
   const timeline = timelineFromTags.length
     ? timelineFromTags
@@ -286,7 +303,7 @@ export default async function MektekDetailPage({ params }: Props) {
                   <div className="min-w-0">
                     <p className="text-xs text-muted-foreground">ID Pelanggan</p>
                     <p className="break-all font-mono text-sm font-medium text-foreground">
-                      {customerId}
+                      {customerNumber}
                     </p>
                   </div>
                   <div className="min-w-0">
@@ -504,11 +521,44 @@ export default async function MektekDetailPage({ params }: Props) {
                   </TabsContent>
                 )}
                 <TabsContent value="docs" className="mt-0">
-                  <InvoiceActions
-                    serviceOrderId={order.id}
-                    invoiceAvailable={invoiceAvailable}
-                    receiptAvailable={receiptAvailable}
-                  />
+                  <div className="space-y-4">
+                    <InvoiceActions
+                      serviceOrderId={order.id}
+                      invoiceAvailable={invoiceAvailable}
+                      receiptAvailable={receiptAvailable}
+                    />
+                    {order.logisticsPurchaseOrder ? (
+                      <div className="rounded-lg border p-4">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-muted-foreground" />
+                          <p className="font-medium">Surat Jalan Pesanan</p>
+                        </div>
+                        {deliveryNotes.length > 0 ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {deliveryNotes.map((deliveryNote) => (
+                              <Button
+                                key={deliveryNote.receivingReference}
+                                asChild
+                                variant="outline"
+                                size="sm"
+                              >
+                                <Link
+                                  href={`/api/mektek/service-orders/${order.id}/delivery-notes/${encodeURIComponent(deliveryNote.receivingReference)}`}
+                                  target="_blank"
+                                >
+                                  Lihat {deliveryNote.receivingReference}
+                                </Link>
+                              </Button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            Surat Jalan belum dibuat oleh Logistics.
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
                 </TabsContent>
                 <TabsContent value="whatsapp" className="mt-0">
                   <WhatsAppComposer

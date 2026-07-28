@@ -14,6 +14,7 @@ import { boundedText, MAX_ADDRESS_LEN, MAX_NAME_LEN } from "@/lib/mektek/sanitiz
 import { MEKTEK_TITLE_PREFIX } from "@/lib/mektek/orders";
 import type { MektekLineItem } from "@/lib/mektek/items";
 import { hasTrustedMutationOrigin } from "@/lib/trusted-origin";
+import { createMektekCustomerNumber } from "@/lib/mektek/customer-number";
 
 const STORE_TIMELINE_MESSAGE =
   "Pesanan sparepart Anda telah dibuat. Selesaikan pembayaran untuk memproses pesanan.";
@@ -161,13 +162,14 @@ export const createMektekCatalogPurchaseIntent = async (
         where: { phoneNormalized },
         update: { phone, customerType: "STANDARD", userId: linkUserId },
         create: {
+          customerNumber: createMektekCustomerNumber(),
           username: customerName,
           phone,
           phoneNormalized,
           customerType: "STANDARD",
           userId: linkUserId,
         },
-        select: { id: true },
+        select: { id: true, customerNumber: true },
       });
 
       const serviceNumber = await reserveMektekServiceNumber(
@@ -200,6 +202,7 @@ export const createMektekCatalogPurchaseIntent = async (
             customerType: "STANDARD",
             address: address || null,
             catalogCustomerId: catalogCustomer.id,
+            catalogCustomerNumber: catalogCustomer.customerNumber,
             serviceItems: [],
             sparepartItems,
             discount: 0,

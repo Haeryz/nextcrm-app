@@ -215,14 +215,7 @@ export default function NewServiceOrderForm({
     { id: null, name: "" },
     { id: null, name: "" },
   ]);
-  const [serviceItems, setServiceItems] = useState<DamageItem[]>([
-    {
-      clientId: "initial-service-item",
-      description: "",
-      estimatedCost: "",
-      quantity: 1,
-    },
-  ]);
+  const [serviceItems, setServiceItems] = useState<DamageItem[]>([]);
   const [sparepartItems, setSparepartItems] = useState<DamageItem[]>([]);
   const [phone, setPhone] = useState("");
   const [customerType, setCustomerType] = useState<"STANDARD" | "B2B">("STANDARD");
@@ -310,8 +303,11 @@ export default function NewServiceOrderForm({
       sparepartItems.filter((item) => item.description.trim()),
     );
 
-    if (describedServiceItems.length === 0) {
-      toast.error("Tambahkan minimal satu deskripsi servis");
+    if (
+      describedServiceItems.length === 0 &&
+      describedSparepartItems.length === 0
+    ) {
+      toast.error("Tambahkan minimal satu pekerjaan servis atau sparepart");
       return;
     }
 
@@ -330,8 +326,11 @@ export default function NewServiceOrderForm({
     const selectedTechnicians = technicianSelections.filter(
       (selection) => selection.name.trim(),
     );
-    if (selectedTechnicians.length < 1) {
-      toast.error("Pilih minimal 1 technician");
+    if (
+      describedServiceItems.length > 0 &&
+      selectedTechnicians.length < 1
+    ) {
+      toast.error("Pilih minimal satu teknisi untuk pekerjaan servis");
       return;
     }
     const technicianIdentities = selectedTechnicians.map((selection) =>
@@ -343,7 +342,11 @@ export default function NewServiceOrderForm({
     }
 
     startTransition(async () => {
-      const complaint = describedServiceItems
+      const complaintItems =
+        describedServiceItems.length > 0
+          ? describedServiceItems
+          : describedSparepartItems;
+      const complaint = complaintItems
         .map((item) =>
           [
             item.description.trim(),
@@ -385,8 +388,8 @@ export default function NewServiceOrderForm({
       setSuccessBurstKey((currentKey) => currentKey + 1);
       toast.success(
         result?.data?.customerCreated
-          ? "Pesanan servis dibuat. Pelanggan baru disimpan secara otomatis."
-          : "Pesanan servis berhasil dibuat",
+          ? "Pesanan dibuat. Pelanggan baru disimpan secara otomatis."
+          : "Pesanan berhasil dibuat",
       );
       setTrackingLink(result?.data?.customerTrackingLink || "");
       const tags =
@@ -422,14 +425,7 @@ export default function NewServiceOrderForm({
         { id: null, name: "" },
         { id: null, name: "" },
       ]);
-      setServiceItems([
-        {
-          clientId: "initial-service-item",
-          description: "",
-          estimatedCost: "",
-          quantity: 1,
-        },
-      ]);
+      setServiceItems([]);
       setSparepartItems([]);
       setPhone("");
       setCustomerType("STANDARD");
@@ -930,7 +926,8 @@ export default function NewServiceOrderForm({
                 <div>
                   <p className="text-sm font-medium">Tim Technician</p>
                   <p className="text-xs text-muted-foreground">
-                    Pilih teknisi utama dan maksimal dua pendamping.
+                    Wajib untuk pekerjaan servis; opsional untuk pesanan
+                    sparepart saja.
                   </p>
                 </div>
               </div>
@@ -992,11 +989,13 @@ export default function NewServiceOrderForm({
             <DamageItemsInput
               items={serviceItems}
               onChange={setServiceItems}
-              label="Pekerjaan Servis"
-              helperText="Tambahkan satu baris untuk setiap keluhan atau pekerjaan yang akan dilakukan."
+              label="Pekerjaan Servis (opsional)"
+              helperText="Isi hanya jika pesanan mencakup jasa servis."
               itemLabel="Pekerjaan"
               descriptionLabel="Keluhan / pekerjaan"
               addLabel="Tambah pekerjaan"
+              emptyMessage="Belum ada pekerjaan servis"
+              minimumItems={0}
               disabled={isPending}
             />
 

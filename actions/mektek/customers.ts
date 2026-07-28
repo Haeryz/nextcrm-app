@@ -15,6 +15,7 @@ import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { hashPassword } from "@/lib/password";
 import { normalizeEmail as normalizeRealEmail } from "@/lib/email/validation";
+import { createMektekCustomerNumber } from "@/lib/mektek/customer-number";
 
 const DEFAULT_PAGE_SIZE = 12;
 const customerTypes = new Set(["STANDARD", "B2B"]);
@@ -276,6 +277,7 @@ export async function createMektekCustomerUser(input: CustomerUserInput) {
 
       return tx.catalogCustomer.create({
         data: {
+          customerNumber: createMektekCustomerNumber(),
           username: data.name,
           phone: data.phone,
           phoneNormalized: data.phoneNormalized,

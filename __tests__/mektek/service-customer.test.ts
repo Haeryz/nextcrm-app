@@ -1,4 +1,5 @@
 import { buildMektekServiceCustomerUpsert } from "@/lib/mektek/service-customer";
+import { formatMektekCustomerNumber } from "@/lib/mektek/customer-number";
 
 describe("buildMektekServiceCustomerUpsert", () => {
   it("creates new customers and deduplicates existing customers by normalized phone", () => {
@@ -22,6 +23,7 @@ describe("buildMektekServiceCustomerUpsert", () => {
         vehicleFleetNumber: "UNIT-017",
       },
       create: {
+        customerNumber: expect.stringMatching(/^PLG-[A-F0-9]{10}$/),
         username: "Dewi",
         phone: "+62 812-3456-7890",
         phoneNormalized: "6281234567890",
@@ -46,5 +48,25 @@ describe("buildMektekServiceCustomerUpsert", () => {
 
     expect(result.update.vehicleFleetNumber).toBeNull();
     expect(result.create.vehicleFleetNumber).toBeNull();
+  });
+});
+
+describe("formatMektekCustomerNumber", () => {
+  it("prefers the stored public number", () => {
+    expect(
+      formatMektekCustomerNumber(
+        "PLG-A1B2C3D4E5",
+        "0d65fb77-d0bf-4cf8-8bcc-f32374d9c801",
+      ),
+    ).toBe("PLG-A1B2C3D4E5");
+  });
+
+  it("uses a compact compatibility value for legacy customers", () => {
+    expect(
+      formatMektekCustomerNumber(
+        null,
+        "0d65fb77-d0bf-4cf8-8bcc-f32374d9c801",
+      ),
+    ).toBe("PLG-0D65FB77D0");
   });
 });

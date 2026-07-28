@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, Lock } from "lucide-react";
+import { Download, Eye, Lock, type LucideIcon } from "lucide-react";
 
 type InvoiceActionsProps = {
   serviceOrderId: string;
@@ -9,7 +9,7 @@ type InvoiceActionsProps = {
 };
 
 const INVOICE_UNAVAILABLE_REASON =
-  "Belum tersedia. Invoice bisa diunduh setelah servis selesai dan pesanan masuk tahap pembayaran.";
+  "Belum tersedia. Invoice bisa dilihat setelah servis selesai dan pesanan masuk tahap pembayaran.";
 const RECEIPT_UNAVAILABLE_REASON =
   "Belum tersedia. Struk bisa diunduh setelah pembayaran lunas.";
 
@@ -19,6 +19,7 @@ function DocumentAction({
   label,
   reason,
   reasonId,
+  icon: Icon = Download,
   variant = "default",
 }: {
   available: boolean;
@@ -26,6 +27,7 @@ function DocumentAction({
   label: string;
   reason: string;
   reasonId: string;
+  icon?: LucideIcon;
   variant?: "default" | "outline";
 }) {
   return (
@@ -33,7 +35,7 @@ function DocumentAction({
       {available ? (
         <Button asChild variant={variant} className="h-10 w-full min-w-0">
           <a href={href} target="_blank" rel="noreferrer">
-            <Download className="mr-2 size-4 shrink-0" aria-hidden="true" />
+            <Icon className="mr-2 size-4 shrink-0" aria-hidden="true" />
             <span className="truncate">{label}</span>
           </a>
         </Button>
@@ -67,7 +69,7 @@ export default function InvoiceActions({
   invoiceAvailable,
   receiptAvailable,
 }: InvoiceActionsProps) {
-  const invoiceHref = `/api/mektek/service-orders/${serviceOrderId}/invoice?download=1`;
+  const invoiceHref = `/api/mektek/service-orders/${serviceOrderId}/invoice`;
   const receiptHref = `/api/mektek/service-orders/${serviceOrderId}/receipt?download=1`;
 
   return (
@@ -81,9 +83,10 @@ export default function InvoiceActions({
         <DocumentAction
           available={invoiceAvailable}
           href={invoiceHref}
-          label="Unduh Invoice"
+          label="Lihat Invoice"
           reason={INVOICE_UNAVAILABLE_REASON}
           reasonId="mektek-invoice-unavailable"
+          icon={Eye}
         />
         <DocumentAction
           available={receiptAvailable}

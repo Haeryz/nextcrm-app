@@ -28,6 +28,7 @@ export function buildMektekServiceCustomerUpsert(
       vehicleFleetNumber,
     },
     create: {
+      customerNumber: createMektekCustomerNumber(),
       username: input.customerName,
       phone: input.phone,
       phoneNormalized: input.phoneNormalized,
@@ -38,3 +39,4 @@ export function buildMektekServiceCustomerUpsert(
     },
   };
 }
+import { createMektekCustomerNumber } from "@/lib/mektek/customer-number";

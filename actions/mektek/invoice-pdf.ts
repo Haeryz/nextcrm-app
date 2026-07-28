@@ -1,12 +1,21 @@
 // File 1: /actions/mektek/invoice-pdf.ts
 
 import React from "react";
-import { Document, Page, Text, View, StyleSheet, renderToBuffer } from "@react-pdf/renderer";
+import {
+  Document,
+  Image,
+  Page,
+  Text,
+  View,
+  StyleSheet,
+  renderToBuffer,
+} from "@react-pdf/renderer";
 import {
   buildMektekFinancialSummary,
   type MektekPaymentDetail,
   type MektekPaymentRecord,
 } from "@/lib/mektek/financials";
+import { MEKTEK_PDF_LOGO_PATH } from "@/lib/mektek/pdf-assets";
 
 export type MektekInvoiceItem = {
   kind?: "service" | "sparepart";
@@ -104,13 +113,11 @@ const S = StyleSheet.create({
   logoBox: {
     width: 64,
     height: 64,
-    borderWidth: 1,
-    borderColor: "#000",
     marginRight: 8,
     alignItems: "center",
     justifyContent: "center",
   },
-  logoText: { fontSize: 7, fontFamily: "Helvetica-Bold", textAlign: "center" },
+  logo: { width: 60, height: 60, objectFit: "contain" },
   companyName: { fontSize: 16, fontFamily: "Helvetica-Bold", marginBottom: 2 },
   companyAddress: { fontSize: 7.5, lineHeight: 1.4 },
   headerRight: {
@@ -402,7 +409,10 @@ function buildPdfDocument(data: MektekInvoiceData) {
           React.createElement(
             View,
             { style: S.logoBox },
-            React.createElement(Text, { style: S.logoText }, "MEKTEK")
+            React.createElement(Image, {
+              src: MEKTEK_PDF_LOGO_PATH,
+              style: S.logo,
+            }),
           ),
           React.createElement(
             View,

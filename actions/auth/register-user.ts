@@ -21,6 +21,7 @@ import {
   DisposableEmailError,
 } from "@/lib/email/disposable-domains";
 import { setEmailPreferenceInternal } from "@/actions/email/preferences";
+import { createMektekCustomerNumber } from "@/lib/mektek/customer-number";
 
 // Public registration writes a users row (+ bcrypt hash) per call. Throttle by IP
 // to blunt scripted account-creation floods.
@@ -310,6 +311,7 @@ export const registerCustomerUser = async (data: {
       if (!existingCustomer) {
         await tx.catalogCustomer.create({
           data: {
+            customerNumber: createMektekCustomerNumber(),
             username: name,
             phone,
             phoneNormalized,

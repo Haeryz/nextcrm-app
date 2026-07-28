@@ -85,6 +85,7 @@ type OutboundReceiptRow = {
 
 type OutboundPurchaseOrder = {
   id: string;
+  sourceServiceOrderId: string | null;
   poNumber: string;
   userName: string;
   projectName: string;
@@ -1334,9 +1335,25 @@ export default function OutboundLogisticsManager({
               </thead>
               <tbody className="divide-y">
                 {purchaseOrders.map((purchaseOrder) => (
-                  <tr key={purchaseOrder.id} className="hover:bg-muted/20">
+                  <tr
+                    key={purchaseOrder.id}
+                    className={
+                      purchaseOrder.sourceServiceOrderId
+                        ? "bg-orange-50 hover:bg-orange-100/80 dark:bg-orange-950/30 dark:hover:bg-orange-950/50"
+                        : "hover:bg-muted/20"
+                    }
+                  >
                     <td className="px-4 py-3">
-                      <p className="font-mono font-medium">{purchaseOrder.poNumber}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-mono font-medium">
+                          {purchaseOrder.poNumber}
+                        </p>
+                        {purchaseOrder.sourceServiceOrderId ? (
+                          <Badge className="border-orange-300 bg-orange-100 text-orange-800 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-200">
+                            Pesanan CS
+                          </Badge>
+                        ) : null}
+                      </div>
                       <p className="font-mono text-xs text-muted-foreground">
                         {
                           new Set(
@@ -1383,7 +1400,9 @@ export default function OutboundLogisticsManager({
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-medium">{purchaseOrder.userName}</p>
-                      <p className="text-xs text-muted-foreground">{purchaseOrder.projectName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {purchaseOrder.projectName || "Tanpa jobsite"}
+                      </p>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {formatDate(purchaseOrder.deliveryDate || purchaseOrder.inputDate)}
