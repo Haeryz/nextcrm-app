@@ -1,7 +1,7 @@
 {
   "RootLayout": {
-    "title": "MektekCRM",
-    "description": "Willkommen bei MektekCRM CRM mit Prisma und Next.js 13"
+    "title": "MekTek",
+    "description": "MekTek — autorisierte Denso-Werkstatt und AC-Händler."
   },
   "ModuleMenu": {
     "dashboard": "Dashboard",

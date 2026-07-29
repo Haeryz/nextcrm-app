@@ -1,7 +1,7 @@
 {
   "RootLayout": {
-    "title": "MektekCRM",
-    "description": "MektekCRM — це CRM з відкритим вихідним кодом, створена на основі NextJS."
+    "title": "MekTek",
+    "description": "MekTek — авторизована Denso майстерня та дилер AC."
   },
   "ModuleMenu": {
     "dashboard": "Панель приладів",

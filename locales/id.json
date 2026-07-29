@@ -1,7 +1,7 @@
 {
   "RootLayout": {
-    "title": "MektekCRM",
-    "description": "MektekCRM adalah CRM sumber terbuka yang dibangun di atas Next.js."
+    "title": "MekTek",
+    "description": "MekTek — bengkel resmi Denso dan dealer AC. Servis AC, mesin, oli, aki, rem, dan suspensi."
   },
   "ModuleMenu": {
     "dashboard": "Dashboard",

@@ -20,15 +20,15 @@ export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL! || "http://localhost:3000"
   ),
-  title: "",
-  description: "",
+  title: "MekTek",
+  description: "MekTek — bengkel resmi Denso dan dealer AC.",
   openGraph: {
     images: [
       {
         url: "/images/opengraph-image.png",
         width: 1200,
         height: 630,
-        alt: "",
+        alt: "MekTek",
       },
     ],
   },
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
         url: "/images/opengraph-image.png",
         width: 1200,
         height: 630,
-        alt: "",
+        alt: "MekTek",
       },
     ],
   },

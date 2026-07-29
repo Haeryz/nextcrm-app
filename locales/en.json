@@ -1,7 +1,7 @@
 {
   "RootLayout": {
-    "title": "MektekCRM",
-    "description": "MektekCRM is an open source CRM build on top of NextJS."
+    "title": "MekTek",
+    "description": "MekTek — official Denso workshop and AC dealer. Servicing AC, engine, oil, battery, brakes, and suspension."
   },
   "ModuleMenu": {
     "dashboard": "Dashboard",

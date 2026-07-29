@@ -21,6 +21,13 @@ const authSecret =
 const DUMMY_PASSWORD_HASH =
   "$2b$12$yN9.V3124cVB69Brg/uOMeXaQn3Lpi1C9CdVHxnprIsbiEc9l5pXO";
 
+// Login attempt budgets per 15-minute window. The per-account bucket is keyed
+// by the login identifier, so a shared credential shares one bucket — give each
+// staff member their own account rather than raising this further.
+const LOGIN_ACCOUNT_LIMIT = Number(process.env.AUTH_LOGIN_ACCOUNT_LIMIT) || 50;
+const LOGIN_IP_LIMIT = Number(process.env.AUTH_LOGIN_IP_LIMIT) || 30;
+const LOGIN_WINDOW_MS = 15 * 60_000;
+
 export const authOptions: NextAuthOptions = {
   secret: authSecret,
   session: {
@@ -51,13 +58,13 @@ export const authOptions: NextAuthOptions = {
         const [accountLimit, ipLimit] = await Promise.all([
           consumeAuthRateLimit(
             `credentials:account:${identifier.toLowerCase()}`,
-            10,
-            15 * 60_000,
+            LOGIN_ACCOUNT_LIMIT,
+            LOGIN_WINDOW_MS,
           ),
           consumeAuthRateLimit(
             `credentials:ip:${clientIp}`,
-            30,
-            15 * 60_000,
+            LOGIN_IP_LIMIT,
+            LOGIN_WINDOW_MS,
           ),
         ]);
         if (!accountLimit.ok || !ipLimit.ok) {

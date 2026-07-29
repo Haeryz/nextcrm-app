@@ -27,6 +27,15 @@ const LOGISTICS_STAFF_AREA_LABELS: Record<LogisticsStaffArea, string> = {
   RECEIVING: "Receiving",
 };
 
+// A user counts as "online" while their session is actively touching the server.
+// The session callback (lib/auth.ts) refreshes `lastLoginAt` roughly every 5
+// minutes, so a 10-minute window tolerates that granularity without showing
+// stale users as online.
+const ONLINE_THRESHOLD_MS = 10 * 60_000;
+const isOnline = (lastLoginAt: Date | null) =>
+  !!lastLoginAt && Date.now() - lastLoginAt.getTime() < ONLINE_THRESHOLD_MS;
+const onlineCutoff = () => new Date(Date.now() - ONLINE_THRESHOLD_MS);
+
 export default async function StaffManagementPage() {
   await requireAdmin();
   const staff = await prismadb.users.findMany({
@@ -50,6 +59,23 @@ export default async function StaffManagementPage() {
     },
   });
 
+  const onlineStaff = await prismadb.users.findMany({
+    where: {
+      lastLoginAt: { gte: onlineCutoff() },
+      userStatus: "ACTIVE",
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      is_admin: true,
+      mektekRole: true,
+      staffDivision: true,
+      lastLoginAt: true,
+    },
+    orderBy: { lastLoginAt: "desc" },
+  });
+
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       <header>
@@ -59,6 +85,42 @@ export default async function StaffManagementPage() {
           kapabilitas akses sub-admin — main admin selalu memiliki akses penuh.
         </p>
       </header>
+
+      <section className="rounded-lg border bg-card p-5">
+        <div className="flex items-center gap-2">
+          <span className="relative flex size-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex size-2.5 rounded-full bg-emerald-500" />
+          </span>
+          <h2 className="text-lg font-medium">Staf online</h2>
+          <Badge variant="secondary" className="text-xs">
+            {onlineStaff.length}
+          </Badge>
+        </div>
+        {onlineStaff.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">
+            Tidak ada staf online saat ini.
+          </p>
+        ) : (
+          <ul className="mt-4 flex flex-col gap-2">
+            {onlineStaff.map((member) => (
+              <li
+                key={member.id}
+                className="flex flex-wrap items-center gap-2 text-sm"
+              >
+                <span className="inline-flex size-2 rounded-full bg-emerald-500" />
+                <span className="font-medium">{member.name ?? member.email}</span>
+                {member.is_admin && (
+                  <Badge variant="default" className="text-xs">
+                    Main admin
+                  </Badge>
+                )}
+                <span className="text-muted-foreground">{member.email}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="rounded-lg border bg-card p-5">
         <h2 className="mb-4 text-lg font-medium">Tambah sub-admin</h2>
@@ -137,6 +199,12 @@ export default async function StaffManagementPage() {
               </StaffActionForm>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-4 text-xs text-muted-foreground">
                 <div className="flex flex-wrap items-center gap-2">
+                  {isOnline(member.lastLoginAt) && (
+                    <Badge className="gap-1 text-xs">
+                      <span className="inline-flex size-1.5 rounded-full bg-emerald-400" />
+                      Online
+                    </Badge>
+                  )}
                   <span>
                     Login terakhir: {member.lastLoginAt?.toLocaleString("id-ID") ?? "Belum pernah"}
                   </span>
