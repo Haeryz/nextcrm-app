@@ -1,0 +1,45 @@
+# ============================================================
+# Local development override — restore build blocks
+# ============================================================
+# Copy this file to docker-compose.override.yml to build the images
+# locally from source instead of pulling them from DockerHub:
+#
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#
+# Docker Compose merges docker-compose.override.yml automatically, so
+# the build blocks below re-attach to the services defined in
+# docker-compose.yml. The override file is git-ignored.
+# ============================================================
+
+services:
+  appbuild:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-MektekCRM}
+        NEXT_PUBLIC_APP_URL: https://${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
+        NEXT_PUBLIC_MIDTRANS_CLIENT_KEY: ${NEXT_PUBLIC_MIDTRANS_CLIENT_KEY:-}
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: docker/ops/Dockerfile
+
+  backup:
+    build:
+      context: .
+      dockerfile: docker/ops/Dockerfile
+
+  admin-bootstrap:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator

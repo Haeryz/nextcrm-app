@@ -1,0 +1,95 @@
+name: Build and publish images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-and-publish
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute short SHA
+        id: sha
+        run: echo "short=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ------------------------------------------------------------------
+      # Phase 1 — Build & push every image tagged ONLY with the immutable
+      # sha tag. If any build fails, no :production tag is moved yet, so
+      # the VPS poller never sees a partial update.
+      # ------------------------------------------------------------------
+      - name: Build & push nextcrm-app (sha)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: runner
+          push: true
+          tags: ${{ env.DOCKERHUB_USERNAME }}/nextcrm-app:sha-${{ steps.sha.outputs.short }}
+          build-args: |
+            NEXT_PUBLIC_APP_NAME=${{ vars.NEXT_PUBLIC_APP_NAME || 'MektekCRM' }}
+            NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_MIDTRANS_CLIENT_KEY=${{ secrets.NEXT_PUBLIC_MIDTRANS_CLIENT_KEY }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+
+      - name: Build & push nextcrm-migrator (sha)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: migrator
+          push: true
+          tags: ${{ env.DOCKERHUB_USERNAME }}/nextcrm-migrator:sha-${{ steps.sha.outputs.short }}
+          cache-from: type=gha,scope=migrator
+          cache-to: type=gha,mode=max,scope=migrator
+
+      - name: Build & push nextcrm-ops (sha)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./docker/ops/Dockerfile
+          push: true
+          tags: ${{ env.DOCKERHUB_USERNAME }}/nextcrm-ops:sha-${{ steps.sha.outputs.short }}
+          cache-from: type=gha,scope=ops
+          cache-to: type=gha,mode=max,scope=ops
+
+      # ------------------------------------------------------------------
+      # Phase 2 — Promote the floating :production tag for all three
+      # images in a single step. imagetools create copies the manifest
+      # reference without rebuilding, so this is fast and only runs when
+      # every build above succeeded.
+      # ------------------------------------------------------------------
+      - name: Promote :production tags
+        run: |
+          set -euo pipefail
+          sha="sha-${{ steps.sha.outputs.short }}"
+          ns="${{ env.DOCKERHUB_USERNAME }}"
+          for repo in nextcrm-app nextcrm-migrator nextcrm-ops; do
+            echo "Promoting ${ns}/${repo}:production -> ${sha}"
+            docker buildx imagetools create \
+              --tag "${ns}/${repo}:production" \
+              "${ns}/${repo}:${sha}"
+          done

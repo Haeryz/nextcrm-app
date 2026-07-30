@@ -419,7 +419,137 @@ docker compose --env-file .env.production up -d \
 Rollback image tidak otomatis membatalkan migrasi database. Bila perubahan
 database tidak kompatibel, gunakan prosedur restore dari backup pre-migration.
 
-## 14. Pemeriksaan Operasional
+## 14. CI/CD via GitHub Actions + DockerHub
+
+Bagian ini menjelaskan alur otomatis: setiap `git push` ke branch `main`
+membangun image di GitHub Actions, mengunggahnya ke DockerHub, lalu VPS
+menarik dan menerapkan image baru tanpa interaksi manual.
+
+```text
+git push main
+    |
+    v
+GitHub Actions: build 3 image (app, migrator, ops)
+    |  build-args NEXT_PUBLIC_* dari Secrets
+    v
+DockerHub (private): tag :production + :sha-<12>
+    |  (tidak ada inbound port ke VPS)
+    v
+VPS cron poller (tiap 3-5 menit)
+    |  bandingkan digest remote vs lokal
+    |  bila berubah -> ./deploy-production.sh --pull --non-interactive
+    v
+pull -> migrate (one-shot) -> recreate app/scheduler/backup -> health check
+    |
+    v
+web ter-update
+```
+
+### 14.1 Tiga image yang dibangun
+
+| Image | Sumber | Target build |
+| --- | --- | --- |
+| `nextcrm-app` | `./Dockerfile` | `runner` |
+| `nextcrm-migrator` | `./Dockerfile` | `migrator` |
+| `nextcrm-ops` | `docker/ops/Dockerfile` | (default) |
+
+Tiap image diberi tag `:production` (floating, yang dipull VPS) dan
+`:sha-<12>` (immutable, untuk rollback). `NEXT_PUBLIC_*` hanya di-bake ke
+`nextcrm-app`. Runtime secret tetap di `.env.production` pada VPS dan tidak
+pernah masuk ke image.
+
+Workflow membangun ketiga image dengan tag `:sha-<12>` terlebih dahulu, lalu
+memindahkan tag `:production` untuk ketiganya dalam satu langkah terakhir. Bila
+salah satu build gagal, tidak ada tag `:production` yang bergeser, sehingga
+VPS tidak pernah melihat pembaruan setengah jalan.
+
+### 14.2 Prasyarat manual (sekali)
+
+1. **DockerHub**: buat tiga repo privat — `nextcrm-app`, `nextcrm-migrator`,
+   `nextcrm-ops` — di bawah namespace Anda. Buat:
+   - **Token tulis** untuk GitHub Actions → simpan sebagai GitHub Secret
+     `DOCKERHUB_TOKEN`, beserta `DOCKERHUB_USERNAME`.
+   - **Token read-only** untuk VPS.
+2. **GitHub Secrets** (repo Settings → Secrets and variables → Actions):
+   - `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`
+   - `NEXT_PUBLIC_APP_URL` (mis. `https://mektek.id`)
+   - `NEXT_PUBLIC_MIDTRANS_CLIENT_KEY`
+   - `NEXT_PUBLIC_APP_NAME` (opsional, default `MektekCRM`; bisa memakai repo
+     Variables bila ingin tidak disensor).
+3. **VPS**:
+   - Login dengan token read-only:
+     ```bash
+     docker login -u <dockerhub-username> -p <token-read-only>
+     ```
+   - Isi `.env.production`:
+     ```env
+     APP_IMAGE=<dockerhub-username>/nextcrm-app
+     APP_MIGRATOR_IMAGE=<dockerhub-username>/nextcrm-migrator
+     OPS_IMAGE=<dockerhub-username>/nextcrm-ops
+     APP_IMAGE_TAG=production
+     ```
+   - Pasang cron atau systemd timer untuk poller (lihat 14.4).
+4. **Pertama kali**: jalankan `./deploy-production.sh --pull` untuk memastikan
+   image dari DockerHub dapat ditarik dan seluruh stack sehat.
+
+### 14.3 Mode `--pull`
+
+`deploy-production.sh --pull` mengganti langkah `compose build` dengan
+`compose pull` untuk service `appbuild`, `migrate`, `scheduler`, dan `backup`.
+Seluruh langkah lain tetap sama: nyalakan PostgreSQL, backup pre-migration bila
+perlu, jalankan migrator one-shot (menunggu selesai sebelum app mulai),
+recreate container, tunggu health, dan verifikasi HTTPS publik.
+
+Bila `APP_IMAGE_TAG` kosong saat `--pull`, defaultnya adalah `production` (bukan
+commit SHA), karena image ditarik dari registry.
+
+### 14.4 Poller digest
+
+`scripts/vps-dockerhub-poll.sh` membandingkan digest manifest remote vs lokal
+untuk ketiga image. Bila salah satu berubah (atau belum ada secara lokal),
+poller memanggil `deploy-production.sh --pull --non-interactive`. Poller
+memakai `flock` agar tidak berjalan ganda, dan keluar `0` walau tidak ada
+perubahan (ramah cron).
+
+Contoh cron (tiap 3 menit):
+
+```cron
+*/3 * * * * /path/nextcrm-app/scripts/vps-dockerhub-poll.sh
+```
+
+Atau systemd timer (`.timer` + `.service`). Override target log dan lock file:
+
+```bash
+POLL_LOG=/var/log/nextcrm-poll.log \
+LOCK_FILE=/tmp/nextcrm-poll.lock \
+  scripts/vps-dockerhub-poll.sh
+```
+
+Poller otomatis no-op bila `APP_IMAGE` belum menunjuk registry (mis. masih mode
+build lokal), sehingga amunisi aktif hanya setelah konfigurasi CI/CD selesai.
+
+### 14.5 Rollback dengan image CI
+
+Karena tiap commit juga diberi tag `:sha-<12>`, rollback ke commit tertentu:
+
+```bash
+APP_IMAGE_TAG=sha-<12> \
+docker compose --env-file .env.production up -d \
+  --no-build appbuild scheduler backup
+```
+
+Rollback image tidak membatalkan migrasi database. Bila skema tidak kompatibel,
+gunakan prosedur restore dari backup pre-migration (bagian 11).
+
+### 14.6 Catatan build-time secret
+
+`NEXT_PUBLIC_APP_URL` dan `NEXT_PUBLIC_MIDTRANS_CLIENT_KEY` di-bake ke image
+`nextcrm-app` saat build. Bila nilai ini berubah, image harus dibangun ulang —
+hal ini otomatis terjadi tiap `git push` ke `main`. Perubahan domain (mis.
+pindah dari `staging.mektek.id` ke `mektek.id`) memerlukan push baru agar
+image produksi ikut diperbarui.
+
+## 15. Pemeriksaan Operasional
 
 Status:
 
@@ -470,7 +600,7 @@ Validasi repository tanpa deployment:
 ./deploy-production.sh --check
 ```
 
-## 15. Jadwal Otomatis
+## 16. Jadwal Otomatis
 
 Scheduler mempertahankan jadwal Vercel sebelumnya dalam UTC:
 
@@ -483,7 +613,7 @@ Scheduler mempertahankan jadwal Vercel sebelumnya dalam UTC:
 
 Setiap request menggunakan header `Authorization: Bearer <CRON_SECRET>`.
 
-## 16. Troubleshooting Cloudflare
+## 17. Troubleshooting Cloudflare
 
 ### 502 Bad Gateway
 
@@ -524,7 +654,7 @@ docker compose --env-file .env.production logs --tail 200 traefik
 Untuk penerbitan sertifikat pertama, gunakan record DNS only sampai HTTPS origin
 berhasil, lalu aktifkan proxy Cloudflare kembali.
 
-## 17. Perawatan Production
+## 18. Perawatan Production
 
 Lakukan secara rutin:
 
@@ -540,7 +670,7 @@ Lakukan secara rutin:
 - Jangan expose PostgreSQL atau Docker daemon.
 - Jangan menjalankan production dengan `NEXTCRM_DISABLE_AUTH=true`.
 
-## 18. Checklist Go-Live
+## 19. Checklist Go-Live
 
 - [ ] Server memiliki IP publik statis.
 - [ ] SSH key dan firewall sudah dikonfigurasi.

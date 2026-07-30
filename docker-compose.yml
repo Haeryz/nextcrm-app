@@ -6,10 +6,6 @@ x-logging: &default-logging
     max-size: "10m"
     max-file: "3"
 
-x-ops-build: &ops-build
-  context: .
-  dockerfile: docker/ops/Dockerfile
-
 x-database-environment: &database-environment
   PGHOST: supabase
   PGPORT: "5432"
@@ -103,18 +99,13 @@ services:
       start_period: 30s
     logging: *default-logging
 
-  # The application image is built from the repository's multi-stage
-  # Dockerfile. The one-shot migrate service must finish before it starts.
+  # The application image is pulled from the registry configured via
+  # APP_IMAGE / APP_MIGRATOR_IMAGE / OPS_IMAGE in .env.production. For local
+  # builds during development, copy docker-compose.override.yml.example to
+  # docker-compose.override.yml to restore the build blocks. The one-shot
+  # migrate service must finish before the app starts.
   appbuild:
-    image: ${APP_IMAGE:-nextcrm-app}:${APP_IMAGE_TAG:-local}
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: runner
-      args:
-        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-MektekCRM}
-        NEXT_PUBLIC_APP_URL: https://${APP_DOMAIN:?Set APP_DOMAIN in .env.production}
-        NEXT_PUBLIC_MIDTRANS_CLIENT_KEY: ${NEXT_PUBLIC_MIDTRANS_CLIENT_KEY:-}
+    image: ${APP_IMAGE:-nextcrm-app}:${APP_IMAGE_TAG:-production}
     restart: unless-stopped
     init: true
     env_file:
@@ -177,11 +168,7 @@ services:
   # Schema changes finish successfully before a new application container is
   # allowed to start. The migrator is intentionally a one-shot service.
   migrate:
-    image: ${APP_MIGRATOR_IMAGE:-nextcrm-migrator}:${APP_IMAGE_TAG:-local}
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: migrator
+    image: ${APP_MIGRATOR_IMAGE:-nextcrm-migrator}:${APP_IMAGE_TAG:-production}
     command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}@supabase:5432/${POSTGRES_DB:-nextcrm}?schema=public
@@ -202,8 +189,7 @@ services:
     logging: *default-logging
 
   scheduler:
-    image: ${OPS_IMAGE:-nextcrm-ops}:${APP_IMAGE_TAG:-local}
-    build: *ops-build
+    image: ${OPS_IMAGE:-nextcrm-ops}:${APP_IMAGE_TAG:-production}
     restart: unless-stopped
     init: true
     entrypoint: ["/usr/local/bin/scheduler-entrypoint"]
@@ -233,8 +219,7 @@ services:
     logging: *default-logging
 
   backup:
-    image: ${OPS_IMAGE:-nextcrm-ops}:${APP_IMAGE_TAG:-local}
-    build: *ops-build
+    image: ${OPS_IMAGE:-nextcrm-ops}:${APP_IMAGE_TAG:-production}
     restart: unless-stopped
     init: true
     entrypoint: ["/usr/local/bin/backup-entrypoint"]
@@ -269,11 +254,7 @@ services:
 
   admin-bootstrap:
     profiles: ["tools"]
-    image: ${APP_MIGRATOR_IMAGE:-nextcrm-migrator}:${APP_IMAGE_TAG:-local}
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: migrator
+    image: ${APP_MIGRATOR_IMAGE:-nextcrm-migrator}:${APP_IMAGE_TAG:-production}
     command: ["./node_modules/.bin/tsx", "scripts/bootstrap-admin.ts"]
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}@supabase:5432/${POSTGRES_DB:-nextcrm}?schema=public

@@ -40,6 +40,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Local Docker Compose override (restore build blocks for local dev).
+# Copy docker-compose.override.yml.example to docker-compose.override.yml.
+docker-compose.override.yml
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

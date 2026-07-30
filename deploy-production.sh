@@ -12,6 +12,7 @@ CHECK_ONLY=false
 UPDATE_FIRST=false
 SKIP_DOCKER_INSTALL=false
 NON_INTERACTIVE=false
+PULL_IMAGES=false
 DOCKER_CMD=()
 
 green='\033[0;32m'
@@ -41,6 +42,9 @@ Penggunaan:
 
 Opsi:
   --update               Jalankan git pull --ff-only sebelum deployment.
+  --pull                 Tarik image prebuilt dari registry (CI/CD) alih-alih
+                         membangun lokal. Login DockerHub (read-only) wajib
+                         sudah dilakukan bila repositori privat.
   --check                Validasi berkas tanpa memasang atau menjalankan container.
   --skip-docker-install  Jangan memasang Docker bila belum tersedia.
   --non-interactive      Jangan menampilkan prompt; semua nilai wajib harus tersedia.
@@ -55,6 +59,7 @@ EOF
 while [ "$#" -gt 0 ]; do
     case "$1" in
         --update) UPDATE_FIRST=true ;;
+        --pull) PULL_IMAGES=true ;;
         --check) CHECK_ONLY=true ;;
         --skip-docker-install) SKIP_DOCKER_INSTALL=true ;;
         --non-interactive) NON_INTERACTIVE=true ;;
@@ -455,6 +460,10 @@ select_docker_command
 configured_image_tag="${APP_IMAGE_TAG:-$(get_env APP_IMAGE_TAG)}"
 if [ -n "$configured_image_tag" ]; then
     export APP_IMAGE_TAG="$configured_image_tag"
+elif [ "$PULL_IMAGES" = true ]; then
+    # Pull mode uses registry images; the floating tag is "production".
+    # A git SHA would not exist in the registry.
+    export APP_IMAGE_TAG="production"
 elif command -v git >/dev/null 2>&1 && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     export APP_IMAGE_TAG="$(git rev-parse --short=12 HEAD)"
 else
@@ -464,8 +473,15 @@ fi
 info "Memvalidasi konfigurasi Docker Compose."
 compose config --quiet
 
-info "Membangun image aplikasi dan operasional."
-compose build --pull appbuild migrate scheduler
+if [ "$PULL_IMAGES" = true ]; then
+    info "Menarik image prebuilt dari registry."
+    if ! compose pull appbuild migrate scheduler backup; then
+        die "Gagal menarik image. Periksa login DockerHub dan nilai APP_IMAGE/APP_MIGRATOR_IMAGE/OPS_IMAGE."
+    fi
+else
+    info "Membangun image aplikasi dan operasional."
+    compose build --pull appbuild migrate scheduler
+fi
 
 info "Menyalakan PostgreSQL."
 compose up -d supabase
