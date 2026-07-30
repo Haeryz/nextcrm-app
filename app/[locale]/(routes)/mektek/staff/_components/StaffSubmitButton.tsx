@@ -2,14 +2,18 @@
 
 import { LoaderCircle } from "lucide-react";
 import { useFormStatus } from "react-dom";
+import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 type StaffSubmitButtonProps = {
   idleLabel: string;
   pendingLabel: string;
   variant?: "default" | "secondary" | "destructive";
   size?: "default" | "sm";
+  icon?: ReactNode;
+  className?: string;
 };
 
 export default function StaffSubmitButton({
@@ -17,6 +21,8 @@ export default function StaffSubmitButton({
   pendingLabel,
   variant = "default",
   size = "default",
+  icon,
+  className,
 }: StaffSubmitButtonProps) {
   const { pending } = useFormStatus();
 
@@ -25,11 +31,15 @@ export default function StaffSubmitButton({
       type="submit"
       variant={variant}
       size={size}
-      className="w-full"
+      className={cn("w-full", className)}
       disabled={pending}
       aria-live="polite"
     >
-      {pending && <LoaderCircle className="animate-spin" aria-hidden="true" />}
+      {pending ? (
+        <LoaderCircle className="animate-spin" aria-hidden="true" />
+      ) : (
+        icon
+      )}
       {pending ? pendingLabel : idleLabel}
     </Button>
   );

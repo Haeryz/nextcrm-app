@@ -17,33 +17,23 @@ export default function StaffCapabilityFields({
   const selected = new Set(defaultCapabilities ?? []);
 
   return (
-    <fieldset className="col-span-full space-y-2">
+    <fieldset className="col-span-full space-y-1.5">
       <legend className="text-sm font-medium">Kapabilitas Akses</legend>
-      <p className="text-xs text-muted-foreground">
-        Pilih halaman yang dapat diakses sub-admin. Main admin selalu memiliki
-        akses penuh.
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="flex flex-wrap gap-1.5">
         {STAFF_CAPABILITIES.map((capability) => (
           <label
             key={capability}
-            className="flex items-start gap-2 rounded-md border p-2 text-sm"
+            title={STAFF_CAPABILITY_DESCRIPTIONS[capability]}
+            className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm text-muted-foreground transition-colors hover:bg-accent has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:checked]:text-foreground"
           >
             <input
               type="checkbox"
               name="staffCapabilities"
               value={capability}
               defaultChecked={selected.has(capability)}
-              className="mt-0.5"
+              className="size-3.5"
             />
-            <span className="min-w-0">
-              <span className="block font-medium">
-                {STAFF_CAPABILITY_LABELS[capability]}
-              </span>
-              <span className="block text-xs text-muted-foreground">
-                {STAFF_CAPABILITY_DESCRIPTIONS[capability]}
-              </span>
-            </span>
+            {STAFF_CAPABILITY_LABELS[capability]}
           </label>
         ))}
       </div>
