@@ -1219,7 +1219,6 @@ export default function ReceivingManager({
                             catalogItems={catalogItems}
                             excludedCatalogItemIds={selectedCatalogItemIds}
                             disabled={isPending}
-                            requirePrice
                             requireManualPartNumber={false}
                             catalogStockMessage="Stok bertambah otomatis saat diterima."
                             manualStockMessage="Item manual otomatis ditambahkan ke Catalog / Item."
