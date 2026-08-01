@@ -11,9 +11,9 @@ describe("Monitoring PO Surat Jalan revision (Edit QTY)", () => {
     "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
   );
 
-  it("exposes a server action to revise outbound Surat Jalan quantities", () => {
+  it("exposes a server action to revise the complete outbound Surat Jalan", () => {
     expect(actionSource).toContain(
-      "export async function updateMektekOutboundDispatchQuantities",
+      "export async function updateMektekOutboundDispatch",
     );
     expect(actionSource).toContain(
       "MektekOutboundDispatchRevisionInput",
@@ -51,6 +51,24 @@ describe("Monitoring PO Surat Jalan revision (Edit QTY)", () => {
     );
   });
 
+  it("updates the Surat Jalan date, PIC, warehouse, and Keterangan", () => {
+    expect(actionSource).toContain("const picId = compactText(input?.picId)");
+    expect(actionSource).toContain("const dispatchedAt = parseDateOnly(input?.dispatchedAt)");
+    expect(actionSource).toContain("warehouse: isWarehouse(item?.warehouse)");
+    expect(actionSource).toContain("note: boundedText(item?.note, MAX_NOTE_LEN) || null");
+    expect(actionSource).toContain("receivedAt: dispatchedAt");
+    expect(actionSource).toContain("warehouse: newWarehouse");
+    expect(actionSource).toContain("note: newNote");
+  });
+
+  it("moves stock between warehouses when the Surat Jalan warehouse changes", () => {
+    expect(actionSource).toContain("warehouseChanged");
+    expect(actionSource).toContain("warehouse: receipt.warehouse");
+    expect(actionSource).toContain("warehouse: newWarehouse");
+    expect(actionSource).toContain('direction: "IN"');
+    expect(actionSource).toContain('direction: "OUT"');
+  });
+
   it("applies a compensating stock movement for the revision delta", () => {
     expect(actionSource).toContain("direction: \"OUT\"");
     expect(actionSource).toContain("direction: \"IN\"");
@@ -73,12 +91,17 @@ describe("Monitoring PO Surat Jalan revision (Edit QTY)", () => {
     expect(actionSource).toContain("purchaseOrderStatus");
   });
 
-  it("surfaces the Edit button and inline revision form in Riwayat Barang Keluar", () => {
-    expect(outboundManager).toContain("Edit QTY Surat Jalan");
-    expect(outboundManager).toContain("Simpan Revisi");
+  it("surfaces the complete Edit Surat Jalan form in Riwayat Barang Keluar", () => {
+    expect(outboundManager).toContain("Edit Surat Jalan");
+    expect(outboundManager).not.toContain("Edit QTY Surat Jalan");
+    expect(outboundManager).toContain("Simpan Surat Jalan");
+    expect(outboundManager).toContain("Tanggal Keluar");
+    expect(outboundManager).toContain("PIC");
+    expect(outboundManager).toContain("Gudang Sumber");
+    expect(outboundManager).toContain("Keterangan Item");
     expect(outboundManager).toContain("startEditDispatch");
     expect(outboundManager).toContain("saveDispatchRevision");
     expect(outboundManager).toContain("updateDispatchRevisionDraft");
-    expect(outboundManager).toContain("updateMektekOutboundDispatchQuantities");
+    expect(outboundManager).toContain("updateMektekOutboundDispatch");
   });
 });

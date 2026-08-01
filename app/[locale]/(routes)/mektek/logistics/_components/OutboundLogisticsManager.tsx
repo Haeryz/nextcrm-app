@@ -26,7 +26,8 @@ import { toast } from "sonner";
 import {
   createMektekOutboundPurchaseOrder,
   recordMektekOutboundPurchaseOrderDispatch,
-  updateMektekOutboundDispatchQuantities,
+  updateMektekOutboundDispatch,
+  updateMektekOutboundPurchaseOrder,
   type MektekOutboundPurchaseOrderInput,
   type MektekOutboundPurchaseOrderItemInput,
 } from "@/actions/mektek/logistics";
@@ -307,6 +308,8 @@ export default function OutboundLogisticsManager({
   const [customerPoError, setCustomerPoError] = useState<string | null>(null);
   const [activePurchaseOrder, setActivePurchaseOrder] =
     useState<OutboundPurchaseOrder | null>(null);
+  const [editingPurchaseOrderId, setEditingPurchaseOrderId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<OutboundDraft | null>(null);
   const [dispatchDraft, setDispatchDraft] = useState({
     picId: pics[0]?.id ?? "",
     dispatchedAt: getCatalogInventoryLocalDateKey(),
@@ -320,8 +323,12 @@ export default function OutboundLogisticsManager({
     string | null
   >(null);
   const [dispatchRevisionDrafts, setDispatchRevisionDrafts] = useState<
-    Record<string, string>
+    Record<string, DispatchItemDraft>
   >({});
+  const [dispatchRevisionHeader, setDispatchRevisionHeader] = useState({
+    picId: pics[0]?.id ?? "",
+    dispatchedAt: getCatalogInventoryLocalDateKey(),
+  });
   const [isSavingDispatchRevision, startSavingDispatchRevision] =
     useTransition();
   const currentMonth = getCatalogInventoryLocalDateKey().slice(0, 7);
@@ -599,6 +606,61 @@ export default function OutboundLogisticsManager({
     setCreateOpen(true);
   };
 
+  const openEditPurchaseOrder = (purchaseOrder: OutboundPurchaseOrder) => {
+    setEditingPurchaseOrderId(purchaseOrder.id);
+    setEditDraft({
+      poNumber: purchaseOrder.poNumber,
+      userName: purchaseOrder.userName,
+      projectName: purchaseOrder.projectName,
+      inputDate: purchaseOrder.inputDate.slice(0, 10),
+      dueDate: purchaseOrder.dueDate.slice(0, 10),
+      poType: purchaseOrder.poType,
+      notes: purchaseOrder.notes ?? "",
+      items: [...purchaseOrder.items]
+        .sort((left, right) => left.position - right.position)
+        .map((item) => ({
+          clientId: item.id,
+          source: item.source,
+          catalogItemId: item.catalogItemId ?? "",
+          catalogQuery: "",
+          partName: item.partName,
+          partNumber: item.partNumber ?? "",
+          orderedQuantity: String(item.orderedQuantity),
+          note: item.note ?? "",
+        })),
+    });
+    setActivePurchaseOrder(null);
+  };
+
+  const submitEditedPurchaseOrder = () => {
+    if (!editingPurchaseOrderId || !editDraft) return;
+    startTransition(async () => {
+      const result = await updateMektekOutboundPurchaseOrder({
+        purchaseOrderId: editingPurchaseOrderId,
+        poNumber: editDraft.poNumber.trim(),
+        userName: editDraft.userName.trim(),
+        projectName: editDraft.projectName.trim(),
+        inputDate: editDraft.inputDate,
+        dueDate: editDraft.dueDate,
+        poType: editDraft.poType,
+        notes: (editDraft.notes ?? "").trim(),
+        items: editDraft.items.map((item) => ({
+          purchaseOrderItemId: item.clientId,
+          orderedQuantity: item.orderedQuantity,
+          note: item.note.trim(),
+        })),
+      });
+      if (!result || "error" in result) {
+        toast.error(result?.error || "Gagal memperbarui Monitoring PO");
+        return;
+      }
+      toast.success(`Monitoring PO ${result.data.poNumber} berhasil diperbarui`);
+      setEditingPurchaseOrderId(null);
+      setEditDraft(null);
+      router.refresh();
+    });
+  };
+
   const updateDispatchItem = <K extends keyof DispatchItemDraft>(
     itemId: string,
     key: K,
@@ -685,11 +747,19 @@ export default function OutboundLogisticsManager({
   };
 
   const startEditDispatch = (batch: OutboundBatchGroup) => {
-    const drafts: Record<string, string> = {};
+    const drafts: Record<string, DispatchItemDraft> = {};
     for (const { receipt } of batch.lines) {
-      drafts[receipt.id] = String(receipt.quantity);
+      drafts[receipt.id] = {
+        quantity: String(receipt.quantity),
+        warehouse: receipt.warehouse,
+        note: receipt.note ?? "",
+      };
     }
     setDispatchRevisionDrafts(drafts);
+    setDispatchRevisionHeader({
+      picId: batch.pic.id,
+      dispatchedAt: batch.dispatchedAt.slice(0, 10),
+    });
     setEditingDispatchReference(batch.dispatchReference);
   };
 
@@ -697,41 +767,59 @@ export default function OutboundLogisticsManager({
     setEditingDispatchReference(null);
   };
 
-  const updateDispatchRevisionDraft = (
+  const updateDispatchRevisionDraft = <K extends keyof DispatchItemDraft>(
     receiptId: string,
-    quantity: string,
+    key: K,
+    value: DispatchItemDraft[K],
   ) => {
     setDispatchRevisionDrafts((current) => ({
       ...current,
-      [receiptId]: quantity,
+      [receiptId]: {
+        quantity: current[receiptId]?.quantity ?? "",
+        warehouse: current[receiptId]?.warehouse ?? "REAR",
+        note: current[receiptId]?.note ?? "",
+        [key]: value,
+      },
     }));
   };
 
   const saveDispatchRevision = (batch: OutboundBatchGroup) => {
     if (!activePurchaseOrder) return;
     const items = batch.lines.map(({ receipt }) => {
-      const raw = (dispatchRevisionDrafts[receipt.id] ?? "").trim();
+      const draft = dispatchRevisionDrafts[receipt.id] ?? {
+        quantity: String(receipt.quantity),
+        warehouse: receipt.warehouse,
+        note: receipt.note ?? "",
+      };
+      const raw = draft.quantity.trim();
       const quantity = Number(raw);
       if (!raw || !Number.isSafeInteger(quantity) || quantity <= 0) {
         throw new Error("QTY Surat Jalan harus berupa angka bulat lebih dari 0");
       }
-      return { receiptId: receipt.id, quantity };
+      return {
+        receiptId: receipt.id,
+        quantity,
+        warehouse: draft.warehouse,
+        note: draft.note.trim(),
+      };
     });
     startSavingDispatchRevision(async () => {
       try {
-        const result = await updateMektekOutboundDispatchQuantities({
+        const result = await updateMektekOutboundDispatch({
           purchaseOrderId: activePurchaseOrder.id,
           dispatchReference: batch.dispatchReference,
+          picId: dispatchRevisionHeader.picId,
+          dispatchedAt: dispatchRevisionHeader.dispatchedAt,
           items,
         });
         if (!result || "error" in result) {
-          toast.error(result?.error || "Gagal merevisi quantity Surat Jalan");
+          toast.error(result?.error || "Gagal memperbarui Surat Jalan");
           return;
         }
         const deltas = new Map(
           batch.lines.map(({ receipt }) => [
             receipt.id,
-            Number(dispatchRevisionDrafts[receipt.id] ?? receipt.quantity) -
+            Number(dispatchRevisionDrafts[receipt.id]?.quantity ?? receipt.quantity) -
               receipt.quantity,
           ]),
         );
@@ -744,7 +832,7 @@ export default function OutboundLogisticsManager({
               const match = batch.lines.find((line) => line.item.id === item.id);
               if (!match) return item;
               const delta = deltas.get(match.receipt.id) ?? 0;
-              if (delta === 0) return item;
+              const revision = dispatchRevisionDrafts[match.receipt.id];
               const receivedQuantity = item.receivedQuantity + delta;
               return {
                 ...item,
@@ -756,8 +844,12 @@ export default function OutboundLogisticsManager({
                     ? {
                         ...receipt,
                         quantity: Number(
-                          dispatchRevisionDrafts[receipt.id] ?? receipt.quantity,
+                          revision?.quantity ?? receipt.quantity,
                         ),
+                        warehouse: revision?.warehouse ?? receipt.warehouse,
+                        note: revision?.note.trim() || null,
+                        receivedAt: result.data.dispatchedAt.toISOString(),
+                        pic: result.data.pic,
                       }
                     : receipt,
                 ),
@@ -821,6 +913,9 @@ export default function OutboundLogisticsManager({
         },
         { orderedQuantity: 0, receivedQuantity: 0, remainingQuantity: 0 },
       )
+    : null;
+  const editingPurchaseOrder = editingPurchaseOrderId
+    ? purchaseOrders.find((purchaseOrder) => purchaseOrder.id === editingPurchaseOrderId) ?? null
     : null;
   const hasSelectedDispatchItems =
     activePurchaseOrder?.items.some(
@@ -1508,6 +1603,218 @@ export default function OutboundLogisticsManager({
       </Card>
 
       <Dialog
+        open={!!editingPurchaseOrderId && !!editDraft}
+        onOpenChange={(open) => {
+          if (!open && !isPending) {
+            setEditingPurchaseOrderId(null);
+            setEditDraft(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Edit PO</DialogTitle>
+            <DialogDescription>
+              Perbarui data Monitoring PO dan QTY Order. QTY tidak dapat lebih kecil
+              dari barang yang sudah keluar.
+            </DialogDescription>
+          </DialogHeader>
+          {editDraft && (
+            <form
+              className="space-y-5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitEditedPurchaseOrder();
+              }}
+            >
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-outbound-po-number">PO No.</Label>
+                  <Input
+                    id="edit-outbound-po-number"
+                    value={editDraft.poNumber}
+                    onChange={(event) =>
+                      setEditDraft((current) => current && ({ ...current, poNumber: event.target.value }))
+                    }
+                    disabled={isPending}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-outbound-user">User / PT Tujuan</Label>
+                  <Input
+                    id="edit-outbound-user"
+                    value={editDraft.userName}
+                    onChange={(event) =>
+                      setEditDraft((current) => current && ({ ...current, userName: event.target.value }))
+                    }
+                    disabled={isPending}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-outbound-project">Job Site / Project</Label>
+                  <Input
+                    id="edit-outbound-project"
+                    value={editDraft.projectName}
+                    onChange={(event) =>
+                      setEditDraft((current) => current && ({ ...current, projectName: event.target.value }))
+                    }
+                    disabled={isPending}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-outbound-po-type">Mode Supply</Label>
+                  <Select
+                    value={editDraft.poType}
+                    onValueChange={(poType) =>
+                      setEditDraft((current) => current && ({ ...current, poType }))
+                    }
+                    disabled={isPending}
+                  >
+                    <SelectTrigger id="edit-outbound-po-type"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Normal">Manual · PO satu kali</SelectItem>
+                      <SelectItem value="Consignment">Konsinyasi · pasokan kontrak</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-outbound-input-date">Tanggal Pengiriman</Label>
+                  <Input
+                    id="edit-outbound-input-date"
+                    type="date"
+                    max={getCatalogInventoryLocalDateKey()}
+                    value={editDraft.inputDate}
+                    onChange={(event) =>
+                      setEditDraft((current) => current && ({ ...current, inputDate: event.target.value }))
+                    }
+                    disabled={isPending}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-outbound-due-date">Batas Waktu</Label>
+                  <Input
+                    id="edit-outbound-due-date"
+                    type="date"
+                    min={editDraft.inputDate}
+                    value={editDraft.dueDate}
+                    onChange={(event) =>
+                      setEditDraft((current) => current && ({ ...current, dueDate: event.target.value }))
+                    }
+                    disabled={isPending}
+                    required
+                  />
+                </div>
+              </div>
+
+              <fieldset className="space-y-3 rounded-xl border bg-muted/15 p-4">
+                <legend className="sr-only">Item PO</legend>
+                <div>
+                  <h3 className="font-medium">Item PO</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Nama item tetap agar riwayat Surat Jalan tidak terputus.
+                  </p>
+                </div>
+                {editDraft.items.map((item, index) => {
+                  const savedItem = editingPurchaseOrder?.items.find(
+                    (candidate) => candidate.id === item.clientId,
+                  );
+                  const minimumQuantity = savedItem?.receivedQuantity ?? 0;
+                  return (
+                    <div key={item.clientId} className="grid gap-3 rounded-lg border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
+                      <div className="space-y-2">
+                        <div>
+                          <p className="font-medium">{item.partName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {item.partNumber || "Tanpa Part Number"} · QTY Keluar {minimumQuantity}
+                          </p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`edit-outbound-note-${item.clientId}`}>Keterangan Item</Label>
+                          <Input
+                            id={`edit-outbound-note-${item.clientId}`}
+                            value={item.note}
+                            maxLength={500}
+                            onChange={(event) =>
+                              setEditDraft((current) => current && ({
+                                ...current,
+                                items: current.items.map((line) =>
+                                  line.clientId === item.clientId
+                                    ? { ...line, note: event.target.value }
+                                    : line,
+                                ),
+                              }))
+                            }
+                            disabled={isPending}
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor={`edit-outbound-qty-${item.clientId}`}>QTY Order</Label>
+                        <Input
+                          id={`edit-outbound-qty-${item.clientId}`}
+                          type="number"
+                          inputMode="numeric"
+                          min={Math.max(1, minimumQuantity)}
+                          value={item.orderedQuantity}
+                          onChange={(event) =>
+                            setEditDraft((current) => current && ({
+                              ...current,
+                              items: current.items.map((line) =>
+                                line.clientId === item.clientId
+                                  ? { ...line, orderedQuantity: event.target.value }
+                                  : line,
+                              ),
+                            }))
+                          }
+                          disabled={isPending}
+                          required
+                        />
+                        <p className="text-xs text-muted-foreground">Minimal {Math.max(1, minimumQuantity)}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </fieldset>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-outbound-notes">Catatan PO</Label>
+                <Textarea
+                  id="edit-outbound-notes"
+                  value={editDraft.notes}
+                  maxLength={500}
+                  onChange={(event) =>
+                    setEditDraft((current) => current && ({ ...current, notes: event.target.value }))
+                  }
+                  disabled={isPending}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingPurchaseOrderId(null);
+                    setEditDraft(null);
+                  }}
+                  disabled={isPending}
+                >
+                  Batal
+                </Button>
+                <Button type="submit" disabled={isPending}>
+                  {isPending && <Loader2 className="animate-spin" />}
+                  Simpan Perubahan PO
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
         open={!!activePurchaseOrder}
         onOpenChange={(open) => !open && setActivePurchaseOrder(null)}
       >
@@ -1521,6 +1828,17 @@ export default function OutboundLogisticsManager({
 
           {activePurchaseOrder && activeProgress && (
             <div className="space-y-5">
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openEditPurchaseOrder(activePurchaseOrder)}
+                  disabled={isPending}
+                >
+                  <Pencil data-icon="inline-start" /> Edit PO
+                </Button>
+              </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="rounded-lg bg-muted/50 p-3">
                   <p className="text-xs text-muted-foreground">User / PT</p>
@@ -1965,11 +2283,61 @@ export default function OutboundLogisticsManager({
                                   onClick={() => startEditDispatch(batch)}
                                 >
                                   <Pencil data-icon="inline-start" />
-                                  Edit QTY Surat Jalan
+                                  Edit Surat Jalan
                                 </Button>
                               )}
                             </div>
                           </div>
+                          {isEditing && (
+                            <div className="mt-3 grid gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-2">
+                              <div className="space-y-1.5">
+                                <Label htmlFor={`revision-date-${batch.dispatchReference}`}>
+                                  Tanggal Keluar
+                                </Label>
+                                <Input
+                                  id={`revision-date-${batch.dispatchReference}`}
+                                  type="date"
+                                  min={activePurchaseOrder.inputDate.slice(0, 10)}
+                                  max={getCatalogInventoryLocalDateKey()}
+                                  value={dispatchRevisionHeader.dispatchedAt}
+                                  onChange={(event) =>
+                                    setDispatchRevisionHeader((current) => ({
+                                      ...current,
+                                      dispatchedAt: event.target.value,
+                                    }))
+                                  }
+                                  disabled={isSavingDispatchRevision}
+                                  required
+                                />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor={`revision-pic-${batch.dispatchReference}`}>
+                                  PIC
+                                </Label>
+                                <Select
+                                  value={dispatchRevisionHeader.picId}
+                                  onValueChange={(picId) =>
+                                    setDispatchRevisionHeader((current) => ({
+                                      ...current,
+                                      picId,
+                                    }))
+                                  }
+                                  disabled={isSavingDispatchRevision}
+                                >
+                                  <SelectTrigger id={`revision-pic-${batch.dispatchReference}`}>
+                                    <SelectValue placeholder="Pilih PIC" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {pics.map((pic) => (
+                                      <SelectItem key={pic.id} value={pic.id}>
+                                        {pic.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+                          )}
                           <div className="mt-3 divide-y rounded-md border">
                             {[...batch.lines]
                               .sort(
@@ -1977,9 +2345,11 @@ export default function OutboundLogisticsManager({
                                   left.item.position - right.item.position,
                               )
                               .map(({ item, receipt }) => {
-                                const draft =
-                                  dispatchRevisionDrafts[receipt.id] ??
-                                  String(receipt.quantity);
+                                const draft = dispatchRevisionDrafts[receipt.id] ?? {
+                                  quantity: String(receipt.quantity),
+                                  warehouse: receipt.warehouse,
+                                  note: receipt.note ?? "",
+                                };
                                 return (
                                   <div key={receipt.id} className="p-3 text-sm">
                                     <div className="flex items-start justify-between gap-3">
@@ -2003,30 +2373,82 @@ export default function OutboundLogisticsManager({
                                           </p>
                                         )}
                                       </div>
-                                      {isEditing ? (
-                                        <Input
-                                          type="number"
-                                          inputMode="numeric"
-                                          min={1}
-                                          max={item.orderedQuantity}
-                                          step={1}
-                                          value={draft}
-                                          onChange={(event) =>
-                                            updateDispatchRevisionDraft(
-                                              receipt.id,
-                                              event.target.value,
-                                            )
-                                          }
-                                          disabled={isSavingDispatchRevision}
-                                          className="w-24 text-right"
-                                          aria-label={`QTY Surat Jalan untuk ${item.partName}`}
-                                        />
-                                      ) : (
+                                      {!isEditing && (
                                         <span className="font-mono font-semibold tabular-nums text-destructive">
                                           -{receipt.quantity}
                                         </span>
                                       )}
                                     </div>
+                                    {isEditing && (
+                                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                        <div className="space-y-1.5">
+                                          <Label htmlFor={`revision-qty-${receipt.id}`}>
+                                            QTY Keluar
+                                          </Label>
+                                          <Input
+                                            id={`revision-qty-${receipt.id}`}
+                                            type="number"
+                                            inputMode="numeric"
+                                            min={1}
+                                            max={item.orderedQuantity}
+                                            step={1}
+                                            value={draft.quantity}
+                                            onChange={(event) =>
+                                              updateDispatchRevisionDraft(
+                                                receipt.id,
+                                                "quantity",
+                                                event.target.value,
+                                              )
+                                            }
+                                            disabled={isSavingDispatchRevision}
+                                            aria-label={`QTY Surat Jalan untuk ${item.partName}`}
+                                          />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          <Label htmlFor={`revision-warehouse-${receipt.id}`}>
+                                            Gudang Sumber
+                                          </Label>
+                                          <Select
+                                            value={draft.warehouse}
+                                            onValueChange={(warehouse) =>
+                                              updateDispatchRevisionDraft(
+                                                receipt.id,
+                                                "warehouse",
+                                                warehouse as DispatchItemDraft["warehouse"],
+                                              )
+                                            }
+                                            disabled={isSavingDispatchRevision}
+                                          >
+                                            <SelectTrigger id={`revision-warehouse-${receipt.id}`}>
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              <SelectItem value="REAR">Gudang Belakang</SelectItem>
+                                              <SelectItem value="FRONT">Gudang Depan</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
+                                        <div className="space-y-1.5 sm:col-span-2">
+                                          <Label htmlFor={`revision-note-${receipt.id}`}>
+                                            Keterangan Item <span className="font-normal text-muted-foreground">(opsional)</span>
+                                          </Label>
+                                          <Input
+                                            id={`revision-note-${receipt.id}`}
+                                            value={draft.note}
+                                            maxLength={500}
+                                            onChange={(event) =>
+                                              updateDispatchRevisionDraft(
+                                                receipt.id,
+                                                "note",
+                                                event.target.value,
+                                              )
+                                            }
+                                            placeholder="Contoh: dikirim sebagian"
+                                            disabled={isSavingDispatchRevision}
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
                                     {receipt.note && !isEditing && (
                                       <p className="mt-2 text-xs text-muted-foreground">
                                         <span className="font-medium text-foreground">
@@ -2045,7 +2467,11 @@ export default function OutboundLogisticsManager({
                                 type="button"
                                 size="sm"
                                 onClick={() => saveDispatchRevision(batch)}
-                                disabled={isSavingDispatchRevision}
+                                disabled={
+                                  isSavingDispatchRevision ||
+                                  !dispatchRevisionHeader.picId ||
+                                  !dispatchRevisionHeader.dispatchedAt
+                                }
                               >
                                 {isSavingDispatchRevision ? (
                                   <Loader2
@@ -2055,7 +2481,7 @@ export default function OutboundLogisticsManager({
                                 ) : (
                                   <Save data-icon="inline-start" />
                                 )}
-                                Simpan Revisi
+                                Simpan Surat Jalan
                               </Button>
                               <Button
                                 type="button"

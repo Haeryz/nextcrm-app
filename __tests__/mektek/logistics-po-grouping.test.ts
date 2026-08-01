@@ -27,6 +27,13 @@ describe("MekTek Purchase Order grouping", () => {
     expect(outboundManager).toContain("Detail Purchase Order Monitoring");
   });
 
+  it("lets users reopen and edit an existing Monitoring PO", () => {
+    expect(actionSource).toContain("updateMektekOutboundPurchaseOrder");
+    expect(outboundManager).toContain("updateMektekOutboundPurchaseOrder");
+    expect(outboundManager).toContain("Edit PO");
+    expect(outboundManager).toContain("Simpan Perubahan PO");
+  });
+
   it("records one Receiving batch for multiple selected PO items", () => {
     expect(actionSource).toContain("recordMektekReceivingPurchaseOrderReceipt");
     expect(receivingManager).toContain(

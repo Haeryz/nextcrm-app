@@ -69,6 +69,11 @@ describe("MekTek Logistics documents", () => {
     expect(deliveryNotePdf).toContain("JOBSITE/PROJECT");
   });
 
+  it("falls back to the PO item Keterangan in a batch Surat Jalan PDF", () => {
+    expect(deliveryNoteRoute).toContain("note: receipt.note || item.note");
+    expect(deliveryNotePdf).toContain('item.note || ""');
+  });
+
   it("limits Receiving documents to its PO PDF and required signatures", () => {
     expect(receivingManager).toContain("PDF PO");
     expect(receivingManager).toContain("WhatsApp PO");

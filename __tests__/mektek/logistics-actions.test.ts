@@ -28,6 +28,7 @@ const purchaseOrderItemUpdate = jest.fn();
 const purchaseOrderItemUpdateMany = jest.fn();
 const purchaseOrderItemCount = jest.fn();
 const receiptCreate = jest.fn();
+const receiptUpdate = jest.fn();
 const receiptFindFirst = jest.fn();
 const receiptFindMany = jest.fn();
 const logisticsPicFindFirst = jest.fn();
@@ -56,6 +57,7 @@ const transactionClient = {
   },
   logisticsReceipt: {
     create: receiptCreate,
+    update: receiptUpdate,
     findFirst: receiptFindFirst,
     findMany: receiptFindMany,
   },
@@ -91,6 +93,8 @@ import {
   createMektekReceivingPurchaseOrder,
   recordMektekOutboundPurchaseOrderDispatch,
   recordMektekReceivingPurchaseOrderReceipt,
+  updateMektekOutboundDispatch,
+  updateMektekOutboundPurchaseOrder,
 } from "@/actions/mektek/logistics";
 import { applyCatalogStockMovement } from "@/lib/mektek/catalog-stock-ledger";
 import { buildAutomaticDeliveryNoteNumber } from "@/lib/mektek/logistics";
@@ -254,6 +258,95 @@ describe("MekTek Logistics and Receiving actions", () => {
     expect(applyCatalogStockMovement).not.toHaveBeenCalled();
   });
 
+  it("updates an outbound PO while preserving its dispatched quantities", async () => {
+    purchaseOrderFindUnique.mockResolvedValue({
+      id: "outbound-1",
+      flow: "OUTBOUND",
+      items: [
+        {
+          id: "outbound-item-1",
+          orderedQuantity: 7,
+          receivedQuantity: 3,
+        },
+      ],
+    });
+
+    const result = await updateMektekOutboundPurchaseOrder({
+      purchaseOrderId: "outbound-1",
+      poNumber: "PO-OUT-EDITED",
+      userName: "PT User Baru",
+      projectName: "Project Baru",
+      inputDate: "2026-07-10",
+      dueDate: "2026-07-20",
+      poType: "Normal",
+      notes: "Catatan diperbarui",
+      items: [
+        {
+          purchaseOrderItemId: "outbound-item-1",
+          orderedQuantity: 9,
+          note: "QTY diperbarui",
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      data: { id: "outbound-1", poNumber: "PO-OUT-EDITED" },
+    });
+    expect(purchaseOrderUpdate).toHaveBeenCalledWith({
+      where: { id: "outbound-1" },
+      data: expect.objectContaining({
+        poNumber: "PO-OUT-EDITED",
+        userName: "PT User Baru",
+        projectName: "Project Baru",
+        status: "OPEN",
+      }),
+    });
+    expect(purchaseOrderItemUpdate).toHaveBeenCalledWith({
+      where: { id: "outbound-item-1" },
+      data: {
+        orderedQuantity: 9,
+        note: "QTY diperbarui",
+        status: "OPEN",
+      },
+    });
+  });
+
+  it("rejects an edited PO quantity below the quantity already dispatched", async () => {
+    purchaseOrderFindUnique.mockResolvedValue({
+      id: "outbound-1",
+      flow: "OUTBOUND",
+      items: [
+        {
+          id: "outbound-item-1",
+          orderedQuantity: 7,
+          receivedQuantity: 5,
+        },
+      ],
+    });
+
+    const result = await updateMektekOutboundPurchaseOrder({
+      purchaseOrderId: "outbound-1",
+      poNumber: "PO-OUT-001",
+      userName: "PT User",
+      projectName: "Project",
+      inputDate: "2026-07-10",
+      dueDate: "2026-07-20",
+      poType: "Normal",
+      items: [
+        {
+          purchaseOrderItemId: "outbound-item-1",
+          orderedQuantity: 4,
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      error: "QTY Order item 1 tidak boleh kurang dari QTY Keluar (5)",
+    });
+    expect(purchaseOrderUpdate).not.toHaveBeenCalled();
+    expect(purchaseOrderItemUpdate).not.toHaveBeenCalled();
+  });
+
   it("rejects duplicate Catalog lines before mutating stock", async () => {
     const result = await createMektekOutboundPurchaseOrder({
       poNumber: "PO-DUP",
@@ -389,6 +482,90 @@ describe("MekTek Logistics and Receiving actions", () => {
       maxWait: 15_000,
       timeout: 30_000,
     });
+  });
+
+  it("edits the complete Surat Jalan and moves stock when its warehouse changes", async () => {
+    purchaseOrderFindUnique.mockResolvedValue({
+      id: "outbound-1",
+      sourceServiceOrderId: "service-order-1",
+      poNumber: "PO-OUT-001",
+      flow: "OUTBOUND",
+      poMode: "MANUAL",
+      projectName: "Project",
+      userName: "PT User",
+      inputDate: new Date("2026-07-01T00:00:00.000Z"),
+      items: [
+        {
+          id: "outbound-item-1",
+          catalogItemId: "catalog-1",
+          source: "CATALOG",
+          partName: "Compressor",
+          orderedQuantity: 10,
+          receivedQuantity: 3,
+          status: "OPEN",
+          receipts: [
+            {
+              id: "receipt-1",
+              quantity: 3,
+              warehouse: "REAR",
+              receivedAt: new Date("2026-07-12T00:00:00.000Z"),
+              note: null,
+            },
+          ],
+        },
+      ],
+    });
+    receiptUpdate.mockResolvedValue({ id: "receipt-1" });
+
+    const result = await updateMektekOutboundDispatch({
+      purchaseOrderId: "outbound-1",
+      dispatchReference: "260701",
+      picId: "pic-1",
+      dispatchedAt: "2026-07-13",
+      items: [
+        {
+          receiptId: "receipt-1",
+          quantity: 5,
+          warehouse: "FRONT",
+          note: "Kirim bertahap setelah revisi",
+        },
+      ],
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          dispatchReference: "260701",
+          pic: { id: "pic-1", name: "PIC 1" },
+        }),
+      }),
+    );
+    expect(receiptUpdate).toHaveBeenCalledWith({
+      where: { id: "receipt-1" },
+      data: {
+        quantity: 5,
+        warehouse: "FRONT",
+        note: "Kirim bertahap setelah revisi",
+        picId: "pic-1",
+        receivedAt: new Date("2026-07-13T00:00:00.000Z"),
+      },
+    });
+    expect(applyCatalogStockMovement).toHaveBeenCalledWith(
+      transactionClient,
+      expect.objectContaining({
+        warehouse: "REAR",
+        direction: "IN",
+        quantity: 3,
+      }),
+    );
+    expect(applyCatalogStockMovement).toHaveBeenCalledWith(
+      transactionClient,
+      expect.objectContaining({
+        warehouse: "FRONT",
+        direction: "OUT",
+        quantity: 5,
+      }),
+    );
   });
 
   it("auto-generates a sequential YYMMNN delivery note number unique per month", async () => {

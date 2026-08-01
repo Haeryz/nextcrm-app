@@ -129,7 +129,7 @@ export async function GET(
           description: item.partName,
           partNumber: item.partNumber,
           quantity: receipt.quantity,
-          note: receipt.note,
+          note: receipt.note || item.note,
         }))
       : purchaseOrder.items.map((item) => ({
           description: item.partName,

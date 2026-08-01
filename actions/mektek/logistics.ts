@@ -95,6 +95,16 @@ export type MektekOutboundPurchaseOrderInput =
     items: MektekOutboundPurchaseOrderItemInput[];
   };
 
+export type MektekOutboundPurchaseOrderUpdateInput =
+  LogisticsPurchaseOrderHeaderInput & {
+    purchaseOrderId: string;
+    items: Array<{
+      purchaseOrderItemId: string;
+      orderedQuantity: string | number;
+      note?: string;
+    }>;
+  };
+
 type NormalizedPurchaseOrderLine =
   | {
       source: "CATALOG";
@@ -147,9 +157,13 @@ export type MektekOutboundDispatchInput = {
 export type MektekOutboundDispatchRevisionInput = {
   purchaseOrderId: string;
   dispatchReference: string;
+  picId: string;
+  dispatchedAt: string;
   items: Array<{
     receiptId: string;
     quantity: string | number;
+    warehouse: CatalogWarehouse;
+    note?: string;
   }>;
 };
 
@@ -891,6 +905,140 @@ export async function createMektekOutboundPurchaseOrder(
   }
 }
 
+export async function updateMektekOutboundPurchaseOrder(
+  input: MektekOutboundPurchaseOrderUpdateInput,
+) {
+  const access = await ensureLogisticsManager("MONITORING_PO");
+  if ("error" in access) return { error: access.error };
+  const purchaseOrderId = compactText(input?.purchaseOrderId);
+  if (!purchaseOrderId) return { error: "Monitoring PO tidak ditemukan" };
+  const header = normalizeHeader(input, MEKTEK_COMPANY_NAME);
+  if ("error" in header) return { error: header.error };
+  if (!Array.isArray(input?.items) || input.items.length === 0) {
+    return { error: "Minimal satu item wajib diisi" };
+  }
+
+  const normalizedItems: Array<{
+    purchaseOrderItemId: string;
+    orderedQuantity: number;
+    note: string | null;
+  }> = [];
+  const seenItemIds = new Set<string>();
+  for (const [index, item] of input.items.entries()) {
+    const purchaseOrderItemId = compactText(item?.purchaseOrderItemId);
+    const orderedQuantity = parsePositiveInteger(item?.orderedQuantity);
+    if (!purchaseOrderItemId || seenItemIds.has(purchaseOrderItemId)) {
+      return { error: `Item baris ${index + 1} tidak valid` };
+    }
+    if (!orderedQuantity) {
+      return {
+        error: `Quantity baris ${index + 1} harus berupa angka bulat lebih dari 0`,
+      };
+    }
+    seenItemIds.add(purchaseOrderItemId);
+    normalizedItems.push({
+      purchaseOrderItemId,
+      orderedQuantity,
+      note: boundedText(item?.note, MAX_NOTE_LEN) || null,
+    });
+  }
+
+  const today = parseDateOnly(getCatalogInventoryLocalDateKey());
+  if (today && header.data.inputDate > today) {
+    return { error: "Tanggal pengiriman tidak boleh melebihi hari ini" };
+  }
+
+  try {
+    const purchaseOrder = await prismadb.$transaction(async (tx) => {
+      const existing = await tx.logisticsPurchaseOrder.findUnique({
+        where: { id: purchaseOrderId },
+        include: { items: true },
+      });
+      if (!existing || existing.flow !== "OUTBOUND") {
+        throw new LogisticsActionError("Monitoring PO tidak ditemukan");
+      }
+      if (
+        existing.items.length !== normalizedItems.length ||
+        existing.items.some((item) => !seenItemIds.has(item.id))
+      ) {
+        throw new LogisticsActionError(
+          "Daftar item PO telah berubah. Muat ulang halaman lalu coba kembali.",
+        );
+      }
+
+      const existingById = new Map(existing.items.map((item) => [item.id, item]));
+      for (const [index, item] of normalizedItems.entries()) {
+        const current = existingById.get(item.purchaseOrderItemId);
+        if (!current) {
+          throw new LogisticsActionError(`Item baris ${index + 1} tidak ditemukan`);
+        }
+        if (item.orderedQuantity < current.receivedQuantity) {
+          throw new LogisticsActionError(
+            `QTY Order item ${index + 1} tidak boleh kurang dari QTY Keluar (${current.receivedQuantity})`,
+          );
+        }
+      }
+
+      const counterparty = await ensureFinanceCounterparty(
+        tx,
+        header.data.userName,
+        "CUSTOMER",
+      );
+      await ensurePaymentFakturCustomer(tx, header.data.userName);
+      const status = normalizedItems.every((item) => {
+        const current = existingById.get(item.purchaseOrderItemId);
+        return current && item.orderedQuantity <= current.receivedQuantity;
+      })
+        ? "CLOSED"
+        : "OPEN";
+
+      await tx.logisticsPurchaseOrder.update({
+        where: { id: purchaseOrderId },
+        data: {
+          ...header.data,
+          financeCounterpartyId: counterparty.id,
+          status,
+        },
+      });
+      for (const item of normalizedItems) {
+        const current = existingById.get(item.purchaseOrderItemId)!;
+        const itemStatus = item.orderedQuantity <= current.receivedQuantity
+          ? "CLOSED"
+          : "OPEN";
+        await tx.logisticsPurchaseOrderItem.update({
+          where: { id: item.purchaseOrderItemId },
+          data: {
+            orderedQuantity: item.orderedQuantity,
+            note: item.note,
+            status: itemStatus,
+          },
+        });
+        await tx.logisticsSupplyAllocation.updateMany({
+          where: { purchaseOrderItemId: item.purchaseOrderItemId },
+          data: {
+            counterpartyId: counterparty.id,
+            projectKey: normalizeFinanceKey(header.data.projectName),
+            poMode: header.data.poMode,
+            supplyStartDate: header.data.supplyStartDate,
+            supplyEndDate: header.data.supplyEndDate,
+            quantity: item.orderedQuantity,
+          },
+        });
+      }
+      return { id: existing.id, poNumber: header.data.poNumber };
+    });
+    revalidatePath("/[locale]/(routes)/mektek/logistics", "page");
+    return { data: purchaseOrder };
+  } catch (error) {
+    console.log("[UPDATE_MEKTEK_OUTBOUND_PO]", error);
+    if (error instanceof LogisticsActionError) return { error: error.message };
+    if (isPrismaUniqueError(error)) {
+      return { error: `PO No. ${header.data.poNumber} sudah terdaftar di Monitoring PO` };
+    }
+    return { error: "Gagal memperbarui Monitoring PO" };
+  }
+}
+
 export async function recordMektekOutboundPurchaseOrderDispatch(
   input: MektekOutboundDispatchInput,
 ) {
@@ -1137,25 +1285,35 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
   }
 }
 
-export async function updateMektekOutboundDispatchQuantities(
+export async function updateMektekOutboundDispatch(
   input: MektekOutboundDispatchRevisionInput,
 ) {
   const access = await ensureLogisticsManager("MONITORING_PO");
   if ("error" in access) return { error: access.error };
   const purchaseOrderId = compactText(input?.purchaseOrderId);
   const dispatchReference = normalizeLogisticsReference(input?.dispatchReference);
+  const picId = compactText(input?.picId);
+  const dispatchedAt = parseDateOnly(input?.dispatchedAt);
   const rawItems = Array.isArray(input?.items) ? input.items : [];
   const items = rawItems.map((item) => ({
     receiptId: compactText(item?.receiptId),
     quantity: parsePositiveInteger(item?.quantity),
+    warehouse: isWarehouse(item?.warehouse) ? item.warehouse : null,
+    note: boundedText(item?.note, MAX_NOTE_LEN) || null,
   }));
   if (!purchaseOrderId) return { error: "Purchase Order wajib dipilih" };
   if (!dispatchReference) return { error: "Nomor Surat Jalan wajib diisi" };
+  if (!picId) return { error: "PIC wajib dipilih" };
+  if (!dispatchedAt) return { error: "Tanggal Keluar tidak valid" };
+  const today = parseDateOnly(getCatalogInventoryLocalDateKey());
+  if (today && dispatchedAt > today) {
+    return { error: "Tanggal Keluar tidak boleh melebihi hari ini" };
+  }
   if (items.length === 0) {
     return { error: "Pilih minimal satu item yang direvisi" };
   }
-  if (items.some((item) => !item.receiptId || !item.quantity)) {
-    return { error: "QTY setiap item Surat Jalan wajib valid" };
+  if (items.some((item) => !item.receiptId || !item.quantity || !item.warehouse)) {
+    return { error: "QTY dan Gudang setiap item Surat Jalan wajib valid" };
   }
   if (new Set(items.map((item) => item.receiptId)).size !== items.length) {
     return { error: "Item Surat Jalan tidak boleh duplikat" };
@@ -1163,6 +1321,11 @@ export async function updateMektekOutboundDispatchQuantities(
 
   try {
     const result = await prismadb.$transaction(async (tx) => {
+      const pic = await tx.logisticsPic.findFirst({
+        where: { id: picId, isActive: true },
+        select: { id: true, name: true },
+      });
+      if (!pic) throw new LogisticsActionError("PIC tidak ditemukan");
       const purchaseOrder = await tx.logisticsPurchaseOrder.findUnique({
         where: { id: purchaseOrderId },
         select: {
@@ -1173,6 +1336,7 @@ export async function updateMektekOutboundDispatchQuantities(
           poMode: true,
           projectName: true,
           userName: true,
+          inputDate: true,
           items: {
             orderBy: { position: "asc" },
             select: {
@@ -1199,6 +1363,11 @@ export async function updateMektekOutboundDispatchQuantities(
       });
       if (!purchaseOrder || purchaseOrder.flow !== "OUTBOUND") {
         throw new LogisticsActionError("Monitoring PO tidak ditemukan");
+      }
+      if (dispatchedAt < purchaseOrder.inputDate) {
+        throw new LogisticsActionError(
+          "Tanggal Keluar tidak boleh sebelum Tanggal Pengiriman PO",
+        );
       }
 
       if (!purchaseOrder.sourceServiceOrderId) {
@@ -1236,6 +1405,8 @@ export async function updateMektekOutboundDispatchQuantities(
         const { item, receipt } = matched;
         const oldBatchQty = receipt.quantity;
         const newQty = inputItem.quantity!;
+        const newWarehouse = inputItem.warehouse!;
+        const newNote = inputItem.note;
         const projectedShipped = item.receivedQuantity - oldBatchQty + newQty;
         if (projectedShipped > item.orderedQuantity) {
           throw new LogisticsActionError(
@@ -1255,6 +1426,9 @@ export async function updateMektekOutboundDispatchQuantities(
           oldBatchQty,
           newQty,
           delta: newQty - oldBatchQty,
+          newWarehouse,
+          newNote,
+          warehouseChanged: newWarehouse !== receipt.warehouse,
           newStatus,
         };
       });
@@ -1278,10 +1452,26 @@ export async function updateMektekOutboundDispatchQuantities(
       }> = [];
 
       for (const entry of validated) {
-        const { item, receipt, oldBatchQty, newQty, delta, newStatus } = entry;
+        const {
+          item,
+          receipt,
+          oldBatchQty,
+          newQty,
+          delta,
+          newWarehouse,
+          newNote,
+          warehouseChanged,
+          newStatus,
+        } = entry;
         await tx.logisticsReceipt.update({
           where: { id: receipt.id },
-          data: { quantity: newQty },
+          data: {
+            quantity: newQty,
+            warehouse: newWarehouse,
+            note: newNote,
+            picId: pic.id,
+            receivedAt: dispatchedAt,
+          },
         });
         const updated = await tx.logisticsPurchaseOrderItem.updateMany({
           where: {
@@ -1299,13 +1489,30 @@ export async function updateMektekOutboundDispatchQuantities(
             "QTY item telah berubah. Muat ulang halaman sebelum revisi kembali.",
           );
         }
-        if (item.catalogItemId && delta !== 0) {
+        if (item.catalogItemId && warehouseChanged) {
+          movementInputs.push(
+            {
+              catalogItemId: item.catalogItemId,
+              warehouse: receipt.warehouse,
+              delta: -oldBatchQty,
+              receiptId: receipt.id,
+              note: `Revisi Surat Jalan ${dispatchReference} ${purchaseOrder.poNumber} - pindah gudang`,
+            },
+            {
+              catalogItemId: item.catalogItemId,
+              warehouse: newWarehouse,
+              delta: newQty,
+              receiptId: receipt.id,
+              note: `Revisi Surat Jalan ${dispatchReference} ${purchaseOrder.poNumber}${newNote ? ` · ${newNote}` : ""}`,
+            },
+          );
+        } else if (item.catalogItemId && delta !== 0) {
           movementInputs.push({
             catalogItemId: item.catalogItemId,
-            warehouse: receipt.warehouse,
+            warehouse: newWarehouse,
             delta,
             receiptId: receipt.id,
-            note: `Revisi Surat Jalan ${dispatchReference} ${purchaseOrder.poNumber}${receipt.note ? ` · ${receipt.note}` : ""}`,
+            note: `Revisi Surat Jalan ${dispatchReference} ${purchaseOrder.poNumber}${newNote ? ` · ${newNote}` : ""}`,
           });
         }
         const projectedReceived = item.receivedQuantity + delta;
@@ -1318,10 +1525,10 @@ export async function updateMektekOutboundDispatchQuantities(
         });
       }
 
-      for (const movement of movementInputs.sort((a, b) =>
-        a.catalogItemId.localeCompare(b.catalogItemId),
-      )) {
-        const sourceId = `${movement.receiptId}#revisi-${revisionStamp}`;
+      for (const [movementIndex, movement] of movementInputs
+        .sort((a, b) => a.catalogItemId.localeCompare(b.catalogItemId))
+        .entries()) {
+        const sourceId = `${movement.receiptId}#revisi-${revisionStamp}-${movementIndex}`;
         if (movement.delta > 0) {
           await applyCatalogStockMovement(tx, {
             catalogItemId: movement.catalogItemId,
@@ -1353,10 +1560,10 @@ export async function updateMektekOutboundDispatchQuantities(
 
       if (purchaseOrder.poMode === "CONSIGNMENT") {
         const siteName = purchaseOrder.projectName || purchaseOrder.userName;
-        for (const movement of movementInputs.sort((a, b) =>
-          a.catalogItemId.localeCompare(b.catalogItemId),
-        )) {
-          const sourceId = `${movement.receiptId}#revisi-${revisionStamp}`;
+        for (const [movementIndex, movement] of movementInputs
+          .sort((a, b) => a.catalogItemId.localeCompare(b.catalogItemId))
+          .entries()) {
+          const sourceId = `${movement.receiptId}#revisi-${revisionStamp}-${movementIndex}`;
           if (movement.delta > 0) {
             await applyCatalogConsignmentSiteStock(tx, {
               catalogItemId: movement.catalogItemId,
@@ -1399,17 +1606,18 @@ export async function updateMektekOutboundDispatchQuantities(
         data: { status: purchaseOrderStatus },
       });
 
-      const firstReceiptAt = validated[0]?.receipt.receivedAt;
       if (!purchaseOrder.sourceServiceOrderId) {
         await syncOutboundDispatchBillingSource(tx, {
           purchaseOrderId: purchaseOrder.id,
           dispatchReference,
-          occurredAt: firstReceiptAt ?? revisionOccurredAt,
+          occurredAt: dispatchedAt,
         });
       }
 
       return {
         dispatchReference,
+        dispatchedAt,
+        pic,
         purchaseOrderId: purchaseOrder.id,
         purchaseOrderStatus,
         itemProgresses,
@@ -1429,7 +1637,7 @@ export async function updateMektekOutboundDispatchQuantities(
     }
     const retryMessage = getTransactionRetryMessage(error, "Barang Keluar");
     if (retryMessage) return { error: retryMessage };
-    return { error: "Gagal merevisi quantity Surat Jalan Monitoring PO" };
+    return { error: "Gagal memperbarui Surat Jalan Monitoring PO" };
   }
 }
 
