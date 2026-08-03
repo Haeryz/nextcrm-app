@@ -301,6 +301,7 @@ export default function OutboundLogisticsManager({
   const conditionCameraInputRef = useRef<HTMLInputElement>(null);
   const conditionGalleryInputRef = useRef<HTMLInputElement>(null);
   const customerPoInputRef = useRef<HTMLInputElement>(null);
+  const detailCustomerPoInputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
   const [createOpen, setCreateOpen] = useState(false);
   const [draft, setDraft] = useState<OutboundDraft>(restoredDraft.draft);
@@ -331,6 +332,9 @@ export default function OutboundLogisticsManager({
   });
   const [isSavingDispatchRevision, startSavingDispatchRevision] =
     useTransition();
+  const [detailCustomerPoFile, setDetailCustomerPoFile] = useState<File | null>(null);
+  const [detailCustomerPoError, setDetailCustomerPoError] = useState<string | null>(null);
+  const [isUploadingDetailPo, startUploadingDetailPo] = useTransition();
   const currentMonth = getCatalogInventoryLocalDateKey().slice(0, 7);
   const currentYear = currentMonth.slice(0, 4);
   const [exportMode, setExportMode] = useState<"month" | "range" | "year">(
@@ -503,12 +507,59 @@ export default function OutboundLogisticsManager({
     setCustomerPoError(null);
   };
 
-  const submitPurchaseOrder = () => {
-    if (!customerPoFile) {
-      setCustomerPoError("Unggah PO dari Customer wajib dilakukan");
-      customerPoInputRef.current?.focus();
+  const selectDetailCustomerPoFile = (file: File | null) => {
+    if (!file) {
+      setDetailCustomerPoFile(null);
+      setDetailCustomerPoError(null);
       return;
     }
+    if (
+      !["image/jpeg", "image/png", "image/webp", "application/pdf"].includes(
+        file.type,
+      )
+    ) {
+      setDetailCustomerPoFile(null);
+      setDetailCustomerPoError("Pilih PO Customer berformat JPEG, PNG, WebP, atau PDF");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setDetailCustomerPoFile(null);
+      setDetailCustomerPoError("Ukuran PO Customer maksimal 5 MB");
+      return;
+    }
+    setDetailCustomerPoFile(file);
+    setDetailCustomerPoError(null);
+  };
+
+  const submitDetailCustomerPoImage = () => {
+    if (!activePurchaseOrder || !detailCustomerPoFile) return;
+    const purchaseOrderId = activePurchaseOrder.id;
+    const file = detailCustomerPoFile;
+    startUploadingDetailPo(async () => {
+      try {
+        await uploadCustomerPoImage(purchaseOrderId, file);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Gagal mengunggah PO Customer",
+        );
+        return;
+      }
+      toast.success("PO Customer berhasil diperbarui");
+      setDetailCustomerPoFile(null);
+      setDetailCustomerPoError(null);
+      if (detailCustomerPoInputRef.current) {
+        detailCustomerPoInputRef.current.value = "";
+      }
+      setActivePurchaseOrder((current) =>
+        current ? { ...current, hasCustomerPoImage: true } : current,
+      );
+      router.refresh();
+    });
+  };
+
+  const submitPurchaseOrder = () => {
     startTransition(async () => {
       const result = await createMektekOutboundPurchaseOrder({
         poNumber: draft.poNumber.trim(),
@@ -531,16 +582,18 @@ export default function OutboundLogisticsManager({
         toast.error(result?.error || "Gagal membuat Monitoring PO");
         return;
       }
-      try {
-        await uploadCustomerPoImage(result.data.id, customerPoFile);
-      } catch (error) {
-        toast.warning(
-          `Monitoring PO tersimpan, tetapi ${
-            error instanceof Error
-              ? error.message
-              : "gagal mengunggah PO Customer"
-          }`,
-        );
+      if (customerPoFile) {
+        try {
+          await uploadCustomerPoImage(result.data.id, customerPoFile);
+        } catch (error) {
+          toast.warning(
+            `Monitoring PO tersimpan, tetapi ${
+              error instanceof Error
+                ? error.message
+                : "gagal mengunggah PO Customer"
+            }`,
+          );
+        }
       }
       toast.success(`Monitoring PO ${result.data.poNumber} berhasil dibuat`);
       if (typeof window !== "undefined") {
@@ -571,6 +624,11 @@ export default function OutboundLogisticsManager({
     );
     setDispatchImage(null);
     setDispatchImageError(null);
+    setDetailCustomerPoFile(null);
+    setDetailCustomerPoError(null);
+    if (detailCustomerPoInputRef.current) {
+      detailCustomerPoInputRef.current.value = "";
+    }
   };
 
   const duplicatePurchaseOrder = (purchaseOrder: OutboundPurchaseOrder) => {
@@ -1351,10 +1409,13 @@ export default function OutboundLogisticsManager({
                     <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
                       <Label htmlFor="outbound-customer-po">
                         PO dari Customer{" "}
-                        <span className="font-normal text-destructive">(wajib)</span>
+                        <span className="font-normal text-muted-foreground">
+                          (opsional)
+                        </span>
                       </Label>
                       <p className="text-xs text-muted-foreground">
                         Unggah PDF atau gambar PO yang diterima dari Customer.
+                        Bisa diunggah nanti pada Detail PO.
                       </p>
                       <input
                         ref={customerPoInputRef}
@@ -1365,7 +1426,6 @@ export default function OutboundLogisticsManager({
                           selectCustomerPoFile(event.target.files?.[0] ?? null)
                         }
                         disabled={isPending}
-                        required
                         className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-accent"
                       />
                       {customerPoFile && (
@@ -1948,6 +2008,64 @@ export default function OutboundLogisticsManager({
                         </div>
                       );
                     })}
+                </div>
+              </div>
+
+              <div className="space-y-3 border-t pt-4">
+                <div>
+                  <h3 className="font-medium">PO dari Customer</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Unggah atau perbarui dokumen PO yang diterima dari Customer.
+                  </p>
+                </div>
+                <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
+                  {activePurchaseOrder.hasCustomerPoImage && (
+                    <Button
+                      asChild
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                    >
+                      <a
+                        href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activePurchaseOrder.id)}/customer-po-image`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Eye data-icon="inline-start" /> Lihat PO Customer
+                      </a>
+                    </Button>
+                  )}
+                  <input
+                    ref={detailCustomerPoInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-accent"
+                    onChange={(event) =>
+                      selectDetailCustomerPoFile(event.target.files?.[0] ?? null)
+                    }
+                    disabled={isUploadingDetailPo}
+                  />
+                  {detailCustomerPoFile && (
+                    <p className="text-xs text-muted-foreground">
+                      Terpilih: {detailCustomerPoFile.name}
+                    </p>
+                  )}
+                  {detailCustomerPoError && (
+                    <p className="text-xs text-destructive">
+                      {detailCustomerPoError}
+                    </p>
+                  )}
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={submitDetailCustomerPoImage}
+                      disabled={isUploadingDetailPo || !detailCustomerPoFile}
+                    >
+                      {isUploadingDetailPo && <Loader2 className="animate-spin" />}
+                      Simpan PO Customer
+                    </Button>
+                  </div>
                 </div>
               </div>
 
