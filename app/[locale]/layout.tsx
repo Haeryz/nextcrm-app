@@ -53,11 +53,15 @@ export async function generateMetadata(props: Props) {
       ],
     },
     twitter: {
-      cardType: "summary_large_image",
-      image: "/images/opengraph-image.png",
-      width: 1200,
-      height: 630,
-      alt: t("title"),
+      card: "summary_large_image",
+      images: [
+        {
+          url: "/images/opengraph-image.png",
+          width: 1200,
+          height: 630,
+          alt: t("title"),
+        },
+      ],
     },
   };
 }
