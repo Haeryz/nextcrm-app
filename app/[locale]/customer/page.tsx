@@ -35,10 +35,57 @@ import { CartMount } from "@/components/mektek/cart/CartMount";
 import { ItemActions } from "@/components/mektek/cart/ItemActions";
 import { MektekBrandMark } from "@/components/mektek/MektekBrandMark";
 import CustomerCatalogHighlights from "./_components/CustomerCatalogHighlights";
+import { routing } from "@/i18n/routing";
+import { siteBaseUrl } from "@/lib/site-url";
 
 interface CustomerCatalogPageProps {
   params?: Promise<{ locale: string }>;
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params?: Promise<{ locale: string }>;
+}) {
+  const { locale = routing.defaultLocale } = params ? await params : {};
+  const base = siteBaseUrl();
+
+  // Point every locale variant at its siblings so Google can pick the right
+  // language. `x-default` falls back to the default locale.
+  const languages: Record<string, string> = {};
+  for (const alt of routing.locales) {
+    languages[alt] = `${base}/${alt}/customer`;
+  }
+  languages["x-default"] = `${base}/${routing.defaultLocale}/customer`;
+
+  return {
+    title:
+      "MekTek — Bengkel Resmi Denso & Dealer AC di Tabalong, Kalimantan Selatan",
+    description:
+      "Dealer resmi pendingin udara dan bengkel resmi Denso di Tabalong. Servis AC mobil, tune-up mesin, ganti oli, aki, rem, dan suspensi. Lihat katalog sparepart dan datang langsung ke bengkel.",
+    alternates: {
+      canonical: `/${locale}/customer`,
+      languages,
+    },
+    openGraph: {
+      title:
+        "MekTek — Bengkel Resmi Denso & Dealer AC di Tabalong, Kalimantan Selatan",
+      description:
+        "Dealer resmi pendingin udara dan bengkel resmi Denso di Tabalong. Servis AC mobil, tune-up mesin, ganti oli, aki, rem, dan suspensi.",
+      url: `${base}/${locale}/customer`,
+      type: "website",
+      images: [
+        {
+          url: "/images/opengraph-image.png",
+          width: 1200,
+          height: 630,
+          alt: "MekTek — Bengkel Resmi Denso & Dealer AC",
+        },
+      ],
+    },
+    robots: { index: true, follow: true },
+  };
 }
 
 type LandingServiceCard = {
