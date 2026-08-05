@@ -3,6 +3,7 @@ import { ArrowRight, CalendarClock, Car, Clock3, UserRound, Wrench } from "lucid
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { resolveMektekOrderTechnicianDisplay } from "@/lib/mektek/technicians";
 import { getStatusMeta } from "../_lib/constants";
 
 type MektekOrder = {
@@ -94,18 +95,10 @@ export default function MektekOrderList({
             typeof tags.vehicleMileageKm === "number" ? tags.vehicleMileageKm : null;
           const timelineCount = getTimelineCount(tags) || 1;
           const status = getStatusMeta(order.taskStatus);
-          const technicianTag =
-            tags.technician &&
-            typeof tags.technician === "object" &&
-            !Array.isArray(tags.technician)
-              ? (tags.technician as Record<string, unknown>)
-              : {};
-          const technicianName =
-            (typeof tags.technicians === "string" ? tags.technicians : "") ||
-            order.assigned_user?.name ||
-            order.assigned_user?.email ||
-            (typeof technicianTag.name === "string" ? technicianTag.name : "") ||
-            "Belum ditugaskan";
+          const technicianName = resolveMektekOrderTechnicianDisplay(
+            tags,
+            order.assigned_user,
+          );
 
           return (
             <Link

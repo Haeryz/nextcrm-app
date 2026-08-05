@@ -2,6 +2,7 @@ import {
   buildMektekFinancialSummary,
   type MektekPaymentRecord,
 } from "@/lib/mektek/financials";
+import type { MektekLineItem } from "@/lib/mektek/items";
 
 export type MektekServiceOrderExportOrder = {
   id: string;
@@ -35,6 +36,7 @@ export const MEKTEK_SERVICE_ORDER_EXPORT_HEADERS = [
   "Teknisi",
   "Status",
   "Keluhan",
+  "Sparepart",
   "ETA",
   "Tanggal Masuk",
   "Terakhir Update",
@@ -65,6 +67,23 @@ function text(value: unknown) {
 function stripServicePrefix(title: string) {
   const prefix = SERVICE_TITLE_PREFIXES.find((item) => title.startsWith(item));
   return prefix ? title.slice(prefix.length) : title;
+}
+
+function formatLineItemText(item: MektekLineItem): string {
+  const parts: string[] = [item.name];
+  if (item.unit === "M") {
+    parts.push(`${item.quantity} m`);
+  } else if (item.quantity > 1) {
+    parts.push(`x${item.quantity}`);
+  }
+  if (item.partNumber) {
+    parts.push(`(${item.partNumber})`);
+  }
+  return parts.join(" ");
+}
+
+function formatLineItemsText(items: readonly MektekLineItem[]): string {
+  return items.map(formatLineItemText).join("\n");
 }
 
 function formatExportDate(value: Date | string | null | undefined) {
@@ -178,6 +197,8 @@ export function buildMektekServiceOrderExportRows(
       order.assigned_user?.email ||
       text(technicianTag.name) ||
       text(technicianTag.email);
+    const hasServiceItems = normalizedItems.serviceItems.length > 0;
+    const sparepartText = formatLineItemsText(normalizedItems.sparepartItems);
 
     return {
       "No. Service": order.serviceNumber ?? order.id.slice(0, 8),
@@ -193,7 +214,10 @@ export function buildMektekServiceOrderExportRows(
         typeof tags.vehicleMileageKm === "number" ? tags.vehicleMileageKm : "",
       Teknisi: technicianName,
       Status: order.taskStatus ?? "",
-      Keluhan: text(order.content) || stripServicePrefix(order.title ?? ""),
+      Keluhan: hasServiceItems
+        ? (text(order.content) || stripServicePrefix(order.title ?? ""))
+        : "-",
+      Sparepart: sparepartText || "-",
       ETA: formatExportDate(order.dueDateAt),
       "Tanggal Masuk": formatExportDate(order.createdAt),
       "Terakhir Update": formatExportDate(order.updatedAt),

@@ -123,4 +123,12 @@ describe("New service order form UI", () => {
       "Data kendaraan wajib diisi untuk pesanan yang memiliki jasa servis",
     );
   });
+
+  it("requires the main technician only when the order contains service work", () => {
+    expect(formSource).toContain(
+      "Pilih teknisi utama untuk pekerjaan servis",
+    );
+    expect(formSource).toContain("describedServiceItems.length > 0");
+    expect(formSource).toContain("!technicianSelections[0]?.name.trim()");
+  });
 });

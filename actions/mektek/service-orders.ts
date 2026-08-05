@@ -47,6 +47,7 @@ import {
 import { buildMektekServiceCustomerUpsert } from "@/lib/mektek/service-customer";
 import {
   normalizeMektekTechnicianSelections,
+  resolveMektekOrderTechnicianDisplay,
   validateMektekTechnicianIds,
 } from "@/lib/mektek/technicians";
 import { parseVehicleMileageKm } from "@/lib/mektek/vehicle-mileage";
@@ -294,26 +295,6 @@ export const createMektekServiceOrder = async (
           contactName: enteredCustomerName || null,
         };
   const customerName = companyNames.customerName;
-  let technicianSelections: ReturnType<
-    typeof normalizeMektekTechnicianSelections
-  >;
-  try {
-    const legacyTechnicianIds = validateMektekTechnicianIds(
-      input?.technicianAssignments
-        ? input.technicianAssignments.map(
-            (assignment) => assignment.id || assignment.name,
-          )
-        : input?.technicianIds ??
-            (input?.technicianId ? [input.technicianId] : []),
-    );
-    technicianSelections = input?.technicianAssignments
-      ? normalizeMektekTechnicianSelections(input.technicianAssignments)
-      : normalizeMektekTechnicianSelections(
-          legacyTechnicianIds.map((id) => ({ id, name: id })),
-        );
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : "Technician tidak valid" };
-  }
   const phoneNormalized = normalizePhoneNumber(phone);
   const manualDiscount = parseMoney(input?.manualDiscount);
   const voucherCode = String(input?.voucherCode ?? "").trim();
@@ -323,6 +304,32 @@ export const createMektekServiceOrder = async (
     "sparepart",
   );
   const hasServiceItems = serviceItems.length > 0;
+  const hasTechnicianAssignments =
+    !!input?.technicianAssignments && input.technicianAssignments.length > 0;
+  const hasLegacyTechnicianIds =
+    !!input?.technicianIds?.length || !!input?.technicianId;
+  let technicianSelections: ReturnType<
+    typeof normalizeMektekTechnicianSelections
+  > = [];
+  if (hasServiceItems || hasTechnicianAssignments || hasLegacyTechnicianIds) {
+    try {
+      const legacyTechnicianIds = validateMektekTechnicianIds(
+        input?.technicianAssignments
+          ? input.technicianAssignments.map(
+              (assignment) => assignment.id || assignment.name,
+            )
+          : input?.technicianIds ??
+              (input?.technicianId ? [input.technicianId] : []),
+      );
+      technicianSelections = input?.technicianAssignments
+        ? normalizeMektekTechnicianSelections(input.technicianAssignments)
+        : normalizeMektekTechnicianSelections(
+            legacyTechnicianIds.map((id) => ({ id, name: id })),
+          );
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : "Technician tidak valid" };
+    }
+  }
   const vehicleMileage = hasServiceItems
     ? parseVehicleMileageKm(input?.vehicleMileageKm)
     : ({ data: null } as const);
@@ -370,7 +377,7 @@ export const createMektekServiceOrder = async (
 
   if (serviceItems.length > 0 && technicianSelections.length === 0) {
     return {
-      error: "Pilih minimal satu teknisi untuk pesanan yang memiliki jasa servis",
+      error: "Pilih teknisi utama untuk pekerjaan servis",
     };
   }
 
@@ -1097,18 +1104,10 @@ export const getMektekCustomerServiceHistory = async (
           typeof tags.vehicleMileageKm === "number"
             ? tags.vehicleMileageKm
             : null;
-        const technicianTag =
-          tags.technician &&
-          typeof tags.technician === "object" &&
-          !Array.isArray(tags.technician)
-            ? (tags.technician as Record<string, unknown>)
-            : {};
-        const technician =
-          (typeof tags.technicians === "string" ? tags.technicians : "") ||
-          order?.assigned_user?.name ||
-          order?.assigned_user?.email ||
-          (typeof technicianTag.name === "string" ? technicianTag.name : "") ||
-          "Belum ditugaskan";
+        const technician = resolveMektekOrderTechnicianDisplay(
+          tags,
+          order?.assigned_user,
+        );
 
         return {
           id: order?.id ?? "",

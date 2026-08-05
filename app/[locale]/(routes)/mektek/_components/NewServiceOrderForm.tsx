@@ -342,9 +342,9 @@ export default function NewServiceOrderForm({
     );
     if (
       describedServiceItems.length > 0 &&
-      selectedTechnicians.length < 1
+      !technicianSelections[0]?.name.trim()
     ) {
-      toast.error("Pilih minimal satu teknisi untuk pekerjaan servis");
+      toast.error("Pilih teknisi utama untuk pekerjaan servis");
       return;
     }
     const technicianIdentities = selectedTechnicians.map((selection) =>
@@ -957,8 +957,8 @@ export default function NewServiceOrderForm({
                 <div>
                   <p className="text-sm font-medium">Tim Technician</p>
                   <p className="text-xs text-muted-foreground">
-                    Wajib untuk pekerjaan servis; opsional untuk pesanan
-                    sparepart saja.
+                    Pilih teknisi utama untuk pekerjaan servis; opsional untuk
+                    pesanan sparepart saja.
                   </p>
                 </div>
               </div>
@@ -977,6 +977,9 @@ export default function NewServiceOrderForm({
                         <span className="ml-1 font-normal text-muted-foreground">
                           (opsional)
                         </span>
+                      )}
+                      {slot === 0 && hasServiceItems && (
+                        <span className="text-destructive">*</span>
                       )}
                     </Label>
                     <TechnicianSearchInput

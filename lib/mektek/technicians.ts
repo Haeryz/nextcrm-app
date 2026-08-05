@@ -75,3 +75,39 @@ export function normalizeMektekTechnicianSelections(
 
   return selections;
 }
+
+export const MEKTEK_NO_TECHNICIAN_LABEL = "Belum ditugaskan";
+export const MEKTEK_SPAREPART_ONLY_TECHNICIAN_LABEL = "Pembelian Sparepart";
+
+export function resolveMektekOrderTechnicianDisplay(
+  tags: unknown,
+  assignedUser?: { name?: string | null; email?: string | null } | null,
+): string {
+  const record =
+    tags && typeof tags === "object" && !Array.isArray(tags)
+      ? (tags as Record<string, unknown>)
+      : {};
+  if (record.orderType === "SPAREPART_ONLY") {
+    return MEKTEK_SPAREPART_ONLY_TECHNICIAN_LABEL;
+  }
+  const technicianTag =
+    record.technician &&
+    typeof record.technician === "object" &&
+    !Array.isArray(record.technician)
+      ? (record.technician as Record<string, unknown>)
+      : {};
+  const techniciansTag =
+    typeof record.technicians === "string" ? record.technicians : "";
+  const technicianName =
+    typeof technicianTag.name === "string" ? technicianTag.name : "";
+  const technicianEmail =
+    typeof technicianTag.email === "string" ? technicianTag.email : "";
+  return (
+    techniciansTag ||
+    assignedUser?.name ||
+    assignedUser?.email ||
+    technicianName ||
+    technicianEmail ||
+    MEKTEK_NO_TECHNICIAN_LABEL
+  );
+}

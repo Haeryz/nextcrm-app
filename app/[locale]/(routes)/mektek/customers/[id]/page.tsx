@@ -14,6 +14,7 @@ import Container from "@/app/[locale]/(routes)/components/ui/Container";
 import { authOptions } from "@/lib/auth";
 import { summarizeCustomerServiceHistory } from "@/lib/mektek/customer-history";
 import { canManageMektekCustomers } from "@/lib/mektek/permissions";
+import { resolveMektekOrderTechnicianDisplay } from "@/lib/mektek/technicians";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 import { Badge } from "@/components/ui/badge";
@@ -371,18 +372,10 @@ export default async function CustomerDetailPage({
                       ? tags.vehicleMileageKm
                       : null;
                   const status = getStatusMeta(order.taskStatus ?? "ACTIVE");
-                  const technicianTag =
-                    tags.technician &&
-                    typeof tags.technician === "object" &&
-                    !Array.isArray(tags.technician)
-                      ? (tags.technician as Record<string, unknown>)
-                      : {};
-                  const technician =
-                    (typeof tags.technicians === "string" ? tags.technicians : "") ||
-                    order.assigned_user?.name ||
-                    order.assigned_user?.email ||
-                    (typeof technicianTag.name === "string" ? technicianTag.name : "") ||
-                    "Belum ditugaskan";
+                  const technician = resolveMektekOrderTechnicianDisplay(
+                    tags,
+                    order.assigned_user,
+                  );
 
                   return (
                     <Link

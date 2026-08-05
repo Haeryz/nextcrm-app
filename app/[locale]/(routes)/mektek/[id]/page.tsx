@@ -30,6 +30,7 @@ import WhatsAppComposer from "../_components/WhatsAppComposer";
 import InvoiceActions from "../_components/InvoiceActions";
 import { buildMektekInvoiceData } from "@/actions/mektek/invoice-pdf";
 import { normalizeMektekLineItems } from "@/lib/mektek/items";
+import { resolveMektekOrderTechnicianDisplay } from "@/lib/mektek/technicians";
 import VisitDiscountCard from "../_components/VisitDiscountCard";
 import {
   canCreateMektekOrders,
@@ -123,16 +124,10 @@ export default async function MektekDetailPage({ params }: Props) {
   );
   const phone = typeof tags.phone === "string" ? tags.phone : undefined;
   const address = typeof tags.address === "string" ? tags.address : undefined;
-  const technicianTag =
-    tags.technician && typeof tags.technician === "object" && !Array.isArray(tags.technician)
-      ? (tags.technician as Record<string, unknown>)
-      : {};
-  const technicianName =
-    (typeof tags.technicians === "string" ? tags.technicians : "") ||
-    order.assigned_user?.name ||
-    (typeof technicianTag.name === "string" ? technicianTag.name : "") ||
-    (typeof technicianTag.email === "string" ? technicianTag.email : "") ||
-    "Belum ditugaskan";
+  const technicianName = resolveMektekOrderTechnicianDisplay(
+    tags,
+    order.assigned_user,
+  );
 
   const timelineFromTags: TimelineEntry[] = Array.isArray(tags.timeline)
     ? tags.timeline
