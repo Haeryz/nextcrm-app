@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { Download } from "lucide-react";
 
 import { listMektekReceivingPurchaseOrders } from "@/actions/mektek/logistics";
 import Container from "@/app/[locale]/(routes)/components/ui/Container";
@@ -115,9 +114,6 @@ export default async function MektekReceivingPage({
   if (query) queryString.set("q", query);
   if (status) queryString.set("status", status);
   const exportQuery = queryString.toString();
-  const exportHref = `/api/mektek/receiving/purchase-orders/export${
-    exportQuery ? `?${exportQuery}` : ""
-  }`;
   const exportBaseQuery = exportQuery;
   const pageHref = (targetPage: number) => {
     const paramsForPage = new URLSearchParams(queryString);
@@ -135,15 +131,6 @@ export default async function MektekReceivingPage({
     >
       <div className="flex flex-col gap-6">
         <div className="flex flex-col justify-end gap-3 sm:flex-row sm:items-center">
-          <Button asChild type="button">
-            <Link
-              href={exportHref}
-              title="Export seluruh Purchase Order sesuai filter aktif"
-            >
-              <Download data-icon="inline-start" />
-              Export Excel
-            </Link>
-          </Button>
           <ReceivingExportButton baseQuery={exportBaseQuery} />
         </div>
 
