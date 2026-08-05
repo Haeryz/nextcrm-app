@@ -7,23 +7,12 @@ import { getTranslations, getMessages } from "next-intl/server";
 
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
+import { siteBaseUrlAsUrl, siteBaseUrl } from "@/lib/site-url";
 
 type Props = {
   children: ReactNode;
   params: Promise<{ locale: string }>;
 };
-
-function resolveMetadataBase(): URL {
-  const fallback = "http://localhost:3000";
-  const rawUrl =
-    process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || fallback;
-
-  try {
-    return new URL(rawUrl);
-  } catch {
-    return new URL(fallback);
-  }
-}
 
 export async function generateMetadata(props: Props) {
   const params = await props.params;
@@ -33,10 +22,27 @@ export async function generateMetadata(props: Props) {
   const t = await getTranslations({ locale, namespace: "RootLayout" });
 
   return {
-    metadataBase: resolveMetadataBase(),
+    metadataBase: siteBaseUrlAsUrl(),
+    manifest: "/manifest.webmanifest",
     title: t("title"),
     description: t("description"),
+    applicationName: "MekTek",
+    keywords: [
+      "bengkel Denso",
+      "dealer AC",
+      "servis AC mobil",
+      "tune-up mesin",
+      "ganti oli",
+      "aki mobil",
+      "rem dan suspensi",
+      "Tabalong",
+      "Kalimantan Selatan",
+      "PT Mektek Tanjung Lestari",
+      "MekTek",
+    ],
     openGraph: {
+      type: "website",
+      siteName: "MekTek",
       images: [
         {
           url: "/images/opengraph-image.png",
@@ -47,11 +53,15 @@ export async function generateMetadata(props: Props) {
       ],
     },
     twitter: {
-      cardType: "summary_large_image",
-      image: "/images/opengraph-image.png",
-      width: 1200,
-      height: 630,
-      alt: t("title"),
+      card: "summary_large_image",
+      images: [
+        {
+          url: "/images/opengraph-image.png",
+          width: 1200,
+          height: 630,
+          alt: t("title"),
+        },
+      ],
     },
   };
 }
@@ -65,6 +75,49 @@ export default async function RootLayout(props: Props) {
 
   const messages = await getMessages();
 
+  const base = siteBaseUrl();
+  const businessJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "AutoRepair",
+    name: "PT Mektek Tanjung Lestari",
+    alternateName: "MekTek",
+    description:
+      "Bengkel resmi Denso dan dealer resmi pendingin udara di Tabalong. Servis AC mobil, tune-up mesin, ganti oli, aki, rem, dan suspensi.",
+    url: base,
+    logo: `${base}/images/logo-pt-mektek-tanjung-lestari.jpg`,
+    image: `${base}/images/opengraph-image.png`,
+    address: {
+      "@type": "PostalAddress",
+      streetAddress: "Jl. Jend A Yani RT.01 Kel. Mabu'un",
+      addressLocality: "Murung Pudak, Tabalong",
+      addressRegion: "Kalimantan Selatan",
+      postalCode: "71571",
+      addressCountry: "ID",
+    },
+    areaServed: "Tabalong, Kalimantan Selatan",
+    openingHoursSpecification: [
+      {
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+        ],
+        opens: "08:00",
+        closes: "17:00",
+      },
+    ],
+    knowsAbout: [
+      "AC Mobil",
+      "Tune-up Mesin",
+      "Oli & Aki",
+      "Rem & Suspensi",
+    ],
+  };
+
   return (
     <html lang={locale}>
       <body className="min-h-screen font-sans">
@@ -73,6 +126,10 @@ export default async function RootLayout(props: Props) {
         </NextIntlClientProvider>
         <Toaster />
         <SonnerToaster />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(businessJsonLd) }}
+        />
       </body>
     </html>
   );

@@ -5,6 +5,7 @@ import { ArrowLeft, MailCheck, ShieldCheck, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { MektekBrandMark } from "@/components/mektek/MektekBrandMark";
 import { CustomerAccessForm } from "./_components/CustomerAccessForm";
+import type { Metadata } from "next";
 import { getCustomerSessionUser } from "@/lib/customer-auth";
 import { getSafeCustomerReturnPath } from "@/lib/customer-return-path";
 
@@ -12,6 +13,10 @@ interface CustomerAccessPageProps {
   params: Promise<{ locale: string }>;
   searchParams?: Promise<{ next?: string | string[] }>;
 }
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 const ACCESS_HIGHLIGHTS = [
   {
