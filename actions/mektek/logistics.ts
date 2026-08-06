@@ -105,6 +105,19 @@ export type MektekOutboundPurchaseOrderUpdateInput =
     }>;
   };
 
+export type MektekReceivingPurchaseOrderUpdateInput =
+  Omit<MektekReceivingPurchaseOrderInput, "items"> & {
+    purchaseOrderId: string;
+    items: Array<{
+      purchaseOrderItemId: string;
+      orderedQuantity: string | number;
+      unitPrice?: string | number;
+      agreedUnitPrice?: string | number;
+      warehouse?: CatalogWarehouse;
+      note?: string;
+    }>;
+  };
+
 type NormalizedPurchaseOrderLine =
   | {
       source: "CATALOG";
@@ -788,6 +801,157 @@ export async function createMektekReceivingPurchaseOrder(
       return { error: `PO No. ${header.data.poNumber} sudah terdaftar di Receiving` };
     }
     return { error: "Gagal membuat Purchase Order Receiving" };
+  }
+}
+
+export async function updateMektekReceivingPurchaseOrder(
+  input: MektekReceivingPurchaseOrderUpdateInput,
+) {
+  const access = await ensureLogisticsManager("RECEIVING");
+  if ("error" in access) return { error: access.error };
+  const purchaseOrderId = compactText(input?.purchaseOrderId);
+  if (!purchaseOrderId) return { error: "Purchase Order Receiving tidak ditemukan" };
+  const header = normalizeHeader(
+    { ...input, userName: MEKTEK_COMPANY_NAME },
+    input?.supplierName,
+  );
+  if ("error" in header) return { error: header.error };
+  if (!Array.isArray(input?.items) || input.items.length === 0) {
+    return { error: "Minimal satu item Receiving wajib diisi" };
+  }
+
+  const normalizedItems: Array<{
+    purchaseOrderItemId: string;
+    orderedQuantity: number;
+    agreedUnitPrice: string | null;
+    warehouse: CatalogWarehouse | null;
+    note: string | null;
+  }> = [];
+  const seenItemIds = new Set<string>();
+  for (const [index, item] of input.items.entries()) {
+    const purchaseOrderItemId = compactText(item?.purchaseOrderItemId);
+    const orderedQuantity = parsePositiveInteger(item?.orderedQuantity);
+    if (!purchaseOrderItemId || seenItemIds.has(purchaseOrderItemId)) {
+      return { error: `Item baris ${index + 1} tidak valid` };
+    }
+    if (!orderedQuantity) {
+      return {
+        error: `Quantity baris ${index + 1} harus berupa angka bulat lebih dari 0`,
+      };
+    }
+    const unitPriceText =
+      compactText(item?.agreedUnitPrice) || compactText(item?.unitPrice);
+    const unitPriceNumber = unitPriceText ? Number(unitPriceText) : null;
+    if (
+      unitPriceNumber == null ||
+      !Number.isFinite(unitPriceNumber) ||
+      unitPriceNumber < 0
+    ) {
+      return {
+        error: `Harga satuan baris ${index + 1} wajib berupa angka 0 atau lebih`,
+      };
+    }
+    const warehouse: CatalogWarehouse | null = isWarehouse(item?.warehouse)
+      ? item.warehouse
+      : null;
+    seenItemIds.add(purchaseOrderItemId);
+    normalizedItems.push({
+      purchaseOrderItemId,
+      orderedQuantity,
+      agreedUnitPrice: unitPriceNumber.toFixed(2),
+      warehouse,
+      note: boundedText(item?.note, MAX_NOTE_LEN) || null,
+    });
+  }
+
+  try {
+    const purchaseOrder = await prismadb.$transaction(async (tx) => {
+      const existing = await tx.logisticsPurchaseOrder.findUnique({
+        where: { id: purchaseOrderId },
+        include: { items: true },
+      });
+      if (!existing || existing.flow !== "RECEIVING") {
+        throw new LogisticsActionError(
+          "Purchase Order Receiving tidak ditemukan",
+        );
+      }
+      if (
+        existing.items.length !== normalizedItems.length ||
+        existing.items.some((item) => !seenItemIds.has(item.id))
+      ) {
+        throw new LogisticsActionError(
+          "Daftar item PO telah berubah. Muat ulang halaman lalu coba kembali.",
+        );
+      }
+
+      const existingById = new Map(existing.items.map((item) => [item.id, item]));
+      for (const [index, item] of normalizedItems.entries()) {
+        const current = existingById.get(item.purchaseOrderItemId);
+        if (!current) {
+          throw new LogisticsActionError(`Item baris ${index + 1} tidak ditemukan`);
+        }
+        if (item.orderedQuantity < current.receivedQuantity) {
+          throw new LogisticsActionError(
+            `QTY Order item ${index + 1} tidak boleh kurang dari QTY Masuk (${current.receivedQuantity})`,
+          );
+        }
+      }
+
+      const status = normalizedItems.every((item) => {
+        const current = existingById.get(item.purchaseOrderItemId);
+        return current && item.orderedQuantity <= current.receivedQuantity;
+      })
+        ? "CLOSED"
+        : "OPEN";
+
+      await tx.logisticsPurchaseOrder.update({
+        where: { id: purchaseOrderId },
+        data: {
+          ...header.data,
+          status,
+        },
+      });
+      for (const item of normalizedItems) {
+        const current = existingById.get(item.purchaseOrderItemId)!;
+        const itemStatus =
+          item.orderedQuantity <= current.receivedQuantity ? "CLOSED" : "OPEN";
+        await tx.logisticsPurchaseOrderItem.update({
+          where: { id: item.purchaseOrderItemId },
+          data: {
+            orderedQuantity: item.orderedQuantity,
+            agreedUnitPrice: item.agreedUnitPrice,
+            warehouse: item.warehouse,
+            note: item.note,
+            status: itemStatus,
+          },
+        });
+      }
+
+      const receiptBatches = await tx.logisticsReceipt.findMany({
+        where: { purchaseOrderItemId: { in: normalizedItems.map((item) => item.purchaseOrderItemId) } },
+        select: { receivingReference: true, receivedAt: true },
+        distinct: ["receivingReference"],
+      });
+      for (const batch of receiptBatches) {
+        await syncReceivingPayableSource(tx, {
+          purchaseOrderId: existing.id,
+          receivingReference: batch.receivingReference,
+          occurredAt: batch.receivedAt,
+        });
+      }
+      return { id: existing.id, poNumber: header.data.poNumber };
+    });
+    revalidatePath("/[locale]/(routes)/mektek/receiving", "page");
+    revalidatePath("/[locale]/(routes)/mektek/items", "page");
+    revalidatePath("/[locale]/(routes)/mektek/items/spreadsheet", "page");
+    return { data: purchaseOrder };
+  } catch (error) {
+    console.log("[UPDATE_MEKTEK_RECEIVING_PO]", error);
+    if (error instanceof LogisticsActionError) return { error: error.message };
+    if (isPrismaUniqueError(error)) {
+      return { error: `PO No. ${header.data.poNumber} sudah terdaftar di Receiving` };
+    }
+    return { error: "Gagal memperbarui Purchase Order Receiving" };
   }
 }
 

@@ -11,6 +11,7 @@ import {
   Loader2,
   MessageCircle,
   PackageCheck,
+  Pencil,
   Plus,
   Printer,
   ReceiptText,
@@ -26,6 +27,7 @@ import { toast } from "sonner";
 import {
   createMektekReceivingPurchaseOrder,
   recordMektekReceivingPurchaseOrderReceipt,
+  updateMektekReceivingPurchaseOrder,
   type MektekReceivingPurchaseOrderInput,
   type MektekReceivingPurchaseOrderItemInput,
 } from "@/actions/mektek/logistics";
@@ -190,6 +192,29 @@ type LogisticsReceivingBatchGroup = {
     item: LogisticsPurchaseOrderItemRow;
     receipt: LogisticsReceiptRow;
   }>;
+};
+
+type ReceivingEditItemDraft = {
+  itemId: string;
+  partName: string;
+  partNumber: string;
+  machine: string;
+  orderedQuantity: string;
+  unitPrice: string;
+  warehouse: "REAR" | "FRONT" | "";
+  note: string;
+  receivedQuantity: number;
+};
+
+type ReceivingEditDraft = {
+  poNumber: string;
+  supplierName: string;
+  projectName: string;
+  inputDate: string;
+  dueDate: string;
+  poType: string;
+  notes: string;
+  items: ReceivingEditItemDraft[];
 };
 
 function blankPurchaseOrderItem(clientId: string): PurchaseOrderItemDraft {
@@ -438,6 +463,11 @@ export default function ReceivingManager({
     );
   const [activePurchaseOrder, setActivePurchaseOrder] =
     useState<LogisticsPurchaseOrderRow | null>(null);
+  const [editingPurchaseOrderId, setEditingPurchaseOrderId] = useState<
+    string | null
+  >(null);
+  const [editDraft, setEditDraft] = useState<ReceivingEditDraft | null>(null);
+  const [isSavingEdit, startSavingEdit] = useTransition();
   const [receiptDraft, setReceiptDraft] = useState({
     picId: pics[0]?.id ?? "",
     receivedAt: getCatalogInventoryLocalDateKey(),
@@ -681,6 +711,85 @@ export default function ReceivingManager({
       items,
     });
     setCreateOpen(true);
+  };
+
+  const openEditPurchaseOrder = (purchaseOrder: LogisticsPurchaseOrderRow) => {
+    setEditDraft({
+      poNumber: purchaseOrder.poNumber,
+      supplierName: purchaseOrder.supplierName,
+      projectName: purchaseOrder.projectName,
+      inputDate: purchaseOrder.inputDate.slice(0, 10),
+      dueDate: purchaseOrder.dueDate.slice(0, 10),
+      poType: purchaseOrder.poType,
+      notes: purchaseOrder.notes ?? "",
+      items: [...purchaseOrder.items]
+        .sort((left, right) => left.position - right.position)
+        .map((item) => ({
+          itemId: item.id,
+          partName: item.partName,
+          partNumber: item.partNumber ?? "",
+          machine: item.machine ?? "",
+          orderedQuantity: String(item.orderedQuantity),
+          unitPrice: item.agreedUnitPrice ?? "",
+          warehouse: item.warehouse ?? "",
+          note: item.note ?? "",
+          receivedQuantity: item.receivedQuantity,
+        })),
+    });
+    setEditingPurchaseOrderId(purchaseOrder.id);
+    setActiveReceiptPurchaseOrder(null);
+  };
+
+  const updateEditItem = <K extends keyof ReceivingEditItemDraft>(
+    itemId: string,
+    key: K,
+    value: ReceivingEditItemDraft[K],
+  ) => {
+    setEditDraft((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: current.items.map((item) =>
+          item.itemId === itemId ? { ...item, [key]: value } : item,
+        ),
+      };
+    });
+  };
+
+  const submitEditedPurchaseOrder = () => {
+    if (!editingPurchaseOrderId || !editDraft) return;
+    startSavingEdit(async () => {
+      const result = await updateMektekReceivingPurchaseOrder({
+        purchaseOrderId: editingPurchaseOrderId,
+        poNumber: editDraft.poNumber.trim(),
+        supplierName: editDraft.supplierName.trim(),
+        projectName: editDraft.projectName.trim(),
+        inputDate: editDraft.inputDate,
+        dueDate: editDraft.dueDate,
+        poType: editDraft.poType,
+        notes: editDraft.notes.trim(),
+        items: editDraft.items.map((item) => ({
+          purchaseOrderItemId: item.itemId,
+          orderedQuantity: item.orderedQuantity,
+          unitPrice: item.unitPrice,
+          warehouse:
+            item.warehouse === "REAR" || item.warehouse === "FRONT"
+              ? item.warehouse
+              : undefined,
+          note: item.note,
+        })),
+      });
+      if (!result || "error" in result) {
+        toast.error(result?.error || "Gagal memperbarui Purchase Order Receiving");
+        return;
+      }
+      toast.success(
+        `Purchase Order Receiving ${result.data.poNumber} berhasil diperbarui`,
+      );
+      setEditingPurchaseOrderId(null);
+      setEditDraft(null);
+      router.refresh();
+    });
   };
 
   const selectSupplierDeliveryNote = (file: File | null) => {
@@ -1894,6 +2003,17 @@ export default function ReceivingManager({
 
           {activeReceiptPurchaseOrder && activeProgress && (
             <div className="space-y-5">
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => openEditPurchaseOrder(activeReceiptPurchaseOrder)}
+                  disabled={isPending || isSavingEdit}
+                >
+                  <Pencil data-icon="inline-start" /> Edit Purchase Order Receiving
+                </Button>
+              </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-lg bg-muted/50 p-3">
                   <p className="text-xs text-muted-foreground">Project</p>
@@ -2763,6 +2883,297 @@ export default function ReceivingManager({
                 )}
               </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!editingPurchaseOrderId && !!editDraft}
+        onOpenChange={(open) => {
+          if (!open && !isSavingEdit) {
+            setEditingPurchaseOrderId(null);
+            setEditDraft(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>Edit Purchase Order Receiving</DialogTitle>
+            <DialogDescription>
+              Perbarui data PO, harga supplier, dan QTY Order. QTY tidak dapat lebih
+              kecil dari barang yang sudah masuk.
+            </DialogDescription>
+          </DialogHeader>
+          {editDraft && (
+            <form
+              className="space-y-5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                submitEditedPurchaseOrder();
+              }}
+            >
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-receiving-po-number">PO No.</Label>
+                  <Input
+                    id="edit-receiving-po-number"
+                    value={editDraft.poNumber}
+                    onChange={(event) =>
+                      setEditDraft((current) => current && ({
+                        ...current,
+                        poNumber: event.target.value,
+                      }))
+                    }
+                    disabled={isSavingEdit}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-receiving-supplier">Supplier / tujuan PO</Label>
+                  <SupplierNameCombobox
+                    id="edit-receiving-supplier"
+                    value={editDraft.supplierName}
+                    onChange={(value) =>
+                      setEditDraft((current) => current && ({
+                        ...current,
+                        supplierName: value,
+                      }))
+                    }
+                    suggestions={supplierNameSuggestions}
+                    placeholder="Nama supplier"
+                    disabled={isSavingEdit}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-receiving-project">Job Site / Project</Label>
+                  <Input
+                    id="edit-receiving-project"
+                    value={editDraft.projectName}
+                    onChange={(event) =>
+                      setEditDraft((current) => current && ({
+                        ...current,
+                        projectName: event.target.value,
+                      }))
+                    }
+                    disabled={isSavingEdit}
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-receiving-input-date">Tanggal Create</Label>
+                  <Input
+                    id="edit-receiving-input-date"
+                    type="date"
+                    value={editDraft.inputDate}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      setEditDraft((current) => current && ({
+                        ...current,
+                        inputDate: next,
+                        dueDate: next,
+                      }));
+                    }}
+                    disabled={isSavingEdit}
+                    required
+                  />
+                </div>
+              </div>
+
+              <fieldset className="space-y-4 rounded-xl border bg-muted/15 p-4 sm:p-5">
+                <legend className="sr-only">Item yang dipesan</legend>
+                <div>
+                  <h3 className="font-medium">Item yang dipesan</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Nama item, Part Number, dan Mesin tetap agar riwayat penerimaan
+                    tidak terputus.
+                  </p>
+                </div>
+                <div className="space-y-4">
+                  {editDraft.items.map((item, index) => {
+                    const minimumQuantity = Math.max(1, item.receivedQuantity);
+                    return (
+                      <fieldset
+                        key={item.itemId}
+                        className="overflow-visible rounded-xl border bg-background shadow-sm"
+                      >
+                        <legend className="sr-only">Item {index + 1}</legend>
+                        <div className="flex items-center justify-between gap-3 rounded-t-xl border-b bg-muted/25 px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="flex size-7 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
+                              {index + 1}
+                            </span>
+                            <p className="text-sm font-semibold">Detail Item</p>
+                          </div>
+                        </div>
+
+                        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_10rem] lg:items-start">
+                          <div className="space-y-4">
+                            <div className="space-y-1">
+                              <p className="font-medium">{item.partName}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {item.partNumber || "Tanpa Part Number"}
+                                {item.machine ? ` · ${item.machine}` : ""}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                QTY Masuk {item.receivedQuantity}
+                              </p>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor={`edit-receiving-note-${item.itemId}`}>
+                                Keterangan Item
+                                <span className="ml-1 font-normal text-muted-foreground">
+                                  (opsional)
+                                </span>
+                              </Label>
+                              <Input
+                                id={`edit-receiving-note-${item.itemId}`}
+                                value={item.note}
+                                maxLength={500}
+                                onChange={(event) =>
+                                  updateEditItem(item.itemId, "note", event.target.value)
+                                }
+                                disabled={isSavingEdit}
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor={`edit-receiving-warehouse-${item.itemId}`}>
+                                Gudang Tujuan
+                              </Label>
+                              <Select
+                                value={item.warehouse || "REAR"}
+                                onValueChange={(value: "REAR" | "FRONT") =>
+                                  updateEditItem(item.itemId, "warehouse", value)
+                                }
+                                disabled={isSavingEdit}
+                              >
+                                <SelectTrigger
+                                  id={`edit-receiving-warehouse-${item.itemId}`}
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="REAR">Gudang Belakang</SelectItem>
+                                  <SelectItem value="FRONT">Gudang Depan</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+                            <Label htmlFor={`edit-receiving-qty-${item.itemId}`}>
+                              QTY Order
+                            </Label>
+                            <Input
+                              id={`edit-receiving-qty-${item.itemId}`}
+                              className="h-11 bg-background font-mono text-base"
+                              type="number"
+                              inputMode="numeric"
+                              min={minimumQuantity}
+                              step={1}
+                              value={item.orderedQuantity}
+                              onChange={(event) =>
+                                updateEditItem(
+                                  item.itemId,
+                                  "orderedQuantity",
+                                  event.target.value,
+                                )
+                              }
+                              disabled={isSavingEdit}
+                              required
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Minimal {minimumQuantity}
+                            </p>
+                            <Label htmlFor={`edit-receiving-price-${item.itemId}`}>
+                              Harga Supplier
+                            </Label>
+                            <Input
+                              id={`edit-receiving-price-${item.itemId}`}
+                              className="h-11 bg-background font-mono text-base"
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              step="0.01"
+                              value={item.unitPrice}
+                              onChange={(event) =>
+                                updateEditItem(
+                                  item.itemId,
+                                  "unitPrice",
+                                  event.target.value,
+                                )
+                              }
+                              disabled={isSavingEdit}
+                              required
+                            />
+                            <Separator />
+                            <div className="space-y-1">
+                              <p className="text-xs text-muted-foreground">Jumlah</p>
+                              <p className="font-mono font-semibold">
+                                {formatRupiah(
+                                  (Number(item.orderedQuantity) || 0) *
+                                    (Number(item.unitPrice) || 0),
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </fieldset>
+                    );
+                  })}
+                </div>
+              </fieldset>
+
+              <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-4">
+                <span className="font-medium">Total Purchase Order</span>
+                <span className="font-mono text-lg font-semibold">
+                  {formatRupiah(
+                    editDraft.items.reduce(
+                      (total, item) =>
+                        total +
+                        (Number(item.orderedQuantity) || 0) *
+                          (Number(item.unitPrice) || 0),
+                      0,
+                    ),
+                  )}
+                </span>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-receiving-notes">Catatan PO</Label>
+                <Textarea
+                  id="edit-receiving-notes"
+                  value={editDraft.notes}
+                  onChange={(event) =>
+                    setEditDraft((current) => current && ({
+                      ...current,
+                      notes: event.target.value,
+                    }))
+                  }
+                  placeholder="Catatan tambahan untuk supplier atau tim Purchasing"
+                  disabled={isSavingEdit}
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setEditingPurchaseOrderId(null);
+                    setEditDraft(null);
+                  }}
+                  disabled={isSavingEdit}
+                >
+                  Batal
+                </Button>
+                <Button type="submit" disabled={isSavingEdit}>
+                  {isSavingEdit && (
+                    <Loader2 data-icon="inline-start" className="animate-spin" />
+                  )}
+                  Simpan Perubahan
+                </Button>
+              </div>
+            </form>
           )}
         </DialogContent>
       </Dialog>
