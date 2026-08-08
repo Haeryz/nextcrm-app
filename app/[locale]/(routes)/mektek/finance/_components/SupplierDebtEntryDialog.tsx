@@ -40,6 +40,7 @@ type Draft = {
   quantity: string;
   unitPrice: string;
   amount: string;
+  ppnAmount: string;
   grandTotal: string;
   partsEntryDate: string;
   paymentDate: string;
@@ -66,6 +67,7 @@ const blankDraft = (): Draft => ({
   quantity: "",
   unitPrice: "",
   amount: "",
+  ppnAmount: "",
   grandTotal: "",
   partsEntryDate: "",
   paymentDate: "",
@@ -94,6 +96,7 @@ const draftFromEntry = (entry?: SupplierDebtDetailEntry): Draft => {
     quantity: value(entry.quantity),
     unitPrice: value(entry.unitPrice),
     amount: value(entry.amount),
+    ppnAmount: value(entry.ppnAmount),
     grandTotal: value(entry.grandTotal),
     partsEntryDate: value(entry.partsEntryDate),
     paymentDate: value(entry.paymentDate),
@@ -108,22 +111,23 @@ const fields: Array<{
   label: string;
   type?: "date" | "number" | "text";
   placeholder?: string;
+  readOnlyOnEdit?: boolean;
 }> = [
   { key: "number", label: "No. baris", placeholder: "Otomatis jika kosong" },
   { key: "purchaseOrderDate", label: "Tanggal PO", type: "date" },
-  { key: "purchaseOrderNumber", label: "Nomor PO", placeholder: "Contoh: PO-2026-001" },
+  { key: "purchaseOrderNumber", label: "Nomor PO", placeholder: "Contoh: PO-2026-001", readOnlyOnEdit: true },
   { key: "goodsReceiptDate", label: "Tanggal terima barang", type: "date" },
   { key: "receivedBy", label: "Diterima oleh" },
-  { key: "deliveryNoteNumber", label: "Nomor SJ", placeholder: "Nomor surat jalan" },
+  { key: "deliveryNoteNumber", label: "Nomor SJ", placeholder: "Nomor surat jalan", readOnlyOnEdit: true },
   { key: "invoiceDate", label: "Tanggal invoice", type: "date" },
   { key: "invoiceNumber", label: "Nomor invoice" },
   { key: "taxInvoiceNumber", label: "Nomor faktur pajak" },
   { key: "dueDate", label: "Jatuh tempo", type: "date" },
-  { key: "partNumber", label: "Part number" },
-  { key: "quantity", label: "Qty", type: "number" },
-  { key: "unitPrice", label: "Harga satuan", type: "number" },
-  { key: "amount", label: "Jumlah", type: "number", placeholder: "Qty × harga jika kosong" },
-  { key: "grandTotal", label: "Grand total", type: "number", placeholder: "Jumlah jika kosong" },
+  { key: "quantity", label: "Qty", type: "number", readOnlyOnEdit: true },
+  { key: "unitPrice", label: "Harga satuan", type: "number", readOnlyOnEdit: true },
+  { key: "amount", label: "Jumlah", type: "number", placeholder: "Qty × harga jika kosong", readOnlyOnEdit: true },
+  { key: "ppnAmount", label: "PPN", type: "number", placeholder: "0 jika tidak ada PPN" },
+  { key: "grandTotal", label: "Grand total", type: "number", placeholder: "Jumlah jika kosong", readOnlyOnEdit: true },
   { key: "partsEntryDate", label: "Date in part", type: "date" },
   { key: "paymentDate", label: "Tanggal bayar", type: "date" },
   { key: "paymentAmount", label: "Nominal bayar", type: "number" },
@@ -146,8 +150,19 @@ export default function SupplierDebtEntryDialog({
   const [draft, setDraft] = useState(() => draftFromEntry(entry));
   const isEdit = Boolean(entry);
 
-  const update = (key: DraftKey, value: string) =>
+  const update = (key: DraftKey, value: string) => {
+    if (key === "ppnAmount") {
+      const amount = Number(draft.amount) || 0;
+      const ppn = Number(value) || 0;
+      setDraft((current) => ({
+        ...current,
+        ppnAmount: value,
+        grandTotal: String(amount + ppn),
+      }));
+      return;
+    }
     setDraft((current) => ({ ...current, [key]: value }));
+  };
 
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen);
@@ -195,21 +210,33 @@ export default function SupplierDebtEntryDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-5">
+          {isEdit && (
+            <p className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+              Qty, Harga satuan, Jumlah, Nomor PO, Nomor SJ, dan Grand total terkunci
+              karena mengikuti data Receiving / Logistik. PPN dan kolom lainnya
+              masih dapat diperbarui.
+            </p>
+          )}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {fields.map((field) => (
-              <div key={field.key} className="space-y-1.5">
-                <Label htmlFor={`supplier-debt-${field.key}`}>{field.label}</Label>
-                <Input
-                  id={`supplier-debt-${field.key}`}
-                  type={field.type ?? "text"}
-                  min={field.type === "number" ? "0" : undefined}
-                  step={field.key === "quantity" ? "0.001" : field.type === "number" ? "0.01" : undefined}
-                  value={draft[field.key]}
-                  placeholder={field.placeholder}
-                  onChange={(event) => update(field.key, event.target.value)}
-                />
-              </div>
-            ))}
+            {fields.map((field) => {
+              const isReadOnly = isEdit && field.readOnlyOnEdit;
+              return (
+                <div key={field.key} className="space-y-1.5">
+                  <Label htmlFor={`supplier-debt-${field.key}`}>{field.label}</Label>
+                  <Input
+                    id={`supplier-debt-${field.key}`}
+                    type={field.type ?? "text"}
+                    min={field.type === "number" ? "0" : undefined}
+                    step={field.key === "quantity" ? "0.001" : field.type === "number" ? "0.01" : undefined}
+                    value={draft[field.key]}
+                    placeholder={field.placeholder}
+                    onChange={(event) => update(field.key, event.target.value)}
+                    readOnly={isReadOnly}
+                    className={isReadOnly ? "cursor-not-allowed bg-muted/50 text-muted-foreground" : undefined}
+                  />
+                </div>
+              );
+            })}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="supplier-debt-description">Deskripsi</Label>

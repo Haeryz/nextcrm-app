@@ -826,6 +826,7 @@ model MektekSupplierDebtEntry {
   quantity            Decimal   @default(0) @db.Decimal(18, 3)
   unitPrice           Decimal   @default(0) @db.Decimal(18, 2)
   amount              Decimal   @default(0) @db.Decimal(18, 2)
+  ppnAmount           Decimal   @default(0) @db.Decimal(18, 2)
   grandTotal          Decimal   @default(0) @db.Decimal(18, 2)
   partsEntryDate      DateTime? @db.Date
   paymentDate         DateTime? @db.Date

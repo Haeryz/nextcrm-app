@@ -1506,6 +1506,7 @@ export const appendMektekServiceOrderItems = async (input: {
   serviceItems?: MektekLineItemInput[];
   sparepartItems?: MektekLineItemInput[];
   replaceSparepartItems?: boolean;
+  replaceServiceItems?: boolean;
 }) => {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "Unauthorized: silakan Login" };
@@ -1521,7 +1522,8 @@ export const appendMektekServiceOrderItems = async (input: {
   if (
     addedServiceItems.length === 0 &&
     addedSparepartItems.length === 0 &&
-    !input?.replaceSparepartItems
+    !input?.replaceSparepartItems &&
+    !input?.replaceServiceItems
   ) {
     return { error: "Tambahkan minimal satu item servis atau sparepart" };
   }
@@ -1568,21 +1570,28 @@ export const appendMektekServiceOrderItems = async (input: {
         order.content,
       ).sparepartItems;
       const appendedItems = appendMektekLineItems(tags, order.content, {
-        serviceItems: input?.serviceItems,
+        serviceItems: input?.replaceServiceItems
+          ? []
+          : input?.serviceItems,
         sparepartItems: input?.replaceSparepartItems
           ? []
           : input?.sparepartItems,
       });
-      const nextItems = input?.replaceSparepartItems
-        ? normalizeMektekLineItems(
-            {
-              ...tags,
-              serviceItems: appendedItems.serviceItems,
-              sparepartItems: addedSparepartItems,
-            },
-            order.content,
-          )
-        : appendedItems;
+      const nextItems =
+        input?.replaceSparepartItems || input?.replaceServiceItems
+          ? normalizeMektekLineItems(
+              {
+                ...tags,
+                serviceItems: input?.replaceServiceItems
+                  ? addedServiceItems
+                  : appendedItems.serviceItems,
+                sparepartItems: input?.replaceSparepartItems
+                  ? addedSparepartItems
+                  : appendedItems.sparepartItems,
+              },
+              order.content,
+            )
+          : appendedItems;
       if (nextItems.items.length > 100) {
         return { error: "Service Order maksimal berisi 100 item" };
       }
@@ -1598,7 +1607,9 @@ export const appendMektekServiceOrderItems = async (input: {
               .join(", ")}.`
           : "";
       const timelineDraft = [
-        describeAddedItems("Jasa ditambahkan", addedServiceItems),
+        input?.replaceServiceItems
+          ? "Daftar jasa servis diperbarui."
+          : describeAddedItems("Jasa ditambahkan", addedServiceItems),
         input?.replaceSparepartItems
           ? "Daftar sparepart dan alokasi gudang diperbarui."
           : describeAddedItems("Sparepart ditambahkan", addedSparepartItems),
@@ -1638,7 +1649,7 @@ export const appendMektekServiceOrderItems = async (input: {
         },
       };
     },
-      { timeout: 30000, maxWait: 10000 },
+      { timeout: 60000, maxWait: 20000 },
     );
     if ("error" in outcome) return outcome;
 

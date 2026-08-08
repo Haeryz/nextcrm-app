@@ -393,6 +393,20 @@ export default async function MektekDetailPage({ params }: Props) {
                 {canAddOrderItems && (
                   <ServiceOrderItemsEditor
                     serviceOrderId={order.id}
+                    initialServiceItems={normalizedItems.serviceItems.map(
+                      (item, index) => ({
+                        clientId: `stored-service-${index}`,
+                        description: item.name,
+                        estimatedCost: String(item.unitPrice),
+                        quantity: item.quantity,
+                        catalogItemId: item.catalogItemId ?? undefined,
+                        machine: item.machine ?? undefined,
+                        partNumber: item.partNumber ?? undefined,
+                        catalogPartNumber:
+                          item.catalogPartNumber ?? undefined,
+                        stockWarehouse: item.stockWarehouse ?? undefined,
+                      }),
+                    )}
                     initialSparepartItems={normalizedItems.sparepartItems.map(
                       (item, index) => ({
                         clientId: `stored-sparepart-${index}`,

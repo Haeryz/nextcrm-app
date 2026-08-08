@@ -109,7 +109,12 @@ export type MektekReceivingPurchaseOrderUpdateInput =
   Omit<MektekReceivingPurchaseOrderInput, "items"> & {
     purchaseOrderId: string;
     items: Array<{
-      purchaseOrderItemId: string;
+      purchaseOrderItemId?: string;
+      source?: "CATALOG" | "MANUAL";
+      catalogItemId?: string;
+      partName?: string;
+      partNumber?: string;
+      machine?: string;
       orderedQuantity: string | number;
       unitPrice?: string | number;
       agreedUnitPrice?: string | number;
@@ -183,8 +188,8 @@ export type MektekOutboundDispatchRevisionInput = {
 class LogisticsActionError extends Error {}
 
 const LOGISTICS_TRANSACTION_OPTIONS = {
-  maxWait: 15_000,
-  timeout: 30_000,
+  maxWait: 20_000,
+  timeout: 60_000,
 } as const;
 
 function getTransactionRetryMessage(
@@ -820,48 +825,71 @@ export async function updateMektekReceivingPurchaseOrder(
     return { error: "Minimal satu item Receiving wajib diisi" };
   }
 
-  const normalizedItems: Array<{
+  const existingItemInputs: Array<{
     purchaseOrderItemId: string;
     orderedQuantity: number;
     agreedUnitPrice: string | null;
     warehouse: CatalogWarehouse | null;
     note: string | null;
+    index: number;
   }> = [];
   const seenItemIds = new Set<string>();
+  const newItemInputs: MektekReceivingPurchaseOrderItemInput[] = [];
+
   for (const [index, item] of input.items.entries()) {
     const purchaseOrderItemId = compactText(item?.purchaseOrderItemId);
-    const orderedQuantity = parsePositiveInteger(item?.orderedQuantity);
-    if (!purchaseOrderItemId || seenItemIds.has(purchaseOrderItemId)) {
-      return { error: `Item baris ${index + 1} tidak valid` };
+    if (purchaseOrderItemId) {
+      if (seenItemIds.has(purchaseOrderItemId)) {
+        return { error: `Item baris ${index + 1} diduplikasi` };
+      }
+      const orderedQuantity = parsePositiveInteger(item?.orderedQuantity);
+      if (!orderedQuantity) {
+        return {
+          error: `Quantity baris ${index + 1} harus berupa angka bulat lebih dari 0`,
+        };
+      }
+      const unitPriceText =
+        compactText(item?.agreedUnitPrice) || compactText(item?.unitPrice);
+      const unitPriceNumber = unitPriceText ? Number(unitPriceText) : null;
+      if (
+        unitPriceNumber == null ||
+        !Number.isFinite(unitPriceNumber) ||
+        unitPriceNumber < 0
+      ) {
+        return {
+          error: `Harga satuan baris ${index + 1} wajib berupa angka 0 atau lebih`,
+        };
+      }
+      const warehouse: CatalogWarehouse | null = isWarehouse(item?.warehouse)
+        ? item.warehouse
+        : null;
+      seenItemIds.add(purchaseOrderItemId);
+      existingItemInputs.push({
+        purchaseOrderItemId,
+        orderedQuantity,
+        agreedUnitPrice: unitPriceNumber.toFixed(2),
+        warehouse,
+        note: boundedText(item?.note, MAX_NOTE_LEN) || null,
+        index,
+      });
+    } else {
+      newItemInputs.push(item as MektekReceivingPurchaseOrderItemInput);
     }
-    if (!orderedQuantity) {
-      return {
-        error: `Quantity baris ${index + 1} harus berupa angka bulat lebih dari 0`,
-      };
-    }
-    const unitPriceText =
-      compactText(item?.agreedUnitPrice) || compactText(item?.unitPrice);
-    const unitPriceNumber = unitPriceText ? Number(unitPriceText) : null;
-    if (
-      unitPriceNumber == null ||
-      !Number.isFinite(unitPriceNumber) ||
-      unitPriceNumber < 0
-    ) {
-      return {
-        error: `Harga satuan baris ${index + 1} wajib berupa angka 0 atau lebih`,
-      };
-    }
-    const warehouse: CatalogWarehouse | null = isWarehouse(item?.warehouse)
-      ? item.warehouse
-      : null;
-    seenItemIds.add(purchaseOrderItemId);
-    normalizedItems.push({
-      purchaseOrderItemId,
-      orderedQuantity,
-      agreedUnitPrice: unitPriceNumber.toFixed(2),
-      warehouse,
-      note: boundedText(item?.note, MAX_NOTE_LEN) || null,
+  }
+
+  let newLines: NormalizedPurchaseOrderLine[] = [];
+  if (newItemInputs.length > 0) {
+    const linesResult = normalizePurchaseOrderLines(newItemInputs, {
+      requireCatalogWarehouse: false,
+      requireManualMachine: true,
+      requireManualWarehouse: true,
+      requireManualUnitPrice: true,
+      requireManualPartNumber: false,
+      requireUnitPrice: true,
+      emptyError: "Minimal satu item Receiving wajib diisi",
     });
+    if ("error" in linesResult) return { error: linesResult.error };
+    newLines = linesResult.data;
   }
 
   try {
@@ -875,46 +903,71 @@ export async function updateMektekReceivingPurchaseOrder(
           "Purchase Order Receiving tidak ditemukan",
         );
       }
-      if (
-        existing.items.length !== normalizedItems.length ||
-        existing.items.some((item) => !seenItemIds.has(item.id))
-      ) {
-        throw new LogisticsActionError(
-          "Daftar item PO telah berubah. Muat ulang halaman lalu coba kembali.",
-        );
-      }
 
       const existingById = new Map(existing.items.map((item) => [item.id, item]));
-      for (const [index, item] of normalizedItems.entries()) {
-        const current = existingById.get(item.purchaseOrderItemId);
-        if (!current) {
-          throw new LogisticsActionError(`Item baris ${index + 1} tidak ditemukan`);
-        }
-        if (item.orderedQuantity < current.receivedQuantity) {
+
+      for (const item of existingItemInputs) {
+        if (!existingById.has(item.purchaseOrderItemId)) {
           throw new LogisticsActionError(
-            `QTY Order item ${index + 1} tidak boleh kurang dari QTY Masuk (${current.receivedQuantity})`,
+            `Item baris ${item.index + 1} tidak ditemukan`,
           );
         }
       }
 
-      const status = normalizedItems.every((item) => {
-        const current = existingById.get(item.purchaseOrderItemId);
-        return current && item.orderedQuantity <= current.receivedQuantity;
-      })
-        ? "CLOSED"
-        : "OPEN";
+      const deletedItems = existing.items.filter(
+        (item) => !seenItemIds.has(item.id),
+      );
+      for (const item of deletedItems) {
+        if (item.receivedQuantity > 0) {
+          throw new LogisticsActionError(
+            `Item "${item.partName}" tidak dapat dihapus karena sudah memiliki ${item.receivedQuantity} barang masuk`,
+          );
+        }
+      }
 
-      await tx.logisticsPurchaseOrder.update({
-        where: { id: purchaseOrderId },
-        data: {
-          ...header.data,
-          status,
-        },
-      });
-      for (const item of normalizedItems) {
+      for (const item of existingItemInputs) {
+        const current = existingById.get(item.purchaseOrderItemId)!;
+        if (item.orderedQuantity < current.receivedQuantity) {
+          throw new LogisticsActionError(
+            `QTY Order item ${item.index + 1} tidak boleh kurang dari QTY Masuk (${current.receivedQuantity})`,
+          );
+        }
+      }
+
+      const hydratedNewLines = await hydratePurchaseOrderLines(
+        tx,
+        newLines,
+        false,
+      );
+      const manualCatalogIds = new Map<number, string>();
+      for (const line of hydratedNewLines) {
+        if (line.source !== "MANUAL") continue;
+        const catalogItem = await ensureManualReceivingCatalogItem(tx, {
+          partName: line.partName,
+          partNumber: line.partNumber,
+          machine: line.machine!,
+          poNumber: header.data.poNumber,
+        });
+        manualCatalogIds.set(line.position, catalogItem.id);
+      }
+
+      const maxPosition = existing.items.reduce(
+        (max, item) => Math.max(max, item.position),
+        0,
+      );
+
+      for (const item of deletedItems) {
+        await tx.logisticsPurchaseOrderItem.delete({
+          where: { id: item.id },
+        });
+      }
+
+      for (const item of existingItemInputs) {
         const current = existingById.get(item.purchaseOrderItemId)!;
         const itemStatus =
-          item.orderedQuantity <= current.receivedQuantity ? "CLOSED" : "OPEN";
+          item.orderedQuantity <= current.receivedQuantity
+            ? "CLOSED"
+            : "OPEN";
         await tx.logisticsPurchaseOrderItem.update({
           where: { id: item.purchaseOrderItemId },
           data: {
@@ -927,8 +980,75 @@ export async function updateMektekReceivingPurchaseOrder(
         });
       }
 
+      const allItemProgress = [
+        ...existingItemInputs.map((item) => ({
+          orderedQuantity: item.orderedQuantity,
+          receivedQuantity: existingById.get(item.purchaseOrderItemId)!
+            .receivedQuantity,
+        })),
+        ...hydratedNewLines.map((line) => ({
+          orderedQuantity: line.orderedQuantity,
+          receivedQuantity: 0,
+        })),
+      ];
+
+      for (const [newIndex, line] of hydratedNewLines.entries()) {
+        const position = maxPosition + newIndex + 1;
+        if (line.source === "MANUAL") {
+          await tx.logisticsPurchaseOrderItem.create({
+            data: {
+              purchaseOrderId: existing.id,
+              source: "MANUAL",
+              catalogItemId: manualCatalogIds.get(line.position)!,
+              position,
+              partName: line.partName,
+              partNumber: line.partNumber,
+              machine: line.machine,
+              orderedQuantity: line.orderedQuantity,
+              agreedUnitPrice: line.unitPrice,
+              warehouse: line.warehouse,
+              note: line.note,
+            },
+          });
+        } else {
+          await tx.logisticsPurchaseOrderItem.create({
+            data: {
+              purchaseOrderId: existing.id,
+              source: "CATALOG",
+              catalogItemId: line.catalogItem.id,
+              position,
+              partName: line.catalogItem.description,
+              partNumber:
+                line.catalogItem.partNumber ||
+                line.catalogItem.catalogPartNumber,
+              machine: line.catalogItem.machine,
+              orderedQuantity: line.orderedQuantity,
+              agreedUnitPrice: line.agreedUnitPrice ?? line.unitPrice,
+              note: line.note,
+            },
+          });
+        }
+      }
+
+      const status = allItemProgress.every(
+        (item) => item.orderedQuantity <= item.receivedQuantity,
+      )
+        ? "CLOSED"
+        : "OPEN";
+
+      await tx.logisticsPurchaseOrder.update({
+        where: { id: purchaseOrderId },
+        data: {
+          ...header.data,
+          status,
+        },
+      });
+
+      const remainingItemIds = existingItemInputs.map(
+        (item) => item.purchaseOrderItemId,
+      );
       const receiptBatches = await tx.logisticsReceipt.findMany({
-        where: { purchaseOrderItemId: { in: normalizedItems.map((item) => item.purchaseOrderItemId) } },
+        where: { purchaseOrderItemId: { in: remainingItemIds } },
         select: { receivingReference: true, receivedAt: true },
         distinct: ["receivingReference"],
       });

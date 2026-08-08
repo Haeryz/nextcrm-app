@@ -2075,8 +2075,9 @@ export async function createMatchedFinanceSupplierBill(input: {
               snapshot.poNumber ? ` — ${snapshot.poNumber}` : ""
             }`,
             quantity: new Prisma.Decimal(1),
-            unitPrice: totalAmount,
-            amount: totalAmount,
+            unitPrice: subtotal,
+            amount: subtotal,
+            ppnAmount: taxAmount,
             grandTotal: totalAmount,
             createdBy: access.current.id,
             updatedBy: access.current.id,

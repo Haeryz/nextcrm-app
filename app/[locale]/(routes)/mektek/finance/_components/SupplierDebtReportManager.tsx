@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState, useTransition } from "react";
+import { FormEvent, Fragment, useEffect, useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -203,13 +203,17 @@ export default function SupplierDebtReportManager({
   >;
   billLinesByInvoice: Record<
     string,
-    Array<{
-      description: string;
-      partNumber: string | null;
-      quantity: number;
-      unitCost: number;
-      lineTotal: number;
-    }>
+    {
+      taxAmount: number;
+      totalAmount: number;
+      lines: Array<{
+        description: string;
+        partNumber: string | null;
+        quantity: number;
+        unitCost: number;
+        lineTotal: number;
+      }>;
+    }
   >;
   monthlyTotals: number[];
   search: string;
@@ -887,6 +891,7 @@ export default function SupplierDebtReportManager({
                     <th className="px-3 py-3 text-right">Qty</th>
                     <th className="px-3 py-3 text-right">Harga</th>
                     <th className="px-3 py-3 text-right">Jumlah</th>
+                    <th className="px-3 py-3 text-right">PPN</th>
                     <th className="px-3 py-3 text-right">Grand total</th>
                     <th className="px-3 py-3">Date in part</th>
                     <th className="px-3 py-3">Tanggal bayar</th>
@@ -906,17 +911,34 @@ export default function SupplierDebtReportManager({
                       row.dueDate,
                       row.status,
                     );
-                    return (
-                    <tr
-                      key={row.id ?? row.sourceRow}
-                      className={
-                        dueState === "OVERDUE"
-                          ? "align-top bg-rose-50 hover:bg-rose-100/70"
-                          : dueState === "DUE_SOON"
-                            ? "align-top bg-amber-50 hover:bg-amber-100/70"
-                            : "align-top hover:bg-muted/30"
-                      }
-                    >
+                    const billData = row.invoiceNumber
+                      ? billLinesByInvoice[row.invoiceNumber]
+                      : undefined;
+                    const itemLines = billData?.lines ?? [];
+                    const effectivePpn = billData
+                      ? billData.taxAmount
+                      : row.ppnAmount;
+                    const effectiveGrandTotal = billData
+                      ? billData.totalAmount
+                      : row.grandTotal;
+                    const rowClass =
+                      dueState === "OVERDUE"
+                        ? "align-top bg-rose-50 hover:bg-rose-100/70"
+                        : dueState === "DUE_SOON"
+                          ? "align-top bg-amber-50 hover:bg-amber-100/70"
+                          : "align-top hover:bg-muted/30";
+                    const invoiceLabel =
+                      row.invoiceNumber ??
+                      row.purchaseOrderNumber ??
+                      row.deliveryNoteNumber ??
+                      `Baris ${row.number ?? row.sourceRow}`;
+
+                    if (itemLines.length === 0) {
+                      return (
+                      <tr
+                        key={row.id ?? row.sourceRow}
+                        className={rowClass}
+                      >
                       <td className="px-3 py-3 text-muted-foreground">
                         {row.number || "—"}
                       </td>
@@ -945,9 +967,7 @@ export default function SupplierDebtReportManager({
                             className={
                               dueState === "OVERDUE"
                                 ? "mt-1 block w-fit bg-rose-600 text-white hover:bg-rose-600"
-                                : // white-on-amber-500 is only 2.15:1 and fails WCAG AA;
-                                  // this matches the status badges elsewhere in this file (8.1:1).
-                                  "mt-1 block w-fit bg-amber-100 text-amber-900 hover:bg-amber-100"
+                                : "mt-1 block w-fit bg-amber-100 text-amber-900 hover:bg-amber-100"
                             }
                           >
                             {dueState === "OVERDUE"
@@ -967,8 +987,11 @@ export default function SupplierDebtReportManager({
                       <td className="whitespace-nowrap px-3 py-3 text-right">
                         {row.amount ? rupiah.format(row.amount) : "—"}
                       </td>
+                      <td className="whitespace-nowrap px-3 py-3 text-right">
+                        {effectivePpn ? rupiah.format(effectivePpn) : "—"}
+                      </td>
                       <td className="whitespace-nowrap px-3 py-3 text-right font-medium">
-                        {row.grandTotal ? rupiah.format(row.grandTotal) : "—"}
+                        {effectiveGrandTotal ? rupiah.format(effectiveGrandTotal) : "—"}
                       </td>
                       <td className="px-3 py-3">
                         {dateLabel(row.partsEntryDate)}
@@ -1026,12 +1049,7 @@ export default function SupplierDebtReportManager({
                               kind="DEPOSIT"
                               sheetKey={selectedSheetKey}
                               sourceRow={row.sourceRow}
-                              invoiceLabel={
-                                row.invoiceNumber ??
-                                row.purchaseOrderNumber ??
-                                row.deliveryNoteNumber ??
-                                `Baris ${row.number ?? row.sourceRow}`
-                              }
+                              invoiceLabel={invoiceLabel}
                               remainingAmount={row.remainingAmount}
                               depositBalance={depositBalance}
                             />
@@ -1039,12 +1057,7 @@ export default function SupplierDebtReportManager({
                               kind="PAYMENT"
                               sheetKey={selectedSheetKey}
                               sourceRow={row.sourceRow}
-                              invoiceLabel={
-                                row.invoiceNumber ??
-                                row.purchaseOrderNumber ??
-                                row.deliveryNoteNumber ??
-                                `Baris ${row.number ?? row.sourceRow}`
-                              }
+                              invoiceLabel={invoiceLabel}
                               remainingAmount={row.remainingAmount}
                               depositBalance={depositBalance}
                             />
@@ -1070,13 +1083,174 @@ export default function SupplierDebtReportManager({
                           <Badge variant="outline">Impor</Badge>
                         )}
                       </td>
-                    </tr>
+                      </tr>
+                      );
+                    }
+
+                    const span = itemLines.length;
+                    return (
+                      <Fragment key={row.id ?? row.sourceRow}>
+                        {itemLines.map((line, lineIndex) => (
+                        <tr key={`${row.id ?? row.sourceRow}-${lineIndex}`} className={rowClass}>
+                          {lineIndex === 0 && (
+                            <>
+                              <td rowSpan={span} className="px-3 py-3 text-muted-foreground">
+                                {row.number || "—"}
+                              </td>
+                              <td rowSpan={span} className="px-3 py-3">
+                                {dateLabel(row.purchaseOrderDate)}
+                              </td>
+                              <td rowSpan={span} className="px-3 py-3">{row.purchaseOrderNumber || "—"}</td>
+                              <td rowSpan={span} className="px-3 py-3">
+                                {dateLabel(row.goodsReceiptDate)}
+                              </td>
+                              <td rowSpan={span} className="px-3 py-3">{row.receivedBy || "—"}</td>
+                              <td rowSpan={span} className="px-3 py-3">{row.deliveryNoteNumber || "—"}</td>
+                              <td rowSpan={span} className="px-3 py-3">{dateLabel(row.invoiceDate)}</td>
+                              <td rowSpan={span} className="px-3 py-3 font-medium">
+                                {row.invoiceNumber || "—"}
+                              </td>
+                              <td rowSpan={span} className="max-w-56 break-all px-3 py-3">
+                                {row.taxInvoiceNumber || "—"}
+                              </td>
+                              <td rowSpan={span} className="px-3 py-3">
+                                <span className="whitespace-nowrap">
+                                  {dateLabel(row.dueDate)}
+                                </span>
+                                {dueState !== "NONE" && (
+                                  <Badge
+                                    className={
+                                      dueState === "OVERDUE"
+                                        ? "mt-1 block w-fit bg-rose-600 text-white hover:bg-rose-600"
+                                        : "mt-1 block w-fit bg-amber-100 text-amber-900 hover:bg-amber-100"
+                                    }
+                                  >
+                                    {dueState === "OVERDUE"
+                                      ? "Lewat jatuh tempo"
+                                      : "Segera jatuh tempo"}
+                                  </Badge>
+                                )}
+                              </td>
+                            </>
+                          )}
+                          <td className="px-3 py-3">{line.partNumber || "—"}</td>
+                          <td className="max-w-80 px-3 py-3">{line.description}</td>
+                          <td className="px-3 py-3 text-right">{line.quantity}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-right">
+                            {line.unitCost ? rupiah.format(line.unitCost) : "—"}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-3 text-right">
+                            {line.lineTotal ? rupiah.format(line.lineTotal) : "—"}
+                          </td>
+                          {lineIndex === 0 && (
+                            <>
+                              <td rowSpan={span} className="whitespace-nowrap px-3 py-3 text-right">
+                                {effectivePpn ? rupiah.format(effectivePpn) : "—"}
+                              </td>
+                              <td rowSpan={span} className="whitespace-nowrap px-3 py-3 text-right font-medium">
+                                {effectiveGrandTotal ? rupiah.format(effectiveGrandTotal) : "—"}
+                              </td>
+                              <td rowSpan={span} className="px-3 py-3">
+                                {dateLabel(row.partsEntryDate)}
+                              </td>
+                              <td rowSpan={span} className="px-3 py-3">
+                                {row.ledgerPayments.length > 0
+                                  ? row.ledgerPayments.map((payment, index) => (
+                                      <div key={index} className="whitespace-nowrap">
+                                        {dateLabel(payment.transactionDate)}
+                                      </div>
+                                    ))
+                                  : dateLabel(row.paymentDate)}
+                              </td>
+                              <td rowSpan={span} className="whitespace-nowrap px-3 py-3 text-right">
+                                {row.ledgerPayments.length > 0
+                                  ? row.ledgerPayments.map((payment, index) => (
+                                      <div key={index}>
+                                        {rupiah.format(payment.amount)}
+                                      </div>
+                                    ))
+                                  : row.paymentAmount
+                                    ? rupiah.format(row.paymentAmount)
+                                    : "—"}
+                              </td>
+                              <td rowSpan={span} className="px-3 py-3">{dateLabel(row.pbkDate)}</td>
+                              <td rowSpan={span} className="max-w-60 px-3 py-3">{row.accountCode || "—"}</td>
+                              <td rowSpan={span} className="whitespace-nowrap px-3 py-3 text-right">
+                                {rupiah.format(row.remainingAmount)}
+                              </td>
+                              <td rowSpan={span} className="px-3 py-3">
+                                {row.grandTotal > 0 || row.paymentAmount > 0 ? (
+                                  <Badge className={statusBadge[row.status]}>
+                                    {statusLabel[row.status]}
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">
+                                    Rincian item
+                                  </Badge>
+                                )}
+                              </td>
+                              <td rowSpan={span} className="sticky right-0 bg-background px-3 py-2 text-right">
+                                {selectedSheet && selectedSheetKey ? (
+                                  <div className="flex justify-end gap-1">
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => setDetailEntry(row)}
+                                      aria-label="Lihat detail"
+                                      title="Lihat detail"
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <SupplierDebtTransactionDialog
+                                      kind="DEPOSIT"
+                                      sheetKey={selectedSheetKey}
+                                      sourceRow={row.sourceRow}
+                                      invoiceLabel={invoiceLabel}
+                                      remainingAmount={row.remainingAmount}
+                                      depositBalance={depositBalance}
+                                    />
+                                    <SupplierDebtTransactionDialog
+                                      kind="PAYMENT"
+                                      sheetKey={selectedSheetKey}
+                                      sourceRow={row.sourceRow}
+                                      invoiceLabel={invoiceLabel}
+                                      remainingAmount={row.remainingAmount}
+                                      depositBalance={depositBalance}
+                                    />
+                                    <SupplierDebtEntryDialog
+                                      sheetKey={selectedSheetKey}
+                                      supplierName={selectedSheet.supplierName}
+                                      entry={row}
+                                    />
+                                    {row.isManual && row.id && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => deleteManualEntry(row)}
+                                        disabled={pending}
+                                        aria-label="Hapus baris"
+                                      >
+                                        <Trash2 className="h-4 w-4 text-rose-600" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <Badge variant="outline">Impor</Badge>
+                                )}
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                        ))}
+                      </Fragment>
                     );
                   })}
                   {!detailRows.length && (
                     <tr>
                       <td
-                        colSpan={24}
+                        colSpan={25}
                         className="px-4 py-12 text-center text-muted-foreground"
                       >
                         Tidak ada data yang cocok pada sheet ini.
@@ -1132,8 +1306,27 @@ export default function SupplierDebtReportManager({
                   <p className="font-medium">{dateLabel(detailEntry.dueDate)}</p>
                 </div>
                 <div>
+                  <p className="text-xs uppercase text-muted-foreground">PPN</p>
+                  <p className="font-medium">
+                    {(() => {
+                      const billPpn = detailEntry.invoiceNumber
+                        ? billLinesByInvoice[detailEntry.invoiceNumber]?.taxAmount
+                        : undefined;
+                      const ppn = billPpn ?? detailEntry.ppnAmount;
+                      return ppn ? rupiah.format(ppn) : "—";
+                    })()}
+                  </p>
+                </div>
+                <div>
                   <p className="text-xs uppercase text-muted-foreground">Grand total</p>
-                  <p className="font-medium">{rupiah.format(detailEntry.grandTotal)}</p>
+                  <p className="font-medium">
+                    {(() => {
+                      const billTotal = detailEntry.invoiceNumber
+                        ? billLinesByInvoice[detailEntry.invoiceNumber]?.totalAmount
+                        : undefined;
+                      return rupiah.format(billTotal ?? detailEntry.grandTotal);
+                    })()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-xs uppercase text-muted-foreground">Nominal bayar</p>
@@ -1149,7 +1342,7 @@ export default function SupplierDebtReportManager({
                 <p className="text-sm text-muted-foreground">{detailEntry.description || "—"}</p>
               </div>
               {detailEntry.invoiceNumber &&
-                billLinesByInvoice[detailEntry.invoiceNumber]?.length > 0 && (
+                billLinesByInvoice[detailEntry.invoiceNumber]?.lines?.length > 0 && (
                   <div>
                     <p className="mb-2 font-semibold">Barang yang dipesan</p>
                     <div className="overflow-hidden rounded-lg border">
@@ -1165,7 +1358,7 @@ export default function SupplierDebtReportManager({
                             </tr>
                           </thead>
                           <tbody className="divide-y">
-                            {billLinesByInvoice[detailEntry.invoiceNumber].map((line, index) => (
+                            {billLinesByInvoice[detailEntry.invoiceNumber].lines.map((line, index) => (
                               <tr key={index}>
                                 <td className="px-3 py-2 font-medium">{line.description}</td>
                                 <td className="px-3 py-2 text-muted-foreground">
@@ -1181,6 +1374,22 @@ export default function SupplierDebtReportManager({
                               </tr>
                             ))}
                           </tbody>
+                          <tfoot>
+                            <tr className="border-t bg-muted/30 font-medium">
+                              <td className="px-3 py-2 text-right" colSpan={4}>PPN</td>
+                              <td className="px-3 py-2 text-right">
+                                {billLinesByInvoice[detailEntry.invoiceNumber].taxAmount
+                                  ? rupiah.format(billLinesByInvoice[detailEntry.invoiceNumber].taxAmount)
+                                  : "—"}
+                              </td>
+                            </tr>
+                            <tr className="bg-muted/50 font-semibold">
+                              <td className="px-3 py-2 text-right" colSpan={4}>Grand Total</td>
+                              <td className="px-3 py-2 text-right">
+                                {rupiah.format(billLinesByInvoice[detailEntry.invoiceNumber].totalAmount)}
+                              </td>
+                            </tr>
+                          </tfoot>
                         </table>
                       </div>
                     </div>

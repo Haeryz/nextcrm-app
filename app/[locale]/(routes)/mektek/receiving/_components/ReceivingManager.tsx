@@ -195,7 +195,12 @@ type LogisticsReceivingBatchGroup = {
 };
 
 type ReceivingEditItemDraft = {
-  itemId: string;
+  clientId: string;
+  itemId: string | null;
+  isNew: boolean;
+  source: "CATALOG" | "MANUAL";
+  catalogItemId: string;
+  catalogQuery: string;
   partName: string;
   partNumber: string;
   machine: string;
@@ -468,6 +473,7 @@ export default function ReceivingManager({
   >(null);
   const [editDraft, setEditDraft] = useState<ReceivingEditDraft | null>(null);
   const [isSavingEdit, startSavingEdit] = useTransition();
+  const nextEditItemId = useRef(1);
   const [receiptDraft, setReceiptDraft] = useState({
     picId: pics[0]?.id ?? "",
     receivedAt: getCatalogInventoryLocalDateKey(),
@@ -725,7 +731,12 @@ export default function ReceivingManager({
       items: [...purchaseOrder.items]
         .sort((left, right) => left.position - right.position)
         .map((item) => ({
+          clientId: item.id,
           itemId: item.id,
+          isNew: false,
+          source: item.source,
+          catalogItemId: item.catalogItemId ?? "",
+          catalogQuery: "",
           partName: item.partName,
           partNumber: item.partNumber ?? "",
           machine: item.machine ?? "",
@@ -736,6 +747,7 @@ export default function ReceivingManager({
           receivedQuantity: item.receivedQuantity,
         })),
     });
+    nextEditItemId.current = 1;
     setEditingPurchaseOrderId(purchaseOrder.id);
     setActiveReceiptPurchaseOrder(null);
   };
@@ -750,7 +762,115 @@ export default function ReceivingManager({
       return {
         ...current,
         items: current.items.map((item) =>
-          item.itemId === itemId ? { ...item, [key]: value } : item,
+          item.clientId === itemId ? { ...item, [key]: value } : item,
+        ),
+      };
+    });
+  };
+
+  const addEditItem = () => {
+    const clientId = `edit-item-${nextEditItemId.current}`;
+    nextEditItemId.current += 1;
+    setEditDraft((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: [
+          ...current.items,
+          {
+            clientId,
+            itemId: null,
+            isNew: true,
+            source: "CATALOG",
+            catalogItemId: "",
+            catalogQuery: "",
+            partName: "",
+            partNumber: "",
+            machine: "",
+            orderedQuantity: "",
+            unitPrice: "",
+            warehouse: "REAR",
+            note: "",
+            receivedQuantity: 0,
+          },
+        ],
+      };
+    });
+  };
+
+  const removeEditItem = (clientId: string) => {
+    setEditDraft((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: current.items.filter((item) => item.clientId !== clientId),
+      };
+    });
+  };
+
+  const switchEditItemSource = (
+    clientId: string,
+    source: ReceivingEditItemDraft["source"],
+  ) => {
+    setEditDraft((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: current.items.map((item) =>
+          item.clientId === clientId
+            ? {
+                ...item,
+                source,
+                catalogItemId: "",
+                catalogQuery: "",
+                partName: "",
+                partNumber: "",
+                machine: "",
+                unitPrice: "",
+                orderedQuantity: item.orderedQuantity,
+              }
+            : item,
+        ),
+      };
+    });
+  };
+
+  const updateEditCatalogQuery = (clientId: string, catalogQuery: string) => {
+    setEditDraft((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: current.items.map((item) =>
+          item.clientId === clientId
+            ? { ...item, catalogItemId: "", catalogQuery, unitPrice: "" }
+            : item,
+        ),
+      };
+    });
+  };
+
+  const selectEditCatalogItem = (
+    clientId: string,
+    catalogItem: {
+      id: string;
+      description: string;
+      partNumber: string | null;
+      price?: number | null;
+    },
+  ) => {
+    setEditDraft((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        items: current.items.map((item) =>
+          item.clientId === clientId
+            ? {
+                ...item,
+                catalogItemId: catalogItem.id,
+                catalogQuery: `${catalogItem.description} · ${catalogItem.partNumber || "Tanpa PN"}`,
+                unitPrice: "",
+              }
+            : item,
         ),
       };
     });
@@ -768,16 +888,34 @@ export default function ReceivingManager({
         dueDate: editDraft.dueDate,
         poType: editDraft.poType,
         notes: editDraft.notes.trim(),
-        items: editDraft.items.map((item) => ({
-          purchaseOrderItemId: item.itemId,
-          orderedQuantity: item.orderedQuantity,
-          unitPrice: item.unitPrice,
-          warehouse:
-            item.warehouse === "REAR" || item.warehouse === "FRONT"
-              ? item.warehouse
-              : undefined,
-          note: item.note,
-        })),
+        items: editDraft.items.map((item) => {
+          if (item.itemId) {
+            return {
+              purchaseOrderItemId: item.itemId,
+              orderedQuantity: item.orderedQuantity,
+              unitPrice: item.unitPrice,
+              warehouse:
+                item.warehouse === "REAR" || item.warehouse === "FRONT"
+                  ? item.warehouse
+                  : undefined,
+              note: item.note,
+            };
+          }
+          return {
+            source: item.source,
+            catalogItemId: item.catalogItemId,
+            partName: item.partName.trim(),
+            partNumber: item.partNumber.trim(),
+            machine: item.machine.trim(),
+            orderedQuantity: item.orderedQuantity,
+            unitPrice: item.unitPrice,
+            warehouse:
+              item.warehouse === "REAR" || item.warehouse === "FRONT"
+                ? item.warehouse
+                : "REAR",
+            note: item.note,
+          };
+        }),
       });
       if (!result || "error" in result) {
         toast.error(result?.error || "Gagal memperbarui Purchase Order Receiving");
@@ -1092,6 +1230,35 @@ export default function ReceivingManager({
         Number(item.unitPrice) <= 0,
   );
   const createPurchaseOrderTotal = createValue.items.reduce(
+    (total, item) =>
+      total +
+      (Number(item.orderedQuantity) || 0) * (Number(item.unitPrice) || 0),
+    0,
+  );
+  const selectedEditCatalogItemIds = useMemo(
+    () =>
+      new Set(
+        (editDraft?.items ?? []).flatMap((item) =>
+          item.isNew && item.source === "CATALOG" && item.catalogItemId
+            ? [item.catalogItemId]
+            : [],
+        ),
+      ),
+    [editDraft?.items],
+  );
+  const hasInvalidEditItems = (editDraft?.items ?? []).some((item) =>
+    item.isNew
+      ? item.source === "CATALOG"
+        ? !item.catalogItemId ||
+          Number(item.orderedQuantity) <= 0 ||
+          Number(item.unitPrice) < 0
+        : !item.partName.trim() ||
+          !item.machine.trim() ||
+          Number(item.orderedQuantity) <= 0 ||
+          Number(item.unitPrice) <= 0
+      : Number(item.orderedQuantity) <= 0 || Number(item.unitPrice) < 0,
+  );
+  const editPurchaseOrderTotal = (editDraft?.items ?? []).reduce(
     (total, item) =>
       total +
       (Number(item.orderedQuantity) || 0) * (Number(item.unitPrice) || 0),
@@ -2900,8 +3067,9 @@ export default function ReceivingManager({
           <DialogHeader>
             <DialogTitle>Edit Purchase Order Receiving</DialogTitle>
             <DialogDescription>
-              Perbarui data PO, harga supplier, dan QTY Order. QTY tidak dapat lebih
-              kecil dari barang yang sudah masuk.
+              Perbarui data PO, harga supplier, QTY Order, tambah, atau hapus
+              item. Item yang sudah memiliki barang masuk tidak dapat dihapus
+              dan QTY tidak boleh kurang dari barang masuk.
             </DialogDescription>
           </DialogHeader>
           {editDraft && (
@@ -2985,16 +3153,18 @@ export default function ReceivingManager({
                 <div>
                   <h3 className="font-medium">Item yang dipesan</h3>
                   <p className="text-xs text-muted-foreground">
-                    Nama item, Part Number, dan Mesin tetap agar riwayat penerimaan
-                    tidak terputus.
+                    Tambah atau hapus item. Item yang sudah memiliki barang
+                    masuk tidak dapat dihapus.
                   </p>
                 </div>
                 <div className="space-y-4">
                   {editDraft.items.map((item, index) => {
                     const minimumQuantity = Math.max(1, item.receivedQuantity);
+                    const canRemoveEditItem =
+                      item.receivedQuantity === 0;
                     return (
                       <fieldset
-                        key={item.itemId}
+                        key={item.clientId}
                         className="overflow-visible rounded-xl border bg-background shadow-sm"
                       >
                         <legend className="sr-only">Item {index + 1}</legend>
@@ -3004,68 +3174,177 @@ export default function ReceivingManager({
                               {index + 1}
                             </span>
                             <p className="text-sm font-semibold">Detail Item</p>
+                            {item.isNew && (
+                              <Badge variant="secondary">Baru</Badge>
+                            )}
+                            {item.source === "MANUAL" && (
+                              <Badge variant="secondary">Manual</Badge>
+                            )}
                           </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => removeEditItem(item.clientId)}
+                            disabled={isSavingEdit || !canRemoveEditItem}
+                            aria-label={`Hapus Item ${index + 1}`}
+                            title={
+                              canRemoveEditItem
+                                ? "Hapus item"
+                                : "Item sudah memiliki barang masuk"
+                            }
+                          >
+                            <Trash2 aria-hidden="true" />
+                          </Button>
                         </div>
 
                         <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_10rem] lg:items-start">
                           <div className="space-y-4">
-                            <div className="space-y-1">
-                              <p className="font-medium">{item.partName}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {item.partNumber || "Tanpa Part Number"}
-                                {item.machine ? ` · ${item.machine}` : ""}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                QTY Masuk {item.receivedQuantity}
-                              </p>
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor={`edit-receiving-note-${item.itemId}`}>
-                                Keterangan Item
-                                <span className="ml-1 font-normal text-muted-foreground">
-                                  (opsional)
-                                </span>
-                              </Label>
-                              <Input
-                                id={`edit-receiving-note-${item.itemId}`}
-                                value={item.note}
-                                maxLength={500}
-                                onChange={(event) =>
-                                  updateEditItem(item.itemId, "note", event.target.value)
-                                }
-                                disabled={isSavingEdit}
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor={`edit-receiving-warehouse-${item.itemId}`}>
-                                Gudang Tujuan
-                              </Label>
-                              <Select
-                                value={item.warehouse || "REAR"}
-                                onValueChange={(value: "REAR" | "FRONT") =>
-                                  updateEditItem(item.itemId, "warehouse", value)
-                                }
-                                disabled={isSavingEdit}
-                              >
-                                <SelectTrigger
-                                  id={`edit-receiving-warehouse-${item.itemId}`}
-                                >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="REAR">Gudang Belakang</SelectItem>
-                                  <SelectItem value="FRONT">Gudang Depan</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
+                            {item.isNew ? (
+                              <>
+                                <CatalogOrManualItemPicker
+                                  idPrefix={`edit-receiving-${item.clientId}`}
+                                  itemNumber={index + 1}
+                                  source={item.source}
+                                  catalogItemId={item.catalogItemId}
+                                  catalogQuery={item.catalogQuery}
+                                  partName={item.partName}
+                                  partNumber={item.partNumber}
+                                  catalogItems={catalogItems}
+                                  excludedCatalogItemIds={selectedEditCatalogItemIds}
+                                  disabled={isSavingEdit}
+                                  requireManualPartNumber={false}
+                                  catalogStockMessage="Stok bertambah otomatis saat diterima."
+                                  manualStockMessage="Item manual otomatis ditambahkan ke Catalog / Item."
+                                  onSourceChange={(source) =>
+                                    switchEditItemSource(item.clientId, source)
+                                  }
+                                  onCatalogQueryChange={(query) =>
+                                    updateEditCatalogQuery(item.clientId, query)
+                                  }
+                                  onCatalogItemSelect={(catalogItem) =>
+                                    selectEditCatalogItem(item.clientId, catalogItem)
+                                  }
+                                  onPartNameChange={(value) =>
+                                    updateEditItem(item.clientId, "partName", value)
+                                  }
+                                  onPartNumberChange={(value) =>
+                                    updateEditItem(item.clientId, "partNumber", value)
+                                  }
+                                />
+                                {item.source === "MANUAL" && (
+                                  <div className="grid gap-4 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`edit-receiving-machine-${item.clientId}`}>
+                                        Mesin
+                                      </Label>
+                                      <Input
+                                        id={`edit-receiving-machine-${item.clientId}`}
+                                        value={item.machine}
+                                        onChange={(event) =>
+                                          updateEditItem(
+                                            item.clientId,
+                                            "machine",
+                                            event.target.value,
+                                          )
+                                        }
+                                        placeholder="Contoh: Komatsu PC200"
+                                        disabled={isSavingEdit}
+                                        required
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`edit-receiving-warehouse-${item.clientId}`}>
+                                        Gudang Tujuan
+                                      </Label>
+                                      <Select
+                                        value={item.warehouse || "REAR"}
+                                        onValueChange={(value: "REAR" | "FRONT") =>
+                                          updateEditItem(item.clientId, "warehouse", value)
+                                        }
+                                        disabled={isSavingEdit}
+                                      >
+                                        <SelectTrigger
+                                          id={`edit-receiving-warehouse-${item.clientId}`}
+                                          aria-label="Gudang tujuan item manual"
+                                        >
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="REAR">
+                                            Gudang Belakang
+                                          </SelectItem>
+                                          <SelectItem value="FRONT">
+                                            Gudang Depan
+                                          </SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <div className="space-y-1">
+                                  <p className="font-medium">{item.partName}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {item.partNumber || "Tanpa Part Number"}
+                                    {item.machine ? ` · ${item.machine}` : ""}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    QTY Masuk {item.receivedQuantity}
+                                  </p>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label htmlFor={`edit-receiving-note-${item.clientId}`}>
+                                    Keterangan Item
+                                    <span className="ml-1 font-normal text-muted-foreground">
+                                      (opsional)
+                                    </span>
+                                  </Label>
+                                  <Input
+                                    id={`edit-receiving-note-${item.clientId}`}
+                                    value={item.note}
+                                    maxLength={500}
+                                    onChange={(event) =>
+                                      updateEditItem(item.clientId, "note", event.target.value)
+                                    }
+                                    disabled={isSavingEdit}
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label htmlFor={`edit-receiving-warehouse-${item.clientId}`}>
+                                    Gudang Tujuan
+                                  </Label>
+                                  <Select
+                                    value={item.warehouse || "REAR"}
+                                    onValueChange={(value: "REAR" | "FRONT") =>
+                                      updateEditItem(item.clientId, "warehouse", value)
+                                    }
+                                    disabled={isSavingEdit}
+                                  >
+                                    <SelectTrigger
+                                      id={`edit-receiving-warehouse-${item.clientId}`}
+                                    >
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="REAR">Gudang Belakang</SelectItem>
+                                      <SelectItem value="FRONT">Gudang Depan</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </>
+                            )}
                           </div>
 
                           <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                            <Label htmlFor={`edit-receiving-qty-${item.itemId}`}>
+                            <Label htmlFor={`edit-receiving-qty-${item.clientId}`}>
                               QTY Order
                             </Label>
                             <Input
-                              id={`edit-receiving-qty-${item.itemId}`}
+                              id={`edit-receiving-qty-${item.clientId}`}
                               className="h-11 bg-background font-mono text-base"
                               type="number"
                               inputMode="numeric"
@@ -3074,7 +3353,7 @@ export default function ReceivingManager({
                               value={item.orderedQuantity}
                               onChange={(event) =>
                                 updateEditItem(
-                                  item.itemId,
+                                  item.clientId,
                                   "orderedQuantity",
                                   event.target.value,
                                 )
@@ -3082,14 +3361,16 @@ export default function ReceivingManager({
                               disabled={isSavingEdit}
                               required
                             />
-                            <p className="text-xs text-muted-foreground">
-                              Minimal {minimumQuantity}
-                            </p>
-                            <Label htmlFor={`edit-receiving-price-${item.itemId}`}>
+                            {item.receivedQuantity > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Minimal {minimumQuantity}
+                              </p>
+                            )}
+                            <Label htmlFor={`edit-receiving-price-${item.clientId}`}>
                               Harga Supplier
                             </Label>
                             <Input
-                              id={`edit-receiving-price-${item.itemId}`}
+                              id={`edit-receiving-price-${item.clientId}`}
                               className="h-11 bg-background font-mono text-base"
                               type="number"
                               inputMode="decimal"
@@ -3098,7 +3379,7 @@ export default function ReceivingManager({
                               value={item.unitPrice}
                               onChange={(event) =>
                                 updateEditItem(
-                                  item.itemId,
+                                  item.clientId,
                                   "unitPrice",
                                   event.target.value,
                                 )
@@ -3121,21 +3402,23 @@ export default function ReceivingManager({
                       </fieldset>
                     );
                   })}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addEditItem}
+                    disabled={isSavingEdit || editDraft.items.length >= 100}
+                    className="w-full border-dashed"
+                  >
+                    <Plus data-icon="inline-start" />
+                    Tambah Item
+                  </Button>
                 </div>
               </fieldset>
 
               <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-4">
                 <span className="font-medium">Total Purchase Order</span>
                 <span className="font-mono text-lg font-semibold">
-                  {formatRupiah(
-                    editDraft.items.reduce(
-                      (total, item) =>
-                        total +
-                        (Number(item.orderedQuantity) || 0) *
-                          (Number(item.unitPrice) || 0),
-                      0,
-                    ),
-                  )}
+                  {formatRupiah(editPurchaseOrderTotal)}
                 </span>
               </div>
 
@@ -3166,7 +3449,7 @@ export default function ReceivingManager({
                 >
                   Batal
                 </Button>
-                <Button type="submit" disabled={isSavingEdit}>
+                <Button type="submit" disabled={isSavingEdit || hasInvalidEditItems}>
                   {isSavingEdit && (
                     <Loader2 data-icon="inline-start" className="animate-spin" />
                   )}

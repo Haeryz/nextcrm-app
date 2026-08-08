@@ -134,6 +134,7 @@ export default async function SupplierDebtReportPage({
         quantity: true,
         unitPrice: true,
         amount: true,
+        ppnAmount: true,
         grandTotal: true,
         partsEntryDate: true,
         paymentDate: true,
@@ -181,22 +182,30 @@ export default async function SupplierDebtReportPage({
     : [];
   const billLinesByInvoice: Record<
     string,
-    Array<{
-      description: string;
-      partNumber: string | null;
-      quantity: number;
-      unitCost: number;
-      lineTotal: number;
-    }>
+    {
+      taxAmount: number;
+      totalAmount: number;
+      lines: Array<{
+        description: string;
+        partNumber: string | null;
+        quantity: number;
+        unitCost: number;
+        lineTotal: number;
+      }>;
+    }
   > = {};
   for (const bill of matchedBills) {
-    billLinesByInvoice[bill.supplierInvoiceNumber] = bill.lines.map((line) => ({
-      description: line.description,
-      partNumber: line.partNumber,
-      quantity: Number(line.quantity),
-      unitCost: Number(line.unitCost),
-      lineTotal: Number(line.lineTotal),
-    }));
+    billLinesByInvoice[bill.supplierInvoiceNumber] = {
+      taxAmount: Number(bill.taxAmount),
+      totalAmount: Number(bill.totalAmount),
+      lines: bill.lines.map((line) => ({
+        description: line.description,
+        partNumber: line.partNumber,
+        quantity: Number(line.quantity),
+        unitCost: Number(line.unitCost),
+        lineTotal: Number(line.lineTotal),
+      })),
+    };
   }
   const persistedRows = persistedEntries.map((row) => {
     const grandTotal = Number(row.grandTotal);
@@ -222,6 +231,7 @@ export default async function SupplierDebtReportPage({
         quantity: Number(row.quantity),
         unitPrice: Number(row.unitPrice),
         amount: Number(row.amount),
+        ppnAmount: Number(row.ppnAmount),
         grandTotal,
         partsEntryDate: dateOnly(row.partsEntryDate),
         paymentDate: dateOnly(row.paymentDate),

@@ -27,25 +27,41 @@ import DamageItemsInput, {
 
 interface ServiceOrderItemsEditorProps {
   serviceOrderId: string;
+  initialServiceItems: DamageItem[];
   initialSparepartItems: DamageItem[];
 }
 
 export default function ServiceOrderItemsEditor({
   serviceOrderId,
+  initialServiceItems,
   initialSparepartItems,
 }: ServiceOrderItemsEditorProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [serviceItems, setServiceItems] = useState<DamageItem[]>([]);
+  const [serviceItems, setServiceItems] = useState<DamageItem[]>(
+    initialServiceItems,
+  );
   const [sparepartItems, setSparepartItems] = useState<DamageItem[]>(
     initialSparepartItems,
   );
   const [timelineDraft, setTimelineDraft] = useState("");
-  // Saving always sends `replaceSparepartItems: true`, so any sparepart that is
-  // no longer in the list is dropped from the invoice. That silently changed the
-  // customer's bill, so removals now need an explicit confirmation.
-  const [removalConfirmation, setRemovalConfirmation] = useState<string[] | null>(
-    null,
+  // Saving always sends `replaceSparepartItems: true` and
+  // `replaceServiceItems: true`, so any item that is no longer in the list is
+  // dropped from the invoice. That silently changed the customer's bill, so
+  // removals now need an explicit confirmation.
+  const [removalConfirmation, setRemovalConfirmation] = useState<
+    string[] | null
+  >(null);
+
+  const trackedServiceItems = useMemo(
+    () =>
+      initialServiceItems
+        .map((item, index) => ({
+          key: item.clientId ?? `stored-service-${index}`,
+          description: item.description.trim(),
+        }))
+        .filter((item) => item.description),
+    [initialServiceItems],
   );
 
   const trackedSpareparts = useMemo(
@@ -58,6 +74,17 @@ export default function ServiceOrderItemsEditor({
         .filter((item) => item.description),
     [initialSparepartItems],
   );
+
+  const findRemovedServiceItems = (currentItems: DamageItem[]) => {
+    const keptKeys = new Set(
+      currentItems
+        .map((item) => item.clientId)
+        .filter((clientId): clientId is string => Boolean(clientId)),
+    );
+    return trackedServiceItems
+      .filter((item) => !keptKeys.has(item.key))
+      .map((item) => item.description);
+  };
 
   const findRemovedSpareparts = (currentItems: DamageItem[]) => {
     const keptKeys = new Set(
@@ -92,9 +119,10 @@ export default function ServiceOrderItemsEditor({
       return;
     }
 
-    const removed = findRemovedSpareparts(validSparepartItems);
-    if (removed.length > 0) {
-      setRemovalConfirmation(removed);
+    const removedSpareparts = findRemovedSpareparts(validSparepartItems);
+    const removedServices = findRemovedServiceItems(validServiceItems);
+    if (removedSpareparts.length > 0 || removedServices.length > 0) {
+      setRemovalConfirmation([...removedServices, ...removedSpareparts]);
       return;
     }
 
@@ -112,13 +140,13 @@ export default function ServiceOrderItemsEditor({
         serviceItems: validServiceItems,
         sparepartItems: validSparepartItems,
         replaceSparepartItems: true,
+        replaceServiceItems: true,
       });
       if (!result || "error" in result) {
         toast.error(result?.error || "Gagal menambahkan item pesanan");
         return;
       }
 
-      setServiceItems([]);
       setTimelineDraft(result.data.timelineDraft);
       toast.success("Item pesanan dan total pembayaran diperbarui");
       router.refresh();
@@ -149,9 +177,9 @@ export default function ServiceOrderItemsEditor({
         <div>
           <p className="text-sm font-semibold">Perbarui item pesanan</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Servis baru akan ditambahkan ke pekerjaan yang sudah ada. Daftar
-            sparepart di bawah menjadi kondisi terbaru dan langsung memperbarui
-            invoice.
+            Daftar servis dan sparepart di bawah menjadi kondisi terbaru dan
+            langsung memperbarui invoice. Anda dapat mengubah, menambah, atau
+            menghapus item yang ada.
           </p>
         </div>
 
@@ -159,9 +187,11 @@ export default function ServiceOrderItemsEditor({
           <DamageItemsInput
             items={serviceItems}
             onChange={setServiceItems}
-            label="Deskripsi Servis Tambahan"
-            addLabel="Tambah deskripsi servis"
-            emptyMessage="Belum ada deskripsi servis tambahan."
+            label="Daftar Servis"
+            itemLabel="Servis"
+            descriptionLabel="Deskripsi Servis"
+            addLabel="Tambah servis"
+            emptyMessage="Belum ada item servis."
             descriptionPlaceholder={(index) => `Deskripsi servis ${index + 1}`}
             minimumItems={0}
             disabled={isPending}
@@ -242,11 +272,11 @@ export default function ServiceOrderItemsEditor({
                 className="mt-0.5 size-4 shrink-0 text-destructive"
                 aria-hidden="true"
               />
-              Hapus {removalConfirmation?.length ?? 0} sparepart dari pesanan?
+              Hapus {removalConfirmation?.length ?? 0} item dari pesanan?
             </DialogTitle>
             <DialogDescription className="text-left leading-5">
-              Sparepart berikut akan dihapus dari invoice, total tagihan
-              pelanggan ikut berubah, dan stok yang sudah dialokasikan
+              Item berikut akan dihapus dari invoice, total tagihan pelanggan
+              ikut berubah, dan stok sparepart yang sudah dialokasikan
               dikembalikan ke gudang.
             </DialogDescription>
           </DialogHeader>

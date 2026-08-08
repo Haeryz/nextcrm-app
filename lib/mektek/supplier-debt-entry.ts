@@ -20,6 +20,7 @@ export type SupplierDebtEntryInput = {
   quantity?: number | string;
   unitPrice?: number | string;
   amount?: number | string;
+  ppnAmount?: number | string;
   grandTotal?: number | string;
   partsEntryDate?: string;
   paymentDate?: string;
@@ -59,6 +60,7 @@ export function parseSupplierDebtEntryInput(input: SupplierDebtEntryInput) {
   const quantity = decimal(input.quantity, 3);
   const unitPrice = decimal(input.unitPrice);
   const requestedAmount = decimal(input.amount);
+  const ppnAmount = decimal(input.ppnAmount) ?? new Prisma.Decimal(0);
   const requestedGrandTotal = decimal(input.grandTotal);
   const paymentAmount = decimal(input.paymentAmount);
   const dates = {
@@ -93,7 +95,9 @@ export function parseSupplierDebtEntryInput(input: SupplierDebtEntryInput) {
 
   const calculatedAmount = quantity.mul(unitPrice);
   const amount = requestedAmount.gt(0) ? requestedAmount : calculatedAmount;
-  const grandTotal = requestedGrandTotal.gt(0) ? requestedGrandTotal : amount;
+  const grandTotal = requestedGrandTotal.gt(0)
+    ? requestedGrandTotal
+    : amount.add(ppnAmount);
   if (grandTotal.lte(0)) {
     return { error: "Grand total harus lebih dari 0" } as const;
   }
@@ -116,6 +120,7 @@ export function parseSupplierDebtEntryInput(input: SupplierDebtEntryInput) {
       quantity,
       unitPrice,
       amount,
+      ppnAmount,
       grandTotal,
       paymentAmount,
       accountCode: text(input.accountCode, 160) || null,

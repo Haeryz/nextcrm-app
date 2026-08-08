@@ -61,6 +61,7 @@ export type SupplierDebtDetailEntry = {
   quantity: number;
   unitPrice: number;
   amount: number;
+  ppnAmount: number;
   grandTotal: number;
   partsEntryDate: string | null;
   paymentDate: string | null;
@@ -366,6 +367,7 @@ const extractDetailSheet = (
               quantity: number(row[13 + detailColumnOffset]),
               unitPrice: number(row[14 + detailColumnOffset]),
               amount: number(row[15 + detailColumnOffset]),
+              ppnAmount: 0,
               grandTotal,
               partsEntryDate: date(row[17 + detailColumnOffset]),
               paymentDate: date(row[18 + detailColumnOffset]),
