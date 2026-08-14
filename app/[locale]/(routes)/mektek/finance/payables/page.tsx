@@ -64,6 +64,8 @@ export default async function SupplierPaymentsPage({
             id: true,
             supplierInvoiceImageUpdatedAt: true,
             deliveryNoteImageUpdatedAt: true,
+            mektekDeliveryNoteImageUpdatedAt: true,
+            receivingDeliveryNoteSource: true,
             signedPoImageUpdatedAt: true,
           },
         })
@@ -93,8 +95,14 @@ export default async function SupplierPaymentsPage({
         documents?.supplierInvoiceImageUpdatedAt,
       ),
       deliveryNoteImageAvailable: Boolean(
-        documents?.deliveryNoteImageUpdatedAt,
+        documents?.deliveryNoteImageUpdatedAt ||
+          documents?.receivingDeliveryNoteSource === "MEKTEK",
       ),
+      mektekDeliveryNoteImageAvailable: Boolean(
+        documents?.mektekDeliveryNoteImageUpdatedAt,
+      ),
+      receivingDeliveryNoteSource:
+        documents?.receivingDeliveryNoteSource ?? null,
       signedPoImageAvailable: Boolean(
         documents?.signedPoImageUpdatedAt,
       ),

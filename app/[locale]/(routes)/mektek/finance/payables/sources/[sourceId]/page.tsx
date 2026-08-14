@@ -58,6 +58,7 @@ export default async function SupplierPayableSourceDetailPage({
           id: true,
           supplierInvoiceImageUpdatedAt: true,
           deliveryNoteImageUpdatedAt: true,
+          mektekDeliveryNoteImageUpdatedAt: true,
           receivingDeliveryNoteSource: true,
         },
       })
@@ -170,17 +171,32 @@ export default async function SupplierPayableSourceDetailPage({
                 ? ` · Sumber ${purchaseOrder.receivingDeliveryNoteSource}`
                 : ""}
             </p>
-            {purchaseOrder?.deliveryNoteImageUpdatedAt ? (
-              <Button asChild size="sm" variant="outline">
-                <Link
-                  href={documentHref("delivery-note")}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Lihat Surat Jalan
-                  <ExternalLink className="ml-2 size-3.5" />
-                </Link>
-              </Button>
+            {purchaseOrder?.deliveryNoteImageUpdatedAt ||
+            purchaseOrder?.receivingDeliveryNoteSource === "MEKTEK" ? (
+              purchaseOrder?.receivingDeliveryNoteSource === "MEKTEK" &&
+              !purchaseOrder?.mektekDeliveryNoteImageUpdatedAt ? (
+                <Button asChild size="sm" variant="outline">
+                  <Link
+                    href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(purchaseOrder.id)}/delivery-note?flow=receiving`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Buka PDF Surat Jalan
+                    <ExternalLink className="ml-2 size-3.5" />
+                  </Link>
+                </Button>
+              ) : (
+                <Button asChild size="sm" variant="outline">
+                  <Link
+                    href={documentHref("delivery-note")}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Lihat Surat Jalan
+                    <ExternalLink className="ml-2 size-3.5" />
+                  </Link>
+                </Button>
+              )
             ) : (
               <Badge variant="outline">Gambar belum diunggah Logistics</Badge>
             )}

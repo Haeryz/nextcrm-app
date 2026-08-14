@@ -1032,8 +1032,6 @@ export default function ReceivingManager({
 
   const createMektekDeliveryNote = () => {
     if (!activeReceiptPurchaseOrder) return;
-    const previewWindow = window.open("about:blank", "_blank");
-    if (previewWindow) previewWindow.opener = null;
 
     startCreatingMektekDeliveryNote(async () => {
       try {
@@ -1056,14 +1054,9 @@ export default function ReceivingManager({
           receivingDeliveryNoteSource: "MEKTEK",
         });
         toast.success("Surat Jalan Mektek berhasil dibuat");
-        if (previewWindow) {
-          previewWindow.location.href = pdfPath;
-        } else {
-          window.open(pdfPath, "_blank", "noopener,noreferrer");
-        }
+        window.open(pdfPath, "_blank", "noopener,noreferrer");
         router.refresh();
       } catch (error) {
-        previewWindow?.close();
         toast.error(
           error instanceof Error
             ? error.message
@@ -2400,6 +2393,8 @@ export default function ReceivingManager({
                           activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
                             "SUPPLIER" &&
                             "border-primary bg-primary/5 ring-1 ring-primary",
+                          activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
+                            "MEKTEK" && "opacity-50",
                         )}
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -2408,7 +2403,10 @@ export default function ReceivingManager({
                               Surat Jalan dari Supplier
                             </h5>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              Pilih ini jika supplier memberikan Surat Jalan.
+                              {activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
+                              "MEKTEK"
+                                ? "Dinonaktifkan karena Surat Jalan Mektek dipilih."
+                                : "Pilih ini jika supplier memberikan Surat Jalan."}
                             </p>
                           </div>
                           {activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
@@ -2439,7 +2437,9 @@ export default function ReceivingManager({
                                 </Link>
                               </Button>
                               {activeReceiptPurchaseOrder.receivingDeliveryNoteSource !==
-                                "SUPPLIER" && (
+                                "SUPPLIER" &&
+                                activeReceiptPurchaseOrder.receivingDeliveryNoteSource !==
+                                  "MEKTEK" && (
                                 <Button
                                   type="button"
                                   size="sm"
@@ -2463,7 +2463,11 @@ export default function ReceivingManager({
                             onClick={() =>
                               deliveryNoteInputRef.current?.click()
                             }
-                            disabled={isUploadingDeliveryNote}
+                            disabled={
+                              isUploadingDeliveryNote ||
+                              activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
+                                "MEKTEK"
+                            }
                           >
                             {isUploadingDeliveryNote ? (
                               <Loader2
@@ -2484,6 +2488,10 @@ export default function ReceivingManager({
                           type="file"
                           accept="image/jpeg,image/png,image/webp"
                           aria-label="Pilih gambar Surat Jalan dari supplier"
+                          disabled={
+                            activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
+                            "MEKTEK"
+                          }
                           onChange={(event) => {
                             selectSupplierDeliveryNote(
                               event.target.files?.[0] ?? null,

@@ -45,6 +45,8 @@ export type SupplierPaymentSource = {
   pricingComplete: boolean;
   supplierInvoiceImageAvailable: boolean;
   deliveryNoteImageAvailable: boolean;
+  mektekDeliveryNoteImageAvailable: boolean;
+  receivingDeliveryNoteSource: "SUPPLIER" | "MEKTEK" | null;
   signedPoImageAvailable: boolean;
   expectedSubtotal: number | null;
   paymentTermsDays: number | null;
@@ -508,14 +510,50 @@ export default function SupplierPaymentManager({
                       unavailableMessage="Gambar invoice pemasok belum diunggah oleh Logistics."
                       recoveryHref={receivingHref}
                     />
-                    <InlineDocumentPreview
-                      title="Surat Jalan / Tanda Terima"
-                      reference={selected.receivingReference}
-                      href={sourceDocumentHref("delivery-note")}
-                      available={selected.deliveryNoteImageAvailable}
-                      unavailableMessage="Gambar Surat Jalan belum diunggah oleh Logistics."
-                      recoveryHref={receivingHref}
-                    />
+                    {selected.receivingDeliveryNoteSource === "MEKTEK" &&
+                    !selected.mektekDeliveryNoteImageAvailable ? (
+                      <div className="overflow-hidden rounded-xl border bg-muted/20">
+                        <div className="border-b bg-background px-4 py-3">
+                          <p className="font-medium">
+                            Surat Jalan / Tanda Terima
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {selected.receivingReference} · Dibuat Mektek
+                          </p>
+                        </div>
+                        <div className="flex h-[420px] flex-col items-center justify-center gap-4 p-6 text-center text-sm text-muted-foreground">
+                          <p>
+                            Surat Jalan Mektek tersedia sebagai PDF. Foto
+                            tanda tangan belum diunggah.
+                          </p>
+                          {selected.purchaseOrderId ? (
+                            <Button asChild type="button" size="sm" variant="outline">
+                              <Link
+                                href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(selected.purchaseOrderId)}/delivery-note?flow=receiving`}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Buka PDF Surat Jalan
+                                <ExternalLink className="ml-2 size-3.5" />
+                              </Link>
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ) : (
+                      <InlineDocumentPreview
+                        title="Surat Jalan / Tanda Terima"
+                        reference={
+                          selected.receivingDeliveryNoteSource === "MEKTEK"
+                            ? `${selected.receivingReference} · Dibuat Mektek`
+                            : selected.receivingReference
+                        }
+                        href={sourceDocumentHref("delivery-note")}
+                        available={selected.deliveryNoteImageAvailable}
+                        unavailableMessage="Gambar Surat Jalan belum diunggah oleh Logistics."
+                        recoveryHref={receivingHref}
+                      />
+                    )}
                   </div>
                 </section>
                 {receivingHref ? (

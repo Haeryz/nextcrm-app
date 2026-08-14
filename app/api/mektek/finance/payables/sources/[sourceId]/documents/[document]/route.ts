@@ -61,6 +61,10 @@ export async function GET(
       deliveryNoteImageData: true,
       deliveryNoteImageMimeType: true,
       deliveryNoteImageUpdatedAt: true,
+      mektekDeliveryNoteImageData: true,
+      mektekDeliveryNoteImageMimeType: true,
+      mektekDeliveryNoteImageUpdatedAt: true,
+      receivingDeliveryNoteSource: true,
     },
   });
   if (!purchaseOrder) {
@@ -96,6 +100,36 @@ export async function GET(
   }
 
   const isSupplierInvoice = document === "supplier-invoice";
+  if (document === "delivery-note" && purchaseOrder.receivingDeliveryNoteSource === "MEKTEK") {
+    if (purchaseOrder.mektekDeliveryNoteImageData && purchaseOrder.mektekDeliveryNoteImageMimeType) {
+      const mektekExtension =
+        purchaseOrder.mektekDeliveryNoteImageMimeType === "image/png"
+          ? "png"
+          : purchaseOrder.mektekDeliveryNoteImageMimeType === "image/webp"
+            ? "webp"
+            : "jpg";
+      return new Response(
+        Buffer.from(purchaseOrder.mektekDeliveryNoteImageData),
+        {
+          headers: {
+            "Content-Type": purchaseOrder.mektekDeliveryNoteImageMimeType,
+            "Content-Length": String(
+              purchaseOrder.mektekDeliveryNoteImageData.byteLength,
+            ),
+            "Content-Disposition": `inline; filename="surat-jalan-mektek-${safePoNumber}.${mektekExtension}"`,
+            "Cache-Control": "private, no-store",
+            ETag: `"${purchaseOrder.mektekDeliveryNoteImageUpdatedAt?.getTime() || 0}-${purchaseOrder.mektekDeliveryNoteImageData.byteLength}"`,
+            "X-Content-Type-Options": "nosniff",
+          },
+        },
+      );
+    }
+    return new Response(
+      "Surat Jalan Mektek belum diunggah foto tanda tangannya",
+      { status: 404 },
+    );
+  }
+
   const data = isSupplierInvoice
     ? purchaseOrder.supplierInvoiceImageData
     : purchaseOrder.deliveryNoteImageData;
