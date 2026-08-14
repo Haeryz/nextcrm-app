@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import MektekPagination from "../../_components/MektekPagination";
 import ContractCrudManager from "./ContractCrudManager";
 import ContractReminderDemo from "./ContractReminderDemo";
+import FinanceApprovalDecision from "./FinanceApprovalDecision";
 import RecapCreateButton from "./RecapCreateButton";
 import RecapRowActions from "./RecapRowActions";
 import InvoiceCrudManager, { type FinanceInvoiceCrudRow } from "./InvoiceCrudManager";
@@ -60,6 +61,7 @@ export type FinanceSection =
   | "payables"
   | "cash"
   | "contracts"
+  | "approvals"
   | "audit";
 
 const money = (value: unknown) =>
@@ -1811,54 +1813,129 @@ export default async function FinanceWorkspace({
   }
 
   const [approvals, events] = await Promise.all([
-    prismadb.financeApproval.findMany({ orderBy: { requestedAt: "desc" }, take: 50 }),
-    prismadb.financeAuditEvent.findMany({ orderBy: { createdAt: "desc" }, take: 100 }),
+    prismadb.financeApproval.findMany({
+      where:
+        section === "approvals"
+          ? {
+              action: {
+                in: [
+                  "POST_SUPPLIER_BILL",
+                  "POST_DISBURSEMENT",
+                  "OVERRIDE_SUPPLY_CONFLICT",
+                ],
+              },
+            }
+          : undefined,
+      orderBy: { requestedAt: "desc" },
+      take: 50,
+    }),
+    section === "audit"
+      ? prismadb.financeAuditEvent.findMany({ orderBy: { createdAt: "desc" }, take: 100 })
+      : Promise.resolve([]),
   ]);
+  const conflictPurchaseOrderIds = approvals
+    .filter((row) => row.action === "OVERRIDE_SUPPLY_CONFLICT")
+    .map((row) => row.entityId);
+  const conflictPurchaseOrders = conflictPurchaseOrderIds.length
+    ? await prismadb.logisticsPurchaseOrder.findMany({
+        where: { id: { in: conflictPurchaseOrderIds }, flow: "OUTBOUND" },
+        select: {
+          id: true,
+          poNumber: true,
+          poMode: true,
+          projectName: true,
+          userName: true,
+          items: {
+            orderBy: { position: "asc" },
+            select: { partName: true, partNumber: true },
+          },
+        },
+      })
+    : [];
+  const conflictPurchaseOrderById = new Map(
+    conflictPurchaseOrders.map((purchaseOrder) => [purchaseOrder.id, purchaseOrder]),
+  );
   return (
     <main className="space-y-5 px-4 pb-8 sm:px-6">
-      <Header title="Persetujuan & riwayat audit" description="Persetujuan dan catatan perubahan data keuangan." />
+      <Header
+        title={section === "audit" ? "Persetujuan & riwayat audit" : "Persetujuan"}
+        description={
+          section === "audit"
+            ? "Persetujuan dan catatan perubahan data keuangan."
+            : "Tinjau dan putuskan permintaan yang menunggu persetujuan."
+        }
+      />
       <Card>
         <CardHeader><CardTitle className="text-base">Persetujuan</CardTitle></CardHeader>
         <CardContent>
           {approvals.length ? (
             <div className="space-y-2">
-              {approvals.map((row) => (
-                <div key={row.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
-                  <div>
-                    <p className="font-medium">{actionLabel[row.action] ?? row.action}</p>
-                    <p className="text-muted-foreground">
-                      {entityLabel[row.entityType] ?? row.entityType} · {row.entityId.slice(0, 8)}
-                    </p>
+              {approvals.map((row) => {
+                const purchaseOrder = conflictPurchaseOrderById.get(row.entityId);
+                return (
+                  <div key={row.id} className="rounded-lg border p-3 text-sm">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium">{actionLabel[row.action] ?? row.action}</p>
+                        <p className="text-muted-foreground">
+                          {entityLabel[row.entityType] ?? row.entityType} · {row.entityId.slice(0, 8)}
+                        </p>
+                        {purchaseOrder ? (
+                          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                            <p>
+                              PO {purchaseOrder.poNumber} · {purchaseOrder.userName} · Proyek {purchaseOrder.projectName}
+                            </p>
+                            <p>
+                              Mode {purchaseOrder.poMode === "CONSIGNMENT" ? "Konsinyasi" : "Manual"} · Item {purchaseOrder.items
+                                .map((item) => item.partNumber || item.partName)
+                                .join(", ")}
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                      <Badge variant={row.status === "PENDING" ? "destructive" : "outline"}>
+                        {statusLabel[row.status] ?? row.status}
+                      </Badge>
+                    </div>
+                    {row.status === "PENDING" ? (
+                      <FinanceApprovalDecision
+                        approvalId={row.id}
+                        requiresReason={row.action === "OVERRIDE_SUPPLY_CONFLICT"}
+                      />
+                    ) : row.reason ? (
+                      <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">
+                        Alasan: {row.reason}
+                      </p>
+                    ) : null}
                   </div>
-                  <Badge variant={row.status === "PENDING" ? "destructive" : "outline"}>
-                    {statusLabel[row.status] ?? row.status}
-                  </Badge>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : <Empty>Tidak ada persetujuan yang menunggu.</Empty>}
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader><CardTitle className="text-base">Riwayat perubahan</CardTitle></CardHeader>
-        <CardContent>
-          {events.length ? (
-            <div className="space-y-2">
-              {events.map((row) => (
-                <div key={row.id} className="flex items-start justify-between gap-4 border-b py-3 text-sm last:border-0">
-                  <div>
-                    <p className="font-medium">{actionLabel[row.action] ?? row.action}</p>
-                    <p className="text-muted-foreground">
-                      {entityLabel[row.entityType] ?? row.entityType} · {row.entityId}
-                    </p>
+      {section === "audit" ? (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Riwayat perubahan</CardTitle></CardHeader>
+          <CardContent>
+            {events.length ? (
+              <div className="space-y-2">
+                {events.map((row) => (
+                  <div key={row.id} className="flex items-start justify-between gap-4 border-b py-3 text-sm last:border-0">
+                    <div>
+                      <p className="font-medium">{actionLabel[row.action] ?? row.action}</p>
+                      <p className="text-muted-foreground">
+                        {entityLabel[row.entityType] ?? row.entityType} · {row.entityId}
+                      </p>
+                    </div>
+                    <time className="whitespace-nowrap text-muted-foreground">{date(row.createdAt)}</time>
                   </div>
-                  <time className="whitespace-nowrap text-muted-foreground">{date(row.createdAt)}</time>
-                </div>
-              ))}
-            </div>
-          ) : <Empty>Belum ada riwayat perubahan.</Empty>}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            ) : <Empty>Belum ada riwayat perubahan.</Empty>}
+          </CardContent>
+        </Card>
+      ) : null}
     </main>
   );
 }

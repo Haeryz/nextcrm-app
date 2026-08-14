@@ -1774,15 +1774,17 @@ export async function decideFinanceApproval(input: {
           await audit(tx, { entityType: "DISBURSEMENT", entityId: disbursement.id, action: "POST", actorId: access.current.id, metadata: { approvalId: request.id, paymentNumber } });
         }
       } else if (request.action === FinanceApprovalAction.OVERRIDE_SUPPLY_CONFLICT) {
-        if (!input.approve || !reason) throw new Error("OVERRIDE_REASON_REQUIRED");
-        await tx.logisticsPurchaseOrder.update({
-          where: { id: request.entityId },
-          data: { supplyReviewStatus: "OVERRIDDEN" },
-        });
-        await tx.logisticsSupplyAllocation.updateMany({
-          where: { purchaseOrderItem: { purchaseOrderId: request.entityId } },
-          data: { status: "OVERRIDDEN", overrideApprovalId: request.id },
-        });
+        if (!reason) throw new Error("OVERRIDE_REASON_REQUIRED");
+        if (input.approve) {
+          await tx.logisticsPurchaseOrder.update({
+            where: { id: request.entityId },
+            data: { supplyReviewStatus: "OVERRIDDEN" },
+          });
+          await tx.logisticsSupplyAllocation.updateMany({
+            where: { purchaseOrderItem: { purchaseOrderId: request.entityId } },
+            data: { status: "OVERRIDDEN", overrideApprovalId: request.id },
+          });
+        }
       }
 
       const approval = await tx.financeApproval.update({
@@ -1807,7 +1809,10 @@ export async function decideFinanceApproval(input: {
       return { error: "Pembuat tidak boleh menyetujui permintaannya sendiri" };
     }
     if (error instanceof Error && error.message === "CAPABILITY_REQUIRED") {
-      return { error: "Forbidden: kapabilitas Finance/Accounting diperlukan untuk approval ini" };
+      return { error: "Akses Finance/Accounting diperlukan untuk persetujuan ini" };
+    }
+    if (error instanceof Error && error.message === "OVERRIDE_REASON_REQUIRED") {
+      return { error: "Alasan keputusan konflik pasokan wajib diisi" };
     }
     return { error: "Approval tidak dapat diproses" };
   }

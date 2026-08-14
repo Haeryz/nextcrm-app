@@ -105,6 +105,7 @@ const getMektekMenuItems = (user?: MektekMenuUser | null): NavItem[] => {
       title: "Keuangan",
       icon: CircleDollarSign,
       items: [
+        { title: "Persetujuan", url: "/mektek/finance/approvals" },
         { title: "Pembayaran Pemasok", url: "/mektek/finance/payables" },
         { title: "Laporan Hutang Pemasok", url: "/mektek/finance/supplier-debt-report" },
       ],
