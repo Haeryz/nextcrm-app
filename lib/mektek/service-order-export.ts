@@ -2,7 +2,6 @@ import {
   buildMektekFinancialSummary,
   type MektekPaymentRecord,
 } from "@/lib/mektek/financials";
-import type { MektekLineItem } from "@/lib/mektek/items";
 
 export type MektekServiceOrderExportOrder = {
   id: string;
@@ -37,6 +36,9 @@ export const MEKTEK_SERVICE_ORDER_EXPORT_HEADERS = [
   "Status",
   "Keluhan",
   "Sparepart",
+  "QTY",
+  "Part Number",
+  "Harga Sparepart",
   "ETA",
   "Tanggal Masuk",
   "Terakhir Update",
@@ -57,6 +59,19 @@ export const MEKTEK_SERVICE_ORDER_EXPORT_HEADERS = [
   "Metode Pembayaran",
 ] as const;
 
+const FINANCIAL_EXPORT_COLUMNS = [
+  "Subtotal Servis",
+  "Subtotal Sparepart",
+  "Diskon",
+  "DPP",
+  "PPN",
+  "Total Tagihan Bruto",
+  "PPh 23 Dipotong",
+  "Total Dibayar",
+  "Sudah Dibayar",
+  "Sisa Bayar",
+] as const;
+
 const SERVICE_TITLE_PREFIXES = ["MEKTEK Service - ", "MEKTEK AC - "];
 const MAKASSAR_OFFSET_MS = 8 * 60 * 60 * 1000;
 
@@ -67,23 +82,6 @@ function text(value: unknown) {
 function stripServicePrefix(title: string) {
   const prefix = SERVICE_TITLE_PREFIXES.find((item) => title.startsWith(item));
   return prefix ? title.slice(prefix.length) : title;
-}
-
-function formatLineItemText(item: MektekLineItem): string {
-  const parts: string[] = [item.name];
-  if (item.unit === "M") {
-    parts.push(`${item.quantity} m`);
-  } else if (item.quantity > 1) {
-    parts.push(`x${item.quantity}`);
-  }
-  if (item.partNumber) {
-    parts.push(`(${item.partNumber})`);
-  }
-  return parts.join(" ");
-}
-
-function formatLineItemsText(items: readonly MektekLineItem[]): string {
-  return items.map(formatLineItemText).join("\n");
 }
 
 function formatExportDate(value: Date | string | null | undefined) {
@@ -174,7 +172,9 @@ export function getMektekServiceOrderExportMonthSpan(
 export function buildMektekServiceOrderExportRows(
   orders: MektekServiceOrderExportOrder[],
 ) {
-  return orders.map((order) => {
+  const rows: Record<string, string | number>[] = [];
+
+  for (const order of orders) {
     const tags =
       order.tags && typeof order.tags === "object" && !Array.isArray(order.tags)
         ? (order.tags as Record<string, unknown>)
@@ -198,9 +198,15 @@ export function buildMektekServiceOrderExportRows(
       text(technicianTag.name) ||
       text(technicianTag.email);
     const hasServiceItems = normalizedItems.serviceItems.length > 0;
-    const sparepartText = formatLineItemsText(normalizedItems.sparepartItems);
+    const sparepartItems = normalizedItems.sparepartItems;
+    const paymentStatusLabel =
+      financials.payment.status === "paid"
+        ? "Lunas"
+        : financials.payment.status === "partial"
+          ? "Dibayar Sebagian"
+          : "Belum Bayar";
 
-    return {
+    const commonFields: Record<string, string | number> = {
       "No. Service": order.serviceNumber ?? order.id.slice(0, 8),
       ID: order.id,
       "Nama Customer": text(tags.customerName),
@@ -217,13 +223,17 @@ export function buildMektekServiceOrderExportRows(
       Keluhan: hasServiceItems
         ? (text(order.content) || stripServicePrefix(order.title ?? ""))
         : "-",
-      Sparepart: sparepartText || "-",
       ETA: formatExportDate(order.dueDateAt),
       "Tanggal Masuk": formatExportDate(order.createdAt),
       "Terakhir Update": formatExportDate(order.updatedAt),
       "Jumlah Timeline": Array.isArray(tags.timeline) ? tags.timeline.length : 0,
       "Jumlah Item Servis": normalizedItems.serviceItems.length,
-      "Jumlah Sparepart": normalizedItems.sparepartItems.length,
+      "Jumlah Sparepart": sparepartItems.length,
+      "Status Pembayaran": paymentStatusLabel,
+      "Metode Pembayaran": financials.payment.method,
+    };
+
+    const financialFields: Record<string, string | number> = {
       "Subtotal Servis": normalizedItems.serviceSubtotal,
       "Subtotal Sparepart": normalizedItems.sparepartSubtotal,
       Diskon: financials.discount,
@@ -234,15 +244,40 @@ export function buildMektekServiceOrderExportRows(
       "Total Dibayar": financials.netPayable,
       "Sudah Dibayar": financials.amountPaid,
       "Sisa Bayar": financials.balanceDue,
-      "Status Pembayaran":
-        financials.payment.status === "paid"
-          ? "Lunas"
-          : financials.payment.status === "partial"
-            ? "Dibayar Sebagian"
-            : "Belum Bayar",
-      "Metode Pembayaran": financials.payment.method,
     };
-  });
+
+    const sparepartRows =
+      sparepartItems.length === 0
+        ? [{ name: "-", quantity: "" as string | number, partNumber: "", unitPrice: 0 }]
+        : sparepartItems.map((item) => ({
+            name: item.name,
+            quantity: item.quantity,
+            partNumber: item.partNumber || item.catalogPartNumber || "",
+            unitPrice: item.unitPrice,
+          }));
+
+    sparepartRows.forEach((sparepart, index) => {
+      if (index === 0) {
+        rows.push({
+          ...commonFields,
+          Sparepart: sparepart.name,
+          QTY: sparepart.quantity,
+          "Part Number": sparepart.partNumber,
+          "Harga Sparepart": sparepart.unitPrice,
+          ...financialFields,
+        });
+      } else {
+        rows.push({
+          Sparepart: sparepart.name,
+          QTY: sparepart.quantity,
+          "Part Number": sparepart.partNumber,
+          "Harga Sparepart": sparepart.unitPrice,
+        });
+      }
+    });
+  }
+
+  return rows;
 }
 
 export function buildMektekServiceOrderExportSummary(
@@ -250,17 +285,23 @@ export function buildMektekServiceOrderExportSummary(
   month: string,
 ) {
   const records = rows.map((row) => row as Record<string, unknown>);
+  const uniqueRows = new Map<string, Record<string, unknown>>();
+  for (const row of records) {
+    const id = String(row.ID ?? "");
+    if (id && !uniqueRows.has(id)) uniqueRows.set(id, row);
+  }
+  const uniqueRecords = [...uniqueRows.values()];
   const sum = (column: string) =>
     records.reduce((total, row) => {
       const value = row[column];
       return total + (typeof value === "number" && Number.isFinite(value) ? value : 0);
     }, 0);
   const countStatus = (status: string) =>
-    records.filter((row) => row.Status === status).length;
+    uniqueRecords.filter((row) => row.Status === status).length;
 
   return [
     { Metrik: "Bulan Laporan", Nilai: month },
-    { Metrik: "Total Pesanan", Nilai: records.length },
+    { Metrik: "Total Pesanan", Nilai: uniqueRecords.length },
     { Metrik: "In Progress", Nilai: countStatus("ACTIVE") },
     { Metrik: "Pending", Nilai: countStatus("PENDING") },
     { Metrik: "Menunggu Pembayaran", Nilai: countStatus("AWAITING_PAYMENT") },
