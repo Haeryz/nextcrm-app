@@ -39,7 +39,7 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
   it("names the standard Monitoring PO supply mode Manual", () => {
     expect(outboundManager).toContain('poType: "Manual"');
     expect(outboundManager).toContain(
-      '<SelectItem value="Manual">Manual · one-off PO</SelectItem>',
+      '<SelectItem value="Manual">Normal</SelectItem>',
     );
     expect(actionSource).toContain(
       'requestedMode === "CONSIGNMENT" ? "Consignment" : "Manual"',
@@ -82,7 +82,9 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
     expect(receivingPage).toContain(
       "agreedUnitPrice: item.agreedUnitPrice?.toString() ?? null",
     );
-    expect(actionSource).not.toContain("return { data: purchaseOrder };");
+    expect(actionSource).toContain(
+      "return { id: existing.id, poNumber: header.data.poNumber };",
+    );
   });
 
   it("preserves agreed prices while normalizing purchase-order lines", () => {

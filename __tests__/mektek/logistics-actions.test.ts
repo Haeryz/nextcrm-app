@@ -242,6 +242,7 @@ describe("MekTek Logistics and Receiving actions", () => {
           flow: "OUTBOUND",
           poNumber: "PO-001",
           supplierName: "PT. Mektek Tanjung Lestari",
+          supplyReviewStatus: "CLEAR",
         }),
       }),
     );
@@ -256,6 +257,8 @@ describe("MekTek Logistics and Receiving actions", () => {
       }),
     });
     expect(applyCatalogStockMovement).not.toHaveBeenCalled();
+    expect(financeApprovalCreate).not.toHaveBeenCalled();
+    expect(financeAuditEventCreate).not.toHaveBeenCalled();
   });
 
   it("updates an outbound PO while preserving its dispatched quantities", async () => {
@@ -479,8 +482,8 @@ describe("MekTek Logistics and Receiving actions", () => {
       }),
     );
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
-      maxWait: 15_000,
-      timeout: 30_000,
+      maxWait: 20_000,
+      timeout: 60_000,
     });
   });
 
@@ -876,8 +879,8 @@ describe("MekTek Logistics and Receiving actions", () => {
       }),
     );
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), {
-      maxWait: 15_000,
-      timeout: 30_000,
+      maxWait: 20_000,
+      timeout: 60_000,
     });
   });
 

@@ -1099,25 +1099,12 @@ export async function createMektekOutboundPurchaseOrder(
       // Payment Faktur and the rest of the Finance/Accounting menus.
       await ensurePaymentFakturCustomer(tx, header.data.userName);
       const itemKeys = hydrated.map((line) => normalizeFinanceKey(line.source === "CATALOG" ? line.catalogItem.id : line.partNumber || line.partName));
-      const conflicts = await tx.logisticsSupplyAllocation.findMany({
-        where: {
-          counterpartyId: counterparty.id,
-          projectKey: normalizeFinanceKey(header.data.projectName),
-          itemKey: { in: itemKeys },
-          poMode: { not: header.data.poMode },
-          supplyStartDate: { lte: header.data.supplyEndDate },
-          supplyEndDate: { gte: header.data.supplyStartDate },
-          status: { in: ["CLEAR", "BLOCKED", "OVERRIDDEN"] },
-        },
-        select: { itemKey: true },
-      });
-      const conflictKeys = new Set(conflicts.map((row) => row.itemKey));
       const purchaseOrder = await tx.logisticsPurchaseOrder.create({
         data: {
           ...header.data,
           flow: "OUTBOUND",
           financeCounterpartyId: counterparty.id,
-          supplyReviewStatus: conflictKeys.size ? "BLOCKED" : "CLEAR",
+          supplyReviewStatus: "CLEAR",
           deliveryDate: null,
           createdBy: access.session.user.id,
         },
@@ -1141,7 +1128,7 @@ export async function createMektekOutboundPurchaseOrder(
             },
           });
           createdItems.push(item);
-          await tx.logisticsSupplyAllocation.create({ data: { purchaseOrderItemId: item.id, counterpartyId: counterparty.id, projectKey: normalizeFinanceKey(header.data.projectName), itemKey: itemKeys[line.position - 1], poMode: header.data.poMode, supplyStartDate: header.data.supplyStartDate, supplyEndDate: header.data.supplyEndDate, quantity: line.orderedQuantity, status: conflictKeys.has(itemKeys[line.position - 1]) ? "BLOCKED" : "CLEAR" } });
+          await tx.logisticsSupplyAllocation.create({ data: { purchaseOrderItemId: item.id, counterpartyId: counterparty.id, projectKey: normalizeFinanceKey(header.data.projectName), itemKey: itemKeys[line.position - 1], poMode: header.data.poMode, supplyStartDate: header.data.supplyStartDate, supplyEndDate: header.data.supplyEndDate, quantity: line.orderedQuantity, status: "CLEAR" } });
           continue;
         }
 
@@ -1162,12 +1149,7 @@ export async function createMektekOutboundPurchaseOrder(
           },
         });
         createdItems.push(item);
-        await tx.logisticsSupplyAllocation.create({ data: { purchaseOrderItemId: item.id, counterpartyId: counterparty.id, projectKey: normalizeFinanceKey(header.data.projectName), itemKey: itemKeys[line.position - 1], poMode: header.data.poMode, supplyStartDate: header.data.supplyStartDate, supplyEndDate: header.data.supplyEndDate, quantity: line.orderedQuantity, status: conflictKeys.has(itemKeys[line.position - 1]) ? "BLOCKED" : "CLEAR" } });
-      }
-      if (conflictKeys.size) {
-        const approval = await tx.financeApproval.create({ data: { action: "OVERRIDE_SUPPLY_CONFLICT", entityType: "OUTBOUND_PO", entityId: purchaseOrder.id, requestedBy: access.session.user.id, metadata: { conflictItemKeys: [...conflictKeys], poMode: header.data.poMode } } });
-        await tx.logisticsSupplyAllocation.updateMany({ where: { purchaseOrderItemId: { in: createdItems.map((item) => item.id) }, status: "BLOCKED" }, data: { overrideApprovalId: approval.id } });
-        await tx.financeAuditEvent.create({ data: { entityType: "OUTBOUND_PO", entityId: purchaseOrder.id, action: "SUPPLY_CONFLICT_BLOCK", actorId: access.session.user.id, metadata: { conflictItemKeys: [...conflictKeys], approvalId: approval.id } } });
+        await tx.logisticsSupplyAllocation.create({ data: { purchaseOrderItemId: item.id, counterpartyId: counterparty.id, projectKey: normalizeFinanceKey(header.data.projectName), itemKey: itemKeys[line.position - 1], poMode: header.data.poMode, supplyStartDate: header.data.supplyStartDate, supplyEndDate: header.data.supplyEndDate, quantity: line.orderedQuantity, status: "CLEAR" } });
       }
       return { ...purchaseOrder, items: createdItems };
     });
@@ -1378,7 +1360,6 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
           projectName: true,
           userName: true,
           inputDate: true,
-          supplyReviewStatus: true,
           items: {
             orderBy: { position: "asc" },
             select: {
@@ -1397,9 +1378,6 @@ export async function recordMektekOutboundPurchaseOrderDispatch(
       });
       if (!purchaseOrder || purchaseOrder.flow !== "OUTBOUND") {
         throw new LogisticsActionError("Monitoring PO tidak ditemukan");
-      }
-      if (purchaseOrder.supplyReviewStatus === "BLOCKED") {
-        throw new LogisticsActionError("Pengiriman diblokir: overlap supply Manual/Consignment menunggu approval Finance");
       }
       if (dispatchedAt < purchaseOrder.inputDate) {
         throw new LogisticsActionError(

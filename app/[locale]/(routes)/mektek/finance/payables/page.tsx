@@ -1,5 +1,8 @@
 import { prismadb } from "@/lib/prisma";
 import { parseSupplierPayableSnapshot } from "@/lib/mektek/supplier-payment";
+import { applySupplierDebtPayments } from "@/lib/mektek/supplier-debt-ledger";
+import { normalizeFinanceKey } from "@/lib/mektek/finance";
+import type { FinanceSupplierBillStatus } from "@prisma/client";
 
 import SupplierPaymentManager, {
   type SupplierPaymentRow,
@@ -9,6 +12,13 @@ import { requireFinanceSection } from "../_lib/gate";
 
 const dateOnly = (value: Date) => value.toISOString().slice(0, 10);
 
+const normalizeSupplierPaymentStatus = (
+  status: FinanceSupplierBillStatus,
+): SupplierPaymentRow["status"] => {
+  if (status === "DRAFT" || status === "PENDING_APPROVAL") return "POSTED";
+  return status;
+};
+
 export default async function SupplierPaymentsPage({
   params,
 }: {
@@ -16,38 +26,58 @@ export default async function SupplierPaymentsPage({
 }) {
   const { locale } = await params;
   await requireFinanceSection(locale, "finance");
-  const [payableSources, supplierBills] = await Promise.all([
-    prismadb.financePayableSource.findMany({
-      where: {
-        supplierBillId: null,
-        status: { in: ["UNBILLED", "NEEDS_REVIEW"] },
-      },
-      orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
-      take: 200,
-      include: {
-        counterparty: { select: { legalName: true, paymentTermsDays: true } },
-      },
-    }),
-    prismadb.financeSupplierBill.findMany({
-      orderBy: [{ billDate: "desc" }, { createdAt: "desc" }],
-      take: 200,
-      include: {
-        counterparty: { select: { legalName: true } },
-        sources: {
-          select: {
-            sourceReference: true,
-            occurredAt: true,
-            snapshot: true,
+  const [payableSources, supplierBills, debtEntries, debtTransactions] =
+    await Promise.all([
+      prismadb.financePayableSource.findMany({
+        where: {
+          supplierBillId: null,
+          status: { in: ["UNBILLED", "NEEDS_REVIEW"] },
+        },
+        orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
+        take: 200,
+        include: {
+          counterparty: { select: { legalName: true, paymentTermsDays: true } },
+        },
+      }),
+      prismadb.financeSupplierBill.findMany({
+        orderBy: [{ billDate: "desc" }, { createdAt: "desc" }],
+        take: 200,
+        include: {
+          counterparty: { select: { id: true, legalName: true } },
+          sources: {
+            select: {
+              sourceReference: true,
+              occurredAt: true,
+              snapshot: true,
+            },
+            take: 1,
           },
-          take: 1,
+          allocations: {
+            where: { disbursement: { status: "POSTED" } },
+            select: { amount: true },
+          },
         },
-        allocations: {
-          where: { disbursement: { status: "POSTED" } },
-          select: { amount: true },
+      }),
+      prismadb.mektekSupplierDebtEntry.findMany({
+        select: {
+          sheetKey: true,
+          sourceRow: true,
+          invoiceNumber: true,
+          grandTotal: true,
+          paymentAmount: true,
         },
-      },
-    }),
-  ]);
+      }),
+      prismadb.mektekSupplierDebtTransaction.findMany({
+        where: { kind: "PAYMENT" },
+        select: {
+          sheetKey: true,
+          sourceRow: true,
+          paymentSource: true,
+          amount: true,
+          transactionDate: true,
+        },
+      }),
+    ]);
 
   const parsedPayableSources = payableSources.map((source) => ({
     source,
@@ -120,7 +150,47 @@ export default async function SupplierPaymentsPage({
     },
   );
 
-  const rows: SupplierPaymentRow[] = supplierBills.map((bill) => {
+  const ledgerTransactions = debtTransactions.map((transaction) => ({
+    sheetKey: transaction.sheetKey,
+    sourceRow: transaction.sourceRow,
+    kind: "PAYMENT" as const,
+    paymentSource: transaction.paymentSource,
+    amount: Number(transaction.amount),
+    transactionDate: dateOnly(transaction.transactionDate),
+  }));
+  const lunasInvoiceKeys = new Set<string>();
+  for (const entry of debtEntries) {
+    if (!entry.invoiceNumber) continue;
+    const { status } = applySupplierDebtPayments(
+      {
+        grandTotal: Number(entry.grandTotal),
+        paymentAmount: Number(entry.paymentAmount),
+      },
+      ledgerTransactions,
+      entry.sheetKey,
+      entry.sourceRow,
+    );
+    if (status === "LUNAS") {
+      lunasInvoiceKeys.add(
+        `${normalizeFinanceKey(entry.sheetKey)}::${normalizeFinanceKey(
+          entry.invoiceNumber,
+        )}`,
+      );
+    }
+  }
+
+  const rows: SupplierPaymentRow[] = supplierBills
+    .filter((bill) => {
+      const normalizedStatus = normalizeSupplierPaymentStatus(bill.status);
+      if (normalizedStatus === "PAID" || normalizedStatus === "VOID") {
+        return false;
+      }
+      const lunasKey = `${normalizeFinanceKey(
+        bill.counterparty.legalName,
+      )}::${normalizeFinanceKey(bill.supplierInvoiceNumber)}`;
+      return !lunasInvoiceKeys.has(lunasKey);
+    })
+    .map((bill) => {
     const source = bill.sources[0];
     const snapshot = parseSupplierPayableSnapshot(source?.snapshot);
     const paid = bill.allocations.reduce(
@@ -129,6 +199,7 @@ export default async function SupplierPaymentsPage({
     );
     return {
       id: bill.id,
+      counterpartyId: bill.counterparty.id,
       internalNumber: bill.internalNumber,
       supplierName: bill.counterparty.legalName,
       supplierInvoiceNumber: bill.supplierInvoiceNumber,
@@ -141,7 +212,7 @@ export default async function SupplierPaymentsPage({
       taxAmount: Number(bill.taxAmount),
       grandTotal: Number(bill.totalAmount),
       remainingAmount: Math.max(0, Number(bill.totalAmount) - paid),
-      status: bill.status,
+      status: normalizeSupplierPaymentStatus(bill.status),
       matchException: bill.matchException,
     };
   });

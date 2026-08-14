@@ -1685,19 +1685,14 @@ export async function decideFinanceApproval(input: {
     const result = await prismadb.$transaction(async (tx) => {
       const request = await tx.financeApproval.findUnique({ where: { id: input.approvalId } });
       if (!request || request.status !== FinanceApprovalStatus.PENDING) throw new Error("APPROVAL_UNAVAILABLE");
+      if (
+        request.action !== FinanceApprovalAction.ISSUE_INVOICE &&
+        request.action !== FinanceApprovalAction.APPROVE_QUOTE
+      ) {
+        throw new Error("APPROVAL_UNAVAILABLE");
+      }
       if (!canApproveFinanceRequest(request.requestedBy, access.current.id)) throw new Error("SELF_APPROVAL");
-      // Branch the capability check by approval action: invoice/quote approvals
-      // require Accounting; supplier-bill/disbursement approvals require Finance.
-      // Supply-conflict overrides are a logistics-facing approval that either
-      // workspace may decide, so no extra capability is enforced here.
-      const requiresCapability: StaffCapability | null =
-        request.action === FinanceApprovalAction.ISSUE_INVOICE ||
-        request.action === FinanceApprovalAction.APPROVE_QUOTE
-          ? "MEKTEK_ACCOUNTING"
-          : request.action === FinanceApprovalAction.POST_SUPPLIER_BILL ||
-              request.action === FinanceApprovalAction.POST_DISBURSEMENT
-            ? "MEKTEK_FINANCE"
-            : null;
+      const requiresCapability: StaffCapability = "MEKTEK_ACCOUNTING";
       if (
         requiresCapability &&
         !access.current.is_admin &&
@@ -1739,52 +1734,6 @@ export async function decideFinanceApproval(input: {
             ? { status: "APPROVED", approvedBy: access.current.id, approvedAt: decidedAt }
             : { status: "REJECTED" },
         });
-      } else if (request.action === FinanceApprovalAction.POST_SUPPLIER_BILL) {
-        await tx.financeSupplierBill.update({
-          where: { id: request.entityId },
-          data: input.approve
-            ? { status: "POSTED", approvedBy: access.current.id, approvedAt: decidedAt, postedAt: decidedAt }
-            : { status: "DRAFT" },
-        });
-      } else if (request.action === FinanceApprovalAction.POST_DISBURSEMENT) {
-        if (!input.approve) {
-          // No cash row exists until approval, so rejection only closes the request.
-        } else {
-          const metadata = request.metadata as Record<string, unknown> | null;
-          const allocations = Array.isArray(metadata?.allocations) ? metadata.allocations as Array<{ supplierBillId: string; amount: string }> : [];
-          const amount = new Prisma.Decimal(String(metadata?.amount ?? 0));
-          const paidAt = new Date(String(metadata?.paidAt ?? ""));
-          const counterpartyId = String(metadata?.counterpartyId ?? "");
-          if (!counterpartyId || amount.lte(0) || Number.isNaN(paidAt.getTime()) || allocations.length === 0) throw new Error("DISBURSEMENT_INVALID");
-          const bills = await tx.financeSupplierBill.findMany({ where: { id: { in: allocations.map((row) => row.supplierBillId) }, counterpartyId, status: { in: ["POSTED", "PARTIALLY_PAID"] } }, include: { allocations: { where: { disbursement: { status: "POSTED" } } } } });
-          if (bills.length !== allocations.length) throw new Error("BILL_MISMATCH");
-          for (const allocation of allocations) {
-            const bill = bills.find((row) => row.id === allocation.supplierBillId)!;
-            const paid = bill.allocations.reduce((sum, row) => sum.add(row.amount), new Prisma.Decimal(0));
-            if (new Prisma.Decimal(allocation.amount).gt(bill.totalAmount.sub(paid))) throw new Error("OVER_ALLOCATION");
-          }
-          const paymentNumber = await nextDocumentNumber(tx, "PAY", paidAt);
-          const disbursement = await tx.financeDisbursement.create({ data: { paymentNumber, counterpartyId, method: String(metadata?.method ?? "BANK_TRANSFER") as FinancePaymentMethod, amount, paidAt, bankReference: text(metadata?.bankReference, 180) || null, notes: text(metadata?.notes, 1000) || null, createdBy: request.requestedBy, approvedBy: access.current.id, approvedAt: decidedAt, allocations: { create: allocations.map((row) => ({ supplierBillId: row.supplierBillId, amount: new Prisma.Decimal(row.amount) })) } } });
-          for (const bill of bills) {
-            const prior = bill.allocations.reduce((sum, row) => sum.add(row.amount), new Prisma.Decimal(0));
-            const added = allocations.find((row) => row.supplierBillId === bill.id);
-            const nextPaid = prior.add(added?.amount ?? 0);
-            await tx.financeSupplierBill.update({ where: { id: bill.id }, data: { status: nextPaid.gte(bill.totalAmount) ? "PAID" : "PARTIALLY_PAID" } });
-          }
-          await audit(tx, { entityType: "DISBURSEMENT", entityId: disbursement.id, action: "POST", actorId: access.current.id, metadata: { approvalId: request.id, paymentNumber } });
-        }
-      } else if (request.action === FinanceApprovalAction.OVERRIDE_SUPPLY_CONFLICT) {
-        if (!reason) throw new Error("OVERRIDE_REASON_REQUIRED");
-        if (input.approve) {
-          await tx.logisticsPurchaseOrder.update({
-            where: { id: request.entityId },
-            data: { supplyReviewStatus: "OVERRIDDEN" },
-          });
-          await tx.logisticsSupplyAllocation.updateMany({
-            where: { purchaseOrderItem: { purchaseOrderId: request.entityId } },
-            data: { status: "OVERRIDDEN", overrideApprovalId: request.id },
-          });
-        }
       }
 
       const approval = await tx.financeApproval.update({
@@ -1810,9 +1759,6 @@ export async function decideFinanceApproval(input: {
     }
     if (error instanceof Error && error.message === "CAPABILITY_REQUIRED") {
       return { error: "Akses Finance/Accounting diperlukan untuk persetujuan ini" };
-    }
-    if (error instanceof Error && error.message === "OVERRIDE_REASON_REQUIRED") {
-      return { error: "Alasan keputusan konflik pasokan wajib diisi" };
     }
     return { error: "Approval tidak dapat diproses" };
   }
@@ -1895,7 +1841,7 @@ export async function postFinanceReceipt(input: {
   }
 }
 
-export async function requestFinanceDisbursement(input: {
+export async function postFinanceDisbursement(input: {
   counterpartyId: string;
   method: FinancePaymentMethod;
   amount: string | number;
@@ -1906,23 +1852,165 @@ export async function requestFinanceDisbursement(input: {
 }) {
   const access = await ensureFinanceStaff();
   if ("error" in access) return access;
+  const counterpartyId = text(input.counterpartyId, 36);
   const amount = money(input.amount);
   const paidAt = dateOnly(input.paidAt);
+  const bankReference = text(input.bankReference, 180);
   const allocations = input.allocations.flatMap((row) => {
     const value = money(row.amount);
-    return value && value.gt(0) ? [{ supplierBillId: text(row.supplierBillId, 36), amount: value.toString() }] : [];
+    return value && value.gt(0)
+      ? [{ supplierBillId: text(row.supplierBillId, 36), amount: value }]
+      : [];
   });
   const allocated = allocations.reduce((sum, row) => sum.add(row.amount), new Prisma.Decimal(0));
-  if (!amount || amount.lte(0) || !paidAt || allocations.length === 0 || allocated.gt(amount)) return { error: "Jumlah, tanggal, dan alokasi pengeluaran tidak valid" };
-  const request = await prismadb.$transaction(async (tx) => {
-    const bills = await tx.financeSupplierBill.count({ where: { id: { in: allocations.map((row) => row.supplierBillId) }, counterpartyId: input.counterpartyId, status: { in: ["POSTED", "PARTIALLY_PAID"] } } });
-    if (bills !== allocations.length) throw new Error("BILL_MISMATCH");
-    const created = await tx.financeApproval.create({ data: { action: "POST_DISBURSEMENT", entityType: "DISBURSEMENT", entityId: crypto.randomUUID(), requestedBy: access.current.id, metadata: { counterpartyId: input.counterpartyId, method: input.method, amount: amount.toString(), paidAt: paidAt.toISOString(), bankReference: text(input.bankReference, 180), notes: text(input.notes, 1000), allocations } } });
-    await audit(tx, { entityType: "DISBURSEMENT", entityId: created.entityId, action: "REQUEST_APPROVAL", actorId: access.current.id, metadata: { approvalId: created.id, amount: amount.toString() } });
-    return created;
-  });
-  revalidatePath(financePath, "layout");
-  return { data: request };
+  if (
+    !counterpartyId ||
+    !Object.values(FinancePaymentMethod).includes(input.method) ||
+    !amount ||
+    amount.lte(0) ||
+    !paidAt ||
+    !bankReference ||
+    allocations.length === 0 ||
+    new Set(allocations.map((row) => row.supplierBillId)).size !== allocations.length ||
+    !allocated.eq(amount)
+  ) {
+    return {
+      error:
+        "Jumlah, tanggal, referensi pembayaran, dan alokasi pengeluaran wajib valid",
+    };
+  }
+
+  try {
+    const result = await prismadb.$transaction(async (tx) => {
+      const bills = await tx.financeSupplierBill.findMany({
+        where: {
+          id: { in: allocations.map((row) => row.supplierBillId) },
+          counterpartyId,
+          status: { in: ["POSTED", "PARTIALLY_PAID"] },
+        },
+        include: {
+          counterparty: { select: { legalName: true } },
+          allocations: {
+            where: { disbursement: { status: "POSTED" } },
+            select: { amount: true },
+          },
+        },
+      });
+      if (bills.length !== allocations.length) throw new Error("BILL_MISMATCH");
+
+      for (const allocation of allocations) {
+        const bill = bills.find((row) => row.id === allocation.supplierBillId)!;
+        const priorPaid = bill.allocations.reduce(
+          (sum, row) => sum.add(row.amount),
+          new Prisma.Decimal(0),
+        );
+        if (allocation.amount.gt(bill.totalAmount.sub(priorPaid))) {
+          throw new Error("OVER_ALLOCATION");
+        }
+      }
+
+      const paymentNumber = await nextDocumentNumber(tx, "PAY", paidAt);
+      const disbursement = await tx.financeDisbursement.create({
+        data: {
+          paymentNumber,
+          counterpartyId,
+          method: input.method,
+          amount,
+          paidAt,
+          bankReference,
+          notes: text(input.notes, 1000) || null,
+          createdBy: access.current.id,
+          allocations: {
+            create: allocations.map((row) => ({
+              supplierBillId: row.supplierBillId,
+              amount: row.amount,
+            })),
+          },
+        },
+      });
+
+      for (const bill of bills) {
+        const allocation = allocations.find(
+          (row) => row.supplierBillId === bill.id,
+        )!;
+        const priorPaid = bill.allocations.reduce(
+          (sum, row) => sum.add(row.amount),
+          new Prisma.Decimal(0),
+        );
+        const nextPaid = priorPaid.add(allocation.amount);
+        await tx.financeSupplierBill.update({
+          where: { id: bill.id },
+          data: {
+            status: nextPaid.gte(bill.totalAmount)
+              ? "PAID"
+              : "PARTIALLY_PAID",
+          },
+        });
+
+        const debtEntries = await tx.mektekSupplierDebtEntry.findMany({
+          where: {
+            invoiceNumber: bill.supplierInvoiceNumber,
+            grandTotal: bill.totalAmount,
+          },
+          orderBy: { createdAt: "desc" },
+          select: { sheetKey: true, sourceRow: true },
+          take: 5,
+        });
+        const normalizedSupplier = normalizeFinanceKey(
+          bill.counterparty.legalName,
+        );
+        const debtEntry =
+          debtEntries.find(
+            (entry) => normalizeFinanceKey(entry.sheetKey) === normalizedSupplier,
+          ) ?? (debtEntries.length === 1 ? debtEntries[0] : null);
+        if (debtEntry) {
+          await tx.mektekSupplierDebtTransaction.create({
+            data: {
+              sheetKey: debtEntry.sheetKey,
+              sourceRow: debtEntry.sourceRow,
+              kind: "PAYMENT",
+              paymentSource: "CASH",
+              amount: allocation.amount,
+              transactionDate: paidAt,
+              reference: bankReference,
+              note: text(input.notes, 1000) || null,
+              createdBy: access.current.id,
+            },
+          });
+        }
+      }
+
+      await audit(tx, {
+        entityType: "DISBURSEMENT",
+        entityId: disbursement.id,
+        action: "POST",
+        actorId: access.current.id,
+        after: {
+          paymentNumber,
+          amount: amount.toString(),
+          method: input.method,
+          paidAt: paidAt.toISOString(),
+          bankReference,
+          allocations: allocations.map((row) => ({
+            supplierBillId: row.supplierBillId,
+            amount: row.amount.toString(),
+          })),
+        },
+      });
+      return { id: disbursement.id, paymentNumber };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    revalidatePath(financePath, "layout");
+    return { data: result };
+  } catch (error) {
+    console.error("[POST_FINANCE_DISBURSEMENT]", error);
+    if (error instanceof Error && error.message === "OVER_ALLOCATION") {
+      return { error: "Nominal pembayaran melebihi sisa tagihan" };
+    }
+    return {
+      error:
+        "Tagihan tidak tersedia, sudah lunas, atau data pembayaran telah berubah",
+    };
+  }
 }
 
 export async function createMatchedFinanceSupplierBill(input: {
@@ -1999,10 +2087,9 @@ export async function createMatchedFinanceSupplierBill(input: {
           source.totalAmount == null
             ? null
             : new Prisma.Decimal(source.totalAmount);
-        const matchException =
-          expectedSubtotal && !expectedSubtotal.eq(subtotal)
-            ? `PO/Receiving ${expectedSubtotal.toString()} != Bill ${subtotal.toString()}`
-            : null;
+        if (expectedSubtotal && !expectedSubtotal.eq(subtotal)) {
+          throw new Error("SOURCE_AMOUNT_MISMATCH");
+        }
         const internalNumber = await nextDocumentNumber(tx, "BILL", billDate);
         const created = await tx.financeSupplierBill.create({
           data: {
@@ -2011,11 +2098,13 @@ export async function createMatchedFinanceSupplierBill(input: {
             counterpartyId: source.counterpartyId,
             billDate,
             dueDate,
+            status: "POSTED",
+            postedAt: new Date(),
             subtotal,
             taxAmount,
             totalAmount,
             expenseCategory: text(input.expenseCategory, 120) || null,
-            matchException,
+            matchException: null,
             notes: text(input.notes, 1000) || null,
             requestedBy: access.current.id,
             lines: {
@@ -2033,7 +2122,7 @@ export async function createMatchedFinanceSupplierBill(input: {
         });
         await tx.financePayableSource.update({
           where: { id: source.id },
-          data: { supplierBillId: created.id, status: "DRAFTED" },
+          data: { supplierBillId: created.id, status: "BILLED" },
         });
 
         // Buat baris hutang pemasok otomatis agar pemasok (terutama User/PT baru
@@ -2092,7 +2181,7 @@ export async function createMatchedFinanceSupplierBill(input: {
         await audit(tx, {
           entityType: "SUPPLIER_BILL",
           entityId: created.id,
-          action: "CREATE_THREE_WAY_MATCH_DRAFT",
+          action: "POST_THREE_WAY_MATCHED_BILL",
           actorId: access.current.id,
           after: {
             internalNumber,
@@ -2121,6 +2210,12 @@ export async function createMatchedFinanceSupplierBill(input: {
       return {
         error:
           "Data PO atau surat jalan belum lengkap. Lengkapi harga item di Logistics terlebih dahulu",
+      };
+    }
+    if (error instanceof Error && error.message === "SOURCE_AMOUNT_MISMATCH") {
+      return {
+        error:
+          "Nominal PO/Receiving tidak cocok dengan tagihan. Periksa harga dan kuantitas terlebih dahulu",
       };
     }
     return {
@@ -2166,6 +2261,9 @@ export async function createFinanceSupplierBill(input: {
         : [];
       if (sources.length !== sourceIds.length) throw new Error("SOURCE_MISMATCH");
       const expected = sources.reduce((sum, row) => sum.add(row.totalAmount ?? 0), new Prisma.Decimal(0));
+      if (sources.length && !expected.eq(total)) {
+        throw new Error("SOURCE_AMOUNT_MISMATCH");
+      }
       const created = await tx.financeSupplierBill.create({
         data: {
           internalNumber,
@@ -2173,45 +2271,32 @@ export async function createFinanceSupplierBill(input: {
           counterpartyId: input.counterpartyId,
           billDate,
           dueDate,
+          status: "POSTED",
+          postedAt: new Date(),
           subtotal: total,
           totalAmount: total,
           expenseCategory: text(input.expenseCategory, 120) || null,
-          matchException: sources.length && !expected.eq(total) ? `PO/Receiving ${expected.toString()} != Bill ${total.toString()}` : null,
+          matchException: null,
           notes: text(input.notes, 1000) || null,
           requestedBy: access.current.id,
           lines: { create: lines },
         },
       });
       if (sourceIds.length) {
-        await tx.financePayableSource.updateMany({ where: { id: { in: sourceIds } }, data: { supplierBillId: created.id, status: "DRAFTED" } });
+        await tx.financePayableSource.updateMany({ where: { id: { in: sourceIds } }, data: { supplierBillId: created.id, status: "BILLED" } });
       }
-      await audit(tx, { entityType: "SUPPLIER_BILL", entityId: created.id, action: "CREATE_DRAFT", actorId: access.current.id, after: { internalNumber, total: total.toString(), sourceIds } });
+      await audit(tx, { entityType: "SUPPLIER_BILL", entityId: created.id, action: "POST_MANUAL_SUPPLIER_BILL", actorId: access.current.id, after: { internalNumber, total: total.toString(), sourceIds } });
       return created;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     revalidatePath(financePath, "layout");
     return { data: bill };
   } catch (error) {
     console.error("[CREATE_FINANCE_SUPPLIER_BILL]", error);
+    if (error instanceof Error && error.message === "SOURCE_AMOUNT_MISMATCH") {
+      return { error: "Nominal sumber tidak cocok dengan total tagihan" };
+    }
     return { error: "Supplier bill duplikat atau sumber tidak tersedia" };
   }
-}
-
-export async function submitFinanceSupplierBillForApproval(billId: string) {
-  const access = await ensureFinanceStaff();
-  if ("error" in access) return access;
-  const result = await prismadb.$transaction(async (tx) => {
-    const bill = await tx.financeSupplierBill.update({
-      where: { id: billId, status: "DRAFT" },
-      data: { status: "PENDING_APPROVAL", requestedBy: access.current.id },
-    });
-    const request = await tx.financeApproval.create({
-      data: { action: "POST_SUPPLIER_BILL", entityType: "SUPPLIER_BILL", entityId: bill.id, requestedBy: access.current.id },
-    });
-    await audit(tx, { entityType: "SUPPLIER_BILL", entityId: bill.id, action: "REQUEST_APPROVAL", actorId: access.current.id });
-    return request;
-  });
-  revalidatePath(financePath, "layout");
-  return { data: result };
 }
 
 export async function getFinanceOverview(input?: {
@@ -2258,15 +2343,14 @@ export async function getFinanceOverview(input?: {
       : {};
   const disbursementDateWhere =
     dateFilter.gte && dateFilter.lt
-      ? { disbursementAt: { gte: dateFilter.gte, lt: dateFilter.lt } }
+      ? { paidAt: { gte: dateFilter.gte, lt: dateFilter.lt } }
       : {};
 
-  const [invoices, bills, receipts, disbursements, approvals, contracts, billingSources, payableSources, sparepartInvoices] = await Promise.all([
+  const [invoices, bills, receipts, disbursements, contracts, billingSources, payableSources, sparepartInvoices] = await Promise.all([
     prismadb.financeInvoice.findMany({ where: { status: { not: "VOID" }, ...invoiceDateWhere }, select: { netAmount: true, dueDate: true, status: true, allocations: { where: { receipt: { status: "POSTED" } }, select: { amount: true } } } }),
     prismadb.financeSupplierBill.findMany({ where: { status: { not: "VOID" }, ...invoiceDateWhere }, select: { totalAmount: true, dueDate: true, status: true, allocations: { where: { disbursement: { status: "POSTED" } }, select: { amount: true } } } }),
     prismadb.financeReceipt.aggregate({ where: { status: "POSTED", ...receiptDateWhere }, _sum: { amount: true } }),
     prismadb.financeDisbursement.aggregate({ where: { status: "POSTED", ...disbursementDateWhere }, _sum: { amount: true } }),
-    prismadb.financeApproval.count({ where: { status: "PENDING" } }),
     prismadb.financeContract.count({ where: { status: "ACTIVE", endDate: { lte: new Date(now.getTime() + 30 * 86_400_000), gte: now } } }),
     prismadb.financeBillingSource.count({ where: { status: { in: [FinanceSourceStatus.UNBILLED, FinanceSourceStatus.NEEDS_REVIEW] } } }),
     prismadb.financePayableSource.count({ where: { status: { in: [FinanceSourceStatus.UNBILLED, FinanceSourceStatus.NEEDS_REVIEW] } } }),
@@ -2314,7 +2398,6 @@ export async function getFinanceOverview(input?: {
       payable,
       overdueReceivables: invoices.filter((row) => row.dueDate && row.dueDate < now && row.status !== "PAID").length,
       overduePayables: bills.filter((row) => row.dueDate < now && row.status !== "PAID").length,
-      pendingApprovals: approvals,
       expiringContracts: contracts,
       unbilledSources: billingSources,
       unmatchedPayables: payableSources,

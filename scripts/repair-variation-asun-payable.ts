@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import { Prisma } from "@prisma/client";
+import { FinancePaymentMethod, Prisma } from "@prisma/client";
 
 import { prismadb } from "../lib/prisma";
 
@@ -11,10 +11,16 @@ const commit = process.argv.includes("--commit");
 const paidAtArgument = process.argv.find((argument) =>
   argument.startsWith("--paid-at="),
 );
+const methodArgument = process.argv.find((argument) =>
+  argument.startsWith("--method="),
+);
+const referenceArgument = process.argv.find((argument) =>
+  argument.startsWith("--reference="),
+);
 
 const usage =
   "Penggunaan: pnpm exec tsx scripts/repair-variation-asun-payable.ts " +
-  "--paid-at=YYYY-MM-DD [--commit]";
+  "--paid-at=YYYY-MM-DD [--method=BANK_TRANSFER] [--reference=REFERENSI] [--commit]";
 
 const parseDateOnly = (value: string | undefined) => {
   const raw = value?.split("=", 2)[1] ?? "";
@@ -25,6 +31,18 @@ const parseDateOnly = (value: string | undefined) => {
 
 const normalizeName = (value: string) =>
   value.toLocaleLowerCase("id-ID").replace(/[^a-z0-9]+/g, "");
+
+const readArgument = (value: string | undefined) =>
+  value?.split("=", 2)[1]?.trim() ?? "";
+
+const parsePaymentMethod = (value: string | undefined) => {
+  const candidate = readArgument(value).toUpperCase();
+  return Object.values(FinancePaymentMethod).includes(
+    candidate as FinancePaymentMethod,
+  )
+    ? (candidate as FinancePaymentMethod)
+    : null;
+};
 
 const jsonString = (value: Prisma.JsonValue, key: string) => {
   if (!value || Array.isArray(value) || typeof value !== "object") return null;
@@ -37,12 +55,23 @@ const jsonString = (value: Prisma.JsonValue, key: string) => {
 async function main() {
   const paidAt = parseDateOnly(paidAtArgument);
   if (!paidAt) throw new Error(usage);
+  const method = parsePaymentMethod(methodArgument);
+  const bankReference = readArgument(referenceArgument).slice(0, 180);
+  if (commit && (!method || !bankReference)) {
+    throw new Error(
+      `Mode --commit mewajibkan --method dan --reference. ${usage}`,
+    );
+  }
 
   const candidates = await prismadb.financeSupplierBill.findMany({
     where: { supplierInvoiceNumber: "MTL0708261" },
     include: {
       counterparty: { select: { legalName: true } },
       sources: { orderBy: { occurredAt: "asc" } },
+      allocations: {
+        where: { disbursement: { status: "POSTED" } },
+        select: { amount: true },
+      },
     },
   });
   const bills = candidates.filter((candidate) => {
@@ -59,6 +88,16 @@ async function main() {
   if (paidAt < bill.billDate) {
     throw new Error("Tanggal pembayaran tidak boleh sebelum tanggal invoice");
   }
+  const alreadyAllocated = bill.allocations.reduce(
+    (total, allocation) => total.add(allocation.amount),
+    new Prisma.Decimal(0),
+  );
+  if (alreadyAllocated.gt(0) && alreadyAllocated.lt(bill.totalAmount)) {
+    throw new Error(
+      "Tagihan sudah dibayar sebagian. Catat sisa pembayaran dari halaman Pembayaran Pemasok.",
+    );
+  }
+  const createPayment = alreadyAllocated.eq(0);
   const source = bill.sources[0] ?? null;
   const poNumber = source ? jsonString(source.snapshot, "poNumber") : null;
   const purchaseOrderId = source
@@ -131,9 +170,12 @@ async function main() {
     priorDueDate: bill.dueDate.toISOString().slice(0, 10),
     nextDueDate: bill.billDate.toISOString().slice(0, 10),
     paidAt: paidAt.toISOString().slice(0, 10),
+    method,
+    bankReference: bankReference || null,
     amount: bill.totalAmount.toString(),
     debtEntry: `${TARGET_SHEET_KEY}:${sourceRow}`,
     operation: existing ? "update" : "recreate",
+    paymentOperation: createPayment ? "create" : "already-posted",
   };
   console.log(JSON.stringify(preview, null, 2));
 
@@ -143,9 +185,34 @@ async function main() {
   }
 
   await prismadb.$transaction(async (transaction) => {
+    const paymentNumber = `PAY-REPAIR-${bill.internalNumber}`;
+    if (createPayment) {
+      await transaction.financeDisbursement.create({
+        data: {
+          paymentNumber,
+          counterpartyId: bill.counterpartyId,
+          method: method!,
+          amount: bill.totalAmount,
+          paidAt,
+          bankReference,
+          notes: "Rekonsiliasi pembayaran VARIASI AC / ASUN",
+          createdBy: bill.requestedBy,
+          allocations: {
+            create: {
+              supplierBillId: bill.id,
+              amount: bill.totalAmount,
+            },
+          },
+        },
+      });
+    }
     await transaction.financeSupplierBill.update({
       where: { id: bill.id },
-      data: { dueDate: bill.billDate },
+      data: {
+        dueDate: bill.billDate,
+        status: "PAID",
+        postedAt: bill.postedAt ?? new Date(),
+      },
     });
     await transaction.mektekSupplierDebtEntry.upsert({
       where: { sheetKey_sourceRow: { sheetKey: TARGET_SHEET_KEY, sourceRow } },
@@ -161,7 +228,7 @@ async function main() {
       data: {
         entityType: "SUPPLIER_BILL",
         entityId: bill.id,
-        action: "REPAIR_SUPPLIER_DEBT_ENTRY",
+        action: "REPAIR_SUPPLIER_DEBT_AND_PAYMENT",
         actorId: bill.requestedBy,
         metadata: preview,
       },

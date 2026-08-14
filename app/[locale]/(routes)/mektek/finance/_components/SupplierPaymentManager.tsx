@@ -11,15 +11,11 @@ import {
   ExternalLink,
   Loader2,
   ZoomIn,
-  Send,
 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import {
-  createMatchedFinanceSupplierBill,
-  submitFinanceSupplierBillForApproval,
-} from "@/actions/mektek/finance";
+import { createMatchedFinanceSupplierBill } from "@/actions/mektek/finance";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,6 +62,7 @@ export type SupplierPaymentSource = {
 
 export type SupplierPaymentRow = {
   id: string;
+  counterpartyId: string;
   internalNumber: string;
   supplierName: string;
   supplierInvoiceNumber: string;
@@ -79,8 +76,6 @@ export type SupplierPaymentRow = {
   grandTotal: number;
   remainingAmount: number;
   status:
-    | "DRAFT"
-    | "PENDING_APPROVAL"
     | "POSTED"
     | "PARTIALLY_PAID"
     | "PAID"
@@ -103,8 +98,6 @@ const dateLabel = (value: string) =>
   }).format(new Date(`${value}T00:00:00.000Z`));
 
 const statusLabel: Record<SupplierPaymentRow["status"], string> = {
-  DRAFT: "Draf",
-  PENDING_APPROVAL: "Menunggu persetujuan",
   POSTED: "Siap dibayar",
   PARTIALLY_PAID: "Dibayar sebagian",
   PAID: "Lunas",
@@ -239,8 +232,9 @@ export default function SupplierPaymentManager({
   const summary = useMemo(
     () => ({
       pendingDocuments: sources.length,
-      waitingApproval: rows.filter((row) => row.status === "PENDING_APPROVAL")
-        .length,
+      readyToPay: rows.filter((row) =>
+        ["POSTED", "PARTIALLY_PAID"].includes(row.status),
+      ).length,
       outstanding: rows
         .filter((row) => !["PAID", "VOID"].includes(row.status))
         .reduce((sum, row) => sum + row.remainingAmount, 0),
@@ -280,25 +274,9 @@ export default function SupplierPaymentManager({
         toast.error(result.error);
         return;
       }
-      toast.success("Tagihan pemasok berhasil dicatat");
+      toast.success("Tagihan berhasil dicatat dan siap dibayar");
       reset();
       router.refresh();
-    });
-  };
-
-  const requestApproval = (billId: string) => {
-    startTransition(async () => {
-      try {
-        const result = await submitFinanceSupplierBillForApproval(billId);
-        if ("error" in result) {
-          toast.error(result.error);
-          return;
-        }
-        toast.success("Tagihan dikirim untuk persetujuan");
-        router.refresh();
-      } catch {
-        toast.error("Status tagihan sudah berubah. Muat ulang halaman.");
-      }
     });
   };
 
@@ -329,10 +307,10 @@ export default function SupplierPaymentManager({
         <Card>
           <CardContent className="p-4">
             <p className="text-sm text-muted-foreground">
-              Menunggu persetujuan
+              Tagihan siap dibayar
             </p>
             <p className="mt-1 text-2xl font-semibold">
-              {summary.waitingApproval}
+              {summary.readyToPay}
             </p>
           </CardContent>
         </Card>
@@ -852,22 +830,15 @@ export default function SupplierPaymentManager({
                         </Badge>
                       </td>
                       <td className="p-3 pr-6 text-right align-top">
-                        {row.status === "DRAFT" ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={pending}
-                            onClick={() => requestApproval(row.id)}
-                          >
-                            <Send className="mr-2 size-3.5" />
-                            Ajukan
-                          </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            Jatuh tempo {dateLabel(row.dueDate)}
-                          </span>
-                        )}
+                        <Link
+                          href={`/${locale}/mektek/finance/supplier-debt-report`}
+                          className="text-xs text-primary underline-offset-2 hover:underline"
+                        >
+                          Catat di Laporan Hutang
+                        </Link>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Jatuh tempo {dateLabel(row.dueDate)}
+                        </p>
                       </td>
                     </tr>
                   ))}

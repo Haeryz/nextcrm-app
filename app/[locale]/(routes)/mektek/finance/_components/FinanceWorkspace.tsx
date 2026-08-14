@@ -7,7 +7,6 @@ import {
   Landmark,
   ReceiptText,
   Search,
-  ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -33,16 +32,11 @@ import {
 } from "@/lib/mektek/finance-search";
 import { buildFinancePurchaseOrderDeliveryNoteSuggestion } from "@/lib/mektek/finance-po";
 import { prismadb } from "@/lib/prisma";
-import {
-  buildSupplyConflictContext,
-  type SupplyAllocationApprovalRow,
-} from "@/lib/mektek/supply-conflict-approval";
 import { cn } from "@/lib/utils";
 
 import MektekPagination from "../../_components/MektekPagination";
 import ContractCrudManager from "./ContractCrudManager";
 import ContractReminderDemo from "./ContractReminderDemo";
-import FinanceApprovalCard from "./FinanceApprovalCard";
 import RecapCreateButton from "./RecapCreateButton";
 import RecapRowActions from "./RecapRowActions";
 import InvoiceCrudManager, { type FinanceInvoiceCrudRow } from "./InvoiceCrudManager";
@@ -65,7 +59,6 @@ export type FinanceSection =
   | "payables"
   | "cash"
   | "contracts"
-  | "approvals"
   | "audit";
 
 const money = (value: unknown) =>
@@ -82,60 +75,6 @@ const date = (value: Date | null | undefined) =>
 
 const dateInput = (value: Date | null | undefined) =>
   value ? value.toISOString().slice(0, 10) : "";
-
-const supplyAllocationApprovalSelect = {
-  id: true,
-  counterpartyId: true,
-  projectKey: true,
-  itemKey: true,
-  poMode: true,
-  supplyStartDate: true,
-  supplyEndDate: true,
-  quantity: true,
-  status: true,
-  purchaseOrderItem: {
-    select: {
-      partName: true,
-      partNumber: true,
-      purchaseOrder: {
-        select: {
-          id: true,
-          poNumber: true,
-          poMode: true,
-          status: true,
-          userName: true,
-          projectName: true,
-        },
-      },
-    },
-  },
-} satisfies Prisma.LogisticsSupplyAllocationSelect;
-
-type SupplyAllocationApprovalPayload =
-  Prisma.LogisticsSupplyAllocationGetPayload<{
-    select: typeof supplyAllocationApprovalSelect;
-  }>;
-
-const toSupplyAllocationApprovalRow = (
-  allocation: SupplyAllocationApprovalPayload,
-): SupplyAllocationApprovalRow => ({
-  allocationId: allocation.id,
-  purchaseOrderId: allocation.purchaseOrderItem.purchaseOrder.id,
-  poNumber: allocation.purchaseOrderItem.purchaseOrder.poNumber,
-  poMode: allocation.poMode,
-  purchaseOrderStatus: allocation.purchaseOrderItem.purchaseOrder.status,
-  customerName: allocation.purchaseOrderItem.purchaseOrder.userName,
-  projectName: allocation.purchaseOrderItem.purchaseOrder.projectName,
-  counterpartyId: allocation.counterpartyId,
-  projectKey: allocation.projectKey,
-  itemKey: allocation.itemKey,
-  itemName: allocation.purchaseOrderItem.partName,
-  partNumber: allocation.purchaseOrderItem.partNumber,
-  quantity: allocation.quantity,
-  supplyStartDate: dateInput(allocation.supplyStartDate),
-  supplyEndDate: dateInput(allocation.supplyEndDate),
-  reviewStatus: allocation.status,
-});
 
 type FinanceRevenueInspection = {
   id: string;
@@ -609,7 +548,6 @@ export default async function FinanceWorkspace({
       ["Baris sparepart", String(value.sparepartSalesCount), FileCheck2],
     ] as const;
     const queues = [
-      ["Persetujuan menunggu", value.pendingApprovals, ShieldCheck],
       ["Sumber belum ditagih", value.unbilledSources, FileCheck2],
       ["Penerimaan belum dicocokkan", value.unmatchedPayables, AlertTriangle],
       ["Kontrak berakhir dalam 30 hari", value.expiringContracts, Clock3],
@@ -1872,212 +1810,125 @@ export default async function FinanceWorkspace({
 
   const [approvals, events] = await Promise.all([
     prismadb.financeApproval.findMany({
-      where:
-        section === "approvals"
-          ? {
-              action: {
-                in: [
-                  "POST_SUPPLIER_BILL",
-                  "POST_DISBURSEMENT",
-                  "OVERRIDE_SUPPLY_CONFLICT",
-                ],
-              },
-            }
-          : undefined,
       orderBy: { requestedAt: "desc" },
       take: 50,
     }),
-    section === "audit"
-      ? prismadb.financeAuditEvent.findMany({ orderBy: { createdAt: "desc" }, take: 100 })
-      : Promise.resolve([]),
+    prismadb.financeAuditEvent.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
   ]);
-  const conflictPurchaseOrderIds = approvals
-    .filter((row) => row.action === "OVERRIDE_SUPPLY_CONFLICT")
-    .map((row) => row.entityId);
-  const requesterIds = [...new Set(approvals.map((row) => row.requestedBy))];
-  const [requesters, blockedSupplyAllocations] = await Promise.all([
-    requesterIds.length
-      ? prismadb.users.findMany({
-          where: { id: { in: requesterIds } },
-          select: { id: true, name: true, email: true },
-        })
-      : Promise.resolve([]),
-    conflictPurchaseOrderIds.length
-      ? prismadb.logisticsSupplyAllocation.findMany({
-          where: {
-            purchaseOrderItem: {
-              purchaseOrderId: { in: conflictPurchaseOrderIds },
-            },
-          },
-          select: supplyAllocationApprovalSelect,
-        })
-      : Promise.resolve([]),
-  ]);
-  const allocationLookupFilters = Array.from(
-    new Map(
-      blockedSupplyAllocations.map((allocation) => [
-        `${allocation.counterpartyId}:${allocation.projectKey}:${allocation.itemKey}`,
-        {
-          counterpartyId: allocation.counterpartyId,
-          projectKey: allocation.projectKey,
-          itemKey: allocation.itemKey,
-        },
-      ]),
-    ).values(),
-  );
-  const relatedSupplyAllocations = allocationLookupFilters.length
-    ? await prismadb.logisticsSupplyAllocation.findMany({
-        where: {
-          OR: allocationLookupFilters,
-          status: { in: ["CLEAR", "BLOCKED", "OVERRIDDEN"] },
-        },
-        select: supplyAllocationApprovalSelect,
+  const actorIds = [
+    ...approvals.flatMap((row) =>
+      row.decidedBy
+        ? [row.requestedBy, row.decidedBy]
+        : [row.requestedBy],
+    ),
+    ...events.flatMap((row) => (row.actorId ? [row.actorId] : [])),
+  ];
+  const actors = actorIds.length
+    ? await prismadb.users.findMany({
+        where: { id: { in: [...new Set(actorIds)] } },
+        select: { id: true, name: true, email: true },
       })
     : [];
-  const supplyAllocationRows = relatedSupplyAllocations.map(
-    toSupplyAllocationApprovalRow,
-  );
-  const conflictContextByPurchaseOrderId = new Map(
-    conflictPurchaseOrderIds.map((purchaseOrderId) => [
-      purchaseOrderId,
-      buildSupplyConflictContext(purchaseOrderId, supplyAllocationRows),
+  const actorById = new Map(
+    actors.map((actor) => [
+      actor.id,
+      actor.name || actor.email || actor.id.slice(0, 8),
     ]),
   );
-  const requesterById = new Map(
-    requesters.map((requester) => [
-      requester.id,
-      requester.name || requester.email || requester.id.slice(0, 8),
-    ]),
-  );
-  const approvalCards = approvals.map((row) => ({
-    row,
-    requester: requesterById.get(row.requestedBy) ?? row.requestedBy.slice(0, 8),
-    conflict: conflictContextByPurchaseOrderId.get(row.entityId) ?? null,
-  }));
-  const pendingApprovalCards = approvalCards.filter(
-    ({ row }) => row.status === "PENDING",
-  );
-  const completedApprovalCards = approvalCards.filter(
-    ({ row }) => row.status !== "PENDING",
-  );
-  const pendingSupplyConflicts = pendingApprovalCards.filter(
-    ({ row }) => row.action === "OVERRIDE_SUPPLY_CONFLICT",
-  ).length;
   return (
     <main className="space-y-5 px-4 pb-8 sm:px-6">
       <Header
-        title={section === "audit" ? "Persetujuan & riwayat audit" : "Persetujuan"}
-        description={
-          section === "audit"
-            ? "Persetujuan dan catatan perubahan data keuangan."
-            : "Tinjau dan putuskan permintaan yang menunggu persetujuan."
-        }
+        title="Audit sistem"
+        description="Catatan siapa yang menyimpan, mengubah, dan membayar transaksi keuangan. Histori persetujuan lama tetap tersedia sebagai arsip."
       />
-      <div className="grid gap-3 sm:grid-cols-3">
-        {[
-          { label: "Perlu keputusan", value: pendingApprovalCards.length, icon: Clock3 },
-          { label: "Konflik pasokan", value: pendingSupplyConflicts, icon: AlertTriangle },
-          { label: "Sudah diputuskan", value: completedApprovalCards.length, icon: ShieldCheck },
-        ].map(({ label, value, icon: Icon }) => (
-          <Card key={label}>
-            <CardContent className="flex items-center justify-between p-4">
-              <div>
-                <p className="text-xs text-muted-foreground">{label}</p>
-                <p className="mt-1 text-2xl font-semibold">{value}</p>
-              </div>
-              <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-                <Icon className="size-4 text-muted-foreground" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="font-semibold">Perlu keputusan</h2>
-          <p className="text-sm text-muted-foreground">
-            Periksa bukti dan dampaknya sebelum menyetujui atau menolak.
-          </p>
-        </div>
-        {pendingApprovalCards.length ? (
-          <div className="space-y-4">
-            {pendingApprovalCards.map(({ row, requester, conflict }) => (
-              <FinanceApprovalCard
-                key={row.id}
-                approvalId={row.id}
-                action={row.action}
-                title={actionLabel[row.action] ?? row.action}
-                entityLabel={entityLabel[row.entityType] ?? row.entityType}
-                entityId={row.entityId}
-                status={row.status}
-                statusText={statusLabel[row.status] ?? row.status}
-                requestedAt={row.requestedAt.toISOString()}
-                requester={requester}
-                reason={row.reason}
-                conflict={conflict}
-              />
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <CardContent className="py-10">
-              <Empty>Tidak ada permintaan yang menunggu keputusan.</Empty>
-            </CardContent>
-          </Card>
-        )}
-      </section>
-
-      {completedApprovalCards.length ? (
-        <section className="space-y-3">
-          <div>
-            <h2 className="font-semibold">Riwayat keputusan</h2>
-            <p className="text-sm text-muted-foreground">
-              Permintaan terbaru yang telah disetujui atau ditolak.
-            </p>
-          </div>
-          <div className="space-y-3">
-            {completedApprovalCards.map(({ row, requester, conflict }) => (
-              <FinanceApprovalCard
-                key={row.id}
-                approvalId={row.id}
-                action={row.action}
-                title={actionLabel[row.action] ?? row.action}
-                entityLabel={entityLabel[row.entityType] ?? row.entityType}
-                entityId={row.entityId}
-                status={row.status}
-                statusText={statusLabel[row.status] ?? row.status}
-                requestedAt={row.requestedAt.toISOString()}
-                requester={requester}
-                reason={row.reason}
-                conflict={conflict}
-              />
-            ))}
-          </div>
-        </section>
-      ) : null}
-      {section === "audit" ? (
-        <Card>
-          <CardHeader><CardTitle className="text-base">Riwayat perubahan</CardTitle></CardHeader>
-          <CardContent>
-            {events.length ? (
-              <div className="space-y-2">
-                {events.map((row) => (
-                  <div key={row.id} className="flex items-start justify-between gap-4 border-b py-3 text-sm last:border-0">
-                    <div>
-                      <p className="font-medium">{actionLabel[row.action] ?? row.action}</p>
-                      <p className="text-muted-foreground">
-                        {entityLabel[row.entityType] ?? row.entityType} · {row.entityId}
-                      </p>
-                    </div>
-                    <time className="whitespace-nowrap text-muted-foreground">{date(row.createdAt)}</time>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Riwayat perubahan</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {events.length ? (
+            <div className="space-y-2">
+              {events.map((row) => (
+                <div
+                  key={row.id}
+                  className="flex flex-col gap-1 border-b py-3 text-sm last:border-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+                >
+                  <div>
+                    <p className="font-medium">
+                      {actionLabel[row.action] ?? row.action}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {entityLabel[row.entityType] ?? row.entityType} · {row.entityId}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Oleh {row.actorId
+                        ? actorById.get(row.actorId) ?? row.actorId.slice(0, 8)
+                        : "Sistem"}
+                    </p>
                   </div>
-                ))}
-              </div>
-            ) : <Empty>Belum ada riwayat perubahan.</Empty>}
-          </CardContent>
-        </Card>
-      ) : null}
+                  <time className="whitespace-nowrap text-muted-foreground">
+                    {date(row.createdAt)}
+                  </time>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Empty>Belum ada riwayat perubahan.</Empty>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Arsip persetujuan lama</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {approvals.length ? (
+            <div className="space-y-2">
+              {approvals.map((row) => (
+                <div
+                  key={row.id}
+                  className="flex flex-col gap-2 border-b py-3 text-sm last:border-0 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+                >
+                  <div>
+                    <p className="font-medium">
+                      {actionLabel[row.action] ?? row.action}
+                    </p>
+                    <p className="text-muted-foreground">
+                      {entityLabel[row.entityType] ?? row.entityType} · {row.entityId}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Diajukan oleh {actorById.get(row.requestedBy) ?? row.requestedBy.slice(0, 8)}
+                      {row.decidedBy
+                        ? ` · Diputuskan oleh ${actorById.get(row.decidedBy) ?? row.decidedBy.slice(0, 8)}`
+                        : ""}
+                    </p>
+                    {row.reason ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Catatan: {row.reason}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2 sm:flex-col sm:items-end">
+                    <Badge variant="outline">
+                      {statusLabel[row.status] ?? row.status}
+                    </Badge>
+                    <time className="whitespace-nowrap text-xs text-muted-foreground">
+                      {date(row.requestedAt)}
+                    </time>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Empty>Belum ada arsip persetujuan lama.</Empty>
+          )}
+        </CardContent>
+      </Card>
     </main>
   );
 }
