@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  com.mektek.backup-pull.plist — launchd job that pulls NextCRM DB backups
+  from the VPS to this Mac every 4 hours.
+
+  INSTALL (run on the Mac):
+    cp scripts/com.mektek.backup-pull.plist.example ~/Library/LaunchAgents/com.mektek.backup-pull.plist
+    # Edit the two <string> paths below to match YOUR Mac, then:
+    launchctl load ~/Library/LaunchAgents/com.mektek.backup-pull.plist
+
+  UNINSTALL:
+    launchctl unload ~/Library/LaunchAgents/com.mektek.backup-pull.plist
+    rm ~/Library/LaunchAgents/com.mektek.backup-pull.plist
+
+  The job only runs while this Mac is awake. If the Mac is asleep at the
+  scheduled time, launchd runs the job once shortly after wake. rsync is
+  idempotent — no new dumps on the VPS means it transfers nothing.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mektek.backup-pull</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <!-- TODO: ganti path ini dengan path absolut repo Anda di Mac -->
+        <string>/Users/farrielarrianta/Documents/nextcrm-app/scripts/mac-pull-backups.sh</string>
+    </array>
+
+    <key>StartInterval</key>
+    <!-- Tiap 4 jam. Backup VPS jalan ~02:00 UTC (09:00 WITA). -->
+    <integer>14400</integer>
+
+    <key>StandardOutPath</key>
+    <!-- TODO: ganti path log sesuai lokasi Mac Anda -->
+    <string>/Users/farrielarrianta/Documents/nextcrm-app/logs/mac-backup-pull.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/farrielarrianta/Documents/nextcrm-app/logs/mac-backup-pull.err.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <!-- Alias di ~/.ssh/config (sudah ada: mektek-vps). Override bila perlu. -->
+        <key>SSH_HOST</key>
+        <string>mektek-vps</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
