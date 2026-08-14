@@ -48,6 +48,7 @@ export type MektekInvoiceData = {
     unit?: string;       // e.g. "DA 8159 BS / GRANMAX"
     usage?: string;      // HM value e.g. "257346"
     mileageKm?: number;
+    fleetNumber?: string; // e.g. "12345"
     technicians?: string; // e.g. "Sadewo, Candra, Rudi"
   };
   items: MektekInvoiceItem[];
@@ -343,6 +344,7 @@ function buildPdfDocument(data: MektekInvoiceData) {
     service.unit ||
       service.usage ||
       service.mileageKm !== undefined ||
+      service.fleetNumber ||
       service.technicians,
   );
   const documentTitle =
@@ -491,7 +493,7 @@ function buildPdfDocument(data: MektekInvoiceData) {
           },
           React.createElement(Text, { style: S.mrText }, data.workOrder || data.reference || "")
         ),
-        // Right: Unit + HM
+        // Right: Unit + HM (+ No. Lambung for business invoices)
         hasServiceDetails
           ? React.createElement(
               View,
@@ -531,6 +533,24 @@ function buildPdfDocument(data: MektekInvoiceData) {
                     : service.usage || "",
                 ),
               ),
+              ...(isBusiness && service.fleetNumber
+                ? [
+                    React.createElement(
+                      View,
+                      { style: S.infoRow, key: "fleet-number" },
+                      React.createElement(
+                        Text,
+                        { style: { ...S.infoLabel, width: 30 } },
+                        "No. Lam :",
+                      ),
+                      React.createElement(
+                        Text,
+                        { style: S.infoValue },
+                        service.fleetNumber,
+                      ),
+                    ),
+                  ]
+                : []),
             )
           : null,
       ),
@@ -712,7 +732,10 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
     order.mektekPayments
   );
   const normalizedItems = financialSummary.normalizedItems;
-  const items: MektekInvoiceItem[] = normalizedItems.items.map((item) => ({
+  const items: MektekInvoiceItem[] = [
+    ...normalizedItems.sparepartItems,
+    ...normalizedItems.serviceItems,
+  ].map((item) => ({
     kind: item.kind,
     name: item.name,
     sku: item.catalogPartNumber || item.partNumber || undefined,
@@ -785,6 +808,10 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
       mileageKm:
         !isSparepartOnly && typeof tags.vehicleMileageKm === "number"
           ? tags.vehicleMileageKm
+          : undefined,
+      fleetNumber:
+        !isSparepartOnly && typeof tags.vehicleFleetNumber === "string"
+          ? tags.vehicleFleetNumber
           : undefined,
       technicians:
         !isSparepartOnly && typeof tags.technicians === "string"
