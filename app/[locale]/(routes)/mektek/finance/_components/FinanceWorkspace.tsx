@@ -33,12 +33,16 @@ import {
 } from "@/lib/mektek/finance-search";
 import { buildFinancePurchaseOrderDeliveryNoteSuggestion } from "@/lib/mektek/finance-po";
 import { prismadb } from "@/lib/prisma";
+import {
+  buildSupplyConflictContext,
+  type SupplyAllocationApprovalRow,
+} from "@/lib/mektek/supply-conflict-approval";
 import { cn } from "@/lib/utils";
 
 import MektekPagination from "../../_components/MektekPagination";
 import ContractCrudManager from "./ContractCrudManager";
 import ContractReminderDemo from "./ContractReminderDemo";
-import FinanceApprovalDecision from "./FinanceApprovalDecision";
+import FinanceApprovalCard from "./FinanceApprovalCard";
 import RecapCreateButton from "./RecapCreateButton";
 import RecapRowActions from "./RecapRowActions";
 import InvoiceCrudManager, { type FinanceInvoiceCrudRow } from "./InvoiceCrudManager";
@@ -78,6 +82,60 @@ const date = (value: Date | null | undefined) =>
 
 const dateInput = (value: Date | null | undefined) =>
   value ? value.toISOString().slice(0, 10) : "";
+
+const supplyAllocationApprovalSelect = {
+  id: true,
+  counterpartyId: true,
+  projectKey: true,
+  itemKey: true,
+  poMode: true,
+  supplyStartDate: true,
+  supplyEndDate: true,
+  quantity: true,
+  status: true,
+  purchaseOrderItem: {
+    select: {
+      partName: true,
+      partNumber: true,
+      purchaseOrder: {
+        select: {
+          id: true,
+          poNumber: true,
+          poMode: true,
+          status: true,
+          userName: true,
+          projectName: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.LogisticsSupplyAllocationSelect;
+
+type SupplyAllocationApprovalPayload =
+  Prisma.LogisticsSupplyAllocationGetPayload<{
+    select: typeof supplyAllocationApprovalSelect;
+  }>;
+
+const toSupplyAllocationApprovalRow = (
+  allocation: SupplyAllocationApprovalPayload,
+): SupplyAllocationApprovalRow => ({
+  allocationId: allocation.id,
+  purchaseOrderId: allocation.purchaseOrderItem.purchaseOrder.id,
+  poNumber: allocation.purchaseOrderItem.purchaseOrder.poNumber,
+  poMode: allocation.poMode,
+  purchaseOrderStatus: allocation.purchaseOrderItem.purchaseOrder.status,
+  customerName: allocation.purchaseOrderItem.purchaseOrder.userName,
+  projectName: allocation.purchaseOrderItem.purchaseOrder.projectName,
+  counterpartyId: allocation.counterpartyId,
+  projectKey: allocation.projectKey,
+  itemKey: allocation.itemKey,
+  itemName: allocation.purchaseOrderItem.partName,
+  partNumber: allocation.purchaseOrderItem.partNumber,
+  quantity: allocation.quantity,
+  supplyStartDate: dateInput(allocation.supplyStartDate),
+  supplyEndDate: dateInput(allocation.supplyEndDate),
+  reviewStatus: allocation.status,
+});
 
 type FinanceRevenueInspection = {
   id: string;
@@ -1836,25 +1894,75 @@ export default async function FinanceWorkspace({
   const conflictPurchaseOrderIds = approvals
     .filter((row) => row.action === "OVERRIDE_SUPPLY_CONFLICT")
     .map((row) => row.entityId);
-  const conflictPurchaseOrders = conflictPurchaseOrderIds.length
-    ? await prismadb.logisticsPurchaseOrder.findMany({
-        where: { id: { in: conflictPurchaseOrderIds }, flow: "OUTBOUND" },
-        select: {
-          id: true,
-          poNumber: true,
-          poMode: true,
-          projectName: true,
-          userName: true,
-          items: {
-            orderBy: { position: "asc" },
-            select: { partName: true, partNumber: true },
+  const requesterIds = [...new Set(approvals.map((row) => row.requestedBy))];
+  const [requesters, blockedSupplyAllocations] = await Promise.all([
+    requesterIds.length
+      ? prismadb.users.findMany({
+          where: { id: { in: requesterIds } },
+          select: { id: true, name: true, email: true },
+        })
+      : Promise.resolve([]),
+    conflictPurchaseOrderIds.length
+      ? prismadb.logisticsSupplyAllocation.findMany({
+          where: {
+            purchaseOrderItem: {
+              purchaseOrderId: { in: conflictPurchaseOrderIds },
+            },
           },
+          select: supplyAllocationApprovalSelect,
+        })
+      : Promise.resolve([]),
+  ]);
+  const allocationLookupFilters = Array.from(
+    new Map(
+      blockedSupplyAllocations.map((allocation) => [
+        `${allocation.counterpartyId}:${allocation.projectKey}:${allocation.itemKey}`,
+        {
+          counterpartyId: allocation.counterpartyId,
+          projectKey: allocation.projectKey,
+          itemKey: allocation.itemKey,
         },
+      ]),
+    ).values(),
+  );
+  const relatedSupplyAllocations = allocationLookupFilters.length
+    ? await prismadb.logisticsSupplyAllocation.findMany({
+        where: {
+          OR: allocationLookupFilters,
+          status: { in: ["CLEAR", "BLOCKED", "OVERRIDDEN"] },
+        },
+        select: supplyAllocationApprovalSelect,
       })
     : [];
-  const conflictPurchaseOrderById = new Map(
-    conflictPurchaseOrders.map((purchaseOrder) => [purchaseOrder.id, purchaseOrder]),
+  const supplyAllocationRows = relatedSupplyAllocations.map(
+    toSupplyAllocationApprovalRow,
   );
+  const conflictContextByPurchaseOrderId = new Map(
+    conflictPurchaseOrderIds.map((purchaseOrderId) => [
+      purchaseOrderId,
+      buildSupplyConflictContext(purchaseOrderId, supplyAllocationRows),
+    ]),
+  );
+  const requesterById = new Map(
+    requesters.map((requester) => [
+      requester.id,
+      requester.name || requester.email || requester.id.slice(0, 8),
+    ]),
+  );
+  const approvalCards = approvals.map((row) => ({
+    row,
+    requester: requesterById.get(row.requestedBy) ?? row.requestedBy.slice(0, 8),
+    conflict: conflictContextByPurchaseOrderId.get(row.entityId) ?? null,
+  }));
+  const pendingApprovalCards = approvalCards.filter(
+    ({ row }) => row.status === "PENDING",
+  );
+  const completedApprovalCards = approvalCards.filter(
+    ({ row }) => row.status !== "PENDING",
+  );
+  const pendingSupplyConflicts = pendingApprovalCards.filter(
+    ({ row }) => row.action === "OVERRIDE_SUPPLY_CONFLICT",
+  ).length;
   return (
     <main className="space-y-5 px-4 pb-8 sm:px-6">
       <Header
@@ -1865,55 +1973,89 @@ export default async function FinanceWorkspace({
             : "Tinjau dan putuskan permintaan yang menunggu persetujuan."
         }
       />
-      <Card>
-        <CardHeader><CardTitle className="text-base">Persetujuan</CardTitle></CardHeader>
-        <CardContent>
-          {approvals.length ? (
-            <div className="space-y-2">
-              {approvals.map((row) => {
-                const purchaseOrder = conflictPurchaseOrderById.get(row.entityId);
-                return (
-                  <div key={row.id} className="rounded-lg border p-3 text-sm">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-medium">{actionLabel[row.action] ?? row.action}</p>
-                        <p className="text-muted-foreground">
-                          {entityLabel[row.entityType] ?? row.entityType} · {row.entityId.slice(0, 8)}
-                        </p>
-                        {purchaseOrder ? (
-                          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
-                            <p>
-                              PO {purchaseOrder.poNumber} · {purchaseOrder.userName} · Proyek {purchaseOrder.projectName}
-                            </p>
-                            <p>
-                              Mode {purchaseOrder.poMode === "CONSIGNMENT" ? "Konsinyasi" : "Manual"} · Item {purchaseOrder.items
-                                .map((item) => item.partNumber || item.partName)
-                                .join(", ")}
-                            </p>
-                          </div>
-                        ) : null}
-                      </div>
-                      <Badge variant={row.status === "PENDING" ? "destructive" : "outline"}>
-                        {statusLabel[row.status] ?? row.status}
-                      </Badge>
-                    </div>
-                    {row.status === "PENDING" ? (
-                      <FinanceApprovalDecision
-                        approvalId={row.id}
-                        requiresReason={row.action === "OVERRIDE_SUPPLY_CONFLICT"}
-                      />
-                    ) : row.reason ? (
-                      <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">
-                        Alasan: {row.reason}
-                      </p>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ) : <Empty>Tidak ada persetujuan yang menunggu.</Empty>}
-        </CardContent>
-      </Card>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {[
+          { label: "Perlu keputusan", value: pendingApprovalCards.length, icon: Clock3 },
+          { label: "Konflik pasokan", value: pendingSupplyConflicts, icon: AlertTriangle },
+          { label: "Sudah diputuskan", value: completedApprovalCards.length, icon: ShieldCheck },
+        ].map(({ label, value, icon: Icon }) => (
+          <Card key={label}>
+            <CardContent className="flex items-center justify-between p-4">
+              <div>
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <p className="mt-1 text-2xl font-semibold">{value}</p>
+              </div>
+              <div className="flex size-10 items-center justify-center rounded-full bg-muted">
+                <Icon className="size-4 text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-semibold">Perlu keputusan</h2>
+          <p className="text-sm text-muted-foreground">
+            Periksa bukti dan dampaknya sebelum menyetujui atau menolak.
+          </p>
+        </div>
+        {pendingApprovalCards.length ? (
+          <div className="space-y-4">
+            {pendingApprovalCards.map(({ row, requester, conflict }) => (
+              <FinanceApprovalCard
+                key={row.id}
+                approvalId={row.id}
+                action={row.action}
+                title={actionLabel[row.action] ?? row.action}
+                entityLabel={entityLabel[row.entityType] ?? row.entityType}
+                entityId={row.entityId}
+                status={row.status}
+                statusText={statusLabel[row.status] ?? row.status}
+                requestedAt={row.requestedAt.toISOString()}
+                requester={requester}
+                reason={row.reason}
+                conflict={conflict}
+              />
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="py-10">
+              <Empty>Tidak ada permintaan yang menunggu keputusan.</Empty>
+            </CardContent>
+          </Card>
+        )}
+      </section>
+
+      {completedApprovalCards.length ? (
+        <section className="space-y-3">
+          <div>
+            <h2 className="font-semibold">Riwayat keputusan</h2>
+            <p className="text-sm text-muted-foreground">
+              Permintaan terbaru yang telah disetujui atau ditolak.
+            </p>
+          </div>
+          <div className="space-y-3">
+            {completedApprovalCards.map(({ row, requester, conflict }) => (
+              <FinanceApprovalCard
+                key={row.id}
+                approvalId={row.id}
+                action={row.action}
+                title={actionLabel[row.action] ?? row.action}
+                entityLabel={entityLabel[row.entityType] ?? row.entityType}
+                entityId={row.entityId}
+                status={row.status}
+                statusText={statusLabel[row.status] ?? row.status}
+                requestedAt={row.requestedAt.toISOString()}
+                requester={requester}
+                reason={row.reason}
+                conflict={conflict}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
       {section === "audit" ? (
         <Card>
           <CardHeader><CardTitle className="text-base">Riwayat perubahan</CardTitle></CardHeader>

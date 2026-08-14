@@ -12,6 +12,12 @@ describe("finance approval and supplier-debt recovery workflow", () => {
     const decisions = read(
       "app/[locale]/(routes)/mektek/finance/_components/FinanceApprovalDecision.tsx",
     );
+    const approvalCard = read(
+      "app/[locale]/(routes)/mektek/finance/_components/FinanceApprovalCard.tsx",
+    );
+    const conflictContext = read(
+      "lib/mektek/supply-conflict-approval.ts",
+    );
     const approvalsPage = read(
       "app/[locale]/(routes)/mektek/finance/approvals/page.tsx",
     );
@@ -19,16 +25,22 @@ describe("finance approval and supplier-debt recovery workflow", () => {
       "app/[locale]/(routes)/components/menu-items/Mektek.tsx",
     );
 
-    expect(workspace).toContain("FinanceApprovalDecision");
-    expect(workspace).toContain("logisticsPurchaseOrder.findMany");
+    expect(workspace).toContain("FinanceApprovalCard");
+    expect(workspace).toContain("logisticsSupplyAllocation.findMany");
+    expect(workspace).toContain("buildSupplyConflictContext");
     expect(approvalsPage).toContain('section="approvals"');
     expect(approvalsPage).toContain('requireFinanceSection(locale, "finance")');
     expect(workspace).toContain('"OVERRIDE_SUPPLY_CONFLICT"');
     expect(menu).toContain('/mektek/finance/approvals');
     expect(decisions).toContain("decideFinanceApproval");
     expect(decisions).toContain("Alasan keputusan");
-    expect(decisions).toContain("Setujui");
-    expect(decisions).toContain("Tolak");
+    expect(decisions).toContain("Setujui pengecualian");
+    expect(decisions).toContain("Tolak & tetap blokir");
+    expect(approvalCard).toContain("PO yang diblokir");
+    expect(approvalCard).toContain("Bertumpang tindih dengan");
+    expect(approvalCard).toContain("Periksa sebelum memutuskan");
+    expect(conflictContext).toContain("supplyPeriodsOverlap");
+    expect(conflictContext).toContain("poMode !== candidate.poMode");
   });
 
   it("allows a reasoned rejection while only overriding supply on approval", () => {
