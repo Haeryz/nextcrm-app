@@ -26,15 +26,35 @@ export async function sendFinanceContractReminders(now = new Date()) {
     const due = getContractReminderMilestones({ endDate: contract.endDate, now, sentMilestones: contract.reminders.filter((row) => row.status === "SENT").map((row) => row.milestoneDays) });
     for (const milestone of due) {
       if (outOfTime) break;
+      // Batch the get-or-create: create PENDING delivery rows for every
+      // recipient in one call (skipDuplicates handles re-runs), then fetch
+      // them back with IDs + status — replaces one upsert per recipient.
+      await prismadb.financeReminderDelivery.createMany({
+        data: recipients.map((recipient) => ({
+          contractId: contract.id,
+          milestoneDays: milestone,
+          recipientUserId: recipient.id,
+        })),
+        skipDuplicates: true,
+      });
+      const deliveries = await prismadb.financeReminderDelivery.findMany({
+        where: {
+          contractId: contract.id,
+          milestoneDays: milestone,
+          channel: "WHATSAPP",
+          recipientUserId: { in: recipients.map((recipient) => recipient.id) },
+        },
+        select: { id: true, recipientUserId: true, status: true },
+      });
+      const deliveryByRecipient = new Map(
+        deliveries.map((delivery) => [delivery.recipientUserId, delivery]),
+      );
       for (const recipient of recipients) {
         if (Date.now() > deadline) { outOfTime = true; break; }
         const phone = normalizePhoneNumber(recipient.phoneNormalized || recipient.phone || "");
         if (!phone) { skipped += 1; continue; }
-        const delivery = await prismadb.financeReminderDelivery.upsert({
-          where: { contractId_milestoneDays_recipientUserId_channel: { contractId: contract.id, milestoneDays: milestone, recipientUserId: recipient.id, channel: "WHATSAPP" } },
-          create: { contractId: contract.id, milestoneDays: milestone, recipientUserId: recipient.id },
-          update: {},
-        });
+        const delivery = deliveryByRecipient.get(recipient.id);
+        if (!delivery) { skipped += 1; continue; }
         if (delivery.status === "SENT") { skipped += 1; continue; }
         const result = await sendWhatsAppMessage({ to: phone, message: `Pengingat Finance MekTek\n\nKontrak ${contract.contractNumber} dengan ${contract.counterparty.legalName} akan berakhir dalam ${milestone} hari (${contract.endDate.toLocaleDateString("id-ID")}). Mohon review perpanjangan, sisa supply, dan tagihan terkait.` });
         await prismadb.financeReminderDelivery.update({ where: { id: delivery.id }, data: result.ok ? { status: "SENT", attempts: { increment: 1 }, attemptedAt: now, sentAt: now, lastError: null } : { status: "FAILED", attempts: { increment: 1 }, attemptedAt: now, lastError: result.error?.slice(0, 500) || "Pengiriman gagal" } });

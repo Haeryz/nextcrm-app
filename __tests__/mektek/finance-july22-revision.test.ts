@@ -24,11 +24,14 @@ describe("July 22 Finance and Logistics revision", () => {
     const workspace = read(
       "app/[locale]/(routes)/mektek/finance/_components/FinanceWorkspace.tsx",
     );
+    const parts = read(
+      "app/[locale]/(routes)/mektek/finance/_components/FinanceWorkspaceParts.tsx",
+    );
     const paymentManager = read(
       "app/[locale]/(routes)/mektek/finance/_components/PaymentFakturManager.tsx",
     );
 
-    expect(workspace).toContain("function ReportFilter");
+    expect(parts).toContain("function ReportFilter");
     expect(workspace).toContain("matchesReportQuery");
     expect(paymentManager).toContain(
       "Cari invoice, kwitansi, PO, faktur pajak, atau deskripsi",

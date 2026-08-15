@@ -176,27 +176,20 @@ export default async function MektekReceivingPage({
                 catalogItem.price == null ? null : Number(catalogItem.price),
             }),
           )}
-          purchaseOrders={items.map(
-            ({
-              deliveryNoteImageData,
-              supplierInvoiceImageData,
-              mektekDeliveryNoteImageData,
-              signedPoImageData,
-              ...purchaseOrder
-            }) => ({
+          purchaseOrders={items.map((purchaseOrder) => ({
             ...purchaseOrder,
-            hasDeliveryNoteImage: Boolean(deliveryNoteImageData),
+            hasDeliveryNoteImage: Boolean(purchaseOrder.deliveryNoteImageMimeType),
             deliveryNoteImageUpdatedAt:
               purchaseOrder.deliveryNoteImageUpdatedAt?.toISOString() ?? null,
-            hasMektekDeliveryNoteImage: Boolean(mektekDeliveryNoteImageData),
+            hasMektekDeliveryNoteImage: Boolean(purchaseOrder.mektekDeliveryNoteImageMimeType),
             mektekDeliveryNoteImageUpdatedAt:
               purchaseOrder.mektekDeliveryNoteImageUpdatedAt?.toISOString() ??
               null,
-            hasSupplierInvoiceImage: Boolean(supplierInvoiceImageData),
+            hasSupplierInvoiceImage: Boolean(purchaseOrder.supplierInvoiceImageMimeType),
             supplierInvoiceImageUpdatedAt:
               purchaseOrder.supplierInvoiceImageUpdatedAt?.toISOString() ??
               null,
-            hasSignedPoImage: Boolean(signedPoImageData),
+            hasSignedPoImage: Boolean(purchaseOrder.signedPoImageMimeType),
             signedPoImageUpdatedAt:
               purchaseOrder.signedPoImageUpdatedAt?.toISOString() ?? null,
             inputDate: purchaseOrder.inputDate.toISOString(),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -22,6 +22,7 @@ import {
   updateMektekCustomerUser,
   type CustomerUserInput,
 } from "@/actions/mektek/customers";
+import { Field } from "@/components/mektek/Field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -91,21 +92,6 @@ function customerToInput(customer: CustomerUserRow): CustomerUserInput {
     password: "",
     whatsappOptedOut: customer.whatsappOptedOutAt !== null,
   };
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      {children}
-    </div>
-  );
 }
 
 function formatDate(value: string | null) {

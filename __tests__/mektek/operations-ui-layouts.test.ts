@@ -30,6 +30,9 @@ describe("operations page UI contracts", () => {
     const logisticsManager = readSource(
       "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
     );
+    const detailOutboundDialog = readSource(
+      "app/[locale]/(routes)/mektek/logistics/_components/DetailOutboundPurchaseOrderDialog.tsx",
+    );
     const receivingManager = readSource(
       "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
     );
@@ -41,7 +44,7 @@ describe("operations page UI contracts", () => {
     expect(itemManager).toContain("flex w-full gap-2 sm:w-auto");
 
     expect(logisticsPage).toContain("OutboundLogisticsManager");
-    expect(logisticsManager).toContain("Simpan Barang Keluar");
+    expect(detailOutboundDialog).toContain("Simpan Barang Keluar");
     expect(receivingManager).toContain("managePicsHref?: string");
     expect(receivingManager).toContain("Kelola PIC");
     expect(receivingManager).toContain("flex flex-wrap items-center");

@@ -1,5 +1,7 @@
 import "./globals.css";
 
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import { ReactNode } from "react";
 
 import { NextIntlClientProvider } from "next-intl";
@@ -120,7 +122,9 @@ export default async function RootLayout(props: Props) {
 
   return (
     <html lang={locale}>
-      <body className="min-h-screen font-sans">
+      <body
+        className={`${GeistSans.variable} ${GeistMono.variable} min-h-screen font-sans`}
+      >
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}
         </NextIntlClientProvider>

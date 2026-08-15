@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { BookOpen, Edit, Loader2, Plus, Shuffle, TicketPercent, Trash2 } from "lucide-react";
@@ -14,6 +14,7 @@ import {
   type MektekVoucherInput,
 } from "@/actions/mektek/vouchers";
 import { randomizeMektekVoucherCode } from "@/actions/mektek/voucher-code-dictionaries";
+import { Field } from "@/components/mektek/Field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +26,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -140,21 +140,6 @@ function voucherToInput(voucher: VoucherRow): MektekVoucherInput {
     expiresAt: toDateInputValue(voucher.expiresAt),
     usageLimit: voucher.usageLimit ? String(voucher.usageLimit) : "",
   };
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      {children}
-    </div>
-  );
 }
 
 function discountLabel(voucher: VoucherRow) {

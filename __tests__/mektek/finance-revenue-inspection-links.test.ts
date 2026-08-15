@@ -9,11 +9,14 @@ describe("Finance revenue classification inspection links", () => {
     const workspace = read(
       "app/[locale]/(routes)/mektek/finance/_components/FinanceWorkspace.tsx",
     );
+    const parts = read(
+      "app/[locale]/(routes)/mektek/finance/_components/FinanceWorkspaceParts.tsx",
+    );
 
     expect(workspace).toContain("unclassifiedInvoices");
-    expect(workspace).toContain("Deskripsi perlu diperiksa");
-    expect(workspace).toContain("classification=unclassified&inspect=");
-    expect(workspace).toContain("Periksa semua");
+    expect(parts).toContain("Deskripsi perlu diperiksa");
+    expect(parts).toContain("classification=unclassified&inspect=");
+    expect(parts).toContain("Periksa semua");
   });
 
   it("supports the unclassified invoice filter and direct inspection target", () => {

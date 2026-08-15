@@ -59,6 +59,7 @@ export default async function SupplierPaymentsPage({
         },
       }),
       prismadb.mektekSupplierDebtEntry.findMany({
+        take: 5000,
         select: {
           sheetKey: true,
           sourceRow: true,
@@ -69,6 +70,7 @@ export default async function SupplierPaymentsPage({
       }),
       prismadb.mektekSupplierDebtTransaction.findMany({
         where: { kind: "PAYMENT" },
+        take: 5000,
         select: {
           sheetKey: true,
           sourceRow: true,

@@ -1,3 +1,4 @@
+import "server-only";
 import * as XLSX from "xlsx";
 
 export type SupplierDebtStatus = "BELUM_BAYAR" | "CICILAN" | "LUNAS";

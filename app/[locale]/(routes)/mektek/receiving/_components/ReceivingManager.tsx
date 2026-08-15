@@ -34,6 +34,10 @@ import {
 import { sendMektekLogisticsDocumentWhatsApp } from "@/actions/mektek/logistics-document-whatsapp";
 import { CatalogOrManualItemPicker } from "@/app/[locale]/(routes)/mektek/_components/CatalogOrManualItemPicker";
 import SupplierNameCombobox from "@/app/[locale]/(routes)/mektek/_components/SupplierNameCombobox";
+import { CreatePurchaseOrderDialog } from "./CreatePurchaseOrderDialog";
+import { DetailPurchaseOrderDialog } from "./DetailPurchaseOrderDialog";
+import { DetailPurchaseOrderReceivingDialog } from "./DetailPurchaseOrderReceivingDialog";
+import { EditPurchaseOrderReceivingDialog } from "./EditPurchaseOrderReceivingDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -98,7 +102,7 @@ type LogisticsPurchaseOrderItemRow = {
   receipts: LogisticsReceiptRow[];
 };
 
-type LogisticsPurchaseOrderRow = {
+export type LogisticsPurchaseOrderRow = {
   id: string;
   poNumber: string;
   supplierName: string;
@@ -155,7 +159,7 @@ type ReceivingManagerProps = {
   supplierNameSuggestions?: string[];
 };
 
-type PurchaseOrderItemDraft = {
+export type PurchaseOrderItemDraft = {
   clientId: string;
   source: "CATALOG" | "MANUAL";
   catalogItemId: string;
@@ -168,22 +172,22 @@ type PurchaseOrderItemDraft = {
   unitPrice: string;
 };
 
-type PurchaseOrderDraft = Omit<MektekReceivingPurchaseOrderInput, "items"> & {
+export type PurchaseOrderDraft = Omit<MektekReceivingPurchaseOrderInput, "items"> & {
   items: PurchaseOrderItemDraft[];
 };
 
-type LogisticsReceiptItemDraft = {
+export type LogisticsReceiptItemDraft = {
   quantity: string;
   warehouse: "REAR" | "FRONT";
   note: string;
 };
 
-type ReceiptItemPhotoDraft = {
+export type ReceiptItemPhotoDraft = {
   file: File | null;
   error: string | null;
 };
 
-type LogisticsReceivingBatchGroup = {
+export type LogisticsReceivingBatchGroup = {
   receivingReference: string;
   receivedAt: string;
   createdAt: string;
@@ -194,7 +198,7 @@ type LogisticsReceivingBatchGroup = {
   }>;
 };
 
-type ReceivingEditItemDraft = {
+export type ReceivingEditItemDraft = {
   clientId: string;
   itemId: string | null;
   isNew: boolean;
@@ -211,7 +215,7 @@ type ReceivingEditItemDraft = {
   receivedQuantity: number;
 };
 
-type ReceivingEditDraft = {
+export type ReceivingEditDraft = {
   poNumber: string;
   supplierName: string;
   projectName: string;
@@ -1282,6 +1286,45 @@ export default function ReceivingManager({
     return Array.from(groups.values());
   }, [activeReceiptPurchaseOrder]);
 
+  const purchaseOrderRows = useMemo(
+    () =>
+      purchaseOrders.map((purchaseOrder) => {
+        const progress = purchaseOrder.items.reduce(
+          (totals, item) => {
+            const itemProgress = getLogisticsItemProgress(item);
+            return {
+              orderedQuantity:
+                totals.orderedQuantity + itemProgress.orderedQuantity,
+              receivedQuantity:
+                totals.receivedQuantity + itemProgress.receivedQuantity,
+              remainingQuantity:
+                totals.remainingQuantity + itemProgress.remainingQuantity,
+            };
+          },
+          {
+            orderedQuantity: 0,
+            receivedQuantity: 0,
+            remainingQuantity: 0,
+          },
+        );
+        const isOverdue =
+          purchaseOrder.status === "OPEN" &&
+          purchaseOrder.dueDate.slice(0, 10) < today;
+        const purchaseOrderTotal = purchaseOrder.items.reduce(
+          (total, item) =>
+            total + item.orderedQuantity * Number(item.agreedUnitPrice || 0),
+          0,
+        );
+        return {
+          id: purchaseOrder.id,
+          progress,
+          isOverdue,
+          purchaseOrderTotal,
+        };
+      }),
+    [purchaseOrders, today],
+  );
+
   const sendDocument = () => {
     if (!activePurchaseOrder) return;
     startSendingDocument(async () => {
@@ -1357,314 +1400,26 @@ export default function ReceivingManager({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button className="min-w-0 flex-1 px-2 sm:flex-none sm:px-4">
-              <Plus data-icon="inline-start" />
-              <span className="sm:hidden">Buat PO</span>
-              <span className="hidden sm:inline">Buat Purchase Order</span>
-            </Button>
-          </DialogTrigger>
-           <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
-             <DialogHeader>
-              <DialogTitle>Buat Purchase Order Receiving</DialogTitle>
-              <DialogDescription>
-                Masukkan seluruh Part yang diorder, termasuk barang yang belum ready dari supplier.
-              </DialogDescription>
-            </DialogHeader>
-            <form
-               className="space-y-5"
-              onSubmit={(event) => {
-                event.preventDefault();
-                submitPurchaseOrder();
-              }}
-            >
-               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="logistics-po-number">PO No.</Label>
-                  <Input
-                    id="logistics-po-number"
-                    value={createValue.poNumber}
-                    onChange={(event) => updateCreateValue("poNumber", event.target.value)}
-                    placeholder="Contoh: PO-MKT-001"
-                    disabled={isPending}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                    <Label htmlFor="logistics-supplier">Supplier / tujuan PO</Label>
-                    <SupplierNameCombobox
-                      id="logistics-supplier"
-                      value={createValue.supplierName}
-                      onChange={(value) => updateCreateValue("supplierName", value)}
-                      suggestions={supplierNameSuggestions}
-                      placeholder="Nama supplier"
-                      disabled={isPending}
-                      required
-                    />
-                 </div>
-                <div className="space-y-1.5">
-                   <Label htmlFor="logistics-project">Job Site / Project</Label>
-                   <Input
-                     id="logistics-project"
-                     value={createValue.projectName}
-                     onChange={(event) =>
-                       updateCreateValue("projectName", event.target.value)
-                     }
-                     placeholder="Nama job site atau project"
-                     disabled={isPending}
-                     required
-                   />
-                 </div>
-                 <div className="space-y-1.5">
-                    <Label htmlFor="logistics-input-date">Tanggal Create</Label>
-                   <Input
-                     id="logistics-input-date"
-                     type="date"
-                     value={createValue.inputDate}
-                     onChange={(event) => {
-                       const next = event.target.value;
-                       setCreateValue((current) => ({
-                         ...current,
-                         inputDate: next,
-                         dueDate: next,
-                       }));
-                     }}
-                     disabled={isPending}
-                     required
-                   />
-                 </div>
-               </div>
-
-              <fieldset className="space-y-4 rounded-xl border bg-muted/15 p-4 sm:p-5">
-                <legend className="sr-only">Item yang dipesan</legend>
-                <div className="flex items-center gap-3">
-                  <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-semibold text-primary">
-                    {createValue.items.length}
-                  </span>
-                  <p className="font-semibold">Item yang dipesan</p>
-                </div>
-                <div className="space-y-4">
-                  {createValue.items.map((item, index) => {
-                    return (
-                      <fieldset
-                        key={item.clientId}
-                        className="overflow-visible rounded-xl border bg-background shadow-sm"
-                      >
-                        <legend className="sr-only">Item {index + 1}</legend>
-                        <div className="flex items-center justify-between gap-3 rounded-t-xl border-b bg-muted/25 px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className="flex size-7 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
-                              {index + 1}
-                            </span>
-                            <p className="text-sm font-semibold">Detail Item</p>
-                            {item.source === "MANUAL" && (
-                              <Badge variant="secondary">Manual</Badge>
-                            )}
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="text-muted-foreground hover:text-destructive"
-                            onClick={() => removeItem(item.clientId)}
-                            disabled={isPending || createValue.items.length === 1}
-                            aria-label={`Hapus Item ${index + 1}`}
-                          >
-                            <Trash2 aria-hidden="true" />
-                          </Button>
-                        </div>
-
-                        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_10rem] lg:items-start">
-                          <div className="space-y-4">
-                          <CatalogOrManualItemPicker
-                            idPrefix={`receiving-${item.clientId}`}
-                            itemNumber={index + 1}
-                            source={item.source}
-                            catalogItemId={item.catalogItemId}
-                            catalogQuery={item.catalogQuery}
-                            partName={item.partName}
-                            partNumber={item.partNumber}
-                            catalogItems={catalogItems}
-                            excludedCatalogItemIds={selectedCatalogItemIds}
-                            disabled={isPending}
-                            requireManualPartNumber={false}
-                            catalogStockMessage="Stok bertambah otomatis saat diterima."
-                            manualStockMessage="Item manual otomatis ditambahkan ke Catalog / Item."
-                            onSourceChange={(source) =>
-                              switchItemSource(item.clientId, source)
-                            }
-                            onCatalogQueryChange={(query) =>
-                              updateCatalogQuery(item.clientId, query)
-                            }
-                            onCatalogItemSelect={(catalogItem) =>
-                              selectCatalogItem(item.clientId, catalogItem)
-                            }
-                            onPartNameChange={(value) =>
-                              updateItem(item.clientId, "partName", value)
-                            }
-                            onPartNumberChange={(value) =>
-                              updateItem(item.clientId, "partNumber", value)
-                            }
-                          />
-                          {item.source === "MANUAL" && (
-                            <div className="grid gap-4 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
-                              <div className="space-y-2">
-                                <Label htmlFor={`receiving-machine-${item.clientId}`}>
-                                  Mesin
-                                </Label>
-                                <Input
-                                  id={`receiving-machine-${item.clientId}`}
-                                  value={item.machine}
-                                  onChange={(event) =>
-                                    updateItem(
-                                      item.clientId,
-                                      "machine",
-                                      event.target.value,
-                                    )
-                                  }
-                                  placeholder="Contoh: Komatsu PC200"
-                                  disabled={isPending}
-                                  required
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`receiving-warehouse-${item.clientId}`}>
-                                  Gudang Tujuan
-                                </Label>
-                                <Select
-                                  value={item.warehouse}
-                                  onValueChange={(value: "REAR" | "FRONT") =>
-                                    updateItem(item.clientId, "warehouse", value)
-                                  }
-                                  disabled={isPending}
-                                >
-                                  <SelectTrigger
-                                    id={`receiving-warehouse-${item.clientId}`}
-                                    aria-label="Gudang tujuan item manual"
-                                  >
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="REAR">
-                                      Gudang Belakang
-                                    </SelectItem>
-                                    <SelectItem value="FRONT">
-                                      Gudang Depan
-                                    </SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                          )}
-                          </div>
-
-                          <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                            <Label htmlFor={`logistics-qty-${item.clientId}`}>
-                              QTY Order
-                            </Label>
-                            <Input
-                              id={`logistics-qty-${item.clientId}`}
-                              className="h-11 bg-background font-mono text-base"
-                              type="number"
-                              inputMode="numeric"
-                              min={1}
-                              step={1}
-                              value={item.orderedQuantity}
-                              onChange={(event) =>
-                                updateItem(
-                                  item.clientId,
-                                  "orderedQuantity",
-                                  event.target.value,
-                                )
-                              }
-                              disabled={isPending}
-                              required
-                            />
-                            <Label htmlFor={`logistics-price-${item.clientId}`}>
-                              Harga Supplier
-                            </Label>
-                            <Input
-                              id={`logistics-price-${item.clientId}`}
-                              className="h-11 bg-background font-mono text-base"
-                              type="number"
-                              inputMode="decimal"
-                              min={0}
-                              step="0.01"
-                              value={item.unitPrice}
-                              onChange={(event) =>
-                                updateItem(
-                                  item.clientId,
-                                  "unitPrice",
-                                  event.target.value,
-                                )
-                              }
-                              disabled={isPending}
-                              required
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Harga modal dari supplier. Harga jual diatur
-                              terpisah di Catalog / Item setelah barang diterima.
-                            </p>
-                            <Separator />
-                            <div className="space-y-1">
-                              <p className="text-xs text-muted-foreground">
-                                Jumlah
-                              </p>
-                              <p className="font-mono font-semibold">
-                                {formatRupiah(
-                                  (Number(item.orderedQuantity) || 0) *
-                                    (Number(item.unitPrice) || 0),
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </fieldset>
-                    );
-                  })}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={addItem}
-                    disabled={isPending || createValue.items.length >= 100}
-                    className="w-full border-dashed"
-                  >
-                    <Plus data-icon="inline-start" />
-                    Tambah Item
-                  </Button>
-                </div>
-              </fieldset>
-
-              <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-4">
-                <span className="font-medium">Total Purchase Order</span>
-                <span className="font-mono text-lg font-semibold">
-                  {formatRupiah(createPurchaseOrderTotal)}
-                </span>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="logistics-notes">Catatan PO</Label>
-                <Textarea
-                  id="logistics-notes"
-                  value={createValue.notes}
-                  onChange={(event) => updateCreateValue("notes", event.target.value)}
-                  placeholder="Catatan tambahan untuk supplier atau tim Purchasing"
-                  disabled={isPending}
-                />
-              </div>
-              <div className="flex shrink-0 justify-end">
-                <Button
-                  type="submit"
-                  disabled={isPending || hasInvalidCreateItems}
-                >
-                  {isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
-                  Simpan Purchase Order
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-              </Dialog>
+              <CreatePurchaseOrderDialog
+                open={createOpen}
+                onOpenChange={setCreateOpen}
+                createValue={createValue}
+                setCreateValue={setCreateValue}
+                updateCreateValue={updateCreateValue}
+                submitPurchaseOrder={submitPurchaseOrder}
+                supplierNameSuggestions={supplierNameSuggestions}
+                isPending={isPending}
+                catalogItems={catalogItems}
+                selectedCatalogItemIds={selectedCatalogItemIds}
+                removeItem={removeItem}
+                switchItemSource={switchItemSource}
+                updateCatalogQuery={updateCatalogQuery}
+                selectCatalogItem={selectCatalogItem}
+                updateItem={updateItem}
+                addItem={addItem}
+                createPurchaseOrderTotal={createPurchaseOrderTotal}
+                hasInvalidCreateItems={hasInvalidCreateItems}
+              />
               {managePicsHref && (
                 <Button
                   asChild
@@ -1692,18 +1447,10 @@ export default function ReceivingManager({
             <CardContent className="p-0">
               {purchaseOrders.length > 0 ? (
                 <div className="divide-y">
-                  {purchaseOrders.map((purchaseOrder) => {
-                    const itemProgress = purchaseOrder.items.map((item) =>
-                      getLogisticsItemProgress(item),
-                    );
-                    const totalOrdered = itemProgress.reduce(
-                      (total, progress) => total + progress.orderedQuantity,
-                      0,
-                    );
-                    const totalRemaining = itemProgress.reduce(
-                      (total, progress) => total + progress.remainingQuantity,
-                      0,
-                    );
+                  {purchaseOrders.map((purchaseOrder, index) => {
+                    const row = purchaseOrderRows[index];
+                    const totalOrdered = row.progress.orderedQuantity;
+                    const totalRemaining = row.progress.remainingQuantity;
 
                     return (
                       <div
@@ -1793,190 +1540,15 @@ export default function ReceivingManager({
             </CardContent>
           </Card>
 
-          <Dialog
+          <DetailPurchaseOrderDialog
             open={!!activePurchaseOrder}
             onOpenChange={(open) => !open && setActivePurchaseOrder(null)}
-          >
-            <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
-              <DialogHeader>
-                <DialogTitle>Detail Purchase Order</DialogTitle>
-                <DialogDescription>
-                  {activePurchaseOrder?.poNumber} · {activePurchaseOrder?.supplierName}
-                </DialogDescription>
-              </DialogHeader>
-
-              {activePurchaseOrder && (
-                <div className="space-y-5">
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <div className="rounded-lg bg-muted/50 p-3">
-                      <p className="text-xs text-muted-foreground">Status</p>
-                      <Badge
-                        className="mt-1"
-                        variant={
-                          activePurchaseOrder.status === "CLOSED" ? "secondary" : "outline"
-                        }
-                      >
-                        {getLogisticsStatusLabel(activePurchaseOrder.status)}
-                      </Badge>
-                    </div>
-                    <div className="rounded-lg bg-muted/50 p-3">
-                      <p className="text-xs text-muted-foreground">Job Site / Project</p>
-                      <p className="mt-1 font-medium">{activePurchaseOrder.projectName}</p>
-                    </div>
-                    <div className="rounded-lg bg-muted/50 p-3">
-                      <p className="text-xs text-muted-foreground">PO Type</p>
-                      <p className="mt-1 font-medium">{activePurchaseOrder.poType}</p>
-                    </div>
-                    <div className="rounded-lg bg-muted/50 p-3">
-                       <p className="text-xs text-muted-foreground">Tanggal Create</p>
-                      <p className="mt-1 font-medium">
-                        {formatDate(activePurchaseOrder.inputDate)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-muted/50 p-3">
-                      <p className="text-xs text-muted-foreground">Due Date</p>
-                      <p className="mt-1 font-medium">
-                        {formatDate(activePurchaseOrder.dueDate)}
-                      </p>
-                    </div>
-                    <div className="rounded-lg bg-muted/50 p-3 sm:col-span-2">
-                      <p className="text-xs text-muted-foreground">Dibuat oleh</p>
-                      <p className="mt-1 font-medium">
-                        {activePurchaseOrder.createdBy || "Tidak diketahui"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {activePurchaseOrder.notes && (
-                    <div className="rounded-lg border p-3">
-                      <p className="text-xs text-muted-foreground">Catatan PO</p>
-                      <p className="mt-1 text-sm whitespace-pre-wrap">
-                        {activePurchaseOrder.notes}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
-                    <div>
-                      <p className="text-sm font-semibold">PDF & WhatsApp</p>
-                      <p className="text-xs text-muted-foreground">
-                        Masukkan nomor tujuan untuk mengirim file PO atau DO sebagai lampiran PDF.
-                      </p>
-                    </div>
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <Input
-                        aria-label="Nomor WhatsApp tujuan dokumen Receiving"
-                        placeholder="Contoh: 0812 3456 7890"
-                        value={documentPhone}
-                        onChange={(event) => setDocumentPhone(event.target.value)}
-                        inputMode="tel"
-                        disabled={isSendingDocument}
-                      />
-                      <Button asChild type="button" variant="outline">
-                        <a
-                          href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activePurchaseOrder.id)}/pdf`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          <Printer data-icon="inline-start" />
-                          PDF PO
-                        </a>
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={sendDocument}
-                        disabled={isSendingDocument || !documentPhone.trim()}
-                      >
-                        {isSendingDocument ? (
-                          <Loader2 data-icon="inline-start" className="animate-spin" />
-                        ) : (
-                          <MessageCircle data-icon="inline-start" />
-                        )}
-                        WhatsApp PO
-                      </Button>
-                    </div>
-                  </div>
-
-                  <Separator />
-                  <div className="space-y-3">
-                    <h3 className="font-medium">Detail Part</h3>
-                    {activePurchaseOrder.items.map((item) => {
-                      const progress = getLogisticsItemProgress(item);
-
-                      return (
-                        <div key={item.id} className="rounded-lg border">
-                          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-medium">{item.partName}</p>
-                                {item.source === "MANUAL" && (
-                                  <Badge variant="outline">Manual</Badge>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                {item.partNumber || "Tanpa Part Number"}
-                              </p>
-                            </div>
-                            <Badge
-                              variant={progress.status === "CLOSED" ? "secondary" : "outline"}
-                            >
-                              {getLogisticsStatusLabel(progress.status)}
-                            </Badge>
-                          </div>
-                          <div className="grid grid-cols-3 border-t bg-muted/30 text-center">
-                            <div className="p-3">
-                              <p className="text-xs text-muted-foreground">QTY Order</p>
-                              <p className="font-mono font-semibold tabular-nums">
-                                {progress.orderedQuantity}
-                              </p>
-                            </div>
-                            <div className="border-x p-3">
-                              <p className="text-xs text-muted-foreground">QTY Masuk</p>
-                              <p className="font-mono font-semibold tabular-nums">
-                                {progress.receivedQuantity}
-                              </p>
-                            </div>
-                            <div className="p-3">
-                              <p className="text-xs text-muted-foreground">QTY Sisa</p>
-                              <p className="font-mono font-semibold tabular-nums">
-                                {progress.remainingQuantity}
-                              </p>
-                            </div>
-                          </div>
-                          {item.receipts.length > 0 && (
-                            <div className="space-y-2 border-t p-4">
-                              <p className="text-xs font-medium text-muted-foreground">
-                                Riwayat penerimaan
-                              </p>
-                              {item.receipts.map((receipt) => (
-                                <div
-                                  key={receipt.id}
-                                  className="grid gap-2 text-sm sm:grid-cols-[120px_1fr_auto_auto] sm:items-center"
-                                >
-                                  <span>{formatDate(receipt.receivedAt)}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {receipt.warehouse === "FRONT"
-                                      ? "Gudang Depan"
-                                      : "Gudang Belakang"}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground">
-                                    PIC: {receipt.pic.name}
-                                  </span>
-                                  <span className="font-mono font-semibold tabular-nums">
-                                    +{receipt.quantity}
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </DialogContent>
-          </Dialog>
+            activePurchaseOrder={activePurchaseOrder}
+            documentPhone={documentPhone}
+            setDocumentPhone={setDocumentPhone}
+            isSendingDocument={isSendingDocument}
+            sendDocument={sendDocument}
+          />
             </>
           )}
         </>
@@ -2037,33 +1609,10 @@ export default function ReceivingManager({
               </thead>
               <tbody>
                 {purchaseOrders.map((purchaseOrder, index) => {
-                  const progress = purchaseOrder.items.reduce(
-                    (totals, item) => {
-                      const itemProgress = getLogisticsItemProgress(item);
-                      return {
-                        orderedQuantity:
-                          totals.orderedQuantity + itemProgress.orderedQuantity,
-                        receivedQuantity:
-                          totals.receivedQuantity + itemProgress.receivedQuantity,
-                        remainingQuantity:
-                          totals.remainingQuantity + itemProgress.remainingQuantity,
-                      };
-                    },
-                    {
-                      orderedQuantity: 0,
-                      receivedQuantity: 0,
-                      remainingQuantity: 0,
-                    },
-                  );
-                  const isOverdue =
-                    purchaseOrder.status === "OPEN" &&
-                    purchaseOrder.dueDate.slice(0, 10) < today;
-                  const purchaseOrderTotal = purchaseOrder.items.reduce(
-                    (total, item) =>
-                      total +
-                      item.orderedQuantity * Number(item.agreedUnitPrice || 0),
-                    0,
-                  );
+                  const row = purchaseOrderRows[index];
+                  const progress = row.progress;
+                  const isOverdue = row.isOverdue;
+                  const purchaseOrderTotal = row.purchaseOrderTotal;
                   return (
                     <tr
                       key={purchaseOrder.id}
@@ -2148,921 +1697,44 @@ export default function ReceivingManager({
         </CardContent>
       </Card>
 
-      <Dialog
+      <DetailPurchaseOrderReceivingDialog
         open={!!activeReceiptPurchaseOrder}
         onOpenChange={(open) => !open && setActiveReceiptPurchaseOrder(null)}
-      >
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Detail Purchase Order Receiving</DialogTitle>
-            <DialogDescription>
-              {activeReceiptPurchaseOrder?.poNumber} ·{" "}
-              {activeReceiptPurchaseOrder?.supplierName}
-            </DialogDescription>
-          </DialogHeader>
+        activeReceiptPurchaseOrder={activeReceiptPurchaseOrder}
+        activeProgress={activeProgress}
+        activePurchaseOrderTotal={activePurchaseOrderTotal}
+        activeReceivingBatches={activeReceivingBatches}
+        hasSelectedReceiptItems={hasSelectedReceiptItems}
+        receiptDraft={receiptDraft}
+        setReceiptDraft={setReceiptDraft}
+        receiptItemDrafts={receiptItemDrafts}
+        receiptItemPhotos={receiptItemPhotos}
+        pics={pics}
+        isPending={isPending}
+        isSavingEdit={isSavingEdit}
+        isSelectingDeliveryNoteSource={isSelectingDeliveryNoteSource}
+        isCreatingMektekDeliveryNote={isCreatingMektekDeliveryNote}
+        isUploadingDeliveryNote={isUploadingDeliveryNote}
+        isUploadingMektekDeliveryNote={isUploadingMektekDeliveryNote}
+        isUploadingSignedPo={isUploadingSignedPo}
+        isUploadingSupplierInvoice={isUploadingSupplierInvoice}
+        openEditPurchaseOrder={openEditPurchaseOrder}
+        submitReceipt={submitReceipt}
+        updateReceiptItem={updateReceiptItem}
+        selectExistingSupplierDeliveryNote={selectExistingSupplierDeliveryNote}
+        selectSupplierDeliveryNote={selectSupplierDeliveryNote}
+        selectSupplierInvoice={selectSupplierInvoice}
+        selectMektekDeliveryNoteImage={selectMektekDeliveryNoteImage}
+        selectSignedPoImage={selectSignedPoImage}
+        selectReceiptItemPhoto={selectReceiptItemPhoto}
+        createMektekDeliveryNote={createMektekDeliveryNote}
+        supplierInvoiceInputRef={supplierInvoiceInputRef}
+        deliveryNoteInputRef={deliveryNoteInputRef}
+        mektekDeliveryNoteInputRef={mektekDeliveryNoteInputRef}
+        signedPoInputRef={signedPoInputRef}
+      />
 
-          {activeReceiptPurchaseOrder && activeProgress && (
-            <div className="space-y-5">
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEditPurchaseOrder(activeReceiptPurchaseOrder)}
-                  disabled={isPending || isSavingEdit}
-                >
-                  <Pencil data-icon="inline-start" /> Edit Purchase Order Receiving
-                </Button>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">Project</p>
-                  <p className="mt-1 font-medium">
-                    {activeReceiptPurchaseOrder.projectName}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <Badge
-                    className="mt-1"
-                    variant={
-                      activeReceiptPurchaseOrder.status === "CLOSED"
-                        ? "secondary"
-                        : "outline"
-                    }
-                  >
-                    {getLogisticsStatusLabel(activeReceiptPurchaseOrder.status)}
-                  </Badge>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">Supplier / tujuan PO</p>
-                  <p className="mt-1 font-medium">
-                    {activeReceiptPurchaseOrder.supplierName}
-                  </p>
-                </div>
-              </div>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Dokumen Receiving</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Faktur dan Surat Jalan supplier hanya diunggah dari dokumen
-                    yang diberikan supplier. Mektek hanya membuat PDF Purchase
-                    Order dan Surat Jalan Mektek.
-                  </p>
-                </CardHeader>
-                <CardContent className="space-y-5">
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <section className="space-y-3 rounded-lg border p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="font-medium">PDF Purchase Order</h4>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Cetak PO, minta ditandatangani, lalu unggah hasilnya.
-                          </p>
-                        </div>
-                        <Badge variant="secondary">Tersedia</Badge>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button asChild type="button" variant="outline" size="sm">
-                          <Link
-                            href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/pdf`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <Printer data-icon="inline-start" />
-                            Lihat PDF Purchase Order
-                          </Link>
-                        </Button>
-                        {activeReceiptPurchaseOrder.hasSignedPoImage && (
-                          <Button asChild type="button" size="sm" variant="outline">
-                            <Link
-                              href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/signed-po-image`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <Eye data-icon="inline-start" />
-                              Lihat PO ditandatangani
-                            </Link>
-                          </Button>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        PO ditandatangani:{" "}
-                        {activeReceiptPurchaseOrder.hasSignedPoImage
-                          ? "sudah diunggah"
-                          : "belum diunggah"}
-                      </p>
-                      <Button
-                        type="button"
-                        size="sm"
-                        onClick={() =>
-                          signedPoInputRef.current?.click()
-                        }
-                        disabled={isUploadingSignedPo}
-                      >
-                        {isUploadingSignedPo ? (
-                          <Loader2
-                            data-icon="inline-start"
-                            className="animate-spin"
-                          />
-                        ) : (
-                          <Upload data-icon="inline-start" />
-                        )}
-                        {activeReceiptPurchaseOrder.hasSignedPoImage
-                          ? "Ganti PO yang Sudah Ditandatangani"
-                          : "Unggah PO yang Sudah Ditandatangani"}
-                      </Button>
-                      <input
-                        ref={signedPoInputRef}
-                        className="sr-only"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,application/pdf"
-                        aria-label="Pilih PO yang sudah ditandatangani"
-                        onChange={(event) => {
-                          selectSignedPoImage(event.target.files?.[0] ?? null);
-                          event.currentTarget.value = "";
-                        }}
-                      />
-                    </section>
-
-                    <section className="space-y-3 rounded-lg border p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <h4 className="font-medium">Faktur dari Supplier</h4>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Hanya diunggah dari dokumen yang diberikan supplier.
-                          </p>
-                        </div>
-                        <Badge
-                          variant={
-                            activeReceiptPurchaseOrder.hasSupplierInvoiceImage
-                              ? "secondary"
-                              : "outline"
-                          }
-                        >
-                          {activeReceiptPurchaseOrder.hasSupplierInvoiceImage
-                            ? "Sudah diunggah"
-                            : "Belum diunggah"}
-                        </Badge>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {activeReceiptPurchaseOrder.hasSupplierInvoiceImage && (
-                          <Button asChild type="button" size="sm">
-                            <Link
-                              href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/supplier-invoice-image`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              <Eye data-icon="inline-start" />
-                              Lihat Faktur
-                            </Link>
-                          </Button>
-                        )}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            supplierInvoiceInputRef.current?.click()
-                          }
-                          disabled={isUploadingSupplierInvoice}
-                        >
-                          {isUploadingSupplierInvoice ? (
-                            <Loader2
-                              data-icon="inline-start"
-                              className="animate-spin"
-                            />
-                          ) : activeReceiptPurchaseOrder.hasSupplierInvoiceImage ? (
-                            <RefreshCw data-icon="inline-start" />
-                          ) : (
-                            <Upload data-icon="inline-start" />
-                          )}
-                          {activeReceiptPurchaseOrder.hasSupplierInvoiceImage
-                            ? "Ganti Faktur"
-                            : "Unggah Faktur"}
-                        </Button>
-                      </div>
-                      <input
-                        ref={supplierInvoiceInputRef}
-                        className="sr-only"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        aria-label="Pilih gambar Faktur dari supplier"
-                        onChange={(event) => {
-                          selectSupplierInvoice(event.target.files?.[0] ?? null);
-                          event.currentTarget.value = "";
-                        }}
-                      />
-                    </section>
-                  </div>
-
-                  <Separator />
-
-                  <section className="space-y-3">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div>
-                        <h4 className="font-medium">Pilih sumber Surat Jalan</h4>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Gunakan dokumen supplier atau buat Surat Jalan Mektek.
-                          Pilihan terakhir akan menjadi dokumen aktif.
-                        </p>
-                      </div>
-                      <Badge
-                        variant={
-                          activeReceiptPurchaseOrder.receivingDeliveryNoteSource
-                            ? "secondary"
-                            : "outline"
-                        }
-                      >
-                        {activeReceiptPurchaseOrder.receivingDeliveryNoteSource
-                          ? `Sudah diunggah / tersedia · ${
-                              activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
-                              "MEKTEK"
-                                ? "Dibuat Mektek"
-                                : "Dari supplier"
-                            }`
-                          : "Belum tersedia"}
-                      </Badge>
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div
-                        className={cn(
-                          "space-y-3 rounded-lg border p-4 transition-colors",
-                          activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
-                            "SUPPLIER" &&
-                            "border-primary bg-primary/5 ring-1 ring-primary",
-                          activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
-                            "MEKTEK" && "opacity-50",
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h5 className="font-medium">
-                              Surat Jalan dari Supplier
-                            </h5>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
-                              "MEKTEK"
-                                ? "Dinonaktifkan karena Surat Jalan Mektek dipilih."
-                                : "Pilih ini jika supplier memberikan Surat Jalan."}
-                            </p>
-                          </div>
-                          {activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
-                            "SUPPLIER" && <Badge>Dipilih</Badge>}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          File supplier:{" "}
-                          {activeReceiptPurchaseOrder.hasDeliveryNoteImage
-                            ? "sudah diunggah"
-                            : "belum diunggah"}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {activeReceiptPurchaseOrder.hasDeliveryNoteImage && (
-                            <>
-                              <Button
-                                asChild
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                              >
-                                <Link
-                                  href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note-image`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  <Eye data-icon="inline-start" />
-                                  Lihat Surat Jalan Supplier
-                                </Link>
-                              </Button>
-                              {activeReceiptPurchaseOrder.receivingDeliveryNoteSource !==
-                                "SUPPLIER" &&
-                                activeReceiptPurchaseOrder.receivingDeliveryNoteSource !==
-                                  "MEKTEK" && (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={selectExistingSupplierDeliveryNote}
-                                  disabled={isSelectingDeliveryNoteSource}
-                                >
-                                  {isSelectingDeliveryNoteSource && (
-                                    <Loader2
-                                      data-icon="inline-start"
-                                      className="animate-spin"
-                                    />
-                                  )}
-                                  Pilih dokumen ini
-                                </Button>
-                              )}
-                            </>
-                          )}
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={() =>
-                              deliveryNoteInputRef.current?.click()
-                            }
-                            disabled={
-                              isUploadingDeliveryNote ||
-                              activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
-                                "MEKTEK"
-                            }
-                          >
-                            {isUploadingDeliveryNote ? (
-                              <Loader2
-                                data-icon="inline-start"
-                                className="animate-spin"
-                              />
-                            ) : (
-                              <Upload data-icon="inline-start" />
-                            )}
-                            {activeReceiptPurchaseOrder.hasDeliveryNoteImage
-                              ? "Ganti file"
-                              : "Unggah & pilih"}
-                          </Button>
-                        </div>
-                        <input
-                          ref={deliveryNoteInputRef}
-                          className="sr-only"
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          aria-label="Pilih gambar Surat Jalan dari supplier"
-                          disabled={
-                            activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
-                            "MEKTEK"
-                          }
-                          onChange={(event) => {
-                            selectSupplierDeliveryNote(
-                              event.target.files?.[0] ?? null,
-                            );
-                            event.currentTarget.value = "";
-                          }}
-                        />
-                      </div>
-
-                      <div
-                        className={cn(
-                          "space-y-3 rounded-lg border p-4 transition-colors",
-                          activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
-                            "MEKTEK" &&
-                            "border-primary bg-primary/5 ring-1 ring-primary",
-                        )}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h5 className="font-medium">
-                              Buat Surat Jalan Mektek
-                            </h5>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Pilih ini jika supplier tidak memberikan Surat
-                              Jalan.
-                            </p>
-                          </div>
-                          {activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
-                            "MEKTEK" && <Badge>Dipilih</Badge>}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Dokumen Mektek:{" "}
-                          {activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
-                          "MEKTEK"
-                            ? "sudah tersedia"
-                            : "belum dibuat"}
-                        </p>
-                        {activeReceiptPurchaseOrder.receivingDeliveryNoteSource ===
-                        "MEKTEK" ? (
-                          <div className="space-y-3">
-                            <div className="flex flex-wrap gap-2">
-                              <Button asChild type="button" size="sm" variant="outline">
-                                <Link
-                                  href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/delivery-note?flow=receiving`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                >
-                                  <Printer data-icon="inline-start" />
-                                  Cetak Surat Jalan
-                                </Link>
-                              </Button>
-                              {activeReceiptPurchaseOrder.hasMektekDeliveryNoteImage && (
-                                <Button asChild type="button" size="sm" variant="outline">
-                                  <Link
-                                    href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activeReceiptPurchaseOrder.id)}/mektek-delivery-note-image`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                  >
-                                    <Eye data-icon="inline-start" />
-                                    Lihat foto tanda tangan
-                                  </Link>
-                                </Button>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Cetak Surat Jalan, minta ditandatangani manual,
-                              lalu unggah foto hasil tanda tangan.
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Foto tanda tangan:{" "}
-                              {activeReceiptPurchaseOrder.hasMektekDeliveryNoteImage
-                                ? "sudah diunggah"
-                                : "belum diunggah"}
-                            </p>
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={() =>
-                                mektekDeliveryNoteInputRef.current?.click()
-                              }
-                              disabled={isUploadingMektekDeliveryNote}
-                            >
-                              {isUploadingMektekDeliveryNote ? (
-                                <Loader2
-                                  data-icon="inline-start"
-                                  className="animate-spin"
-                                />
-                              ) : (
-                                <Upload data-icon="inline-start" />
-                              )}
-                              {activeReceiptPurchaseOrder.hasMektekDeliveryNoteImage
-                                ? "Ganti Surat Jalan yang Sudah Ditandatangani"
-                                : "Unggah Surat Jalan yang Sudah Ditandatangani"}
-                            </Button>
-                            <input
-                              ref={mektekDeliveryNoteInputRef}
-                              className="sr-only"
-                              type="file"
-                              accept="image/jpeg,image/png,image/webp"
-                              aria-label="Pilih foto Surat Jalan Mektek yang sudah ditandatangani"
-                              onChange={(event) => {
-                                selectMektekDeliveryNoteImage(
-                                  event.target.files?.[0] ?? null,
-                                );
-                                event.currentTarget.value = "";
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <Button
-                            type="button"
-                            size="sm"
-                            onClick={createMektekDeliveryNote}
-                            disabled={isCreatingMektekDeliveryNote}
-                          >
-                            {isCreatingMektekDeliveryNote ? (
-                              <Loader2
-                                data-icon="inline-start"
-                                className="animate-spin"
-                              />
-                            ) : (
-                              <ReceiptText data-icon="inline-start" />
-                            )}
-                            Buat & pilih Surat Jalan Mektek
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Format upload: JPG, PNG, atau WebP · Maksimal 5 MB
-                    </p>
-                  </section>
-                </CardContent>
-              </Card>
-
-              <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-3 text-center sm:grid-cols-4 sm:gap-3 sm:p-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">QTY Order</p>
-                  <p className="font-mono text-lg font-semibold tabular-nums">
-                    {activeProgress.orderedQuantity}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">QTY Masuk</p>
-                  <p className="font-mono text-lg font-semibold tabular-nums">
-                    {activeProgress.receivedQuantity}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">QTY Sisa</p>
-                  <p className="font-mono text-lg font-semibold tabular-nums">
-                    {activeProgress.remainingQuantity}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Total PO</p>
-                  <p className="font-mono text-sm font-semibold sm:text-base">
-                    {formatRupiah(activePurchaseOrderTotal)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-medium">Detail Part</h3>
-                <div className="divide-y rounded-lg border">
-                  {activeReceiptPurchaseOrder.items.map((item) => {
-                    const progress = getLogisticsItemProgress(item);
-           return (
-                      <div
-                        key={item.id}
-                        className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="break-words font-medium">{item.partName}</p>
-                            {item.source === "MANUAL" && (
-                              <Badge variant="outline">Manual</Badge>
-                            )}
-                          </div>
-                          <p className="break-words text-xs text-muted-foreground">
-                            {item.partNumber || "Tanpa Part Number"}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 text-xs">
-                          <span>
-                            Order <strong>{progress.orderedQuantity}</strong>
-                          </span>
-                          <span>
-                            Masuk <strong>{progress.receivedQuantity}</strong>
-                          </span>
-                          <span>
-                            Sisa <strong>{progress.remainingQuantity}</strong>
-                          </span>
-                          <span>
-                            Harga{" "}
-                            <strong>
-                              {formatRupiah(Number(item.agreedUnitPrice || 0))}
-                            </strong>
-                          </span>
-                          <span>
-                            Jumlah{" "}
-                            <strong>
-                              {formatRupiah(
-                                item.orderedQuantity *
-                                  Number(item.agreedUnitPrice || 0),
-                              )}
-                            </strong>
-                          </span>
-                          <Badge
-                            variant={
-                              progress.status === "CLOSED" ? "secondary" : "outline"
-                            }
-                          >
-                            {getLogisticsStatusLabel(progress.status)}
-                          </Badge>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {activeReceiptPurchaseOrder.status === "OPEN" && (
-                <form
-                  className="space-y-4 rounded-lg border p-3 sm:p-4"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    submitReceipt();
-                  }}
-                >
-                  <div>
-                    <h3 className="font-medium">Catat Barang Masuk</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Pilih item, gudang tujuan, dan quantity yang benar-benar diterima.
-                    </p>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="logistics-received-date">Tanggal Masuk</Label>
-                      <Input
-                        id="logistics-received-date"
-                        type="date"
-                        min={activeReceiptPurchaseOrder.inputDate.slice(0, 10)}
-                        max={today}
-                        value={receiptDraft.receivedAt}
-                        onChange={(event) =>
-                          setReceiptDraft((current) => ({
-                            ...current,
-                            receivedAt: event.target.value,
-                          }))
-                        }
-                        disabled={isPending}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="logistics-receipt-pic">PIC</Label>
-                      <Select
-                        value={receiptDraft.picId}
-                        onValueChange={(picId) =>
-                          setReceiptDraft((current) => ({ ...current, picId }))
-                        }
-                        disabled={isPending || pics.length === 0}
-                        required
-                      >
-                        <SelectTrigger id="logistics-receipt-pic">
-                          <SelectValue placeholder="Pilih PIC" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {pics.map((pic) => (
-                            <SelectItem key={pic.id} value={pic.id}>
-                              {pic.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {pics.length === 0 && (
-                        <p className="text-xs text-destructive">
-                          Belum ada PIC aktif. Admin perlu mengaktifkan PIC terlebih dahulu.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div>
-                      <h4 className="text-sm font-medium">Item yang diterima</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Isi 0 atau kosongkan item yang belum diterima.
-                      </p>
-                    </div>
-                    <div className="divide-y rounded-lg border">
-                      {activeReceiptPurchaseOrder.items.map((item) => {
-                        const progress = getLogisticsItemProgress(item);
-                        const canReceiveItem =
-                          item.source === "MANUAL" || !!item.catalogItemId;
-                        return (
-                          <div
-                            key={item.id}
-                            className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_140px_180px] sm:items-end"
-                          >
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="break-words text-sm font-medium">
-                                  {item.partName}
-                                </p>
-                                {item.source === "MANUAL" && (
-                                  <Badge variant="outline">Manual</Badge>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                {item.partNumber || "Tanpa Part Number"} · Sisa {progress.remainingQuantity}
-                              </p>
-                              {item.source === "MANUAL" ? (
-                                <p className="text-xs text-muted-foreground">
-                                  Item manual · otomatis terhubung ke Catalog / Item.
-                                </p>
-                              ) : !item.catalogItemId ? (
-                                <p className="text-xs text-destructive">
-                                  Belum terhubung ke Catalog / Item.
-                                </p>
-                              ) : null}
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor={`logistics-received-quantity-${item.id}`}>
-                                QTY Masuk
-                              </Label>
-                              <Input
-                                id={`logistics-received-quantity-${item.id}`}
-                                type="number"
-                                inputMode="numeric"
-                                min={0}
-                                max={progress.remainingQuantity}
-                                step={1}
-                                value={receiptItemDrafts[item.id]?.quantity ?? ""}
-                                onChange={(event) =>
-                                  updateReceiptItem(item.id, "quantity", event.target.value)
-                                }
-                                placeholder="0"
-                                disabled={
-                                  isPending ||
-                                  progress.status === "CLOSED" ||
-                                  !canReceiveItem
-                                }
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor={`receiving-warehouse-${item.id}`}>
-                                Gudang Tujuan
-                              </Label>
-                              <Select
-                                value={receiptItemDrafts[item.id]?.warehouse ?? "REAR"}
-                                onValueChange={(value) =>
-                                  updateReceiptItem(
-                                    item.id,
-                                    "warehouse",
-                                    value as LogisticsReceiptItemDraft["warehouse"],
-                                  )
-                                }
-                                disabled={
-                                  isPending ||
-                                  progress.status === "CLOSED" ||
-                                  !canReceiveItem
-                                }
-                              >
-                                <SelectTrigger id={`receiving-warehouse-${item.id}`}>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="REAR">Gudang Belakang</SelectItem>
-                                  <SelectItem value="FRONT">Gudang Depan</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            {Number(receiptItemDrafts[item.id]?.quantity) > 0 && (
-                              <div className="space-y-1.5 sm:col-span-3">
-                                <Label htmlFor={`logistics-receipt-note-${item.id}`}>
-                                  Keterangan Item
-                                  <span className="ml-1 font-normal text-muted-foreground">
-                                    (opsional)
-                                  </span>
-                                </Label>
-                                <Textarea
-                                  id={`logistics-receipt-note-${item.id}`}
-                                  value={receiptItemDrafts[item.id]?.note ?? ""}
-                                  onChange={(event) =>
-                                    updateReceiptItem(item.id, "note", event.target.value)
-                                  }
-                                  placeholder={`Kondisi atau catatan khusus untuk ${item.partName}`}
-                                  maxLength={500}
-                                  rows={2}
-                                  disabled={
-                                    isPending ||
-                                    progress.status === "CLOSED" ||
-                                    !canReceiveItem
-                                  }
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                  Keterangan ini hanya berlaku untuk item ini.
-                                </p>
-                              </div>
-                            )}
-                            {Number(receiptItemDrafts[item.id]?.quantity) > 0 && (
-                              <div className="space-y-1.5 sm:col-span-3">
-                                <Label htmlFor={`receiving-item-photo-${item.id}`}>
-                                  Foto Item{" "}
-                                  <span className="font-normal text-muted-foreground">
-                                    (opsional)
-                                  </span>
-                                </Label>
-                                <Input
-                                  id={`receiving-item-photo-${item.id}`}
-                                  type="file"
-                                  accept="image/jpeg,image/png,image/webp"
-                                  capture="environment"
-                                  onChange={(event) =>
-                                    selectReceiptItemPhoto(
-                                      item.id,
-                                      event.currentTarget.files?.[0] ?? null,
-                                    )
-                                  }
-                                  disabled={
-                                    isPending ||
-                                    progress.status === "CLOSED" ||
-                                    !canReceiveItem
-                                  }
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                  Di HP akan membuka kamera; di PC pilih file JPEG,
-                                  PNG, atau WebP maksimal 5 MB.
-                                </p>
-                                {receiptItemPhotos[item.id]?.file && (
-                                  <p className="truncate text-xs font-medium">
-                                    File dipilih:{" "}
-                                    {receiptItemPhotos[item.id].file?.name}
-                                  </p>
-                                )}
-                                {receiptItemPhotos[item.id]?.error && (
-                                  <p
-                                    className="text-xs text-destructive"
-                                    role="alert"
-                                  >
-                                    {receiptItemPhotos[item.id].error}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button
-                      type="submit"
-                      disabled={
-                        isPending ||
-                        Object.values(receiptItemPhotos).some(
-                          (photo) => !!photo.error,
-                        ) ||
-                        !receiptDraft.picId ||
-                        !hasSelectedReceiptItems
-                      }
-                    >
-                      {isPending && (
-                        <Loader2 data-icon="inline-start" className="animate-spin" />
-                      )}
-                      Simpan Penerimaan
-                    </Button>
-                  </div>
-                </form>
-              )}
-
-              <Separator />
-              <div className="space-y-3">
-                <div>
-                  <h3 className="font-medium">Riwayat Barang Masuk</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Setiap batch tampil satu kali bersama seluruh item yang diterima.
-                  </p>
-                </div>
-                {activeReceivingBatches.length > 0 ? (
-                  <div className="space-y-3">
-                    {activeReceivingBatches.map((batch) => {
-                      return (
-                        <div
-                          key={batch.receivingReference}
-                          className="rounded-lg border p-3 sm:p-4"
-                        >
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                              <p className="font-mono font-semibold">
-                                Batch {batch.receivingReference}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {formatDate(batch.receivedAt)} · PIC {batch.pic.name}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="mt-3 divide-y rounded-md border">
-                            {[...batch.lines]
-                              .sort((left, right) => left.item.position - right.item.position)
-                              .map(({ item, receipt }) => (
-                                <div
-                                  key={receipt.id}
-                                  className="p-3 text-sm"
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <p className="break-words font-medium">
-                                          {item.partName}
-                                        </p>
-                                        {item.source === "MANUAL" && (
-                                          <Badge variant="outline">Manual</Badge>
-                                        )}
-                                      </div>
-                                      <p className="break-words text-xs text-muted-foreground">
-                                        {item.partNumber || "Tanpa Part Number"}
-                                      </p>
-                                    </div>
-                                    <div className="flex shrink-0 items-center gap-2">
-                                      {receipt.imageMimeType && (
-                                        <Button
-                                          asChild
-                                          type="button"
-                                          variant="outline"
-                                          size="sm"
-                                        >
-                                          <a
-                                            href={`/api/mektek/logistics/receipts/${encodeURIComponent(receipt.id)}/image`}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                          >
-                                            Foto Item
-                                          </a>
-                                        </Button>
-                                      )}
-                                      <span className="font-mono font-semibold tabular-nums">
-                                        +{receipt.quantity}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  {receipt.note && (
-                                    <p className="mt-2 break-words text-xs text-muted-foreground">
-                                      <span className="font-medium text-foreground">
-                                        Keterangan:
-                                      </span>{" "}
-                                      {receipt.note}
-                                    </p>
-                                  )}
-                                </div>
-                              ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                    Belum ada barang masuk untuk Purchase Order ini.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
+      <EditPurchaseOrderReceivingDialog
         open={!!editingPurchaseOrderId && !!editDraft}
         onOpenChange={(open) => {
           if (!open && !isSavingEdit) {
@@ -3070,404 +1742,24 @@ export default function ReceivingManager({
             setEditDraft(null);
           }
         }}
-      >
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
-          <DialogHeader>
-            <DialogTitle>Edit Purchase Order Receiving</DialogTitle>
-            <DialogDescription>
-              Perbarui data PO, harga supplier, QTY Order, tambah, atau hapus
-              item. Item yang sudah memiliki barang masuk tidak dapat dihapus
-              dan QTY tidak boleh kurang dari barang masuk.
-            </DialogDescription>
-          </DialogHeader>
-          {editDraft && (
-            <form
-              className="space-y-5"
-              onSubmit={(event) => {
-                event.preventDefault();
-                submitEditedPurchaseOrder();
-              }}
-            >
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-receiving-po-number">PO No.</Label>
-                  <Input
-                    id="edit-receiving-po-number"
-                    value={editDraft.poNumber}
-                    onChange={(event) =>
-                      setEditDraft((current) => current && ({
-                        ...current,
-                        poNumber: event.target.value,
-                      }))
-                    }
-                    disabled={isSavingEdit}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-receiving-supplier">Supplier / tujuan PO</Label>
-                  <SupplierNameCombobox
-                    id="edit-receiving-supplier"
-                    value={editDraft.supplierName}
-                    onChange={(value) =>
-                      setEditDraft((current) => current && ({
-                        ...current,
-                        supplierName: value,
-                      }))
-                    }
-                    suggestions={supplierNameSuggestions}
-                    placeholder="Nama supplier"
-                    disabled={isSavingEdit}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-receiving-project">Job Site / Project</Label>
-                  <Input
-                    id="edit-receiving-project"
-                    value={editDraft.projectName}
-                    onChange={(event) =>
-                      setEditDraft((current) => current && ({
-                        ...current,
-                        projectName: event.target.value,
-                      }))
-                    }
-                    disabled={isSavingEdit}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-receiving-input-date">Tanggal Create</Label>
-                  <Input
-                    id="edit-receiving-input-date"
-                    type="date"
-                    value={editDraft.inputDate}
-                    onChange={(event) => {
-                      const next = event.target.value;
-                      setEditDraft((current) => current && ({
-                        ...current,
-                        inputDate: next,
-                        dueDate: next,
-                      }));
-                    }}
-                    disabled={isSavingEdit}
-                    required
-                  />
-                </div>
-              </div>
-
-              <fieldset className="space-y-4 rounded-xl border bg-muted/15 p-4 sm:p-5">
-                <legend className="sr-only">Item yang dipesan</legend>
-                <div>
-                  <h3 className="font-medium">Item yang dipesan</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Tambah atau hapus item. Item yang sudah memiliki barang
-                    masuk tidak dapat dihapus.
-                  </p>
-                </div>
-                <div className="space-y-4">
-                  {editDraft.items.map((item, index) => {
-                    const minimumQuantity = Math.max(1, item.receivedQuantity);
-                    const canRemoveEditItem =
-                      item.receivedQuantity === 0;
-                    return (
-                      <fieldset
-                        key={item.clientId}
-                        className="overflow-visible rounded-xl border bg-background shadow-sm"
-                      >
-                        <legend className="sr-only">Item {index + 1}</legend>
-                        <div className="flex items-center justify-between gap-3 rounded-t-xl border-b bg-muted/25 px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className="flex size-7 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
-                              {index + 1}
-                            </span>
-                            <p className="text-sm font-semibold">Detail Item</p>
-                            {item.isNew && (
-                              <Badge variant="secondary">Baru</Badge>
-                            )}
-                            {item.source === "MANUAL" && (
-                              <Badge variant="secondary">Manual</Badge>
-                            )}
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="text-muted-foreground hover:text-destructive"
-                            onClick={() => removeEditItem(item.clientId)}
-                            disabled={isSavingEdit || !canRemoveEditItem}
-                            aria-label={`Hapus Item ${index + 1}`}
-                            title={
-                              canRemoveEditItem
-                                ? "Hapus item"
-                                : "Item sudah memiliki barang masuk"
-                            }
-                          >
-                            <Trash2 aria-hidden="true" />
-                          </Button>
-                        </div>
-
-                        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_10rem] lg:items-start">
-                          <div className="space-y-4">
-                            {item.isNew ? (
-                              <>
-                                <CatalogOrManualItemPicker
-                                  idPrefix={`edit-receiving-${item.clientId}`}
-                                  itemNumber={index + 1}
-                                  source={item.source}
-                                  catalogItemId={item.catalogItemId}
-                                  catalogQuery={item.catalogQuery}
-                                  partName={item.partName}
-                                  partNumber={item.partNumber}
-                                  catalogItems={catalogItems}
-                                  excludedCatalogItemIds={selectedEditCatalogItemIds}
-                                  disabled={isSavingEdit}
-                                  requireManualPartNumber={false}
-                                  catalogStockMessage="Stok bertambah otomatis saat diterima."
-                                  manualStockMessage="Item manual otomatis ditambahkan ke Catalog / Item."
-                                  onSourceChange={(source) =>
-                                    switchEditItemSource(item.clientId, source)
-                                  }
-                                  onCatalogQueryChange={(query) =>
-                                    updateEditCatalogQuery(item.clientId, query)
-                                  }
-                                  onCatalogItemSelect={(catalogItem) =>
-                                    selectEditCatalogItem(item.clientId, catalogItem)
-                                  }
-                                  onPartNameChange={(value) =>
-                                    updateEditItem(item.clientId, "partName", value)
-                                  }
-                                  onPartNumberChange={(value) =>
-                                    updateEditItem(item.clientId, "partNumber", value)
-                                  }
-                                />
-                                {item.source === "MANUAL" && (
-                                  <div className="grid gap-4 rounded-lg border bg-muted/20 p-3 sm:grid-cols-2">
-                                    <div className="space-y-2">
-                                      <Label htmlFor={`edit-receiving-machine-${item.clientId}`}>
-                                        Mesin
-                                      </Label>
-                                      <Input
-                                        id={`edit-receiving-machine-${item.clientId}`}
-                                        value={item.machine}
-                                        onChange={(event) =>
-                                          updateEditItem(
-                                            item.clientId,
-                                            "machine",
-                                            event.target.value,
-                                          )
-                                        }
-                                        placeholder="Contoh: Komatsu PC200"
-                                        disabled={isSavingEdit}
-                                        required
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label htmlFor={`edit-receiving-warehouse-${item.clientId}`}>
-                                        Gudang Tujuan
-                                      </Label>
-                                      <Select
-                                        value={item.warehouse || "REAR"}
-                                        onValueChange={(value: "REAR" | "FRONT") =>
-                                          updateEditItem(item.clientId, "warehouse", value)
-                                        }
-                                        disabled={isSavingEdit}
-                                      >
-                                        <SelectTrigger
-                                          id={`edit-receiving-warehouse-${item.clientId}`}
-                                          aria-label="Gudang tujuan item manual"
-                                        >
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="REAR">
-                                            Gudang Belakang
-                                          </SelectItem>
-                                          <SelectItem value="FRONT">
-                                            Gudang Depan
-                                          </SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <div className="space-y-1">
-                                  <p className="font-medium">{item.partName}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {item.partNumber || "Tanpa Part Number"}
-                                    {item.machine ? ` · ${item.machine}` : ""}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    QTY Masuk {item.receivedQuantity}
-                                  </p>
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label htmlFor={`edit-receiving-note-${item.clientId}`}>
-                                    Keterangan Item
-                                    <span className="ml-1 font-normal text-muted-foreground">
-                                      (opsional)
-                                    </span>
-                                  </Label>
-                                  <Input
-                                    id={`edit-receiving-note-${item.clientId}`}
-                                    value={item.note}
-                                    maxLength={500}
-                                    onChange={(event) =>
-                                      updateEditItem(item.clientId, "note", event.target.value)
-                                    }
-                                    disabled={isSavingEdit}
-                                  />
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label htmlFor={`edit-receiving-warehouse-${item.clientId}`}>
-                                    Gudang Tujuan
-                                  </Label>
-                                  <Select
-                                    value={item.warehouse || "REAR"}
-                                    onValueChange={(value: "REAR" | "FRONT") =>
-                                      updateEditItem(item.clientId, "warehouse", value)
-                                    }
-                                    disabled={isSavingEdit}
-                                  >
-                                    <SelectTrigger
-                                      id={`edit-receiving-warehouse-${item.clientId}`}
-                                    >
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="REAR">Gudang Belakang</SelectItem>
-                                      <SelectItem value="FRONT">Gudang Depan</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </>
-                            )}
-                          </div>
-
-                          <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                            <Label htmlFor={`edit-receiving-qty-${item.clientId}`}>
-                              QTY Order
-                            </Label>
-                            <Input
-                              id={`edit-receiving-qty-${item.clientId}`}
-                              className="h-11 bg-background font-mono text-base"
-                              type="number"
-                              inputMode="numeric"
-                              min={minimumQuantity}
-                              step={1}
-                              value={item.orderedQuantity}
-                              onChange={(event) =>
-                                updateEditItem(
-                                  item.clientId,
-                                  "orderedQuantity",
-                                  event.target.value,
-                                )
-                              }
-                              disabled={isSavingEdit}
-                              required
-                            />
-                            {item.receivedQuantity > 0 && (
-                              <p className="text-xs text-muted-foreground">
-                                Minimal {minimumQuantity}
-                              </p>
-                            )}
-                            <Label htmlFor={`edit-receiving-price-${item.clientId}`}>
-                              Harga Supplier
-                            </Label>
-                            <Input
-                              id={`edit-receiving-price-${item.clientId}`}
-                              className="h-11 bg-background font-mono text-base"
-                              type="number"
-                              inputMode="decimal"
-                              min={0}
-                              step="0.01"
-                              value={item.unitPrice}
-                              onChange={(event) =>
-                                updateEditItem(
-                                  item.clientId,
-                                  "unitPrice",
-                                  event.target.value,
-                                )
-                              }
-                              disabled={isSavingEdit}
-                              required
-                            />
-                            <Separator />
-                            <div className="space-y-1">
-                              <p className="text-xs text-muted-foreground">Jumlah</p>
-                              <p className="font-mono font-semibold">
-                                {formatRupiah(
-                                  (Number(item.orderedQuantity) || 0) *
-                                    (Number(item.unitPrice) || 0),
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </fieldset>
-                    );
-                  })}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={addEditItem}
-                    disabled={isSavingEdit || editDraft.items.length >= 100}
-                    className="w-full border-dashed"
-                  >
-                    <Plus data-icon="inline-start" />
-                    Tambah Item
-                  </Button>
-                </div>
-              </fieldset>
-
-              <div className="flex items-center justify-between rounded-lg border bg-muted/30 p-4">
-                <span className="font-medium">Total Purchase Order</span>
-                <span className="font-mono text-lg font-semibold">
-                  {formatRupiah(editPurchaseOrderTotal)}
-                </span>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-receiving-notes">Catatan PO</Label>
-                <Textarea
-                  id="edit-receiving-notes"
-                  value={editDraft.notes}
-                  onChange={(event) =>
-                    setEditDraft((current) => current && ({
-                      ...current,
-                      notes: event.target.value,
-                    }))
-                  }
-                  placeholder="Catatan tambahan untuk supplier atau tim Purchasing"
-                  disabled={isSavingEdit}
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setEditingPurchaseOrderId(null);
-                    setEditDraft(null);
-                  }}
-                  disabled={isSavingEdit}
-                >
-                  Batal
-                </Button>
-                <Button type="submit" disabled={isSavingEdit || hasInvalidEditItems}>
-                  {isSavingEdit && (
-                    <Loader2 data-icon="inline-start" className="animate-spin" />
-                  )}
-                  Simpan Perubahan
-                </Button>
-              </div>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
+        editDraft={editDraft}
+        setEditDraft={setEditDraft}
+        setEditingPurchaseOrderId={setEditingPurchaseOrderId}
+        isSavingEdit={isSavingEdit}
+        isPending={isPending}
+        submitEditedPurchaseOrder={submitEditedPurchaseOrder}
+        updateEditItem={updateEditItem}
+        addEditItem={addEditItem}
+        removeEditItem={removeEditItem}
+        switchEditItemSource={switchEditItemSource}
+        updateEditCatalogQuery={updateEditCatalogQuery}
+        selectEditCatalogItem={selectEditCatalogItem}
+        editPurchaseOrderTotal={editPurchaseOrderTotal}
+        hasInvalidEditItems={hasInvalidEditItems}
+        selectedEditCatalogItemIds={selectedEditCatalogItemIds}
+        catalogItems={catalogItems}
+        supplierNameSuggestions={supplierNameSuggestions}
+      />
         </>
       )}
     </div>

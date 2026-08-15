@@ -48,6 +48,43 @@ export async function issueUnsubscribeToken(
   return { token, expiresAt };
 }
 
+// Batched variant of issueUnsubscribeToken for bulk sends. Generates a token
+// per recipient and issues a single deleteMany + createMany inside one
+// transaction for the whole chunk, instead of one $transaction per recipient.
+// Returns a Map<userId, token> so the caller can build unsubscribe URLs.
+export async function issueUnsubscribeTokens(
+  recipients: ReadonlyArray<{ userId: string }>,
+  channel: UnsubscribeChannel
+): Promise<Map<string, string>> {
+  if (recipients.length === 0) return new Map();
+
+  const entries = recipients.map((recipient) => {
+    const token = crypto.randomBytes(32).toString("hex");
+    const tokenHash = hashUnsubscribeToken(token);
+    const expiresAt = new Date(Date.now() + UNSUBSCRIBE_TOKEN_TTL_MS);
+    return { userId: recipient.userId, token, tokenHash, expiresAt };
+  });
+
+  // One transaction for the whole chunk: clear prior tokens for these
+  // (user, channel) pairs, then create the new batch. Preserves the
+  // "never zero valid tokens on crash" guarantee from the single-user path.
+  await prismadb.$transaction([
+    prismadb.emailUnsubscribeToken.deleteMany({
+      where: { userId: { in: entries.map((entry) => entry.userId) }, channel },
+    }),
+    prismadb.emailUnsubscribeToken.createMany({
+      data: entries.map((entry) => ({
+        userId: entry.userId,
+        channel,
+        tokenHash: entry.tokenHash,
+        expiresAt: entry.expiresAt,
+      })),
+    }),
+  ]);
+
+  return new Map(entries.map((entry) => [entry.userId, entry.token]));
+}
+
 export async function consumeUnsubscribeToken(
   token: string
 ): Promise<{ userId: string; channel: UnsubscribeChannel } | null> {

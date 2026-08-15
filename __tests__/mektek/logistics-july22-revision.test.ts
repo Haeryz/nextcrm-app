@@ -13,8 +13,23 @@ describe("22 July Logistics revision contract", () => {
   const receivingManager = source(
     "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
   );
+  const receivingReceivingDialog = source(
+    "app/[locale]/(routes)/mektek/receiving/_components/DetailPurchaseOrderReceivingDialog.tsx",
+  );
+  const receivingCreateDialog = source(
+    "app/[locale]/(routes)/mektek/receiving/_components/CreatePurchaseOrderDialog.tsx",
+  );
   const outboundManager = source(
     "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
+  );
+  const exportDialog = source(
+    "app/[locale]/(routes)/mektek/logistics/_components/ExportExcelMonitoringPoDialog.tsx",
+  );
+  const createOutboundDialog = source(
+    "app/[locale]/(routes)/mektek/logistics/_components/CreateOutboundPurchaseOrderDialog.tsx",
+  );
+  const detailOutboundDialog = source(
+    "app/[locale]/(routes)/mektek/logistics/_components/DetailOutboundPurchaseOrderDialog.tsx",
   );
   const logisticsPage = source(
     "app/[locale]/(routes)/mektek/logistics/page.tsx",
@@ -77,7 +92,7 @@ describe("22 July Logistics revision contract", () => {
     expect(receivingManager).not.toContain('id="logistics-user"');
     expect(receivingManager).not.toContain("User / PT");
     expect(purchaseOrderPdf).not.toContain("User / PT");
-    expect(outboundManager).toContain("User / PT Tujuan");
+    expect(createOutboundDialog).toContain("User / PT Tujuan");
   });
 
   it("exposes one Logistics menu with the three requested destinations", () => {
@@ -94,17 +109,17 @@ describe("22 July Logistics revision contract", () => {
     );
     expect(outboundManager).toContain("Nomor Surat Jalan");
     expect(outboundManager).toContain("dispatchReference");
-    expect(outboundManager).toContain("PDF Surat Jalan");
-    expect(receivingManager).toContain("Surat Jalan dari Supplier");
-    expect(receivingManager).toContain("Buat Surat Jalan Mektek");
+    expect(detailOutboundDialog).toContain("PDF Surat Jalan");
+    expect(receivingReceivingDialog).toContain("Surat Jalan dari Supplier");
+    expect(receivingReceivingDialog).toContain("Buat Surat Jalan Mektek");
   });
 
   it("keeps the PO number separate and only exposes PDFs inside dispatch history", () => {
     expect(logisticsActions).not.toContain("buildAutomaticDeliveryNoteNumber");
-    expect(outboundManager).toContain(
+    expect(detailOutboundDialog).toContain(
       "delivery-note?reference=${encodeURIComponent(batch.dispatchReference)}",
     );
-    expect(outboundManager).not.toContain(
+    expect(detailOutboundDialog).not.toContain(
       "delivery-note`",
     );
   });
@@ -123,14 +138,14 @@ describe("22 July Logistics revision contract", () => {
 
   it("captures one Receiving photo per received item and supports mobile camera input", () => {
     expect(receivingManager).toContain("receiptItemPhotos");
-    expect(receivingManager).toContain('capture="environment"');
-    expect(receivingManager).toContain("Foto Item");
-    expect(receivingManager).toContain("receipt.imageMimeType");
+    expect(receivingReceivingDialog).toContain('capture="environment"');
+    expect(receivingReceivingDialog).toContain("Foto Item");
+    expect(receivingReceivingDialog).toContain("receipt.imageMimeType");
   });
 
   it("links manual Receiving entries into Catalog stock", () => {
     expect(logisticsActions).toContain("ensureManualReceivingCatalogItem");
-    expect(receivingManager).toContain(
+    expect(receivingCreateDialog).toContain(
       "otomatis ditambahkan ke Catalog / Item",
     );
   });
@@ -147,9 +162,9 @@ describe("22 July Logistics revision contract", () => {
     expect(exportRoute).toContain("buildLogisticsDeliveryNoteExportRows");
     expect(exportRoute).toContain("buildLogisticsPoMonthlyExportRows");
     expect(exportRoute).toContain("application/vnd.openxmlformats");
-    expect(outboundManager).toContain("Export Excel");
-    expect(outboundManager).toContain("Recap Bulanan (SJ)");
-    expect(outboundManager).toContain("Recap PO Bulanan (PO/User)");
+    expect(exportDialog).toContain("Export Excel");
+    expect(exportDialog).toContain("Recap Bulanan (SJ)");
+    expect(exportDialog).toContain("Recap PO Bulanan (PO/User)");
   });
 
   it("moves export and created-PO filters into the Monitoring PO page", () => {
@@ -160,7 +175,7 @@ describe("22 July Logistics revision contract", () => {
     expect(logisticsPage).toContain("status,");
     expect(logisticsPage).toContain("LiveSearchInput");
     expect(logisticsPage).toContain("LiveFilterSelect");
-    expect(outboundManager).toContain("Export Excel Monitoring PO");
+    expect(exportDialog).toContain("Export Excel Monitoring PO");
     expect(outboundManager).not.toContain("spreadsheetHref");
   });
 
@@ -171,7 +186,7 @@ describe("22 July Logistics revision contract", () => {
     expect(outboundManager).toContain("QTY Order");
     expect(outboundManager).toContain("QTY Keluar");
     expect(outboundManager).toContain("QTY Sisa");
-    expect(outboundManager).toContain("Catat Barang Keluar");
-    expect(outboundManager).toContain("Riwayat Barang Keluar");
+    expect(detailOutboundDialog).toContain("Catat Barang Keluar");
+    expect(detailOutboundDialog).toContain("Riwayat Barang Keluar");
   });
 });

@@ -8,7 +8,7 @@ import {
   countAudience,
   describeMektekEmailAudience,
   explainEmptyAudience,
-  isWithinFrequencyCap,
+  filterByFrequencyCap,
   resolveEmailAudience,
   validateMektekEmailAudience,
   type AudienceSummary,
@@ -106,6 +106,15 @@ async function runCampaign(
   const eligible: BulkRecipient[] = [];
   let skipped = 0;
 
+  // First pass: drop phone-only/missing emails and collect the cap candidates.
+  const capCandidates: { userId: string; caps: FrequencyCaps }[] = [];
+  const validUsers: Array<{
+    userId: string;
+    email: string;
+    username: string | null;
+    userLanguage: string;
+  }> = [];
+
   for (const pref of preferences) {
     const user = pref.user;
     // Phone-only accounts never receive marketing.
@@ -113,20 +122,33 @@ async function runCampaign(
       skipped += 1;
       continue;
     }
-    const withinCap = await isWithinFrequencyCap(
-      user.id,
-      purpose,
-      pref.frequencyCaps as FrequencyCaps
-    );
-    if (!withinCap) {
-      skipped += 1;
-      continue;
-    }
-    eligible.push({
+    capCandidates.push({
+      userId: user.id,
+      caps: pref.frequencyCaps as FrequencyCaps,
+    });
+    validUsers.push({
       userId: user.id,
       email: user.email,
       username: user.name ?? null,
       userLanguage: user.userLanguage ?? "id",
+    });
+  }
+
+  // Batched cap check: one groupBy per cap-window bucket instead of one COUNT
+  // per user (frequencyCaps is null for nearly every user, so this is almost
+  // always exactly one query regardless of audience size).
+  const allowedIds = await filterByFrequencyCap(capCandidates, purpose);
+
+  for (const candidate of validUsers) {
+    if (!allowedIds.has(candidate.userId)) {
+      skipped += 1;
+      continue;
+    }
+    eligible.push({
+      userId: candidate.userId,
+      email: candidate.email,
+      username: candidate.username,
+      userLanguage: candidate.userLanguage,
     });
   }
 

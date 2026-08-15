@@ -189,6 +189,9 @@ describe("Sub-admin CRUD accepts capabilities", () => {
   const pageSource = read(
     "app/[locale]/(routes)/mektek/staff/page.tsx",
   );
+  const listSectionSource = read(
+    "app/[locale]/(routes)/mektek/staff/_components/StaffListSection.tsx",
+  );
   const fieldSource = read(
     "app/[locale]/(routes)/mektek/staff/_components/StaffCapabilityFields.tsx",
   );
@@ -203,7 +206,7 @@ describe("Sub-admin CRUD accepts capabilities", () => {
   });
 
   it("loads and renders staffCapabilities on the staff page", () => {
-    expect(pageSource).toContain("staffCapabilities: true");
+    expect(listSectionSource).toContain("staffCapabilities: true");
     expect(pageSource).toContain("StaffCapabilityFields");
     expect(pageSource).not.toContain(
       "matriks pembatasan divisi lain masih dalam tahap penyusunan",

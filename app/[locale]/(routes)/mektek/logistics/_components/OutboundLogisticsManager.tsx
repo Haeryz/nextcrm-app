@@ -5,9 +5,7 @@ import {
   CheckCircle2,
   Clock3,
   Copy,
-  Download,
   Eye,
-  FileSpreadsheet,
   ImagePlus,
   Loader2,
   PackageMinus,
@@ -59,12 +57,13 @@ import {
   getLogisticsItemProgress,
   getLogisticsStatusLabel,
 } from "@/lib/mektek/logistics";
-import {
-  getLogisticsPoExportRange,
-  type LogisticsPoExportType,
-} from "@/lib/mektek/logistics-export";
 
-type CatalogOption = {
+import { ExportExcelMonitoringPoDialog } from "./ExportExcelMonitoringPoDialog";
+import { EditOutboundPurchaseOrderDialog } from "./EditOutboundPurchaseOrderDialog";
+import { CreateOutboundPurchaseOrderDialog } from "./CreateOutboundPurchaseOrderDialog";
+import { DetailOutboundPurchaseOrderDialog } from "./DetailOutboundPurchaseOrderDialog";
+
+export type CatalogOption = {
   id: string;
   description: string;
   partNumber: string | null;
@@ -72,7 +71,7 @@ type CatalogOption = {
   frontStock: number;
 };
 
-type OutboundReceiptRow = {
+export type OutboundReceiptRow = {
   id: string;
   receivingReference: string;
   quantity: number;
@@ -84,7 +83,7 @@ type OutboundReceiptRow = {
   pic: { id: string; name: string };
 };
 
-type OutboundPurchaseOrder = {
+export type OutboundPurchaseOrder = {
   id: string;
   sourceServiceOrderId: string | null;
   poNumber: string;
@@ -125,7 +124,7 @@ type OutboundStats = {
   totalRemaining: number;
 };
 
-type ItemDraft = {
+export type ItemDraft = {
   clientId: string;
   source: "CATALOG" | "MANUAL";
   catalogItemId: string;
@@ -136,7 +135,7 @@ type ItemDraft = {
   note: string;
 };
 
-type OutboundDraft = Omit<MektekOutboundPurchaseOrderInput, "items"> & {
+export type OutboundDraft = Omit<MektekOutboundPurchaseOrderInput, "items"> & {
   items: ItemDraft[];
 };
 
@@ -149,13 +148,13 @@ type OutboundLogisticsManagerProps = {
   supplierNameSuggestions?: string[];
 };
 
-type DispatchItemDraft = {
+export type DispatchItemDraft = {
   quantity: string;
   warehouse: "REAR" | "FRONT";
   note: string;
 };
 
-type OutboundBatchGroup = {
+export type OutboundBatchGroup = {
   dispatchReference: string;
   dispatchedAt: string;
   createdAt: string;
@@ -335,17 +334,6 @@ export default function OutboundLogisticsManager({
   const [detailCustomerPoFile, setDetailCustomerPoFile] = useState<File | null>(null);
   const [detailCustomerPoError, setDetailCustomerPoError] = useState<string | null>(null);
   const [isUploadingDetailPo, startUploadingDetailPo] = useTransition();
-  const currentMonth = getCatalogInventoryLocalDateKey().slice(0, 7);
-  const currentYear = currentMonth.slice(0, 4);
-  const [exportMode, setExportMode] = useState<"month" | "range" | "year">(
-    "month",
-  );
-  const [exportMonth, setExportMonth] = useState(currentMonth);
-  const [exportFromMonth, setExportFromMonth] = useState(currentMonth);
-  const [exportToMonth, setExportToMonth] = useState(currentMonth);
-  const [exportYear, setExportYear] = useState(currentYear);
-  const [exportType, setExportType] =
-    useState<LogisticsPoExportType>("delivery-note");
 
   const selectedCatalogItemIds = useMemo(
     () =>
@@ -381,34 +369,6 @@ export default function OutboundLogisticsManager({
       }
     }
   }, [draft]);
-  let exportRangeError: string | null = null;
-  let exportHref = "";
-  let exportPeriodLabel = "";
-  try {
-    if (exportMode === "range") {
-      getLogisticsPoExportRange(exportFromMonth, exportToMonth);
-      exportHref = `/api/mektek/logistics/purchase-orders/export?type=${encodeURIComponent(exportType)}&fromMonth=${encodeURIComponent(exportFromMonth)}&toMonth=${encodeURIComponent(exportToMonth)}`;
-      exportPeriodLabel =
-        exportFromMonth === exportToMonth
-          ? exportFromMonth
-          : `${exportFromMonth}_${exportToMonth}`;
-    } else if (exportMode === "year") {
-      const parsedYear = Number(exportYear);
-      if (!Number.isInteger(parsedYear) || parsedYear < 2000 || parsedYear > 9999) {
-        throw new Error("Tahun export tidak valid");
-      }
-      exportHref = `/api/mektek/logistics/purchase-orders/export?type=${encodeURIComponent(exportType)}&year=${encodeURIComponent(exportYear)}`;
-      exportPeriodLabel = exportYear;
-    } else {
-      getLogisticsPoExportRange(exportMonth, exportMonth);
-      exportHref = `/api/mektek/logistics/purchase-orders/export?type=${encodeURIComponent(exportType)}&month=${encodeURIComponent(exportMonth)}`;
-      exportPeriodLabel = exportMonth;
-    }
-  } catch (error) {
-    exportRangeError =
-      error instanceof Error ? error.message : "Periode export tidak valid";
-  }
-
   const updateDraft = <K extends keyof OutboundDraft>(
     key: K,
     value: OutboundDraft[K],
@@ -1004,6 +964,20 @@ export default function OutboundLogisticsManager({
     return Array.from(groups.values());
   }, [activePurchaseOrder]);
 
+  const outboundBatchReferences = useMemo(
+    () =>
+      purchaseOrders.map((purchaseOrder) =>
+        Array.from(
+          new Set(
+            purchaseOrder.items.flatMap((item) =>
+              item.receipts.map((receipt) => receipt.receivingReference),
+            ),
+          ),
+        ),
+      ),
+    [purchaseOrders],
+  );
+
   return (
     <div className="space-y-6">
       {mode === "overview" && (
@@ -1032,433 +1006,28 @@ export default function OutboundLogisticsManager({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button type="button" variant="outline">
-                    <FileSpreadsheet data-icon="inline-start" />
-                    Export Excel
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle>Export Excel Monitoring PO</DialogTitle>
-                    <DialogDescription>
-                      Pilih jenis recap dan bulan yang ingin dimasukkan ke file
-                      Excel.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="po-export-type">Jenis recap</Label>
-                      <Select
-                        value={exportType}
-                        onValueChange={(value: LogisticsPoExportType) =>
-                          setExportType(value)
-                        }
-                      >
-                        <SelectTrigger id="po-export-type" className="w-full">
-                          <SelectValue placeholder="Pilih jenis recap" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="delivery-note">
-                            Recap Bulanan (SJ)
-                          </SelectItem>
-                          <SelectItem value="purchase-order">
-                            Recap PO Bulanan (PO/User)
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="po-export-mode">Rentang export</Label>
-                      <Select
-                        value={exportMode}
-                        onValueChange={(value: "month" | "range" | "year") =>
-                          setExportMode(value)
-                        }
-                      >
-                        <SelectTrigger id="po-export-mode" className="w-full">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="month">Per bulan</SelectItem>
-                          <SelectItem value="range">Rentang bulan</SelectItem>
-                          <SelectItem value="year">Per tahun</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  {exportMode === "month" && (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="po-export-month">Bulan</Label>
-                      <Input
-                        id="po-export-month"
-                        type="month"
-                        max={currentMonth}
-                        value={exportMonth}
-                        onChange={(event) => setExportMonth(event.target.value)}
-                      />
-                    </div>
-                  )}
-                  {exportMode === "range" && (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="po-export-from">Dari bulan</Label>
-                        <Input
-                          id="po-export-from"
-                          type="month"
-                          max={exportToMonth || currentMonth}
-                          value={exportFromMonth}
-                          onChange={(event) => setExportFromMonth(event.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="po-export-to">Sampai bulan</Label>
-                        <Input
-                          id="po-export-to"
-                          type="month"
-                          min={exportFromMonth}
-                          max={currentMonth}
-                          value={exportToMonth}
-                          onChange={(event) => setExportToMonth(event.target.value)}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  {exportMode === "year" && (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="po-export-year">Tahun</Label>
-                      <Input
-                        id="po-export-year"
-                        type="number"
-                        min={2000}
-                        max={Number(currentYear)}
-                        value={exportYear}
-                        onChange={(event) => setExportYear(event.target.value)}
-                      />
-                    </div>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    {exportRangeError ??
-                      (exportType === "delivery-note"
-                        ? "Recap dikelompokkan berdasarkan nomor SJ; satu SJ dapat berisi beberapa baris item."
-                        : "Recap dikelompokkan berdasarkan nomor PO; nomor urut tetap sama untuk seluruh item dalam satu PO.")}
-                  </p>
-                  <div className="flex justify-end">
-                    {exportRangeError ? (
-                      <Button type="button" disabled>
-                        <Download data-icon="inline-start" /> Download Excel
-                      </Button>
-                    ) : (
-                      <Button asChild type="button">
-                        <a href={exportHref}>
-                          <Download data-icon="inline-start" /> Download Excel
-                        </a>
-                      </Button>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
-              <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus data-icon="inline-start" />
-                    Buat PO Pengiriman
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
-                  <DialogHeader>
-                    <DialogTitle>Buat Monitoring PO</DialogTitle>
-                    <DialogDescription>
-                      Pilih item dari Catalog untuk dikirim ke User / PT.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <form
-                    className="space-y-5"
-                    onSubmit={(event) => {
-                      event.preventDefault();
-                      submitPurchaseOrder();
-                    }}
-                  >
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="outbound-po-number">PO No.</Label>
-                        <Input
-                          id="outbound-po-number"
-                          value={draft.poNumber}
-                          onChange={(event) => updateDraft("poNumber", event.target.value)}
-                          placeholder="Contoh: PO-USER-001"
-                          disabled={isPending}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="outbound-user">User / PT Tujuan</Label>
-                        <SupplierNameCombobox
-                          id="outbound-user"
-                          value={draft.userName}
-                          onChange={(value) => updateDraft("userName", value)}
-                          suggestions={supplierNameSuggestions}
-                          placeholder="Nama perusahaan penerima"
-                          disabled={isPending}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="outbound-project">Job Site / Project</Label>
-                        <Input
-                          id="outbound-project"
-                          value={draft.projectName}
-                          onChange={(event) => updateDraft("projectName", event.target.value)}
-                          placeholder="Lokasi atau project tujuan"
-                          disabled={isPending}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="outbound-po-type">Tipe PO</Label>
-                        <Select
-                          value={draft.poType}
-                          onValueChange={(value) => updateDraft("poType", value)}
-                          disabled={isPending}
-                        >
-                          <SelectTrigger id="outbound-po-type">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Manual">Normal</SelectItem>
-                            <SelectItem value="Consignment">Consignment</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="outbound-input-date">Tanggal Terima PO</Label>
-                        <Input
-                          id="outbound-input-date"
-                          type="date"
-                          max={getCatalogInventoryLocalDateKey()}
-                          value={draft.inputDate}
-                          onChange={(event) => {
-                            const next = event.target.value;
-                            setDraft((current) => ({
-                              ...current,
-                              inputDate: next,
-                              dueDate: next > current.dueDate ? next : current.dueDate,
-                            }));
-                          }}
-                          disabled={isPending}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor="outbound-due-date">Due Date</Label>
-                        <Input
-                          id="outbound-due-date"
-                          type="date"
-                          min={draft.inputDate}
-                          value={draft.dueDate}
-                          onChange={(event) =>
-                            updateDraft("dueDate", event.target.value)
-                          }
-                          disabled={isPending}
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <fieldset className="space-y-4 rounded-xl border bg-muted/15 p-4 sm:p-5">
-                      <legend className="sr-only">Item yang dikirim</legend>
-                      <div className="flex items-center gap-3">
-                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-sm font-semibold text-primary">
-                          {draft.items.length}
-                        </span>
-                        <p className="font-semibold">Item yang dikirim</p>
-                      </div>
-                      <div className="space-y-4">
-                        {draft.items.map((item, index) => {
-                          return (
-                            <fieldset
-                              key={item.clientId}
-                              className="overflow-visible rounded-xl border bg-background shadow-sm"
-                            >
-                              <legend className="sr-only">Item {index + 1}</legend>
-                              <div className="flex items-center justify-between gap-3 rounded-t-xl border-b bg-muted/25 px-4 py-3">
-                                <div className="flex items-center gap-2">
-                                  <span className="flex size-7 items-center justify-center rounded-full bg-foreground text-xs font-semibold text-background">
-                                    {index + 1}
-                                  </span>
-                                  <p className="text-sm font-semibold">Detail Item</p>
-                                </div>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-muted-foreground hover:text-destructive"
-                                  onClick={() =>
-                                    setDraft((current) => ({
-                                      ...current,
-                                      items: current.items.filter(
-                                        (line) => line.clientId !== item.clientId,
-                                      ),
-                                    }))
-                                  }
-                                  disabled={isPending || draft.items.length === 1}
-                                  aria-label={`Hapus Item ${index + 1}`}
-                                >
-                                  <Trash2 aria-hidden="true" />
-                                </Button>
-                              </div>
-
-                              <div className="space-y-4 p-4">
-                                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_9rem] lg:items-start">
-                                  <CatalogOrManualItemPicker
-                                    idPrefix={`outbound-${item.clientId}`}
-                                    itemNumber={index + 1}
-                                    source={item.source}
-                                    catalogItemId={item.catalogItemId}
-                                    catalogQuery={item.catalogQuery}
-                                    partName={item.partName}
-                                    partNumber={item.partNumber}
-                                    catalogItems={catalogItems}
-                                    excludedCatalogItemIds={selectedCatalogItemIds}
-                                    disabled={isPending}
-                                    hideManual
-                                    catalogStockMessage="Stok berkurang saat Barang Keluar dicatat."
-                                    onSourceChange={(source) =>
-                                      switchItemSource(item.clientId, source)
-                                    }
-                                    onCatalogQueryChange={(query) =>
-                                      updateCatalogQuery(item.clientId, query)
-                                    }
-                                    onCatalogItemSelect={(catalogItem) =>
-                                      selectCatalogItem(item.clientId, catalogItem)
-                                    }
-                                    onPartNameChange={(value) =>
-                                      updateItem(item.clientId, "partName", value)
-                                    }
-                                    onPartNumberChange={(value) =>
-                                      updateItem(item.clientId, "partNumber", value)
-                                    }
-                                  />
-
-                                  <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                                    <Label htmlFor={`outbound-qty-${item.clientId}`}>
-                                      QTY Order
-                                    </Label>
-                                    <Input
-                                      id={`outbound-qty-${item.clientId}`}
-                                      className="h-11 bg-background font-mono text-base"
-                                      type="number"
-                                      inputMode="numeric"
-                                      min={1}
-                                      value={item.orderedQuantity}
-                                      onChange={(event) =>
-                                        updateItem(
-                                          item.clientId,
-                                          "orderedQuantity",
-                                          event.target.value,
-                                        )
-                                      }
-                                      disabled={isPending}
-                                      required
-                                    />
-                                  </div>
-
-                                </div>
-
-                                <div className="space-y-1.5">
-                                  <Label htmlFor={`outbound-note-${item.clientId}`}>
-                                    Keterangan Item{" "}
-                                    <span className="font-normal text-muted-foreground">
-                                      (opsional)
-                                    </span>
-                                  </Label>
-                                  <Textarea
-                                    id={`outbound-note-${item.clientId}`}
-                                    className="min-h-20 resize-y"
-                                    rows={2}
-                                    value={item.note}
-                                    maxLength={500}
-                                    onChange={(event) =>
-                                      updateItem(
-                                        item.clientId,
-                                        "note",
-                                        event.target.value,
-                                      )
-                                    }
-                                    placeholder="Keterangan khusus item pada Surat Jalan"
-                                    disabled={isPending}
-                                  />
-                                </div>
-                              </div>
-                            </fieldset>
-                          );
-                        })}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={addItem}
-                          disabled={isPending || draft.items.length >= 100}
-                          className="w-full border-dashed"
-                        >
-                          <Plus data-icon="inline-start" />
-                          Tambah Item
-                        </Button>
-                      </div>
-                    </fieldset>
-                    <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
-                      <Label htmlFor="outbound-customer-po">
-                        PO dari Customer{" "}
-                        <span className="font-normal text-muted-foreground">
-                          (opsional)
-                        </span>
-                      </Label>
-                      <p className="text-xs text-muted-foreground">
-                        Unggah PDF atau gambar PO yang diterima dari Customer.
-                        Bisa diunggah nanti pada Detail PO.
-                      </p>
-                      <input
-                        ref={customerPoInputRef}
-                        id="outbound-customer-po"
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,application/pdf"
-                        onChange={(event) =>
-                          selectCustomerPoFile(event.target.files?.[0] ?? null)
-                        }
-                        disabled={isPending}
-                        className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-accent"
-                      />
-                      {customerPoFile && (
-                        <p className="text-xs text-muted-foreground">
-                          Terpilih: {customerPoFile.name}
-                        </p>
-                      )}
-                      {customerPoError && (
-                        <p className="text-xs text-destructive">{customerPoError}</p>
-                      )}
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="outbound-notes">Catatan PO</Label>
-                      <Textarea
-                        id="outbound-notes"
-                        value={draft.notes}
-                        maxLength={500}
-                        onChange={(event) => updateDraft("notes", event.target.value)}
-                        disabled={isPending}
-                      />
-                    </div>
-                    <div className="flex justify-end">
-                      <Button
-                        type="submit"
-                        disabled={isPending || hasInvalidCreateItems}
-                      >
-                        {isPending && <Loader2 className="animate-spin" />}
-                        Simpan Monitoring PO
-                      </Button>
-                    </div>
-                  </form>
-                </DialogContent>
-              </Dialog>
+              <ExportExcelMonitoringPoDialog />
+              <CreateOutboundPurchaseOrderDialog
+                open={createOpen}
+                onOpenChange={setCreateOpen}
+                draft={draft}
+                setDraft={setDraft}
+                updateDraft={updateDraft}
+                submitPurchaseOrder={submitPurchaseOrder}
+                supplierNameSuggestions={supplierNameSuggestions}
+                catalogItems={catalogItems}
+                selectedCatalogItemIds={selectedCatalogItemIds}
+                isPending={isPending}
+                switchItemSource={switchItemSource}
+                updateCatalogQuery={updateCatalogQuery}
+                selectCatalogItem={selectCatalogItem}
+                updateItem={updateItem}
+                addItem={addItem}
+                hasInvalidCreateItems={hasInvalidCreateItems}
+                customerPoFile={customerPoFile}
+                customerPoError={customerPoError}
+                selectCustomerPoFile={selectCustomerPoFile}
+              />
             </div>
           </div>
         </>
@@ -1489,7 +1058,7 @@ export default function OutboundLogisticsManager({
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {purchaseOrders.map((purchaseOrder) => (
+                {purchaseOrders.map((purchaseOrder, index) => (
                   <tr
                     key={purchaseOrder.id}
                     className={
@@ -1510,38 +1079,13 @@ export default function OutboundLogisticsManager({
                         ) : null}
                       </div>
                       <p className="font-mono text-xs text-muted-foreground">
-                        {
-                          new Set(
-                            purchaseOrder.items.flatMap((item) =>
-                              item.receipts.map(
-                                (receipt) => receipt.receivingReference,
-                              ),
-                            ),
-                          ).size
-                        }{" "}
-                        batch Barang Keluar
+                        {outboundBatchReferences[index].length} batch Barang Keluar
                       </p>
                     </td>
                     <td className="px-4 py-3">
-                      {Array.from(
-                        new Set(
-                          purchaseOrder.items.flatMap((item) =>
-                            item.receipts.map(
-                              (receipt) => receipt.receivingReference,
-                            ),
-                          ),
-                        ),
-                      ).length > 0 ? (
+                      {outboundBatchReferences[index].length > 0 ? (
                         <div className="space-y-1">
-                          {Array.from(
-                            new Set(
-                              purchaseOrder.items.flatMap((item) =>
-                                item.receipts.map(
-                                  (receipt) => receipt.receivingReference,
-                                ),
-                              ),
-                            ),
-                          ).map((reference) => (
+                          {outboundBatchReferences[index].map((reference) => (
                             <p key={reference} className="font-mono text-xs">
                               {reference}
                             </p>
@@ -1662,7 +1206,7 @@ export default function OutboundLogisticsManager({
         </CardContent>
       </Card>
 
-      <Dialog
+      <EditOutboundPurchaseOrderDialog
         open={!!editingPurchaseOrderId && !!editDraft}
         onOpenChange={(open) => {
           if (!open && !isPending) {
@@ -1670,962 +1214,51 @@ export default function OutboundLogisticsManager({
             setEditDraft(null);
           }
         }}
-      >
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Edit PO</DialogTitle>
-            <DialogDescription>
-              Perbarui data Monitoring PO dan QTY Order. QTY tidak dapat lebih kecil
-              dari barang yang sudah keluar.
-            </DialogDescription>
-          </DialogHeader>
-          {editDraft && (
-            <form
-              className="space-y-5"
-              onSubmit={(event) => {
-                event.preventDefault();
-                submitEditedPurchaseOrder();
-              }}
-            >
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-outbound-po-number">PO No.</Label>
-                  <Input
-                    id="edit-outbound-po-number"
-                    value={editDraft.poNumber}
-                    onChange={(event) =>
-                      setEditDraft((current) => current && ({ ...current, poNumber: event.target.value }))
-                    }
-                    disabled={isPending}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-outbound-user">User / PT Tujuan</Label>
-                  <Input
-                    id="edit-outbound-user"
-                    value={editDraft.userName}
-                    onChange={(event) =>
-                      setEditDraft((current) => current && ({ ...current, userName: event.target.value }))
-                    }
-                    disabled={isPending}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-outbound-project">Job Site / Project</Label>
-                  <Input
-                    id="edit-outbound-project"
-                    value={editDraft.projectName}
-                    onChange={(event) =>
-                      setEditDraft((current) => current && ({ ...current, projectName: event.target.value }))
-                    }
-                    disabled={isPending}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-outbound-po-type">Mode Supply</Label>
-                  <Select
-                    value={editDraft.poType}
-                    onValueChange={(poType) =>
-                      setEditDraft((current) => current && ({ ...current, poType }))
-                    }
-                    disabled={isPending}
-                  >
-                    <SelectTrigger id="edit-outbound-po-type"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Normal">Manual · PO satu kali</SelectItem>
-                      <SelectItem value="Consignment">Konsinyasi · pasokan kontrak</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-outbound-input-date">Tanggal Pengiriman</Label>
-                  <Input
-                    id="edit-outbound-input-date"
-                    type="date"
-                    max={getCatalogInventoryLocalDateKey()}
-                    value={editDraft.inputDate}
-                    onChange={(event) =>
-                      setEditDraft((current) => current && ({ ...current, inputDate: event.target.value }))
-                    }
-                    disabled={isPending}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="edit-outbound-due-date">Batas Waktu</Label>
-                  <Input
-                    id="edit-outbound-due-date"
-                    type="date"
-                    min={editDraft.inputDate}
-                    value={editDraft.dueDate}
-                    onChange={(event) =>
-                      setEditDraft((current) => current && ({ ...current, dueDate: event.target.value }))
-                    }
-                    disabled={isPending}
-                    required
-                  />
-                </div>
-              </div>
+        editDraft={editDraft}
+        setEditDraft={setEditDraft}
+        setEditingPurchaseOrderId={setEditingPurchaseOrderId}
+        isPending={isPending}
+        submitEditedPurchaseOrder={submitEditedPurchaseOrder}
+        editingPurchaseOrder={editingPurchaseOrder}
+      />
 
-              <fieldset className="space-y-3 rounded-xl border bg-muted/15 p-4">
-                <legend className="sr-only">Item PO</legend>
-                <div>
-                  <h3 className="font-medium">Item PO</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Nama item tetap agar riwayat Surat Jalan tidak terputus.
-                  </p>
-                </div>
-                {editDraft.items.map((item, index) => {
-                  const savedItem = editingPurchaseOrder?.items.find(
-                    (candidate) => candidate.id === item.clientId,
-                  );
-                  const minimumQuantity = savedItem?.receivedQuantity ?? 0;
-                  return (
-                    <div key={item.clientId} className="grid gap-3 rounded-lg border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_9rem]">
-                      <div className="space-y-2">
-                        <div>
-                          <p className="font-medium">{item.partName}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.partNumber || "Tanpa Part Number"} · QTY Keluar {minimumQuantity}
-                          </p>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor={`edit-outbound-note-${item.clientId}`}>Keterangan Item</Label>
-                          <Input
-                            id={`edit-outbound-note-${item.clientId}`}
-                            value={item.note}
-                            maxLength={500}
-                            onChange={(event) =>
-                              setEditDraft((current) => current && ({
-                                ...current,
-                                items: current.items.map((line) =>
-                                  line.clientId === item.clientId
-                                    ? { ...line, note: event.target.value }
-                                    : line,
-                                ),
-                              }))
-                            }
-                            disabled={isPending}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label htmlFor={`edit-outbound-qty-${item.clientId}`}>QTY Order</Label>
-                        <Input
-                          id={`edit-outbound-qty-${item.clientId}`}
-                          type="number"
-                          inputMode="numeric"
-                          min={Math.max(1, minimumQuantity)}
-                          value={item.orderedQuantity}
-                          onChange={(event) =>
-                            setEditDraft((current) => current && ({
-                              ...current,
-                              items: current.items.map((line) =>
-                                line.clientId === item.clientId
-                                  ? { ...line, orderedQuantity: event.target.value }
-                                  : line,
-                              ),
-                            }))
-                          }
-                          disabled={isPending}
-                          required
-                        />
-                        <p className="text-xs text-muted-foreground">Minimal {Math.max(1, minimumQuantity)}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </fieldset>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="edit-outbound-notes">Catatan PO</Label>
-                <Textarea
-                  id="edit-outbound-notes"
-                  value={editDraft.notes}
-                  maxLength={500}
-                  onChange={(event) =>
-                    setEditDraft((current) => current && ({ ...current, notes: event.target.value }))
-                  }
-                  disabled={isPending}
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    setEditingPurchaseOrderId(null);
-                    setEditDraft(null);
-                  }}
-                  disabled={isPending}
-                >
-                  Batal
-                </Button>
-                <Button type="submit" disabled={isPending}>
-                  {isPending && <Loader2 className="animate-spin" />}
-                  Simpan Perubahan PO
-                </Button>
-              </div>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
+      <DetailOutboundPurchaseOrderDialog
         open={!!activePurchaseOrder}
         onOpenChange={(open) => !open && setActivePurchaseOrder(null)}
-      >
-        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>Detail Purchase Order Monitoring</DialogTitle>
-            <DialogDescription>
-              {activePurchaseOrder?.poNumber} · {activePurchaseOrder?.userName}
-            </DialogDescription>
-          </DialogHeader>
-
-          {activePurchaseOrder && activeProgress && (
-            <div className="space-y-5">
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openEditPurchaseOrder(activePurchaseOrder)}
-                  disabled={isPending}
-                >
-                  <Pencil data-icon="inline-start" /> Edit PO
-                </Button>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">User / PT</p>
-                  <p className="mt-1 font-medium">{activePurchaseOrder.userName}</p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">Project</p>
-                  <p className="mt-1 font-medium">{activePurchaseOrder.projectName}</p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <Badge
-                    className="mt-1"
-                    variant={
-                      activePurchaseOrder.status === "CLOSED"
-                        ? "secondary"
-                        : "outline"
-                    }
-                  >
-                    {getLogisticsStatusLabel(activePurchaseOrder.status)}
-                  </Badge>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">QTY Order</p>
-                  <p className="mt-1 font-mono text-lg font-semibold tabular-nums">
-                    {activeProgress.orderedQuantity}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">QTY Keluar</p>
-                  <p className="mt-1 font-mono text-lg font-semibold tabular-nums">
-                    {activeProgress.receivedQuantity}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-3">
-                  <p className="text-xs text-muted-foreground">QTY Sisa</p>
-                  <p className="mt-1 font-mono text-lg font-semibold tabular-nums">
-                    {activeProgress.remainingQuantity}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <h3 className="font-medium">Detail Part</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Progres pengiriman dihitung per item.
-                  </p>
-                </div>
-                <div className="divide-y rounded-lg border">
-                  {[...activePurchaseOrder.items]
-                    .sort((left, right) => left.position - right.position)
-                    .map((item) => {
-                      const progress = getLogisticsItemProgress(item);
-                      return (
-                        <div key={item.id} className="p-3 text-sm">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="font-medium">{item.partName}</p>
-                                {item.source === "MANUAL" && (
-                                  <Badge variant="secondary">Manual</Badge>
-                                )}
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                {item.partNumber || "Tanpa Part Number"}
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap gap-3 text-xs">
-                              <span>
-                                Order{" "}
-                                <strong className="font-mono">
-                                  {progress.orderedQuantity}
-                                </strong>
-                              </span>
-                              <span>
-                                Keluar{" "}
-                                <strong className="font-mono">
-                                  {progress.receivedQuantity}
-                                </strong>
-                              </span>
-                              <span>
-                                Sisa{" "}
-                                <strong className="font-mono">
-                                  {progress.remainingQuantity}
-                                </strong>
-                              </span>
-                              <Badge
-                                variant={
-                                  progress.status === "CLOSED"
-                                    ? "secondary"
-                                    : "outline"
-                                }
-                              >
-                                {getLogisticsStatusLabel(progress.status)}
-                              </Badge>
-                            </div>
-                          </div>
-                          {item.note && (
-                            <p className="mt-2 text-xs text-muted-foreground">
-                              <span className="font-medium text-foreground">
-                                Keterangan:
-                              </span>{" "}
-                              {item.note}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-
-              <div className="space-y-3 border-t pt-4">
-                <div>
-                  <h3 className="font-medium">PO dari Customer</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Unggah atau perbarui dokumen PO yang diterima dari Customer.
-                  </p>
-                </div>
-                <div className="space-y-2 rounded-lg border bg-muted/20 p-4">
-                  {activePurchaseOrder.hasCustomerPoImage && (
-                    <Button
-                      asChild
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                    >
-                      <a
-                        href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activePurchaseOrder.id)}/customer-po-image`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Eye data-icon="inline-start" /> Lihat PO Customer
-                      </a>
-                    </Button>
-                  )}
-                  <input
-                    ref={detailCustomerPoInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,application/pdf"
-                    className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-accent"
-                    onChange={(event) =>
-                      selectDetailCustomerPoFile(event.target.files?.[0] ?? null)
-                    }
-                    disabled={isUploadingDetailPo}
-                  />
-                  {detailCustomerPoFile && (
-                    <p className="text-xs text-muted-foreground">
-                      Terpilih: {detailCustomerPoFile.name}
-                    </p>
-                  )}
-                  {detailCustomerPoError && (
-                    <p className="text-xs text-destructive">
-                      {detailCustomerPoError}
-                    </p>
-                  )}
-                  <div className="flex justify-end">
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={submitDetailCustomerPoImage}
-                      disabled={isUploadingDetailPo || !detailCustomerPoFile}
-                    >
-                      {isUploadingDetailPo && <Loader2 className="animate-spin" />}
-                      Simpan PO Customer
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {activePurchaseOrder.status === "OPEN" && (
-                <form
-                  className="space-y-4 rounded-lg border bg-muted/20 p-4"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    submitDispatch();
-                  }}
-                >
-                  <div>
-                    <h3 className="font-medium">Catat Barang Keluar</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Pilih item, gudang sumber, dan quantity yang benar-benar
-                      dikirim hari ini.
-                    </p>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="outbound-dispatched-at">Tanggal Keluar</Label>
-                      <Input
-                        id="outbound-dispatched-at"
-                        type="date"
-                        min={activePurchaseOrder.inputDate.slice(0, 10)}
-                        max={getCatalogInventoryLocalDateKey()}
-                        value={dispatchDraft.dispatchedAt}
-                        onChange={(event) =>
-                          setDispatchDraft((current) => ({
-                            ...current,
-                            dispatchedAt: event.target.value,
-                          }))
-                        }
-                        disabled={isPending}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="outbound-delivery-note-number">
-                        Nomor Surat Jalan
-                      </Label>
-                      <div
-                        id="outbound-delivery-note-number"
-                        className="flex h-10 items-center rounded-md border bg-muted/40 px-3 text-sm text-muted-foreground"
-                      >
-                        Dibuat otomatis saat disimpan
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Format YYMMNN (tahun-bulan-urutan), unik per bulan.
-                      </p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="outbound-dispatch-pic">PIC</Label>
-                      <Select
-                        value={dispatchDraft.picId}
-                        onValueChange={(picId) =>
-                          setDispatchDraft((current) => ({ ...current, picId }))
-                        }
-                        disabled={isPending || pics.length === 0}
-                      >
-                        <SelectTrigger id="outbound-dispatch-pic">
-                          <SelectValue placeholder="Pilih PIC" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {pics.map((pic) => (
-                            <SelectItem key={pic.id} value={pic.id}>
-                              {pic.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <fieldset className="space-y-3">
-                    <legend className="text-sm font-medium">
-                      Item yang dikirim
-                    </legend>
-                    <p className="text-xs text-muted-foreground">
-                      Isi 0 atau kosongkan item yang belum dikirim.
-                    </p>
-                    {activePurchaseOrder.items.map((item) => {
-                      const progress = getLogisticsItemProgress(item);
-                      if (progress.remainingQuantity <= 0) return null;
-                      const itemDraft = dispatchItemDrafts[item.id] ?? {
-                        quantity: "",
-                        warehouse: "REAR" as const,
-                        note: "",
-                      };
-                      return (
-                        <div
-                          key={item.id}
-                          className="space-y-3 rounded-md border bg-background p-3"
-                        >
-                          <div>
-                            <p className="font-medium">{item.partName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {item.partNumber || "Tanpa Part Number"} · Sisa{" "}
-                              {progress.remainingQuantity}
-                            </p>
-                            {item.source === "MANUAL" && (
-                              <p className="text-xs text-muted-foreground">
-                                Item manual tidak mengubah stok Catalog / Item.
-                              </p>
-                            )}
-                          </div>
-                          <div className="grid gap-3 sm:grid-cols-2">
-                            <div className="space-y-1.5">
-                              <Label htmlFor={`dispatch-qty-${item.id}`}>
-                                QTY Keluar
-                              </Label>
-                              <Input
-                                id={`dispatch-qty-${item.id}`}
-                                type="number"
-                                inputMode="numeric"
-                                min={0}
-                                max={progress.remainingQuantity}
-                                value={itemDraft.quantity}
-                                onChange={(event) =>
-                                  updateDispatchItem(
-                                    item.id,
-                                    "quantity",
-                                    event.target.value,
-                                  )
-                                }
-                                disabled={isPending}
-                              />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor={`dispatch-warehouse-${item.id}`}>
-                                Gudang Sumber
-                              </Label>
-                              <Select
-                                value={itemDraft.warehouse}
-                                onValueChange={(warehouse) =>
-                                  updateDispatchItem(
-                                    item.id,
-                                    "warehouse",
-                                    warehouse as DispatchItemDraft["warehouse"],
-                                  )
-                                }
-                                disabled={isPending}
-                              >
-                                <SelectTrigger
-                                  id={`dispatch-warehouse-${item.id}`}
-                                >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="REAR">
-                                    Gudang Belakang
-                                  </SelectItem>
-                                  <SelectItem value="FRONT">
-                                    Gudang Depan
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor={`dispatch-note-${item.id}`}>
-                              Keterangan Item{" "}
-                              <span className="font-normal text-muted-foreground">
-                                (opsional)
-                              </span>
-                            </Label>
-                            <Input
-                              id={`dispatch-note-${item.id}`}
-                              value={itemDraft.note}
-                              maxLength={500}
-                              onChange={(event) =>
-                                updateDispatchItem(
-                                  item.id,
-                                  "note",
-                                  event.target.value,
-                                )
-                              }
-                              placeholder="Contoh: dikirim sebagian"
-                              disabled={isPending}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </fieldset>
-
-                  <div className="space-y-2">
-                    <Label>Foto Kondisi Barang</Label>
-                    <input
-                      ref={conditionCameraInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      capture="environment"
-                      className="sr-only"
-                      onChange={(event) =>
-                        selectDispatchImage(event.target.files?.[0] ?? null)
-                      }
-                    />
-                    <input
-                      ref={conditionGalleryInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="sr-only"
-                      onChange={(event) =>
-                        selectDispatchImage(event.target.files?.[0] ?? null)
-                      }
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          if (!conditionCameraInputRef.current) return;
-                          conditionCameraInputRef.current.value = "";
-                          conditionCameraInputRef.current.click();
-                        }}
-                        disabled={isPending}
-                      >
-                        <Camera data-icon="inline-start" />
-                        Ambil Foto
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          if (!conditionGalleryInputRef.current) return;
-                          conditionGalleryInputRef.current.value = "";
-                          conditionGalleryInputRef.current.click();
-                        }}
-                        disabled={isPending}
-                      >
-                        <ImagePlus data-icon="inline-start" />
-                        Pilih Galeri
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Format JPEG, PNG, atau WebP, maksimal 5 MB.
-                    </p>
-                    {dispatchImage && (
-                      <p className="text-xs font-medium">{dispatchImage.name}</p>
-                    )}
-                    {dispatchImageError && (
-                      <p className="text-xs text-destructive" role="alert">
-                        {dispatchImageError}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button
-                      type="submit"
-                      disabled={
-                        isPending ||
-                        !!dispatchImageError ||
-                        !dispatchDraft.picId ||
-                        !hasSelectedDispatchItems
-                      }
-                    >
-                      {isPending && <Loader2 className="animate-spin" />}
-                      Simpan Barang Keluar
-                    </Button>
-                  </div>
-                </form>
-              )}
-
-              <div className="space-y-3 border-t pt-4">
-                <div>
-                  <h3 className="font-medium">Riwayat Barang Keluar</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Setiap batch tampil satu kali bersama seluruh item yang dikirim.
-                  </p>
-                </div>
-                {activeOutboundBatches.length > 0 ? (
-                  <div className="space-y-3">
-                    {activeOutboundBatches.map((batch) => {
-                      const imageReceipt = batch.lines.find(
-                        ({ receipt }) => receipt.imageMimeType,
-                      )?.receipt;
-                      const isEditing =
-                        editingDispatchReference === batch.dispatchReference;
-                      return (
-                        <div
-                          key={batch.dispatchReference}
-                          className="rounded-lg border p-3 sm:p-4"
-                        >
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div>
-                              <p className="font-mono font-semibold">
-                                Surat Jalan {batch.dispatchReference}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {formatDate(batch.dispatchedAt)} · PIC{" "}
-                                {batch.pic.name}
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {imageReceipt && (
-                                <Button
-                                  asChild
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                >
-                                  <a
-                                    href={`/api/mektek/logistics/receipts/${encodeURIComponent(imageReceipt.id)}/image`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                  >
-                                    Foto Kondisi
-                                  </a>
-                                </Button>
-                              )}
-                              <Button
-                                asChild
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                              >
-                                <a
-                                  href={`/api/mektek/logistics/purchase-orders/${encodeURIComponent(activePurchaseOrder.id)}/delivery-note?reference=${encodeURIComponent(batch.dispatchReference)}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                >
-                                  <Printer data-icon="inline-start" />
-                                  PDF Surat Jalan
-                                </a>
-                              </Button>
-                              {!isEditing && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => startEditDispatch(batch)}
-                                >
-                                  <Pencil data-icon="inline-start" />
-                                  Edit Surat Jalan
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          {isEditing && (
-                            <div className="mt-3 grid gap-3 rounded-md border bg-muted/20 p-3 sm:grid-cols-2">
-                              <div className="space-y-1.5">
-                                <Label htmlFor={`revision-date-${batch.dispatchReference}`}>
-                                  Tanggal Keluar
-                                </Label>
-                                <Input
-                                  id={`revision-date-${batch.dispatchReference}`}
-                                  type="date"
-                                  min={activePurchaseOrder.inputDate.slice(0, 10)}
-                                  max={getCatalogInventoryLocalDateKey()}
-                                  value={dispatchRevisionHeader.dispatchedAt}
-                                  onChange={(event) =>
-                                    setDispatchRevisionHeader((current) => ({
-                                      ...current,
-                                      dispatchedAt: event.target.value,
-                                    }))
-                                  }
-                                  disabled={isSavingDispatchRevision}
-                                  required
-                                />
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label htmlFor={`revision-pic-${batch.dispatchReference}`}>
-                                  PIC
-                                </Label>
-                                <Select
-                                  value={dispatchRevisionHeader.picId}
-                                  onValueChange={(picId) =>
-                                    setDispatchRevisionHeader((current) => ({
-                                      ...current,
-                                      picId,
-                                    }))
-                                  }
-                                  disabled={isSavingDispatchRevision}
-                                >
-                                  <SelectTrigger id={`revision-pic-${batch.dispatchReference}`}>
-                                    <SelectValue placeholder="Pilih PIC" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {pics.map((pic) => (
-                                      <SelectItem key={pic.id} value={pic.id}>
-                                        {pic.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                            </div>
-                          )}
-                          <div className="mt-3 divide-y rounded-md border">
-                            {[...batch.lines]
-                              .sort(
-                                (left, right) =>
-                                  left.item.position - right.item.position,
-                              )
-                              .map(({ item, receipt }) => {
-                                const draft = dispatchRevisionDrafts[receipt.id] ?? {
-                                  quantity: String(receipt.quantity),
-                                  warehouse: receipt.warehouse,
-                                  note: receipt.note ?? "",
-                                };
-                                return (
-                                  <div key={receipt.id} className="p-3 text-sm">
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <p className="font-medium">
-                                          {item.partName}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                          {item.partNumber ||
-                                            "Tanpa Part Number"}{" "}
-                                          ·{" "}
-                                          {receipt.warehouse === "FRONT"
-                                            ? "Gudang Depan"
-                                            : "Gudang Belakang"}
-                                        </p>
-                                        {isEditing && (
-                                          <p className="text-xs text-muted-foreground">
-                                            QTY Order: {item.orderedQuantity} ·
-                                            QTY Keluar (termasuk batch lain):{" "}
-                                            {item.receivedQuantity}
-                                          </p>
-                                        )}
-                                      </div>
-                                      {!isEditing && (
-                                        <span className="font-mono font-semibold tabular-nums text-destructive">
-                                          -{receipt.quantity}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {isEditing && (
-                                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                                        <div className="space-y-1.5">
-                                          <Label htmlFor={`revision-qty-${receipt.id}`}>
-                                            QTY Keluar
-                                          </Label>
-                                          <Input
-                                            id={`revision-qty-${receipt.id}`}
-                                            type="number"
-                                            inputMode="numeric"
-                                            min={1}
-                                            max={item.orderedQuantity}
-                                            step={1}
-                                            value={draft.quantity}
-                                            onChange={(event) =>
-                                              updateDispatchRevisionDraft(
-                                                receipt.id,
-                                                "quantity",
-                                                event.target.value,
-                                              )
-                                            }
-                                            disabled={isSavingDispatchRevision}
-                                            aria-label={`QTY Surat Jalan untuk ${item.partName}`}
-                                          />
-                                        </div>
-                                        <div className="space-y-1.5">
-                                          <Label htmlFor={`revision-warehouse-${receipt.id}`}>
-                                            Gudang Sumber
-                                          </Label>
-                                          <Select
-                                            value={draft.warehouse}
-                                            onValueChange={(warehouse) =>
-                                              updateDispatchRevisionDraft(
-                                                receipt.id,
-                                                "warehouse",
-                                                warehouse as DispatchItemDraft["warehouse"],
-                                              )
-                                            }
-                                            disabled={isSavingDispatchRevision}
-                                          >
-                                            <SelectTrigger id={`revision-warehouse-${receipt.id}`}>
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              <SelectItem value="REAR">Gudang Belakang</SelectItem>
-                                              <SelectItem value="FRONT">Gudang Depan</SelectItem>
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
-                                        <div className="space-y-1.5 sm:col-span-2">
-                                          <Label htmlFor={`revision-note-${receipt.id}`}>
-                                            Keterangan Item <span className="font-normal text-muted-foreground">(opsional)</span>
-                                          </Label>
-                                          <Input
-                                            id={`revision-note-${receipt.id}`}
-                                            value={draft.note}
-                                            maxLength={500}
-                                            onChange={(event) =>
-                                              updateDispatchRevisionDraft(
-                                                receipt.id,
-                                                "note",
-                                                event.target.value,
-                                              )
-                                            }
-                                            placeholder="Contoh: dikirim sebagian"
-                                            disabled={isSavingDispatchRevision}
-                                          />
-                                        </div>
-                                      </div>
-                                    )}
-                                    {receipt.note && !isEditing && (
-                                      <p className="mt-2 text-xs text-muted-foreground">
-                                        <span className="font-medium text-foreground">
-                                          Keterangan:
-                                        </span>{" "}
-                                        {receipt.note}
-                                      </p>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                          </div>
-                          {isEditing && (
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => saveDispatchRevision(batch)}
-                                disabled={
-                                  isSavingDispatchRevision ||
-                                  !dispatchRevisionHeader.picId ||
-                                  !dispatchRevisionHeader.dispatchedAt
-                                }
-                              >
-                                {isSavingDispatchRevision ? (
-                                  <Loader2
-                                    data-icon="inline-start"
-                                    className="animate-spin"
-                                  />
-                                ) : (
-                                  <Save data-icon="inline-start" />
-                                )}
-                                Simpan Surat Jalan
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={cancelEditDispatch}
-                                disabled={isSavingDispatchRevision}
-                              >
-                                Batal
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                    Belum ada Barang Keluar untuk Monitoring PO ini.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+        activePurchaseOrder={activePurchaseOrder}
+        activeProgress={activeProgress}
+        activeOutboundBatches={activeOutboundBatches}
+        dispatchDraft={dispatchDraft}
+        setDispatchDraft={setDispatchDraft}
+        dispatchItemDrafts={dispatchItemDrafts}
+        dispatchImage={dispatchImage}
+        dispatchImageError={dispatchImageError}
+        editingDispatchReference={editingDispatchReference}
+        setEditingDispatchReference={setEditingDispatchReference}
+        dispatchRevisionDrafts={dispatchRevisionDrafts}
+        dispatchRevisionHeader={dispatchRevisionHeader}
+        setDispatchRevisionHeader={setDispatchRevisionHeader}
+        isSavingDispatchRevision={isSavingDispatchRevision}
+        isUploadingDetailPo={isUploadingDetailPo}
+        detailCustomerPoFile={detailCustomerPoFile}
+        detailCustomerPoError={detailCustomerPoError}
+        hasSelectedDispatchItems={hasSelectedDispatchItems}
+        isPending={isPending}
+        pics={pics}
+        openEditPurchaseOrder={openEditPurchaseOrder}
+        submitDispatch={submitDispatch}
+        updateDispatchItem={updateDispatchItem}
+        selectDispatchImage={selectDispatchImage}
+        selectDetailCustomerPoFile={selectDetailCustomerPoFile}
+        submitDetailCustomerPoImage={submitDetailCustomerPoImage}
+        updateDispatchRevisionDraft={updateDispatchRevisionDraft}
+        startEditDispatch={startEditDispatch}
+        saveDispatchRevision={saveDispatchRevision}
+        cancelEditDispatch={cancelEditDispatch}
+        conditionCameraInputRef={conditionCameraInputRef}
+        conditionGalleryInputRef={conditionGalleryInputRef}
+        detailCustomerPoInputRef={detailCustomerPoInputRef}
+      />
     </div>
   );
 }

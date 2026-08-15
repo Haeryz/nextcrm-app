@@ -1,3 +1,5 @@
+import "server-only";
+
 // File 1: /actions/mektek/invoice-pdf.ts
 
 import React from "react";

@@ -1238,6 +1238,11 @@ export const getMektekServiceOrders = async (input?: {
 
   const orders = await prismadb.crm_Accounts_Tasks.findMany({
     where,
+    omit: {
+      content: true,
+      likes: true,
+      v: true,
+    },
     include: {
       assigned_user: {
         select: {

@@ -9,8 +9,17 @@ describe("MekTek Logistics documents", () => {
   const outboundManager = readSource(
     "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
   );
+  const detailOutboundDialog = readSource(
+    "app/[locale]/(routes)/mektek/logistics/_components/DetailOutboundPurchaseOrderDialog.tsx",
+  );
   const receivingManager = readSource(
     "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
+  );
+  const receivingDetailDialog = readSource(
+    "app/[locale]/(routes)/mektek/receiving/_components/DetailPurchaseOrderDialog.tsx",
+  );
+  const receivingReceivingDialog = readSource(
+    "app/[locale]/(routes)/mektek/receiving/_components/DetailPurchaseOrderReceivingDialog.tsx",
   );
   const imageRoute = readSource(
     "app/api/mektek/logistics/receipts/[id]/image/route.ts",
@@ -36,9 +45,9 @@ describe("MekTek Logistics documents", () => {
     expect(schema).toMatch(/imageMimeType\s+String\?/);
     expect(imageRoute).toContain("validateLogisticsReceiptImageUpload");
     expect(imageRoute).toContain("requireMektekLogisticsApiSession");
-    expect(receivingManager).toContain("Foto Item");
+    expect(receivingReceivingDialog).toContain("Foto Item");
     expect(receivingManager).toContain("receiptItemPhotos");
-    expect(receivingManager).toContain('capture="environment"');
+    expect(receivingReceivingDialog).toContain('capture="environment"');
   });
 
   it("serves outbound delivery notes for every Monitoring PO status", () => {
@@ -46,7 +55,7 @@ describe("MekTek Logistics documents", () => {
     expect(deliveryNoteRoute).toContain('flow: "OUTBOUND"');
     expect(deliveryNoteRoute).not.toContain('status: "CLOSED"');
     expect(deliveryNoteRoute).toContain('"Content-Type": "application/pdf"');
-    expect(outboundManager).toContain("PDF Surat Jalan");
+    expect(detailOutboundDialog).toContain("PDF Surat Jalan");
   });
 
   it("uses the MekTek delivery-note layout", () => {
@@ -75,8 +84,8 @@ describe("MekTek Logistics documents", () => {
   });
 
   it("limits Receiving documents to its PO PDF and required signatures", () => {
-    expect(receivingManager).toContain("PDF PO");
-    expect(receivingManager).toContain("WhatsApp PO");
+    expect(receivingDetailDialog).toContain("PDF PO");
+    expect(receivingDetailDialog).toContain("WhatsApp PO");
     expect(receivingManager).not.toContain("WhatsApp DO");
     expect(purchaseOrderPdfRoute).toContain('flow: "RECEIVING"');
     expect(whatsappSource).toContain('documentType: "PO"');

@@ -115,6 +115,7 @@ export default async function SupplierDebtReportPage({
   const [persistedEntries, persistedTransactions] = await Promise.all([
     prismadb.mektekSupplierDebtEntry.findMany({
       orderBy: [{ sheetKey: "asc" }, { sourceRow: "asc" }],
+      take: 5000,
       select: {
         id: true,
         sheetKey: true,
@@ -145,6 +146,7 @@ export default async function SupplierDebtReportPage({
     }),
     prismadb.mektekSupplierDebtTransaction.findMany({
       orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }],
+      take: 5000,
       select: {
         id: true,
         sheetKey: true,

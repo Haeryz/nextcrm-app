@@ -9,10 +9,31 @@ describe("MekTek Purchase Order grouping", () => {
     ),
     "utf8",
   );
+  const editOutboundDialog = readFileSync(
+    resolve(
+      process.cwd(),
+      "app/[locale]/(routes)/mektek/logistics/_components/EditOutboundPurchaseOrderDialog.tsx",
+    ),
+    "utf8",
+  );
+  const detailOutboundDialog = readFileSync(
+    resolve(
+      process.cwd(),
+      "app/[locale]/(routes)/mektek/logistics/_components/DetailOutboundPurchaseOrderDialog.tsx",
+    ),
+    "utf8",
+  );
   const receivingManager = readFileSync(
     resolve(
       process.cwd(),
       "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
+    ),
+    "utf8",
+  );
+  const receivingReceivingDialog = readFileSync(
+    resolve(
+      process.cwd(),
+      "app/[locale]/(routes)/mektek/receiving/_components/DetailPurchaseOrderReceivingDialog.tsx",
     ),
     "utf8",
   );
@@ -24,14 +45,14 @@ describe("MekTek Purchase Order grouping", () => {
   it("renders one outbound history row for each Purchase Order", () => {
     expect(outboundManager).not.toContain("purchaseOrders.flatMap");
     expect(outboundManager).toContain("purchaseOrders.map((purchaseOrder)");
-    expect(outboundManager).toContain("Detail Purchase Order Monitoring");
+    expect(detailOutboundDialog).toContain("Detail Purchase Order Monitoring");
   });
 
   it("lets users reopen and edit an existing Monitoring PO", () => {
     expect(actionSource).toContain("updateMektekOutboundPurchaseOrder");
     expect(outboundManager).toContain("updateMektekOutboundPurchaseOrder");
-    expect(outboundManager).toContain("Edit PO");
-    expect(outboundManager).toContain("Simpan Perubahan PO");
+    expect(detailOutboundDialog).toContain("Edit PO");
+    expect(editOutboundDialog).toContain("Simpan Perubahan PO");
   });
 
   it("records one Receiving batch for multiple selected PO items", () => {
@@ -39,9 +60,9 @@ describe("MekTek Purchase Order grouping", () => {
     expect(receivingManager).toContain(
       "recordMektekReceivingPurchaseOrderReceipt",
     );
-    expect(receivingManager).toContain("Catat Barang Masuk");
-    expect(receivingManager).toContain("Simpan Penerimaan");
-    expect(receivingManager).toContain("Surat Jalan dari Supplier");
-    expect(receivingManager).toContain("Buat Surat Jalan Mektek");
+    expect(receivingReceivingDialog).toContain("Catat Barang Masuk");
+    expect(receivingReceivingDialog).toContain("Simpan Penerimaan");
+    expect(receivingReceivingDialog).toContain("Surat Jalan dari Supplier");
+    expect(receivingReceivingDialog).toContain("Buat Surat Jalan Mektek");
   });
 });

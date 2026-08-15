@@ -47,6 +47,17 @@ import {
   type FinanceDateRange,
   type FinancePeriodFilter as FinancePeriodFilterValue,
 } from "../_lib/period-filter";
+import {
+  Empty,
+  Header,
+  PeriodFilterBar,
+  PeriodTotalsCard,
+  ReportFilter,
+  RevenueClassificationWarning,
+  StickyFilterBar,
+  money,
+  type FinanceRevenueInspection,
+} from "./FinanceWorkspaceParts";
 
 export type FinanceSection =
   | "overview"
@@ -61,13 +72,6 @@ export type FinanceSection =
   | "contracts"
   | "audit";
 
-const money = (value: unknown) =>
-  Number(value ?? 0).toLocaleString("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  });
-
 const date = (value: Date | null | undefined) =>
   value
     ? new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(value)
@@ -75,13 +79,6 @@ const date = (value: Date | null | undefined) =>
 
 const dateInput = (value: Date | null | undefined) =>
   value ? value.toISOString().slice(0, 10) : "";
-
-type FinanceRevenueInspection = {
-  id: string;
-  invoiceNumber: string;
-  customer: string;
-  descriptions: string[];
-};
 
 async function getFinanceSynchronizedReport(dateRange?: FinanceDateRange | null) {
   const invoices = await prismadb.financeInvoice.findMany({
@@ -258,115 +255,6 @@ const entityLabel: Record<string, string> = {
   COUNTERPARTY: "Rekanan",
 };
 
-function Empty({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-      {children}
-    </div>
-  );
-}
-
-function Header({ title, description }: { title: string; description: string }) {
-  return (
-    <div>
-      <h2 className="text-xl font-semibold">{title}</h2>
-      <p className="text-sm text-muted-foreground">{description}</p>
-    </div>
-  );
-}
-
-function StickyFilterBar({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="md:sticky md:top-0 md:z-30 md:-mt-4 md:bg-background md:px-6 md:pb-3 md:pt-4 md:-mx-6 md:border-b">
-      {children}
-    </div>
-  );
-}
-
-/**
- * Sticky search + period filter bar shared by the four recap pages. The search
- * form carries the active period as hidden fields (and vice-versa) so changing
- * one filter never resets the other. The create button is passed in as a slot
- * so each page keeps its own `RecapCreateButton` instance.
- */
-function PeriodFilterBar({
-  query,
-  placeholder,
-  period,
-  action,
-  createButton,
-}: {
-  query: string;
-  placeholder: string;
-  period: FinancePeriodFilterValue;
-  action: string;
-  createButton?: React.ReactNode;
-}) {
-  return (
-    <StickyFilterBar>
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <ReportFilter
-            query={query}
-            placeholder={placeholder}
-            period={period}
-          />
-          {createButton}
-        </div>
-        <FinancePeriodFilter
-          query={query}
-          mode={period.mode}
-          month={period.month}
-          fromMonth={period.fromMonth}
-          toMonth={period.toMonth}
-          year={period.year}
-          action={action}
-        />
-      </div>
-    </StickyFilterBar>
-  );
-}
-
-/**
- * Period totals card — surfaces the revenue/ receivable totals for the active
- * period (single month, month range, or whole year), plus the period label.
- */
-function PeriodTotalsCard({
-  periodLabel,
-  totals,
-}: {
-  periodLabel: string;
-  totals: Array<{ label: string; value: string; emphasis?: boolean }>;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
-          <span>Ringkasan periode</span>
-          <Badge variant="secondary">{periodLabel}</Badge>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {totals.map((entry) => (
-            <div key={entry.label} className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">{entry.label}</p>
-              <p
-                className={cn(
-                  "mt-1 text-lg font-semibold tabular-nums",
-                  entry.emphasis && "text-primary",
-                )}
-              >
-                {entry.value}
-              </p>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 /**
  * Narrows the invoice query in the database so a search is not limited to the
  * page of most recent invoices we would otherwise load into memory.
@@ -405,111 +293,6 @@ const invoiceSearchWhere = (query: string): Prisma.FinanceInvoiceWhereInput => {
     })),
   };
 };
-
-function ReportFilter({
-  query,
-  placeholder = "Cari data rekap",
-  classification = "",
-  period,
-}: {
-  query: string;
-  placeholder?: string;
-  classification?: string;
-  period?: FinancePeriodFilterValue;
-}) {
-  return (
-    <form className="flex max-w-xl gap-2">
-      {classification ? (
-        <input type="hidden" name="classification" value={classification} />
-      ) : null}
-      {period && period.mode !== "all" ? (
-        <>
-          <input type="hidden" name="periodMode" value={period.mode} />
-          {period.mode === "month" && period.month ? (
-            <input type="hidden" name="month" value={period.month} />
-          ) : null}
-          {period.mode === "range" ? (
-            <>
-              {period.fromMonth ? (
-                <input type="hidden" name="fromMonth" value={period.fromMonth} />
-              ) : null}
-              {period.toMonth ? (
-                <input type="hidden" name="toMonth" value={period.toMonth} />
-              ) : null}
-            </>
-          ) : null}
-          {period.mode === "year" && period.year ? (
-            <input type="hidden" name="year" value={period.year} />
-          ) : null}
-        </>
-      ) : null}
-      <div className="relative flex-1">
-        <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input
-          name="q"
-          type="search"
-          defaultValue={query}
-          className="pl-9"
-          placeholder={placeholder}
-        />
-      </div>
-      <Button type="submit" variant="outline">
-        Filter
-      </Button>
-      {query ? (
-        <Button type="submit" name="q" value="" variant="ghost">
-          Reset
-        </Button>
-      ) : null}
-    </form>
-  );
-}
-
-function RevenueClassificationWarning({
-  count,
-  subtotal,
-  invoices,
-}: {
-  count: number;
-  subtotal: number;
-  invoices: FinanceRevenueInspection[];
-}) {
-  return (
-    <div className="flex gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-      <div className="min-w-0 flex-1">
-        <p className="font-medium">Ada jenis pengeluaran yang belum dapat dipisahkan</p>
-        <p>
-          {count.toLocaleString("id-ID")} invoice senilai {money(subtotal)} memuat
-          deskripsi campuran atau tidak jelas. Rinci menjadi baris jasa dan spare part
-          agar pendapatannya masuk otomatis tanpa salah hitung.
-        </p>
-        <div className="mt-3 space-y-2">
-          {invoices.slice(0, 5).map((invoice) => (
-            <Link
-              key={invoice.id}
-              href={`/mektek/finance/invoices?classification=unclassified&inspect=${encodeURIComponent(invoice.id)}`}
-              className="block rounded-md border border-amber-300 bg-white/70 px-3 py-2 transition hover:bg-white"
-            >
-              <span className="font-medium">
-                {invoice.invoiceNumber} · {invoice.customer}
-              </span>
-              <span className="mt-0.5 block truncate text-xs text-amber-800">
-                Deskripsi perlu diperiksa:{" "}
-                {invoice.descriptions.join("; ") || "Tidak ada deskripsi"}
-              </span>
-            </Link>
-          ))}
-        </div>
-        <Button asChild size="sm" variant="outline" className="mt-3 bg-white">
-          <Link href="/mektek/finance/invoices?classification=unclassified">
-            Periksa semua {count.toLocaleString("id-ID")} invoice
-          </Link>
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 export default async function FinanceWorkspace({
   section,

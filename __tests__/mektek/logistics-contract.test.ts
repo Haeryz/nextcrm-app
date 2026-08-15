@@ -10,6 +10,12 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
   const outboundManager = readSource(
     "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
   );
+  const createOutboundDialog = readSource(
+    "app/[locale]/(routes)/mektek/logistics/_components/CreateOutboundPurchaseOrderDialog.tsx",
+  );
+  const detailOutboundDialog = readSource(
+    "app/[locale]/(routes)/mektek/logistics/_components/DetailOutboundPurchaseOrderDialog.tsx",
+  );
   const outboundPage = readSource(
     "app/[locale]/(routes)/mektek/logistics/page.tsx",
   );
@@ -18,6 +24,12 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
   );
   const receivingManager = readSource(
     "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
+  );
+  const receivingReceivingDialog = readSource(
+    "app/[locale]/(routes)/mektek/receiving/_components/DetailPurchaseOrderReceivingDialog.tsx",
+  );
+  const receivingCreateDialog = readSource(
+    "app/[locale]/(routes)/mektek/receiving/_components/CreatePurchaseOrderDialog.tsx",
   );
   const receivingPage = readSource(
     "app/[locale]/(routes)/mektek/receiving/page.tsx",
@@ -38,7 +50,7 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
 
   it("names the standard Monitoring PO supply mode Manual", () => {
     expect(outboundManager).toContain('poType: "Manual"');
-    expect(outboundManager).toContain(
+    expect(createOutboundDialog).toContain(
       '<SelectItem value="Manual">Normal</SelectItem>',
     );
     expect(actionSource).toContain(
@@ -57,21 +69,21 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
   it("keeps Receiving notes and warehouses scoped to each item", () => {
     expect(actionSource).toContain("note: boundedText(item?.note, MAX_NOTE_LEN)");
     expect(actionSource).toContain("warehouse: item?.warehouse");
-    expect(receivingManager).toContain(
+    expect(receivingReceivingDialog).toContain(
       "id={`logistics-receipt-note-${item.id}`}",
     );
-    expect(receivingManager).toContain(
+    expect(receivingReceivingDialog).toContain(
       "Keterangan ini hanya berlaku untuk item ini.",
     );
-    expect(receivingManager).toContain("Surat Jalan dari Supplier");
+    expect(receivingReceivingDialog).toContain("Surat Jalan dari Supplier");
   });
 
   it("captures Machine and the destination warehouse for manual Receiving items", () => {
     expect(schema).toMatch(/machine\s+String\?/);
     expect(actionSource).toContain("requireManualMachine: true");
     expect(actionSource).toContain("requireManualWarehouse: true");
-    expect(receivingManager).toContain("receiving-machine-");
-    expect(receivingManager).toContain("Gudang Tujuan");
+    expect(receivingCreateDialog).toContain("receiving-machine-");
+    expect(receivingCreateDialog).toContain("Gudang Tujuan");
     expect(receivingManager).toContain("item.warehouse ?? \"REAR\"");
   });
 
@@ -120,8 +132,8 @@ describe("MekTek Logistics and Receiving implementation contract", () => {
     expect(actionSource).toContain("const reference = deliveryNoteNumber");
     expect(actionSource).toContain("recordMektekOutboundPurchaseOrderDispatch");
     expect(outboundManager).toContain("Nomor Surat Jalan");
-    expect(outboundManager).toContain("Simpan Barang Keluar");
-    expect(outboundManager).toContain("PDF Surat Jalan");
+    expect(detailOutboundDialog).toContain("Simpan Barang Keluar");
+    expect(detailOutboundDialog).toContain("PDF Surat Jalan");
   });
 
   it("grants Receiving PIC management to Logistics staff", () => {

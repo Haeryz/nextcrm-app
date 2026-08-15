@@ -622,6 +622,13 @@ async function listPurchaseOrders(
         orderBy: [{ status: "asc" }, { dueDate: "asc" }, { updatedAt: "desc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,
+        omit: {
+          deliveryNoteImageData: true,
+          supplierInvoiceImageData: true,
+          mektekDeliveryNoteImageData: true,
+          customerPoImageData: true,
+          signedPoImageData: true,
+        },
         include: {
           items: {
             orderBy: { position: "asc" },

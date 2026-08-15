@@ -18,12 +18,18 @@ describe("27 July revisions", () => {
   const receivingManager = readSource(
     "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
   );
+  const receivingCreateDialog = readSource(
+    "app/[locale]/(routes)/mektek/receiving/_components/CreatePurchaseOrderDialog.tsx",
+  );
   const logisticsActions = readSource("actions/mektek/logistics.ts");
   const itemPicker = readSource(
     "app/[locale]/(routes)/mektek/_components/CatalogOrManualItemPicker.tsx",
   );
   const outboundManager = readSource(
     "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
+  );
+  const createOutboundDialog = readSource(
+    "app/[locale]/(routes)/mektek/logistics/_components/CreateOutboundPurchaseOrderDialog.tsx",
   );
   const serviceOrderForm = readSource(
     "app/[locale]/(routes)/mektek/_components/NewServiceOrderForm.tsx",
@@ -86,13 +92,13 @@ describe("27 July revisions", () => {
       );
       expect(itemPicker).toContain("requireManualPartNumber");
       expect(itemPicker).toContain("Part Number{requireManualPartNumber ? \"\" : \" (opsional)\"}");
-      expect(receivingManager).toContain("requireManualPartNumber={false}");
+      expect(receivingCreateDialog).toContain("requireManualPartNumber={false}");
     });
   });
 
   describe("Monitoring PO create form", () => {
     it("restores an explicit Due Date field", () => {
-      expect(outboundManager).toContain('htmlFor="outbound-due-date"');
+      expect(createOutboundDialog).toContain('htmlFor="outbound-due-date"');
       expect(outboundManager).toContain("Due Date");
     });
   });

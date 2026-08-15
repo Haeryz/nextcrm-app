@@ -89,10 +89,7 @@ export default async function MektekLogisticsSpreadsheetPage({
   const paginationItems = getPaginationItems(result.data.page, result.data.totalPages);
   const purchaseOrders = result.data.items.map(
     ({
-      deliveryNoteImageData: _deliveryNoteImageData,
-      supplierInvoiceImageData: _supplierInvoiceImageData,
-      mektekDeliveryNoteImageData: _mektekDeliveryNoteImageData,
-      customerPoImageData,
+      customerPoImageMimeType,
       inputDate,
       dueDate,
       deliveryDate,
@@ -102,7 +99,7 @@ export default async function MektekLogisticsSpreadsheetPage({
       ...order
     }) => ({
       ...order,
-      hasCustomerPoImage: Boolean(customerPoImageData),
+      hasCustomerPoImage: Boolean(customerPoImageMimeType),
       inputDate: inputDate.toISOString(),
       dueDate: dueDate.toISOString(),
       deliveryDate: deliveryDate?.toISOString() ?? null,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import {
   createMektekVoucherCodeDictionary,
   deleteMektekVoucherCodeDictionary,
 } from "@/actions/mektek/voucher-code-dictionaries";
+import { Field } from "@/components/mektek/Field";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,19 +19,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 import type { VoucherCodeDictionary } from "./VoucherManager";
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      {children}
-    </div>
-  );
-}
 
 /**
  * Code-dictionary manager, extracted out of `VoucherManager` so it can be

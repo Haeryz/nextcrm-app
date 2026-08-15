@@ -10,6 +10,13 @@ describe("staff management action feedback", () => {
       ),
       "utf8",
     );
+    const listSectionSource = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        "app/[locale]/(routes)/mektek/staff/_components/StaffListSection.tsx",
+      ),
+      "utf8",
+    );
     const buttonSource = fs.readFileSync(
       path.join(
         process.cwd(),
@@ -28,8 +35,8 @@ describe("staff management action feedback", () => {
     expect(pageSource).toContain("StaffSubmitButton");
     expect(pageSource).toContain("StaffActionForm");
     expect(pageSource).toContain('pendingLabel="Membuat..."');
-    expect(pageSource).toContain('pendingLabel="Menyimpan..."');
-    expect(pageSource).toContain('pendingLabel="Menghapus..."');
+    expect(listSectionSource).toContain('pendingLabel="Menyimpan..."');
+    expect(listSectionSource).toContain('pendingLabel="Menghapus..."');
     expect(buttonSource).toContain("useFormStatus");
     expect(buttonSource).toContain("disabled={pending}");
     expect(formSource).toContain("toast.success");

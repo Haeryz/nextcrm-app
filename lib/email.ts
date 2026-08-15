@@ -5,7 +5,7 @@ import { areExternalApisDisabled } from "@/lib/external-apis";
 import resendHelper from "@/lib/resend";
 import { emailRecipientHash } from "@/lib/email/validation";
 import {
-  issueUnsubscribeToken,
+  issueUnsubscribeTokens,
   buildUnsubscribeUrl,
   type UnsubscribeChannel,
 } from "@/lib/email/unsubscribe";
@@ -203,15 +203,16 @@ export async function sendBulkEmails(args: {
   for (let i = 0; i < args.recipients.length; i += CHUNK) {
     const chunk = args.recipients.slice(i, i + CHUNK);
     // Pre-issue unsubscribe tokens for the chunk so sends can run in parallel.
-    const prepared = await Promise.all(
-      chunk.map(async (recipient) => {
-        const { token } = await issueUnsubscribeToken(
-          recipient.userId,
-          args.channel
-        );
-        return { recipient, token, unsubscribeUrl: buildUnsubscribeUrl(token, args.channel, args.locale) };
-      })
-    );
+    // Pre-issue unsubscribe tokens for the whole chunk in one transaction
+    // (deleteMany + createMany) instead of one $transaction per recipient.
+    const tokensByUser = await issueUnsubscribeTokens(chunk, args.channel);
+    const prepared = chunk.map((recipient) => {
+      const token = tokensByUser.get(recipient.userId);
+      if (!token) {
+        throw new Error(`Missing unsubscribe token for user ${recipient.userId}`);
+      }
+      return { recipient, token, unsubscribeUrl: buildUnsubscribeUrl(token, args.channel, args.locale) };
+    });
 
     const results = await Promise.allSettled(
       prepared.map(({ recipient, unsubscribeUrl }) =>

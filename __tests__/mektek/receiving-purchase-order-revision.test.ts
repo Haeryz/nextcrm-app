@@ -10,11 +10,14 @@ describe("Receiving Purchase Order revision", () => {
     const managerSource = read(
       "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
     );
+    const createDialogSource = read(
+      "app/[locale]/(routes)/mektek/receiving/_components/CreatePurchaseOrderDialog.tsx",
+    );
 
     expect(actionSource).toContain("unitPrice");
     expect(actionSource).toContain("agreedUnitPrice");
-    expect(managerSource).toContain("Harga Supplier");
-    expect(managerSource).toContain("Total Purchase Order");
+    expect(createDialogSource).toContain("Harga Supplier");
+    expect(createDialogSource).toContain("Total Purchase Order");
   });
 
   it("shows the spreadsheet workflow directly on the Receiving page", () => {
@@ -38,6 +41,9 @@ describe("Receiving Purchase Order revision", () => {
     const managerSource = read(
       "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
     );
+    const dialogSource = read(
+      "app/[locale]/(routes)/mektek/receiving/_components/DetailPurchaseOrderReceivingDialog.tsx",
+    );
     const deliveryNoteRoute = read(
       "app/api/mektek/logistics/purchase-orders/[id]/delivery-note/route.ts",
     );
@@ -45,8 +51,8 @@ describe("Receiving Purchase Order revision", () => {
       "app/api/mektek/logistics/purchase-orders/[id]/delivery-note-image/route.ts",
     );
 
-    expect(managerSource).toContain("Surat Jalan dari Supplier");
-    expect(managerSource).toContain("Buat Surat Jalan Mektek");
+    expect(dialogSource).toContain("Surat Jalan dari Supplier");
+    expect(dialogSource).toContain("Buat Surat Jalan Mektek");
     expect(deliveryNoteRoute).toContain('"RECEIVING"');
     expect(imageRoute).toContain("deliveryNoteImageData");
   });
@@ -54,6 +60,9 @@ describe("Receiving Purchase Order revision", () => {
   it("shows ordered Receiving document groups including supplier Faktur", () => {
     const managerSource = read(
       "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
+    );
+    const dialogSource = read(
+      "app/[locale]/(routes)/mektek/receiving/_components/DetailPurchaseOrderReceivingDialog.tsx",
     );
     const invoiceImageRoute = read(
       "app/api/mektek/logistics/purchase-orders/[id]/supplier-invoice-image/route.ts",
@@ -65,12 +74,12 @@ describe("Receiving Purchase Order revision", () => {
       "Buat Surat Jalan Mektek",
     ];
 
-    const documentSectionStart = managerSource.indexOf(
+    const documentSectionStart = dialogSource.indexOf(
       '<CardTitle className="text-base">Dokumen Receiving</CardTitle>',
     );
-    const documentSection = managerSource.slice(
+    const documentSection = dialogSource.slice(
       documentSectionStart,
-      managerSource.indexOf("</CardContent>", documentSectionStart),
+      dialogSource.indexOf("</CardContent>", documentSectionStart),
     );
     const positions = labels.map((label) => documentSection.indexOf(label));
     expect(positions.every((position) => position >= 0)).toBe(true);
@@ -86,6 +95,9 @@ describe("Receiving Purchase Order revision", () => {
     const managerSource = read(
       "app/[locale]/(routes)/mektek/receiving/_components/ReceivingManager.tsx",
     );
+    const dialogSource = read(
+      "app/[locale]/(routes)/mektek/receiving/_components/DetailPurchaseOrderReceivingDialog.tsx",
+    );
     const deliveryNoteRoute = read(
       "app/api/mektek/logistics/purchase-orders/[id]/delivery-note/route.ts",
     );
@@ -96,10 +108,10 @@ describe("Receiving Purchase Order revision", () => {
     expect(schemaSource).toMatch(
       /receivingDeliveryNoteSource\s+LogisticsReceivingDeliveryNoteSource\?/,
     );
-    expect(managerSource).toContain("Pilih sumber Surat Jalan");
-    expect(managerSource).toContain("Pilih dokumen ini");
-    expect(managerSource).toContain("Cetak Surat Jalan");
-    expect(managerSource).toContain(
+    expect(dialogSource).toContain("Pilih sumber Surat Jalan");
+    expect(dialogSource).toContain("Pilih dokumen ini");
+    expect(dialogSource).toContain("Cetak Surat Jalan");
+    expect(dialogSource).toContain(
       "Unggah Surat Jalan yang Sudah Ditandatangani",
     );
     expect(deliveryNoteRoute).toContain('receivingDeliveryNoteSource: "MEKTEK"');

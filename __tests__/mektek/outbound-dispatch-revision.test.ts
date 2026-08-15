@@ -10,6 +10,9 @@ describe("Monitoring PO Surat Jalan revision (Edit QTY)", () => {
   const outboundManager = readSource(
     "app/[locale]/(routes)/mektek/logistics/_components/OutboundLogisticsManager.tsx",
   );
+  const detailOutboundDialog = readSource(
+    "app/[locale]/(routes)/mektek/logistics/_components/DetailOutboundPurchaseOrderDialog.tsx",
+  );
 
   it("exposes a server action to revise the complete outbound Surat Jalan", () => {
     expect(actionSource).toContain(
@@ -92,13 +95,13 @@ describe("Monitoring PO Surat Jalan revision (Edit QTY)", () => {
   });
 
   it("surfaces the complete Edit Surat Jalan form in Riwayat Barang Keluar", () => {
-    expect(outboundManager).toContain("Edit Surat Jalan");
-    expect(outboundManager).not.toContain("Edit QTY Surat Jalan");
-    expect(outboundManager).toContain("Simpan Surat Jalan");
-    expect(outboundManager).toContain("Tanggal Keluar");
-    expect(outboundManager).toContain("PIC");
-    expect(outboundManager).toContain("Gudang Sumber");
-    expect(outboundManager).toContain("Keterangan Item");
+    expect(detailOutboundDialog).toContain("Edit Surat Jalan");
+    expect(detailOutboundDialog).not.toContain("Edit QTY Surat Jalan");
+    expect(detailOutboundDialog).toContain("Simpan Surat Jalan");
+    expect(detailOutboundDialog).toContain("Tanggal Keluar");
+    expect(detailOutboundDialog).toContain("PIC");
+    expect(detailOutboundDialog).toContain("Gudang Sumber");
+    expect(detailOutboundDialog).toContain("Keterangan Item");
     expect(outboundManager).toContain("startEditDispatch");
     expect(outboundManager).toContain("saveDispatchRevision");
     expect(outboundManager).toContain("updateDispatchRevisionDraft");

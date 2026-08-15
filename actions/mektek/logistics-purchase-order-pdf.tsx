@@ -1,3 +1,5 @@
+import "server-only";
+
 import React from "react";
 import { resolve } from "node:path";
 import {
