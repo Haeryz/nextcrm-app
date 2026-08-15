@@ -54,12 +54,15 @@ describe("operations page UI contracts", () => {
     const source = readSource(
       "app/[locale]/(routes)/mektek/technicians/page.tsx",
     );
+    const directorySource = readSource(
+      "app/[locale]/(routes)/mektek/technicians/_components/TechnicianDirectory.tsx",
+    );
 
     expect(source).toContain("Daftar Technician");
     expect(source).toContain("Technician aktif");
     expect(source).toContain("CardHeader");
     expect(source).toContain("Badge");
     expect(source).toContain("Label htmlFor=");
-    expect(source).toContain("Simpan perubahan");
+    expect(directorySource).toContain("Simpan perubahan");
   });
 });
