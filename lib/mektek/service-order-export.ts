@@ -35,6 +35,8 @@ export const MEKTEK_SERVICE_ORDER_EXPORT_HEADERS = [
   "Teknisi",
   "Status",
   "Keluhan",
+  "Jasa",
+  "Harga Jasa",
   "Sparepart",
   "QTY",
   "Part Number",
@@ -82,6 +84,12 @@ function text(value: unknown) {
 function stripServicePrefix(title: string) {
   const prefix = SERVICE_TITLE_PREFIXES.find((item) => title.startsWith(item));
   return prefix ? title.slice(prefix.length) : title;
+}
+
+// Item prices have their own export columns, so the "(Estimasi Rp ...)" markers
+// typed alongside every complaint line are dropped from the Keluhan text.
+function stripEstimate(value: string) {
+  return value.replace(/\(\s*Estimasi Rp .*?\)/gi, "").trim();
 }
 
 function formatExportDate(value: Date | string | null | undefined) {
@@ -197,7 +205,6 @@ export function buildMektekServiceOrderExportRows(
       order.assigned_user?.email ||
       text(technicianTag.name) ||
       text(technicianTag.email);
-    const hasServiceItems = normalizedItems.serviceItems.length > 0;
     const sparepartItems = normalizedItems.sparepartItems;
     const paymentStatusLabel =
       financials.payment.status === "paid"
@@ -220,9 +227,10 @@ export function buildMektekServiceOrderExportRows(
         typeof tags.vehicleMileageKm === "number" ? tags.vehicleMileageKm : "",
       Teknisi: technicianName,
       Status: order.taskStatus ?? "",
-      Keluhan: hasServiceItems
-        ? (text(order.content) || stripServicePrefix(order.title ?? ""))
-        : "-",
+      Keluhan:
+        stripEstimate(
+          text(order.content) || stripServicePrefix(order.title ?? ""),
+        ) || "-",
       ETA: formatExportDate(order.dueDateAt),
       "Tanggal Masuk": formatExportDate(order.createdAt),
       "Terakhir Update": formatExportDate(order.updatedAt),
@@ -256,25 +264,36 @@ export function buildMektekServiceOrderExportRows(
             unitPrice: item.unitPrice,
           }));
 
-    sparepartRows.forEach((sparepart, index) => {
-      if (index === 0) {
-        rows.push({
-          ...commonFields,
-          Sparepart: sparepart.name,
-          QTY: sparepart.quantity,
-          "Part Number": sparepart.partNumber,
-          "Harga Sparepart": sparepart.unitPrice,
-          ...financialFields,
-        });
-      } else {
-        rows.push({
-          Sparepart: sparepart.name,
-          QTY: sparepart.quantity,
-          "Part Number": sparepart.partNumber,
-          "Harga Sparepart": sparepart.unitPrice,
-        });
-      }
-    });
+    const serviceRows =
+      normalizedItems.serviceItems.length === 0
+        ? [{ name: "-", unitPrice: "-" as string | number }]
+        : normalizedItems.serviceItems.map((item) => ({
+            name: item.name,
+            unitPrice: item.unitPrice,
+          }));
+
+    for (let index = 0; index < Math.max(serviceRows.length, sparepartRows.length); index += 1) {
+      const service = index < serviceRows.length ? serviceRows[index] : null;
+      const sparepart = index < sparepartRows.length ? sparepartRows[index] : null;
+      const detail: Record<string, string | number> = {
+        ...(service
+          ? { Jasa: service.name, "Harga Jasa": service.unitPrice }
+          : {}),
+        ...(sparepart
+          ? {
+              Sparepart: sparepart.name,
+              QTY: sparepart.quantity,
+              "Part Number": sparepart.partNumber,
+              "Harga Sparepart": sparepart.unitPrice,
+            }
+          : {}),
+      };
+      rows.push(
+        index === 0
+          ? { ...commonFields, ...detail, ...financialFields }
+          : detail,
+      );
+    }
   }
 
   return rows;

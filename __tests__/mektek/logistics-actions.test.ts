@@ -38,6 +38,7 @@ const catalogItemCreate = jest.fn();
 const transaction = jest.fn();
 const supplyAllocationFindMany = jest.fn();
 const supplyAllocationCreate = jest.fn();
+const supplyAllocationCreateMany = jest.fn();
 const supplyAllocationUpdateMany = jest.fn();
 const financeApprovalCreate = jest.fn();
 const financeAuditEventCreate = jest.fn();
@@ -70,6 +71,7 @@ const transactionClient = {
   logisticsSupplyAllocation: {
     findMany: supplyAllocationFindMany,
     create: supplyAllocationCreate,
+    createMany: supplyAllocationCreateMany,
     updateMany: supplyAllocationUpdateMany,
   },
   financeApproval: { create: financeApprovalCreate },
@@ -144,14 +146,21 @@ describe("MekTek Logistics and Receiving actions", () => {
     receiptFindMany.mockResolvedValue([]);
     supplyAllocationFindMany.mockResolvedValue([]);
     supplyAllocationCreate.mockResolvedValue({ id: "allocation-1" });
+    supplyAllocationCreateMany.mockResolvedValue({ count: 1 });
     supplyAllocationUpdateMany.mockResolvedValue({ count: 0 });
     financeApprovalCreate.mockResolvedValue({ id: "approval-1" });
     financeAuditEventCreate.mockResolvedValue({ id: "audit-1" });
-    purchaseOrderCreate.mockResolvedValue({
+    purchaseOrderCreate.mockImplementation(async ({ data }) => ({
       id: "po-1",
       poNumber: "PO-001",
       deliveryNoteNumber: "SJ-PO-001",
-    });
+      items: ((data?.items?.create as unknown[] | undefined) ?? []).map(
+        (item, index) => ({
+          id: `po-item-${index + 1}`,
+          ...(item as Record<string, unknown>),
+        }),
+      ),
+    }));
     purchaseOrderItemCreate
       .mockResolvedValueOnce({ id: "po-item-1" })
       .mockResolvedValueOnce({ id: "po-item-2" });
@@ -247,15 +256,15 @@ describe("MekTek Logistics and Receiving actions", () => {
       }),
     );
     expect(createInput.data).not.toHaveProperty("deliveryNoteNumber");
-    expect(purchaseOrderItemCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(createInput.data.items.create[0]).toEqual(
+      expect.objectContaining({
         source: "CATALOG",
         catalogItemId: "catalog-1",
         warehouse: null,
         orderedQuantity: 3,
         agreedUnitPrice: null,
       }),
-    });
+    );
     expect(applyCatalogStockMovement).not.toHaveBeenCalled();
     expect(financeApprovalCreate).not.toHaveBeenCalled();
     expect(financeAuditEventCreate).not.toHaveBeenCalled();
@@ -400,8 +409,9 @@ describe("MekTek Logistics and Receiving actions", () => {
     });
 
     expect(result).toEqual(expect.objectContaining({ data: expect.any(Object) }));
-    expect(purchaseOrderItemCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    const manualCreateInput = purchaseOrderCreate.mock.calls[0][0];
+    expect(manualCreateInput.data.items.create[0]).toEqual(
+      expect.objectContaining({
         source: "MANUAL",
         catalogItemId: null,
         warehouse: null,
@@ -410,6 +420,15 @@ describe("MekTek Logistics and Receiving actions", () => {
         orderedQuantity: 2,
         agreedUnitPrice: null,
       }),
+    );
+    expect(supplyAllocationCreateMany).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          purchaseOrderItemId: "po-item-1",
+          quantity: 2,
+          status: "CLEAR",
+        }),
+      ],
     });
     expect(applyCatalogStockMovement).not.toHaveBeenCalled();
   });

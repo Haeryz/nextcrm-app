@@ -15,15 +15,15 @@ describe("Service invoice MekTek logo", () => {
     expect(assetSource).toContain(
       "public/images/logo-pt-mektek-tanjung-lestari.jpg",
     );
+    expect(assetSource).toContain("data:image/jpeg;base64");
     expect(invoiceSource).toContain(
-      'import { MEKTEK_PDF_LOGO_PATH } from "@/lib/mektek/pdf-assets"',
+      'import { getMektekPdfLogoSource } from "@/lib/mektek/pdf-assets"',
     );
     expect(deliveryNoteSource).toContain(
-      'import { MEKTEK_PDF_LOGO_PATH } from "@/lib/mektek/pdf-assets"',
+      'import { getMektekPdfLogoSource } from "@/lib/mektek/pdf-assets"',
     );
-    expect(invoiceSource).toMatch(
-      /React\.createElement\(Image,\s*\{\s*src: MEKTEK_PDF_LOGO_PATH/,
-    );
+    expect(invoiceSource).toContain("src: logoSource");
+    expect(deliveryNoteSource).toContain("src: logoSource");
     expect(invoiceSource).not.toContain(
       'React.createElement(Text, { style: S.logoText }, "MEKTEK")',
     );

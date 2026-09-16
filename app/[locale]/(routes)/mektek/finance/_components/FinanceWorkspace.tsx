@@ -277,6 +277,8 @@ const invoiceSearchWhere = (query: string): Prisma.FinanceInvoiceWhereInput => {
         },
         { taxInvoiceNumber: { contains: term, mode: "insensitive" as const } },
         { notes: { contains: term, mode: "insensitive" as const } },
+        { userName: { contains: term, mode: "insensitive" as const } },
+        { projectName: { contains: term, mode: "insensitive" as const } },
         {
           counterparty: {
             legalName: { contains: term, mode: "insensitive" as const },
@@ -508,6 +510,8 @@ export default async function FinanceWorkspace({
         taxRate: Number(row.taxRate) * 100,
         taxInvoiceNumber: row.taxInvoiceNumber ?? "",
         accountDestination: row.accountDestination ?? "",
+        userName: row.userName ?? "",
+        projectName: row.projectName ?? "",
         notes: row.notes ?? "",
         total: Number(row.netAmount),
         balance: Math.max(0, Number(row.netAmount) - paid),

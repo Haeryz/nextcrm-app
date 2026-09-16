@@ -95,6 +95,8 @@ export type FinanceInvoiceCrudRow = {
   taxRate: number;
   taxInvoiceNumber: string;
   accountDestination: string;
+  userName: string;
+  projectName: string;
   notes: string;
   total: number;
   balance: number;
@@ -152,6 +154,8 @@ const emptyForm: InvoiceFormState = {
   taxRate: "11",
   taxInvoiceNumber: "",
   accountDestination: "",
+  userName: "",
+  projectName: "",
   notes: "",
 };
 
@@ -192,6 +196,8 @@ const invoiceFormFromRow = (
   taxRate: String(row.taxRate),
   taxInvoiceNumber: row.taxInvoiceNumber,
   accountDestination: row.accountDestination,
+  userName: row.userName,
+  projectName: row.projectName,
   notes: row.notes,
 });
 
@@ -327,6 +333,8 @@ export default function InvoiceCrudManager({
           description: "",
           items: [{ ...emptyItem }],
           subtotal: "",
+          userName: "",
+          projectName: "",
         }));
         setPurchaseOrderPricingWarning("");
         return;
@@ -378,6 +386,8 @@ export default function InvoiceCrudManager({
         purchaseOrderNumber: purchaseOrderNumbers.join(", "),
         purchaseOrderDate:
           purchaseOrderDates.length === 1 ? purchaseOrderDates[0] : "",
+        userName: sources[0].customerName || current.userName,
+        projectName: sources[0].projectName || current.projectName,
         description,
         subtotal:
           subtotal != null && Number.isFinite(subtotal) ? String(subtotal) : "",
@@ -454,6 +464,8 @@ export default function InvoiceCrudManager({
           ? option.items.map((item) => ({ ...item }))
           : current.items,
         subtotal: option.subtotal || current.subtotal,
+        userName: option.userName || option.customerName || current.userName,
+        projectName: option.projectName || current.projectName,
       }));
       setPurchaseOrderPricingWarning(
         option.pricingComplete
@@ -694,7 +706,19 @@ export default function InvoiceCrudManager({
                         {row.taxInvoiceNumber ? `Faktur ${row.taxInvoiceNumber}` : "Tanpa nomor faktur pajak"}
                       </p>
                     </td>
-                    <td className="p-3">{row.customerName}</td>
+                    <td className="p-3">
+                      <p>{row.customerName}</p>
+                      {(row.userName || row.projectName) && (
+                        <p className="text-xs text-muted-foreground">
+                          {[
+                            row.userName ? `PT Tujuan: ${row.userName}` : "",
+                            row.projectName ? `Project: ${row.projectName}` : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      )}
+                    </td>
                     <td className="p-3">
                       <p>SJ: {row.deliveryNoteNumber || "—"}</p>
                       <p className="text-xs text-muted-foreground">PO: {row.purchaseOrderNumber || "—"}</p>
@@ -950,6 +974,25 @@ export default function InvoiceCrudManager({
             <div className="space-y-2">
               <Label htmlFor="purchaseOrderDate">Tanggal PO</Label>
               <Input id="purchaseOrderDate" type="date" value={fieldValue(form, "purchaseOrderDate")} onChange={(event) => set("purchaseOrderDate", event.target.value)} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="projectName">Job Site / Project</Label>
+              <Input
+                id="projectName"
+                value={fieldValue(form, "projectName")}
+                onChange={(event) => set("projectName", event.target.value)}
+                placeholder="Terisi otomatis dari Monitoring PO"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pt-tujuan">User / PT Tujuan</Label>
+              <Input
+                id="pt-tujuan"
+                value={fieldValue(form, "userName")}
+                onChange={(event) => set("userName", event.target.value)}
+                placeholder="Terisi otomatis dari Monitoring PO"
+              />
             </div>
 
             <div className="space-y-2 md:col-span-2">

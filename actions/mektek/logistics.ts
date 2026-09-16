@@ -1099,67 +1099,84 @@ export async function createMektekOutboundPurchaseOrder(
     return { error: "Tanggal pengiriman tidak boleh melebihi hari ini" };
   }
   try {
-    const purchaseOrder = await prismadb.$transaction(async (tx) => {
-      const hydrated = await hydratePurchaseOrderLines(tx, lines.data);
-      const counterparty = await ensureFinanceCounterparty(tx, header.data.userName, "CUSTOMER");
-      // A company that first appears on an outbound PO must also be visible in
-      // Payment Faktur and the rest of the Finance/Accounting menus.
-      await ensurePaymentFakturCustomer(tx, header.data.userName);
-      const itemKeys = hydrated.map((line) => normalizeFinanceKey(line.source === "CATALOG" ? line.catalogItem.id : line.partNumber || line.partName));
-      const purchaseOrder = await tx.logisticsPurchaseOrder.create({
-        data: {
-          ...header.data,
-          flow: "OUTBOUND",
-          financeCounterpartyId: counterparty.id,
-          supplyReviewStatus: "CLEAR",
-          deliveryDate: null,
-          createdBy: access.session.user.id,
-        },
-      });
-      const createdItems = [];
-      for (const line of hydrated) {
-        if (line.source === "MANUAL") {
-          const item = await tx.logisticsPurchaseOrderItem.create({
-            data: {
-              purchaseOrderId: purchaseOrder.id,
-              source: "MANUAL",
-              catalogItemId: null,
-              position: line.position,
-              partName: line.partName,
-              partNumber: line.partNumber,
-              machine: line.machine,
-              orderedQuantity: line.orderedQuantity,
-              agreedUnitPrice: null,
-              warehouse: null,
-              note: line.note,
-            },
-          });
-          createdItems.push(item);
-          await tx.logisticsSupplyAllocation.create({ data: { purchaseOrderItemId: item.id, counterpartyId: counterparty.id, projectKey: normalizeFinanceKey(header.data.projectName), itemKey: itemKeys[line.position - 1], poMode: header.data.poMode, supplyStartDate: header.data.supplyStartDate, supplyEndDate: header.data.supplyEndDate, quantity: line.orderedQuantity, status: "CLEAR" } });
-          continue;
-        }
-
-        const item = await tx.logisticsPurchaseOrderItem.create({
+    // Large POs (dozens of items) round-trip to a remote PostgreSQL instance;
+    // the default 5s interactive-transaction timeout aborts mid-save, so give
+    // the transaction explicit headroom.
+    const purchaseOrder = await prismadb.$transaction(
+      async (tx) => {
+        const hydrated = await hydratePurchaseOrderLines(tx, lines.data);
+        const counterparty = await ensureFinanceCounterparty(tx, header.data.userName, "CUSTOMER");
+        // A company that first appears on an outbound PO must also be visible in
+        // Payment Faktur and the rest of the Finance/Accounting menus.
+        await ensurePaymentFakturCustomer(tx, header.data.userName);
+        const itemKeys = hydrated.map((line) => normalizeFinanceKey(line.source === "CATALOG" ? line.catalogItem.id : line.partNumber || line.partName));
+        // Insert the header and every item row in one round trip, then push all
+        // supply allocations in a single batch — one $query per item makes a
+        // ~76 line PO take minutes against a remote database.
+        const purchaseOrder = await tx.logisticsPurchaseOrder.create({
           data: {
-            purchaseOrderId: purchaseOrder.id,
-            source: "CATALOG",
-            catalogItemId: line.catalogItem.id,
-            position: line.position,
-            partName: line.catalogItem.description,
-            partNumber:
-              line.catalogItem.partNumber || line.catalogItem.catalogPartNumber,
-            machine: line.catalogItem.machine,
-            orderedQuantity: line.orderedQuantity,
-            agreedUnitPrice: null,
-            warehouse: null,
-            note: line.note,
+            ...header.data,
+            flow: "OUTBOUND",
+            financeCounterpartyId: counterparty.id,
+            supplyReviewStatus: "CLEAR",
+            deliveryDate: null,
+            createdBy: access.session.user.id,
+            items: {
+              create: hydrated.map((line) =>
+                line.source === "MANUAL"
+                  ? {
+                      source: "MANUAL",
+                      catalogItemId: null,
+                      position: line.position,
+                      partName: line.partName,
+                      partNumber: line.partNumber,
+                      machine: line.machine,
+                      orderedQuantity: line.orderedQuantity,
+                      agreedUnitPrice: null,
+                      warehouse: null,
+                      note: line.note,
+                    }
+                  : {
+                      source: "CATALOG",
+                      catalogItemId: line.catalogItem.id,
+                      position: line.position,
+                      partName: line.catalogItem.description,
+                      partNumber:
+                        line.catalogItem.partNumber || line.catalogItem.catalogPartNumber,
+                      machine: line.catalogItem.machine,
+                      orderedQuantity: line.orderedQuantity,
+                      agreedUnitPrice: null,
+                      warehouse: null,
+                      note: line.note,
+                    },
+              ),
+            },
           },
+          include: { items: { orderBy: { position: "asc" } } },
         });
-        createdItems.push(item);
-        await tx.logisticsSupplyAllocation.create({ data: { purchaseOrderItemId: item.id, counterpartyId: counterparty.id, projectKey: normalizeFinanceKey(header.data.projectName), itemKey: itemKeys[line.position - 1], poMode: header.data.poMode, supplyStartDate: header.data.supplyStartDate, supplyEndDate: header.data.supplyEndDate, quantity: line.orderedQuantity, status: "CLEAR" } });
-      }
-      return { ...purchaseOrder, items: createdItems };
-    });
+        const createdItems = purchaseOrder.items;
+        const supplyAllocations = createdItems.flatMap((item) => {
+          const line = hydrated[item.position - 1];
+          if (!line || item.source !== line.source) {
+            throw new LogisticsActionError("Gagal menyiapkan alokasi stok PO");
+          }
+          return [{
+            purchaseOrderItemId: item.id,
+            counterpartyId: counterparty.id,
+            projectKey: normalizeFinanceKey(header.data.projectName),
+            itemKey: itemKeys[item.position - 1],
+            poMode: header.data.poMode,
+            supplyStartDate: header.data.supplyStartDate,
+            supplyEndDate: header.data.supplyEndDate,
+            quantity: line.orderedQuantity,
+            status: "CLEAR" as const,
+          }];
+        });
+        await tx.logisticsSupplyAllocation.createMany({ data: supplyAllocations });
+        return { ...purchaseOrder, items: createdItems };
+      },
+      { maxWait: 10000, timeout: 30000 },
+    );
     revalidatePath("/[locale]/(routes)/mektek/logistics", "page");
     return {
       data: { id: purchaseOrder.id, poNumber: purchaseOrder.poNumber },
@@ -1299,7 +1316,7 @@ export async function updateMektekOutboundPurchaseOrder(
         });
       }
       return { id: existing.id, poNumber: header.data.poNumber };
-    });
+    }, { maxWait: 10000, timeout: 30000 });
     revalidatePath("/[locale]/(routes)/mektek/logistics", "page");
     return { data: purchaseOrder };
   } catch (error) {

@@ -933,6 +933,10 @@ export type FinanceInvoiceEntryInput = {
   taxRate?: number | string;
   taxInvoiceNumber?: string;
   accountDestination?: string;
+  // Destination company ("User / PT Tujuan") and jobsite ("Job Site / Project")
+  // carried over from the Monitoring PO selected in the billing form.
+  userName?: string;
+  projectName?: string;
   notes?: string;
   sourceIds?: string[];
   items?: FinanceInvoiceItemInput[];
@@ -1068,6 +1072,8 @@ export async function searchFinancePurchaseOrders(input: {
         deliveryNoteDate: true,
         purchaseOrderDate: true,
         dueDate: true,
+        userName: true,
+        projectName: true,
         counterparty: { select: { legalName: true } },
       },
     });
@@ -1101,7 +1107,8 @@ export async function searchFinancePurchaseOrders(input: {
           poNumber,
           poMode: "MANUAL",
           customerName: first.counterparty?.legalName ?? "",
-          projectName: "",
+          userName: first.userName ?? "",
+          projectName: first.projectName ?? "",
           purchaseOrderDate: dateKey(first.purchaseOrderDate),
           dueDate: dateKey(first.dueDate),
           deliveryNoteNumber: deliveryNoteNumbers.join(", "),
@@ -1281,6 +1288,8 @@ function parseInvoiceEntry(input: FinanceInvoiceEntryInput) {
       items: items?.lines ?? null,
       taxInvoiceNumber: text(input.taxInvoiceNumber, 100) || null,
       accountDestination: accountDestination || null,
+      userName: text(input.userName, 180) || null,
+      projectName: text(input.projectName, 180) || null,
       notes: text(input.notes, 1000) || null,
       sourceIds:
         input.sourceIds === undefined
@@ -1396,6 +1405,8 @@ export async function createFinanceInvoiceEntry(input: FinanceInvoiceEntryInput)
           purchaseOrderNumber: value.purchaseOrderNumber,
           purchaseOrderDate: value.purchaseOrderDate,
           accountDestination: value.accountDestination,
+          userName: value.userName,
+          projectName: value.projectName,
           subtotal: value.subtotal,
           taxRate: value.taxRate,
           taxAmount: value.taxAmount,
@@ -1524,6 +1535,8 @@ export async function updateFinanceInvoiceEntry(
           purchaseOrderNumber: value.purchaseOrderNumber,
           purchaseOrderDate: value.purchaseOrderDate,
           accountDestination: value.accountDestination,
+          userName: value.userName,
+          projectName: value.projectName,
           subtotal: value.subtotal,
           taxRate: value.taxRate,
           taxAmount: value.taxAmount,

@@ -17,7 +17,10 @@ import {
   type MektekPaymentDetail,
   type MektekPaymentRecord,
 } from "@/lib/mektek/financials";
-import { MEKTEK_PDF_LOGO_PATH } from "@/lib/mektek/pdf-assets";
+import { getMektekPdfLogoSource } from "@/lib/mektek/pdf-assets";
+import {
+  FINANCE_DESTINATION_BANK_OPTIONS,
+} from "@/lib/mektek/finance-bank-accounts";
 
 export type MektekInvoiceItem = {
   kind?: "service" | "sparepart";
@@ -225,6 +228,8 @@ const S = StyleSheet.create({
   thText: { fontSize: 8.5, fontFamily: "Helvetica-Bold", textAlign: "center" },
   tdText: { fontSize: 8.5 },
   tdBold: { fontSize: 8.5, fontFamily: "Helvetica-Bold" },
+  // Item rows print bolder and larger than the rest of the document.
+  rowText: { fontFamily: "Helvetica-Bold", fontSize: 11 },
 
   // ── Totals section ─────────────────────────────────────────────────────────
   totalsSection: {
@@ -249,19 +254,31 @@ const S = StyleSheet.create({
     padding: 2,
     borderRightWidth: 0.5,
     borderRightColor: "#000",
-    fontSize: 8.5,
+    fontSize: 11,
     fontFamily: "Helvetica-Bold",
   },
-  totalsValue: { width: "45%", padding: 2, fontSize: 8.5, textAlign: "right" },
+  totalsValue: { width: "45%", padding: 2, fontSize: 11, textAlign: "right" },
   totalsBold: {
     width: "55%",
     padding: 2,
     borderRightWidth: 0.5,
     borderRightColor: "#000",
-    fontSize: 9,
+    fontSize: 11,
     fontFamily: "Helvetica-Bold",
   },
-  totalsBoldValue: { width: "45%", padding: 2, fontSize: 9, textAlign: "right", fontFamily: "Helvetica-Bold" },
+  totalsBoldValue: { width: "45%", padding: 2, fontSize: 11, textAlign: "right", fontFamily: "Helvetica-Bold" },
+
+  // ── Payment info (phone & bank accounts) ───────────────────────────────────
+  paymentBox: {
+    borderWidth: 1,
+    borderTopWidth: 1,
+    borderColor: "#000",
+    padding: 6,
+    marginTop: 8,
+  },
+  paymentRow: { flexDirection: "row", marginBottom: 2 },
+  paymentLabel: { width: 96 },
+  paymentValue: { flex: 1 },
 
   // ── Signatures ─────────────────────────────────────────────────────────────
   sigSection: {
@@ -337,10 +354,16 @@ const fmt = (n: number) =>
   "Rp " +
   new Intl.NumberFormat("id-ID", { minimumFractionDigits: 0 }).format(n);
 
+// Fallback printing-shop contact used when the order/company tags or env do not
+// provide one, matching the letterhead used on the delivery note PDF.
+const MEKTEK_COMPANY_CONTACT_FALLBACK =
+  "Telp./Fax. (0526) 2023535 - HP. 0813 5118 2765 / 0812 5011 516";
+
 // ─── Document builder ─────────────────────────────────────────────────────────
 
 function buildPdfDocument(data: MektekInvoiceData) {
   const { company, customer, service, items, financials, signatures } = data;
+  const logoSource = getMektekPdfLogoSource();
   const isBusiness = customer.type === "B2B";
   const hasServiceDetails = Boolean(
     service.unit ||
@@ -361,13 +384,13 @@ function buildPdfDocument(data: MektekInvoiceData) {
     return React.createElement(
       View,
       { key: `row-${index}`, style: rowStyle },
-      React.createElement(Text, { style: S.cNo }, String(index + 1)),
-      React.createElement(Text, { style: S.cPart }, item.sku || "-"),
-      React.createElement(Text, { style: { ...S.cName, textAlign: "left" } }, item.name),
-      React.createElement(Text, { style: S.cQty }, String(item.quantity)),
-      React.createElement(Text, { style: S.cUnit }, item.unit || "-"),
-      React.createElement(Text, { style: S.cPrice }, fmt(item.unitPrice)),
-      React.createElement(Text, { style: S.cTotal }, fmt(item.total))
+      React.createElement(Text, { style: { ...S.cNo, ...S.rowText } }, String(index + 1)),
+      React.createElement(Text, { style: { ...S.cPart, ...S.rowText } }, item.sku || "-"),
+      React.createElement(Text, { style: { ...S.cName, ...S.rowText, textAlign: "left" } }, item.name),
+      React.createElement(Text, { style: { ...S.cQty, ...S.rowText } }, String(item.quantity)),
+      React.createElement(Text, { style: { ...S.cUnit, ...S.rowText } }, item.unit || "-"),
+      React.createElement(Text, { style: { ...S.cPrice, ...S.rowText } }, fmt(item.unitPrice)),
+      React.createElement(Text, { style: { ...S.cTotal, ...S.rowText } }, fmt(item.total))
     );
   };
 
@@ -417,13 +440,16 @@ function buildPdfDocument(data: MektekInvoiceData) {
           View,
           { style: S.headerLeft },
           React.createElement(
-            View,
-            { style: S.logoBox },
-            React.createElement(Image, {
-              src: MEKTEK_PDF_LOGO_PATH,
-              style: S.logo,
-            }),
-          ),
+          View,
+          { style: S.logoBox },
+          logoSource
+            ? React.createElement(Image, {
+                key: "mektek-logo",
+                src: logoSource,
+                style: S.logo,
+              })
+            : null,
+        ),
           React.createElement(
             View,
             null,
@@ -628,6 +654,30 @@ function buildPdfDocument(data: MektekInvoiceData) {
         )
       ),
 
+      // ── Payment info (telephone & bank accounts) ─────────────────────────
+      React.createElement(
+        View,
+        { style: S.paymentBox },
+        React.createElement(
+          View,
+          { style: S.paymentRow },
+          React.createElement(Text, { style: S.paymentLabel }, "No. Telp :"),
+          React.createElement(
+            Text,
+            { style: S.paymentValue },
+            company.contact || MEKTEK_COMPANY_CONTACT_FALLBACK,
+          ),
+        ),
+        ...FINANCE_DESTINATION_BANK_OPTIONS.map((bank, index) =>
+          React.createElement(
+            View,
+            { key: `payment-bank-${index}`, style: S.paymentRow },
+            React.createElement(Text, { style: S.paymentLabel }, "Rekening :"),
+            React.createElement(Text, { style: S.paymentValue }, bank),
+          ),
+        ),
+      ),
+
       // ── Signatures ─────────────────────────────────────────────────────────
       React.createElement(
         View,
@@ -783,7 +833,8 @@ export function buildMektekInvoiceData(order: ServiceOrderSummary): MektekInvoic
       contact:
         typeof tags.companyContact === "string"
           ? tags.companyContact
-          : process.env.MEKTEK_COMPANY_CONTACT,
+          : process.env.MEKTEK_COMPANY_CONTACT ||
+            MEKTEK_COMPANY_CONTACT_FALLBACK,
     },
     customer: {
       name: String(tags.customerName ?? "Customer"),

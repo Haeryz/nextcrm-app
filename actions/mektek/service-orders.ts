@@ -1193,11 +1193,37 @@ export const searchMektekCatalogItems = async (query: string) => {
   }
 };
 
+function buildMektekServiceOrderSearchWhere(
+  query: string,
+): Prisma.crm_Accounts_TasksWhereInput {
+  const search = query.trim();
+  const tagsContains = (key: string) => ({
+    tags: { path: [key], string_contains: search },
+  });
+  return {
+    OR: [
+      { title: { contains: search, mode: "insensitive" } },
+      { content: { contains: search, mode: "insensitive" } },
+      { serviceNumber: { contains: search, mode: "insensitive" } },
+      { assigned_user: { name: { contains: search, mode: "insensitive" } } },
+      { assigned_user: { email: { contains: search, mode: "insensitive" } } },
+      tagsContains("customerName"),
+      tagsContains("customerNumber"),
+      tagsContains("phone"),
+      tagsContains("address"),
+      tagsContains("vehicle"),
+      tagsContains("vehiclePlateNumber"),
+      tagsContains("vehicleFleetNumber"),
+    ],
+  };
+}
+
 export const getMektekServiceOrders = async (input?: {
   page?: number;
   pageSize?: number;
   dateFrom?: string;
   dateTo?: string;
+  search?: string;
 }) => {
   // Every "use server" export is an independently invocable endpoint — authorize here,
   // not just in the calling page (which already pre-gates). Returns other customers'
@@ -1213,6 +1239,7 @@ export const getMektekServiceOrders = async (input?: {
   const createdAt: Prisma.DateTimeNullableFilter<"crm_Accounts_Tasks"> = {};
   const dateFrom = String(input?.dateFrom ?? "").trim();
   const dateTo = String(input?.dateTo ?? "").trim();
+  const search = String(input?.search ?? "").trim();
 
   if (dateFrom) {
     const parsedFrom = new Date(`${dateFrom}T00:00:00.000`);
@@ -1230,6 +1257,7 @@ export const getMektekServiceOrders = async (input?: {
   const where: Prisma.crm_Accounts_TasksWhereInput = {
     ...mektekOrderWhere(),
     ...(Object.keys(createdAt).length > 0 ? { createdAt } : {}),
+    ...(search ? { AND: [buildMektekServiceOrderSearchWhere(search)] } : {}),
   };
 
   const totalCount = await prismadb.crm_Accounts_Tasks.count({ where });

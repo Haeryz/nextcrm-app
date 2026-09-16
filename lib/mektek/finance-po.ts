@@ -40,6 +40,8 @@ export type FinancePurchaseOrderSuggestion = {
   poNumber: string;
   poMode: "MANUAL" | "CONSIGNMENT";
   customerName: string;
+  /** Destination company ("User / PT Tujuan") as stored on the Monitoring PO. */
+  userName: string;
   projectName: string;
   purchaseOrderDate: string;
   dueDate: string;
@@ -181,6 +183,7 @@ export function buildFinancePurchaseOrderSuggestion(
     poNumber: purchaseOrder.poNumber,
     poMode: purchaseOrder.poMode ?? "MANUAL",
     customerName: purchaseOrder.userName,
+    userName: purchaseOrder.userName,
     projectName: purchaseOrder.projectName,
     purchaseOrderDate: dateKey(purchaseOrder.inputDate),
     dueDate: dateKey(purchaseOrder.dueDate),

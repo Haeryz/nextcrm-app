@@ -69,6 +69,7 @@ describe("Finance invoice PO autocomplete", () => {
       poNumber: "123/PO/VII/2026",
       poMode: "MANUAL",
       customerName: "PT Pelanggan",
+      userName: "PT Pelanggan",
       projectName: "Site A",
       purchaseOrderDate: "2026-07-20",
       dueDate: "2026-08-20",

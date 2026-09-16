@@ -55,12 +55,14 @@ export default async function MektekHistoryPage({
   );
   const dateFrom = readSearchParam(resolvedSearchParams, "dateFrom");
   const dateTo = readSearchParam(resolvedSearchParams, "dateTo");
+  const search = readSearchParam(resolvedSearchParams, "search");
   const { orders, page, pageSize, totalCount, totalPages } =
     await getMektekServiceOrders({
       page: currentPage,
       pageSize: 8,
       dateFrom,
       dateTo,
+      search,
     });
 
   return (
@@ -82,8 +84,18 @@ export default async function MektekHistoryPage({
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <form
                 action={`/${locale}/mektek/history`}
-                className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_auto_auto] sm:items-end"
+                className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_1fr_1.2fr_auto_auto] sm:items-end"
               >
+                <label className="space-y-1 text-sm">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Cari pesanan
+                  </span>
+                  <Input
+                    name="search"
+                    defaultValue={search}
+                    placeholder="Pelanggan, plat, teknisi, no. service..."
+                  />
+                </label>
                 <label className="space-y-1 text-sm">
                   <span className="text-xs font-medium text-muted-foreground">
                     Tanggal mulai
@@ -99,7 +111,7 @@ export default async function MektekHistoryPage({
                 <Button type="submit" variant="outline" className="w-full sm:w-auto">
                   Filter
                 </Button>
-                {(dateFrom || dateTo) && (
+                {(dateFrom || dateTo || search) && (
                   <Button
                     asChild
                     type="button"
@@ -119,7 +131,7 @@ export default async function MektekHistoryPage({
 
         <MektekOrderList
           orders={orders}
-          emptyMessage="Tidak ada catatan servis dalam rentang tanggal ini."
+          emptyMessage="Tidak ada catatan servis yang cocok dengan filter ini."
           locale={locale}
         />
 
@@ -129,7 +141,7 @@ export default async function MektekHistoryPage({
           totalPages={totalPages}
           totalCount={totalCount}
           pageSize={pageSize}
-          query={{ dateFrom, dateTo }}
+          query={{ dateFrom, dateTo, search }}
         />
       </div>
     </Container>

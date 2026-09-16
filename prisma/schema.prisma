@@ -1027,6 +1027,10 @@ model FinanceInvoice {
   purchaseOrderNumber String?
   purchaseOrderDate   DateTime?            @db.Date
   accountDestination  String?
+  // Copied from the Monitoring PO (Buat Monitoring PO) at billing time so the
+  // accounting invoice carries the destination company / PT and its jobsite.
+  userName            String?
+  projectName         String?
   subtotal            Decimal              @default(0) @db.Decimal(18, 2)
   discountAmount      Decimal              @default(0) @db.Decimal(18, 2)
   taxRate             Decimal              @default(0) @db.Decimal(8, 6)

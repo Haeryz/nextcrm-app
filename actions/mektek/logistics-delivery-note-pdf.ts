@@ -10,7 +10,7 @@ import {
   View,
   renderToBuffer,
 } from "@react-pdf/renderer";
-import { MEKTEK_PDF_LOGO_PATH } from "@/lib/mektek/pdf-assets";
+import { getMektekPdfLogoSource } from "@/lib/mektek/pdf-assets";
 
 export type MektekDeliveryNoteData = {
   deliveryNoteNumber: string | null;
@@ -81,6 +81,9 @@ const styles = StyleSheet.create({
   lastRowCell: { borderBottomWidth: 0 },
   lastColumn: { borderRightWidth: 0 },
   headerText: { fontFamily: "Helvetica-Bold", fontSize: 8, textAlign: "center" },
+  // Item rows print bolder and larger than the rest of the document so the
+  // delivery contents stay legible in the field.
+  rowText: { fontFamily: "Helvetica-Bold", fontSize: 13 },
   numberCell: { width: "7%", alignItems: "center" },
   descriptionCell: { width: "39%" },
   partNumberCell: { width: "26%" },
@@ -108,6 +111,7 @@ const dateFormatter = new Intl.DateTimeFormat("id-ID", {
 });
 
 function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
+  const logoSource = getMektekPdfLogoSource();
   return React.createElement(
     Document,
     null,
@@ -120,10 +124,13 @@ function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
         React.createElement(
           View,
           { style: styles.identity },
-          React.createElement(Image, {
-            src: MEKTEK_PDF_LOGO_PATH,
-            style: styles.logo,
-          }),
+          logoSource
+            ? React.createElement(Image, {
+                key: "mektek-logo",
+                src: logoSource,
+                style: styles.logo,
+              })
+            : null,
           React.createElement(
             View,
             { style: styles.company },
@@ -184,11 +191,11 @@ function DeliveryNoteDocument({ data }: { data: MektekDeliveryNoteData }) {
           return React.createElement(
             View,
             { key: `${item.partNumber ?? item.description}-${index}`, style: styles.row },
-            React.createElement(View, { style: [...cellStyles, styles.numberCell] }, React.createElement(Text, null, String(index + 1))),
-            React.createElement(View, { style: [...cellStyles, styles.descriptionCell] }, React.createElement(Text, null, item.description)),
-            React.createElement(View, { style: [...cellStyles, styles.partNumberCell] }, React.createElement(Text, null, item.partNumber || "-")),
-            React.createElement(View, { style: [...cellStyles, styles.quantityCell] }, React.createElement(Text, null, String(item.quantity))),
-            React.createElement(View, { style: [...cellStyles, styles.noteCell, styles.lastColumn] }, React.createElement(Text, null, item.note || "")),
+            React.createElement(View, { style: [...cellStyles, styles.numberCell] }, React.createElement(Text, { style: styles.rowText }, String(index + 1))),
+            React.createElement(View, { style: [...cellStyles, styles.descriptionCell] }, React.createElement(Text, { style: styles.rowText }, item.description)),
+            React.createElement(View, { style: [...cellStyles, styles.partNumberCell] }, React.createElement(Text, { style: styles.rowText }, item.partNumber || "-")),
+            React.createElement(View, { style: [...cellStyles, styles.quantityCell] }, React.createElement(Text, { style: styles.rowText }, String(item.quantity))),
+            React.createElement(View, { style: [...cellStyles, styles.noteCell, styles.lastColumn] }, React.createElement(Text, { style: styles.rowText }, item.note || "")),
           );
         }),
       ),
