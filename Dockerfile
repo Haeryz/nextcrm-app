@@ -82,8 +82,28 @@ RUN pnpm exec next build
 # ============================================================
 # Stage 4 — migrator: one-shot Prisma migrations
 # ============================================================
-FROM deps AS migrator
+# Only `prisma migrate deploy` and scripts/bootstrap-admin.ts run here, so it
+# gets its own minimal install (versions pinned to the app's lockfile) instead
+# of the full app dependency tree + C++ toolchain (~2.6 GB → a few hundred MB).
+FROM deps AS migrator-deps
 
+WORKDIR /migrator
+COPY docker/migrator/package-from-root.cjs ./
+RUN node package-from-root.cjs /app > package.json \
+    && npm install --omit=dev --no-audit --no-fund \
+    && npm cache clean --force
+
+FROM node:22-slim AS migrator
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=migrator-deps /migrator/package.json ./package.json
+COPY --from=migrator-deps /migrator/node_modules ./node_modules
 COPY prisma ./prisma
 COPY prisma.config.ts ./prisma.config.ts
 COPY scripts/bootstrap-admin.ts ./scripts/bootstrap-admin.ts

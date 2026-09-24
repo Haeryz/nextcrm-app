@@ -129,10 +129,24 @@ if [ "$changed" != true ]; then
     exit 0
 fi
 
+# Keep only images that containers actually use. Before the pull it makes room
+# (a full disk made every pull fail with "no space left on device"); after the
+# deploy it removes the images the new ones just replaced. A prune failure
+# must never block a deploy.
+PRUNE_SCRIPT="${PRUNE_SCRIPT:-$SCRIPT_DIR/vps-prune-images.sh}"
+prune_images() {
+    POLL_LOG="$POLL_LOG" bash "$PRUNE_SCRIPT" || log "prune image gagal; lanjut."
+}
+
+prune_images
+
 log "memulai pembaruan via $DEPLOY_SCRIPT --pull --non-interactive."
 if bash "$DEPLOY_SCRIPT" --pull --non-interactive >> "$POLL_LOG" 2>&1; then
     log "pembaruan selesai."
+    prune_images
 else
     log "pembaruan GAGAL (exit $?). Lihat log di atas dan $POLL_LOG."
+    # Drop layers left by a failed pull so the next attempt has space.
+    prune_images
     exit 0
 fi

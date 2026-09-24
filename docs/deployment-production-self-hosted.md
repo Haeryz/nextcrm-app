@@ -528,6 +528,20 @@ LOCK_FILE=/tmp/nextcrm-poll.lock \
 Poller otomatis no-op bila `APP_IMAGE` belum menunjuk registry (mis. masih mode
 build lokal), sehingga amunisi aktif hanya setelah konfigurasi CI/CD selesai.
 
+> ⚠️ Pakai **salah satu** saja: cron *atau* systemd timer. Di VPS produksi yang
+> aktif adalah `nextcrm-poll.timer`; baris cron contoh di atas harus diganti
+> path aslinya (`/root/nextcrm-app/...`) atau dihapus.
+
+**Pembersihan image otomatis.** Sebelum pull dan setelah setiap deploy (berhasil
+maupun gagal), poller menjalankan `scripts/vps-prune-images.sh`, yang menghapus
+semua image yang tidak dipakai container mana pun, sisa layer dari pull yang
+gagal, dan build cache. Volume (database + backup) dan container tidak
+disentuh. Tanpa ini image lama menumpuk: pada September 2026 disk 30 GB penuh
+99% dan setiap pull gagal dengan `no space left on device`, sehingga produksi
+diam-diam tertahan di build lama selama berminggu-minggu. Bisa juga dijalankan
+manual kapan saja: `./scripts/vps-prune-images.sh`. Rollback tetap bisa karena
+image lama tersedia di DockerHub dengan tag `sha-*` (lihat 14.5).
+
 ### 14.5 Rollback dengan image CI
 
 Karena tiap commit juga diberi tag `:sha-<12>`, rollback ke commit tertentu:
