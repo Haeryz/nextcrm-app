@@ -7,7 +7,9 @@ import { authOptions } from "@/lib/auth";
 import type { StaffCapability } from "@/lib/auth/staff-capabilities";
 import { hasMektekCapability } from "@/lib/mektek/permissions";
 import {
+  isSnapshotSupplierSheet,
   parseSupplierDebtEntryInput,
+  supplierSheetKey,
   type SupplierDebtEntryInput,
 } from "@/lib/mektek/supplier-debt-entry";
 import {
@@ -53,11 +55,36 @@ async function ensureFinanceManager() {
   return { current } as const;
 }
 
+/**
+ * A supplier sheet is either imported from the 2026 workbook snapshot or was
+ * created in the app (a posted supplier bill writes a debt row keyed by the
+ * supplier's legal name). Checking the snapshot alone rejected every supplier
+ * added after the import with "Baris hutang pemasok tidak valid".
+ */
+async function supplierSheetExists(
+  client: Pick<Prisma.TransactionClient, "mektekSupplierDebtEntry">,
+  sheetKey: string,
+) {
+  if (isSnapshotSupplierSheet(sheetKey)) return true;
+  const row = await client.mektekSupplierDebtEntry.findFirst({
+    where: { sheetKey },
+    select: { id: true },
+  });
+  return Boolean(row);
+}
+
+const isSerializationConflict = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError &&
+  error.code === "P2034";
+
 export async function createSupplierDebtEntry(input: SupplierDebtEntryInput) {
   const access = await ensureFinanceManager();
   if ("error" in access) return access;
   const parsed = parseSupplierDebtEntryInput(input);
   if ("error" in parsed) return parsed;
+  if (!(await supplierSheetExists(prismadb, parsed.data.sheetKey))) {
+    return { error: "Sheet pemasok tidak valid" };
+  }
 
   try {
     const row = await prismadb.$transaction(async (transaction) => {
@@ -99,6 +126,9 @@ export async function updateSupplierDebtEntry(
     return { error: "Baris hutang pemasok tidak valid" };
   }
   if ("error" in parsed) return parsed;
+  if (!(await supplierSheetExists(prismadb, parsed.data.sheetKey))) {
+    return { error: "Sheet pemasok tidak valid" };
+  }
 
   try {
     const row = id
@@ -191,14 +221,12 @@ export async function recordSupplierDebtTransaction(
 ) {
   const access = await ensureFinanceManager();
   if ("error" in access) return access;
-  const sheetKey = text(locator.sheetKey, 120);
+  // Keep the key byte-for-byte: it must equal the stored sheetKey. Whether the
+  // row exists (snapshot or DB) is decided by debtState below.
+  const sheetKey = supplierSheetKey(locator.sheetKey);
   const sourceRow = Number(locator.sourceRow);
   const parsed = parseSupplierDebtTransactionInput(input);
-  if (
-    !report.detailSheets.some((sheet) => sheet.sheetKey === sheetKey) ||
-    !Number.isInteger(sourceRow) ||
-    sourceRow <= 0
-  ) {
+  if (!sheetKey || !Number.isInteger(sourceRow) || sourceRow <= 0) {
     return { error: "Baris hutang pemasok tidak valid" };
   }
   if ("error" in parsed) return { error: parsed.error };
@@ -287,6 +315,10 @@ export async function recordSupplierDebtTransaction(
             : await depositBalance(transaction, sheetKey),
         transactionIds,
       };
+    }, {
+      // Two payments saved at once must not both pass the remaining-balance /
+      // deposit checks and overpay the row.
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
     revalidatePath(supplierDebtPath, "page");
     return { data: result };
@@ -301,6 +333,11 @@ export async function recordSupplierDebtTransaction(
       if (error.message === "DEPOSIT_INSUFFICIENT") {
         return { error: "Saldo deposit pemasok tidak mencukupi" };
       }
+    }
+    if (isSerializationConflict(error)) {
+      return {
+        error: "Ada transaksi lain untuk pemasok ini yang sedang disimpan. Coba lagi.",
+      };
     }
     console.error("[RECORD_SUPPLIER_DEBT_TRANSACTION]", error);
     return { error: "Transaksi pemasok gagal disimpan" };

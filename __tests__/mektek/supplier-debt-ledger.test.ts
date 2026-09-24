@@ -1,5 +1,6 @@
 import {
   applySupplierDebtPayments,
+  isCalendarDate,
   parseSupplierDebtTransactionInput,
   supplierDebtDueState,
   supplierDepositBalance,
@@ -107,5 +108,43 @@ describe("supplier debt transaction ledger", () => {
     ).toEqual({
       error: "Nominal yang digunakan tidak boleh melebihi deposit",
     });
+  });
+});
+
+describe("Supplier debt transaction dates", () => {
+  const now = new Date("2026-09-24T03:00:00.000Z");
+  const payment = (transactionDate: string) =>
+    parseSupplierDebtTransactionInput(
+      {
+        kind: "PAYMENT",
+        amount: 1_400_000,
+        paymentSource: "CASH",
+        transactionDate,
+        reference: "NO SP",
+      },
+      now,
+    );
+
+  it("accepts a payment recorded days after it was made", () => {
+    expect(payment("2026-09-21")).toHaveProperty("data.transactionDate", "2026-09-21");
+  });
+
+  it("accepts today and tomorrow (timezone slack) but not later", () => {
+    expect(payment("2026-09-24")).toHaveProperty("data");
+    expect(payment("2026-09-25")).toHaveProperty("data");
+    expect(payment("2026-09-26")).toEqual({
+      error: "Tanggal transaksi tidak boleh di masa depan",
+    });
+  });
+
+  it("rejects impossible calendar dates instead of rolling them over", () => {
+    expect(isCalendarDate("2026-02-31")).toBe(false);
+    expect(isCalendarDate("2024-02-29")).toBe(true);
+    expect(payment("2026-02-31")).toEqual({ error: "Tanggal transaksi tidak valid" });
+    expect(payment("21/09/2026")).toEqual({ error: "Tanggal transaksi tidak valid" });
+  });
+
+  it("rejects implausibly old dates", () => {
+    expect(payment("1926-09-21")).toEqual({ error: "Tanggal transaksi terlalu lama" });
   });
 });

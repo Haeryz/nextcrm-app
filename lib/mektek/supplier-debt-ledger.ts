@@ -34,8 +34,28 @@ const money = (value: unknown) => {
   return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0;
 };
 
+/**
+ * True only for a real calendar day in YYYY-MM-DD form. `new Date()` silently
+ * rolls impossible dates over (2026-02-31 → 2026-03-03), so round-trip it.
+ */
+export function isCalendarDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return (
+    !Number.isNaN(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value
+  );
+}
+
+// Payments are often recorded days after they happened, so any past date is
+// fine; a date beyond tomorrow (UTC slack for WIB) is almost always a typo.
+const MIN_TRANSACTION_DATE = "2000-01-01";
+const latestTransactionDate = (now: Date) =>
+  new Date(now.getTime() + DAY_IN_MS).toISOString().slice(0, 10);
+
 export function parseSupplierDebtTransactionInput(
   input: SupplierDebtTransactionInput,
+  now: Date = new Date(),
 ) {
   const kind = input.kind;
   const amount = money(input.amount);
@@ -53,8 +73,16 @@ export function parseSupplierDebtTransactionInput(
   if (amount <= 0) {
     return { error: "Nominal harus lebih dari 0" } as const;
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(transactionDate)) {
+  if (!isCalendarDate(transactionDate)) {
     return { error: "Tanggal transaksi tidak valid" } as const;
+  }
+  if (transactionDate < MIN_TRANSACTION_DATE) {
+    return { error: "Tanggal transaksi terlalu lama" } as const;
+  }
+  if (transactionDate > latestTransactionDate(now)) {
+    return {
+      error: "Tanggal transaksi tidak boleh di masa depan",
+    } as const;
   }
   if (kind === "DEPOSIT" && appliedAmount > amount) {
     return {

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import snapshot from "@/lib/mektek/generated/supplier-debt-report-2026.snapshot.json";
+import { isCalendarDate } from "@/lib/mektek/supplier-debt-ledger";
 import type { SupplierDebtWorkbookReport } from "@/lib/mektek/supplier-debt-report";
 
 export type SupplierDebtEntryInput = {
@@ -30,7 +31,23 @@ export type SupplierDebtEntryInput = {
 };
 
 const report = snapshot.report as SupplierDebtWorkbookReport;
-const validSheetKeys = new Set(report.detailSheets.map((sheet) => sheet.sheetKey));
+const snapshotSheetKeys = new Set(
+  report.detailSheets.map((sheet) => sheet.sheetKey),
+);
+
+/** Sheet that came from the imported 2026 workbook. */
+export const isSnapshotSupplierSheet = (sheetKey: string) =>
+  snapshotSheetKeys.has(sheetKey);
+
+/**
+ * Supplier sheets are keyed by the exact supplier name. Sheets created in the
+ * app (posted supplier bills) use the raw counterparty legal name, so the key
+ * must NOT be whitespace-collapsed or it stops matching its stored rows.
+ */
+export const supplierSheetKey = (value: unknown) => {
+  const key = String(value ?? "");
+  return key.trim() && key.length <= 500 ? key : null;
+};
 
 const text = (value: unknown, max = 250) =>
   String(value ?? "").replace(/\s+/g, " ").trim().slice(0, max);
@@ -38,9 +55,8 @@ const text = (value: unknown, max = 250) =>
 const dateOnly = (value: unknown) => {
   const raw = text(value, 10);
   if (!raw) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return undefined;
-  const parsed = new Date(`${raw}T00:00:00.000Z`);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  if (!isCalendarDate(raw)) return undefined;
+  return new Date(`${raw}T00:00:00.000Z`);
 };
 
 const decimal = (value: unknown, scale = 2) => {
@@ -52,7 +68,7 @@ const decimal = (value: unknown, scale = 2) => {
 };
 
 export function parseSupplierDebtEntryInput(input: SupplierDebtEntryInput) {
-  const sheetKey = text(input.sheetKey, 120);
+  const sheetKey = supplierSheetKey(input.sheetKey);
   const description = text(input.description, 2000);
   const purchaseOrderNumber = text(input.purchaseOrderNumber, 200);
   const deliveryNoteNumber = text(input.deliveryNoteNumber, 200);
@@ -73,7 +89,9 @@ export function parseSupplierDebtEntryInput(input: SupplierDebtEntryInput) {
     pbkDate: dateOnly(input.pbkDate),
   };
 
-  if (!validSheetKeys.has(sheetKey)) {
+  // Whether the sheet actually exists (snapshot or DB) is checked by the
+  // server action, which has database access.
+  if (!sheetKey) {
     return { error: "Sheet pemasok tidak valid" } as const;
   }
   if (!purchaseOrderNumber && !deliveryNoteNumber && !invoiceNumber) {

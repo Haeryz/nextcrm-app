@@ -233,4 +233,34 @@ describe("Supplier debt manual row input", () => {
       error: "Nominal bayar tidak boleh melebihi grand total",
     });
   });
+
+  it("accepts supplier sheets created in the app, keeping the key exact", () => {
+    const result = parseSupplierDebtEntryInput({
+      sheetKey: "PT  NUANSA  SEJAHTERA ",
+      invoiceNumber: "SH/INV/2608/00500",
+      description: "AC DAIKIN 2 PK",
+      quantity: 9,
+      unitPrice: 7_161_261,
+    });
+    expect(result).toHaveProperty("data.sheetKey", "PT  NUANSA  SEJAHTERA ");
+  });
+
+  it("rejects a blank sheet and impossible dates", () => {
+    const base = {
+      invoiceNumber: "INV-1",
+      description: "Kompresor",
+      quantity: 1,
+      unitPrice: 100_000,
+    };
+    expect(parseSupplierDebtEntryInput({ ...base, sheetKey: "   " })).toEqual({
+      error: "Sheet pemasok tidak valid",
+    });
+    expect(
+      parseSupplierDebtEntryInput({
+        ...base,
+        sheetKey: "ALVINDO",
+        dueDate: "2026-02-31",
+      }),
+    ).toEqual({ error: "Format tanggal tidak valid" });
+  });
 });
