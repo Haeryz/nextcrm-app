@@ -159,6 +159,14 @@ RUN chmod +x ./entrypoint.sh
 
 USER nextjs
 
+# Build identity, surfaced by GET /api/health so anyone can confirm which
+# commit production is running. Declared last so a new SHA doesn't bust the
+# cache for the layers above.
+ARG APP_COMMIT_SHA="unknown"
+ARG APP_BUILD_TIME="unknown"
+ENV APP_COMMIT_SHA="${APP_COMMIT_SHA}"
+ENV APP_BUILD_TIME="${APP_BUILD_TIME}"
+
 EXPOSE 3000
 
 HEALTHCHECK \

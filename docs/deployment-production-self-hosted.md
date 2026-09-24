@@ -570,6 +570,12 @@ Health publik:
 curl -fsS https://mektek.id/api/health
 ```
 
+Field `version` menunjukkan build yang sedang berjalan: `commit` (SHA git
+lengkap dari workflow Build and publish), `builtAt`, dan `startedAt` (waktu
+container terakhir start). Deploy dianggap sudah live bila `version.commit`
+sama dengan commit terakhir di `main`. Build lokal/non-CI menampilkan
+`"unknown"`.
+
 Log aplikasi:
 
 ```bash
