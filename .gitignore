@@ -113,3 +113,7 @@ lib/mektek/generated/supplier-debt-report-2026.snapshot.json
 /.tmp
 FA_AC_NOTA.md
 tutorial_awikwok.md
+# Local scratch / generated docs & screenshots
+/tmp/
+/output/
+/public/tmp/
