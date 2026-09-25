@@ -1082,6 +1082,37 @@ export async function updateMektekReceivingPurchaseOrder(
   }
 }
 
+// Remark per item PO Receiving (kolom REMARK di PDF PO). Hanya mengubah catatan
+// item, jadi tidak menyentuh qty, harga, stok, maupun sumber tagihan Finance.
+export async function updateMektekReceivingPurchaseOrderItemRemark(input: {
+  purchaseOrderItemId: string;
+  remark: string;
+}) {
+  const access = await ensureLogisticsManager("RECEIVING");
+  if ("error" in access) return { error: access.error };
+  const purchaseOrderItemId = compactText(input?.purchaseOrderItemId);
+  if (!purchaseOrderItemId) return { error: "Item Purchase Order tidak ditemukan" };
+  const remark = boundedText(input?.remark, MAX_NOTE_LEN) || null;
+
+  try {
+    const updated = await prismadb.logisticsPurchaseOrderItem.updateMany({
+      where: {
+        id: purchaseOrderItemId,
+        purchaseOrder: { flow: "RECEIVING" },
+      },
+      data: { note: remark },
+    });
+    if (updated.count === 0) {
+      return { error: "Item Purchase Order tidak ditemukan" };
+    }
+    revalidatePath("/[locale]/(routes)/mektek/receiving", "page");
+    return { data: { id: purchaseOrderItemId, remark } };
+  } catch (error) {
+    console.log("[UPDATE_MEKTEK_RECEIVING_PO_ITEM_REMARK]", error);
+    return { error: "Gagal menyimpan remark item" };
+  }
+}
+
 export async function createMektekOutboundPurchaseOrder(
   input: MektekOutboundPurchaseOrderInput,
 ) {

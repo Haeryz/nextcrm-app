@@ -28,6 +28,7 @@ import {
   createMektekReceivingPurchaseOrder,
   recordMektekReceivingPurchaseOrderReceipt,
   updateMektekReceivingPurchaseOrder,
+  updateMektekReceivingPurchaseOrderItemRemark,
   type MektekReceivingPurchaseOrderInput,
   type MektekReceivingPurchaseOrderItemInput,
 } from "@/actions/mektek/logistics";
@@ -961,6 +962,30 @@ export default function ReceivingManager({
     });
   };
 
+  const saveItemRemark = async (itemId: string, remark: string) => {
+    const result = await updateMektekReceivingPurchaseOrderItemRemark({
+      purchaseOrderItemId: itemId,
+      remark,
+    });
+    if ("error" in result) {
+      toast.error(result.error);
+      return false;
+    }
+    toast.success("Remark item berhasil disimpan");
+    setActiveReceiptPurchaseOrder((current) =>
+      current
+        ? {
+            ...current,
+            items: current.items.map((item) =>
+              item.id === itemId ? { ...item, note: result.data.remark } : item,
+            ),
+          }
+        : current,
+    );
+    router.refresh();
+    return true;
+  };
+
   const selectSupplierInvoice = (file: File | null) => {
     if (!activeReceiptPurchaseOrder || !file) return;
     startUploadingSupplierInvoice(async () => {
@@ -1719,6 +1744,7 @@ export default function ReceivingManager({
         isUploadingSignedPo={isUploadingSignedPo}
         isUploadingSupplierInvoice={isUploadingSupplierInvoice}
         openEditPurchaseOrder={openEditPurchaseOrder}
+        saveItemRemark={saveItemRemark}
         submitReceipt={submitReceipt}
         updateReceiptItem={updateReceiptItem}
         selectExistingSupplierDeliveryNote={selectExistingSupplierDeliveryNote}

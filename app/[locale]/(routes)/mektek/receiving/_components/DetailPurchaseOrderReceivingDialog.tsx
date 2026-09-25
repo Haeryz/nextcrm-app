@@ -1,6 +1,6 @@
-import type { Dispatch, RefObject, SetStateAction } from "react";
+import { useState, useTransition, type Dispatch, type RefObject, type SetStateAction } from "react";
 import Link from "next/link";
-import { Eye, Loader2, Pencil, Printer, ReceiptText, RefreshCw, Upload } from "lucide-react";
+import { Eye, Loader2, MessageSquareText, Pencil, Printer, ReceiptText, RefreshCw, Upload } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -86,6 +87,7 @@ export type DetailPurchaseOrderReceivingDialogProps = {
   isUploadingSignedPo: boolean;
   isUploadingSupplierInvoice: boolean;
   openEditPurchaseOrder: (purchaseOrder: LogisticsPurchaseOrderRow) => void;
+  saveItemRemark: (itemId: string, remark: string) => Promise<boolean>;
   submitReceipt: () => void;
   updateReceiptItem: <K extends keyof LogisticsReceiptItemDraft>(
     itemId: string,
@@ -127,6 +129,7 @@ export function DetailPurchaseOrderReceivingDialog({
   isUploadingSignedPo,
   isUploadingSupplierInvoice,
   openEditPurchaseOrder,
+  saveItemRemark,
   submitReceipt,
   updateReceiptItem,
   selectExistingSupplierDeliveryNote,
@@ -142,7 +145,21 @@ export function DetailPurchaseOrderReceivingDialog({
   signedPoInputRef,
 }: DetailPurchaseOrderReceivingDialogProps) {
   const today = getCatalogInventoryLocalDateKey();
+  const [remarkTarget, setRemarkTarget] = useState<{
+    id: string;
+    partName: string;
+    remark: string;
+  } | null>(null);
+  const [isSavingRemark, startSavingRemark] = useTransition();
+  const submitRemark = () => {
+    if (!remarkTarget) return;
+    startSavingRemark(async () => {
+      const saved = await saveItemRemark(remarkTarget.id, remarkTarget.remark);
+      if (saved) setRemarkTarget(null);
+    });
+  };
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-4xl">
           <DialogHeader>
@@ -692,6 +709,26 @@ export function DetailPurchaseOrderReceivingDialog({
                               )}
                             </strong>
                           </span>
+                          <span className="max-w-[220px] break-words">
+                            Remark{" "}
+                            <strong>{item.note?.trim() || "-"}</strong>
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs"
+                            onClick={() =>
+                              setRemarkTarget({
+                                id: item.id,
+                                partName: item.partName,
+                                remark: item.note ?? "",
+                              })
+                            }
+                          >
+                            <MessageSquareText data-icon="inline-start" />
+                            {item.note?.trim() ? "Ubah Remark" : "Isi Remark"}
+                          </Button>
                           <Badge
                             variant={
                               progress.status === "CLOSED" ? "secondary" : "outline"
@@ -1053,5 +1090,54 @@ export function DetailPurchaseOrderReceivingDialog({
           )}
         </DialogContent>
       </Dialog>
+    <Dialog
+      open={!!remarkTarget}
+      onOpenChange={(next) => !next && !isSavingRemark && setRemarkTarget(null)}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Remark Item</DialogTitle>
+          <DialogDescription>
+            {remarkTarget?.partName} · tampil di kolom REMARK pada PDF PO
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="logistics-item-remark">Remark</Label>
+          <Textarea
+            id="logistics-item-remark"
+            value={remarkTarget?.remark ?? ""}
+            onChange={(event) =>
+              setRemarkTarget((current) =>
+                current ? { ...current, remark: event.target.value } : current,
+              )
+            }
+            placeholder="Contoh: Indent 2 minggu / warna hitam"
+            maxLength={500}
+            rows={3}
+            disabled={isSavingRemark}
+          />
+          <p className="text-xs text-muted-foreground">
+            Kosongkan lalu simpan untuk menghapus remark.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setRemarkTarget(null)}
+            disabled={isSavingRemark}
+          >
+            Batal
+          </Button>
+          <Button type="button" onClick={submitRemark} disabled={isSavingRemark}>
+            {isSavingRemark && (
+              <Loader2 data-icon="inline-start" className="animate-spin" />
+            )}
+            Simpan Remark
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
