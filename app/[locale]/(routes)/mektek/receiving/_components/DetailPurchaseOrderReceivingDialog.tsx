@@ -671,7 +671,7 @@ export function DetailPurchaseOrderReceivingDialog({
            return (
                       <div
                         key={item.id}
-                        className="grid gap-3 p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                        className="grid gap-3 p-3 sm:grid-cols-[minmax(180px,1fr)_minmax(0,auto)] sm:items-center"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -709,7 +709,10 @@ export function DetailPurchaseOrderReceivingDialog({
                               )}
                             </strong>
                           </span>
-                          <span className="max-w-[220px] break-words">
+                          <span
+                            className="max-w-[180px] truncate"
+                            title={item.note?.trim() || undefined}
+                          >
                             Remark{" "}
                             <strong>{item.note?.trim() || "-"}</strong>
                           </span>
