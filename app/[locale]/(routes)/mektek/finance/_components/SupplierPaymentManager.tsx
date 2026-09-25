@@ -228,6 +228,14 @@ export default function SupplierPaymentManager({
     taxAmount,
   );
   const documentsComplete = Object.values(checks).every(Boolean);
+  const existingInvoiceRow = selected
+    ? rows.find(
+        (row) =>
+          row.supplierName === selected.supplierName &&
+          row.supplierInvoiceNumber ===
+            invoiceNumber.replace(/\s+/g, " ").trim(),
+      ) ?? null
+    : null;
 
   const summary = useMemo(
     () => ({
@@ -274,7 +282,11 @@ export default function SupplierPaymentManager({
         toast.error(result.error);
         return;
       }
-      toast.success("Tagihan berhasil dicatat dan siap dibayar");
+      toast.success(
+        result.data.appended
+          ? `Surat jalan ${selected.receivingReference} digabung ke tagihan invoice ${invoiceNumber}`
+          : "Tagihan berhasil dicatat dan siap dibayar",
+      );
       reset();
       router.refresh();
     });
@@ -640,6 +652,12 @@ export default function SupplierPaymentManager({
                   placeholder="Contoh: INV.FRG-001"
                   required
                 />
+                {existingInvoiceRow ? (
+                  <p className="text-xs font-medium text-emerald-700">
+                    Invoice ini sudah tercatat ({existingInvoiceRow.internalNumber}
+                    ). Surat jalan ini akan digabung ke tagihan yang sama.
+                  </p>
+                ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="supplier-bill-date">Tanggal invoice</Label>

@@ -50,7 +50,7 @@ export default async function SupplierPaymentsPage({
               occurredAt: true,
               snapshot: true,
             },
-            take: 1,
+            orderBy: { occurredAt: "asc" },
           },
           allocations: {
             where: { disbursement: { status: "POSTED" } },
@@ -160,9 +160,15 @@ export default async function SupplierPaymentsPage({
     amount: Number(transaction.amount),
     transactionDate: dateOnly(transaction.transactionDate),
   }));
+  // Satu invoice bisa punya beberapa baris hutang (satu per surat jalan).
+  // Invoice baru dianggap lunas bila SEMUA barisnya lunas.
   const lunasInvoiceKeys = new Set<string>();
+  const openInvoiceKeys = new Set<string>();
   for (const entry of debtEntries) {
     if (!entry.invoiceNumber) continue;
+    const invoiceKey = `${normalizeFinanceKey(
+      entry.sheetKey,
+    )}::${normalizeFinanceKey(entry.invoiceNumber)}`;
     const { status } = applySupplierDebtPayments(
       {
         grandTotal: Number(entry.grandTotal),
@@ -172,14 +178,10 @@ export default async function SupplierPaymentsPage({
       entry.sheetKey,
       entry.sourceRow,
     );
-    if (status === "LUNAS") {
-      lunasInvoiceKeys.add(
-        `${normalizeFinanceKey(entry.sheetKey)}::${normalizeFinanceKey(
-          entry.invoiceNumber,
-        )}`,
-      );
-    }
+    if (status === "LUNAS") lunasInvoiceKeys.add(invoiceKey);
+    else openInvoiceKeys.add(invoiceKey);
   }
+  for (const key of openInvoiceKeys) lunasInvoiceKeys.delete(key);
 
   const rows: SupplierPaymentRow[] = supplierBills
     .filter((bill) => {
@@ -205,7 +207,9 @@ export default async function SupplierPaymentsPage({
       internalNumber: bill.internalNumber,
       supplierName: bill.counterparty.legalName,
       supplierInvoiceNumber: bill.supplierInvoiceNumber,
-      receivingReference: source?.sourceReference ?? "",
+      receivingReference: bill.sources
+        .map((row) => row.sourceReference)
+        .join(", "),
       receivedAt: source ? dateOnly(source.occurredAt) : "",
       poNumber: snapshot.poNumber,
       billDate: dateOnly(bill.billDate),

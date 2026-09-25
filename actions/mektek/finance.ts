@@ -2103,8 +2103,63 @@ export async function createMatchedFinanceSupplierBill(input: {
         if (expectedSubtotal && !expectedSubtotal.eq(subtotal)) {
           throw new Error("SOURCE_AMOUNT_MISMATCH");
         }
-        const internalNumber = await nextDocumentNumber(tx, "BILL", billDate);
-        const created = await tx.financeSupplierBill.create({
+        // Satu invoice pemasok bisa menagih beberapa batch Receiving dari PO
+        // yang sama (barang datang terpisah). Batch berikutnya digabung ke
+        // tagihan yang sudah ada, bukan ditolak sebagai invoice duplikat.
+        const existingBill = await tx.financeSupplierBill.findUnique({
+          where: {
+            counterpartyId_supplierInvoiceNumber: {
+              counterpartyId: source.counterpartyId,
+              supplierInvoiceNumber,
+            },
+          },
+          select: {
+            id: true,
+            internalNumber: true,
+            status: true,
+            billDate: true,
+            dueDate: true,
+            _count: { select: { lines: true } },
+            allocations: {
+              where: { disbursement: { status: "POSTED" } },
+              select: { amount: true },
+            },
+          },
+        });
+        if (existingBill?.status === "VOID") {
+          throw new Error("INVOICE_VOIDED");
+        }
+
+        const appended = existingBill
+          ? await tx.financeSupplierBill.update({
+              where: { id: existingBill.id },
+              data: {
+                subtotal: { increment: subtotal },
+                taxAmount: { increment: taxAmount },
+                totalAmount: { increment: totalAmount },
+                ...(existingBill.status === "PAID" ||
+                existingBill.allocations.length > 0
+                  ? { status: "PARTIALLY_PAID" as const }
+                  : {}),
+                lines: {
+                  create: snapshot.lines.map((line, index) => ({
+                    position: existingBill._count.lines + index + 1,
+                    description: line.description,
+                    partNumber: line.partNumber,
+                    quantity: new Prisma.Decimal(line.quantity.toFixed(3)),
+                    unitCost: new Prisma.Decimal(line.unitCost.toFixed(2)),
+                    lineTotal: new Prisma.Decimal(line.lineTotal.toFixed(2)),
+                    sourceLineKey: line.sourceLineKey,
+                  })),
+                },
+              },
+            })
+          : null;
+
+        const internalNumber =
+          existingBill?.internalNumber ??
+          (await nextDocumentNumber(tx, "BILL", billDate));
+        const created = appended ?? await tx.financeSupplierBill.create({
           data: {
             internalNumber,
             supplierInvoiceNumber,
@@ -2176,8 +2231,8 @@ export async function createMatchedFinanceSupplierBill(input: {
             receivedBy,
             deliveryNoteNumber: source.sourceReference,
             invoiceNumber: supplierInvoiceNumber,
-            invoiceDate: billDate,
-            dueDate,
+            invoiceDate: existingBill?.billDate ?? billDate,
+            dueDate: existingBill?.dueDate ?? dueDate,
             description: `Invoice ${supplierInvoiceNumber}${
               snapshot.poNumber ? ` — ${snapshot.poNumber}` : ""
             }`,
@@ -2194,10 +2249,13 @@ export async function createMatchedFinanceSupplierBill(input: {
         await audit(tx, {
           entityType: "SUPPLIER_BILL",
           entityId: created.id,
-          action: "POST_THREE_WAY_MATCHED_BILL",
+          action: existingBill
+            ? "APPEND_RECEIPT_TO_MATCHED_BILL"
+            : "POST_THREE_WAY_MATCHED_BILL",
           actorId: access.current.id,
           after: {
             internalNumber,
+            appendedToExistingBill: Boolean(existingBill),
             supplierInvoiceNumber,
             purchaseOrderNumber: snapshot.poNumber,
             goodsReceiptNumber: source.sourceReference,
@@ -2211,14 +2269,20 @@ export async function createMatchedFinanceSupplierBill(input: {
             },
           },
         });
-        return { id: created.id };
+        return { id: created.id, appended: Boolean(existingBill) };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
     revalidatePath(financePath, "layout");
-    return { data: { id: bill.id } };
+    return { data: bill };
   } catch (error) {
     console.error("[CREATE_MATCHED_FINANCE_SUPPLIER_BILL]", error);
+    if (error instanceof Error && error.message === "INVOICE_VOIDED") {
+      return {
+        error:
+          "Nomor invoice ini sudah dipakai tagihan yang dibatalkan. Gunakan nomor invoice lain",
+      };
+    }
     if (error instanceof Error && error.message === "SOURCE_INCOMPLETE") {
       return {
         error:
