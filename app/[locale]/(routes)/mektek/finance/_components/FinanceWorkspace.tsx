@@ -322,27 +322,28 @@ export default async function FinanceWorkspace({
     });
     if (!("data" in result)) return <Empty>Data keuangan tidak dapat dimuat.</Empty>;
     const value = result.data;
+    // Akuntansi covers the customer side only: payments to suppliers (kas
+    // keluar) live under Keuangan › Pembayaran Pemasok, so they are not shown.
     const cards = [
-      ["Kas masuk", money(value.cashIn), ArrowDownLeft],
-      ["Kas keluar", money(value.cashOut), ArrowUpRight],
-      ["Piutang terbuka", money(value.receivable), ReceiptText],
-      ["Utang terbuka", money(value.payable), Landmark],
+      ["Kas masuk", money(value.cashIn), ArrowDownLeft, "Pembayaran pelanggan yang dicatat di Payment Faktur (tanggal transfer atau cicilan)."],
+      ["Piutang terbuka", money(value.receivable), ReceiptText, "Total invoice di Rekap Invoice dikurangi pembayaran yang sudah tercatat."],
+      ["Utang terbuka", money(value.payable), Landmark, "Tagihan pemasok yang belum lunas (Keuangan › Pembayaran Pemasok)."],
     ] as const;
     const sparepartCards = [
-      ["Penjualan sparepart", money(value.sparepartSalesTotal), ReceiptText],
-      ["Baris sparepart", String(value.sparepartSalesCount), FileCheck2],
+      ["Penjualan sparepart", money(value.sparepartSalesTotal), ReceiptText, "Jumlah nilai baris sparepart pada semua invoice."],
+      ["Baris sparepart", String(value.sparepartSalesCount), FileCheck2, "Jumlah baris sparepart pada semua invoice."],
     ] as const;
     const queues = [
-      ["Sumber belum ditagih", value.unbilledSources, FileCheck2],
-      ["Penerimaan belum dicocokkan", value.unmatchedPayables, AlertTriangle],
-      ["Kontrak berakhir dalam 30 hari", value.expiringContracts, Clock3],
+      ["Sumber belum ditagih", value.unbilledSources, FileCheck2, "Surat jalan dan order servis yang belum dibuatkan invoice.", "/mektek/finance/delivery-notes"],
+      ["Penerimaan belum dicocokkan", value.unmatchedPayables, AlertTriangle, "Penerimaan barang dari pemasok yang belum dicocokkan dengan tagihan pemasok.", "/mektek/finance/payables"],
+      ["Kontrak berakhir dalam 30 hari", value.expiringContracts, Clock3, "Kontrak aktif yang berakhir dalam 30 hari ke depan.", "/mektek/finance/contracts"],
     ] as const;
 
     return (
       <main className="space-y-6 px-4 pb-8 sm:px-6">
         <Header
           title="Ringkasan keuangan"
-          description="Posisi kas, piutang, utang, dan pekerjaan yang perlu ditindaklanjuti."
+          description="Posisi kas masuk, piutang, utang, dan pekerjaan yang perlu ditindaklanjuti."
         />
         <Card>
           <CardHeader><CardTitle className="text-base">Periode ringkasan</CardTitle></CardHeader>
@@ -376,39 +377,52 @@ export default async function FinanceWorkspace({
             </form>
           </CardContent>
         </Card>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {cards.map(([label, amount, Icon]) => (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {cards.map(([label, amount, Icon, source]) => (
             <Card key={label}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm">{label}</CardTitle>
                 <Icon className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent><p className="text-2xl font-semibold">{amount}</p></CardContent>
+              <CardContent className="space-y-1">
+                <p className="text-2xl font-semibold">{amount}</p>
+                <p className="text-xs text-muted-foreground">{source}</p>
+              </CardContent>
             </Card>
           ))}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          {sparepartCards.map(([label, amount, Icon]) => (
+          {sparepartCards.map(([label, amount, Icon, source]) => (
             <Card key={label}>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm">{label}</CardTitle>
                 <Icon className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent><p className="text-2xl font-semibold">{amount}</p></CardContent>
+              <CardContent className="space-y-1">
+                <p className="text-2xl font-semibold">{amount}</p>
+                <p className="text-xs text-muted-foreground">{source}</p>
+              </CardContent>
             </Card>
           ))}
         </div>
         <Card>
           <CardHeader><CardTitle className="text-base">Daftar tindak lanjut</CardTitle></CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
-            {queues.map(([label, count, Icon]) => (
-              <div key={label} className="flex items-center justify-between rounded-lg border p-4">
-                <div className="flex items-center gap-3">
-                  <Icon className="h-5 w-5 text-muted-foreground" />
-                  <span className="text-sm font-medium">{label}</span>
+            {queues.map(([label, count, Icon, source, href]) => (
+              <Link
+                key={label}
+                href={href}
+                className="flex items-center justify-between gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/50"
+              >
+                <div className="flex items-start gap-3">
+                  <Icon className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+                  <div>
+                    <span className="text-sm font-medium">{label}</span>
+                    <p className="text-xs text-muted-foreground">{source}</p>
+                  </div>
                 </div>
                 <Badge variant={Number(count) ? "destructive" : "secondary"}>{count}</Badge>
-              </div>
+              </Link>
             ))}
           </CardContent>
         </Card>

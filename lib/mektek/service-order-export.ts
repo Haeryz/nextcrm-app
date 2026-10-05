@@ -22,6 +22,7 @@ export type MektekServiceOrderExportOrder = {
 };
 
 export const MEKTEK_SERVICE_ORDER_EXPORT_HEADERS = [
+  "No",
   "No. Service",
   "ID",
   "Nama Customer",
@@ -182,7 +183,7 @@ export function buildMektekServiceOrderExportRows(
 ) {
   const rows: Record<string, string | number>[] = [];
 
-  for (const order of orders) {
+  for (const [orderIndex, order] of orders.entries()) {
     const tags =
       order.tags && typeof order.tags === "object" && !Array.isArray(order.tags)
         ? (order.tags as Record<string, unknown>)
@@ -214,6 +215,7 @@ export function buildMektekServiceOrderExportRows(
           : "Belum Bayar";
 
     const commonFields: Record<string, string | number> = {
+      No: orderIndex + 1,
       "No. Service": order.serviceNumber ?? order.id.slice(0, 8),
       ID: order.id,
       "Nama Customer": text(tags.customerName),

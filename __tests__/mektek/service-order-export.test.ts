@@ -3,6 +3,7 @@ import {
   buildMektekServiceOrderExportSummary,
   getMektekServiceOrderExportMonthRange,
 } from "@/lib/mektek/service-order-export";
+import { insertTransactionSpacing } from "@/lib/mektek/logistics-export";
 
 describe("monthly service-order export", () => {
   it("uses Asia/Makassar calendar-month boundaries", () => {
@@ -287,5 +288,28 @@ describe("monthly service-order export", () => {
     expect(summaryMap.get("In Progress")).toBe(1);
     expect(summaryMap.get("Selesai")).toBe(1);
     expect(summaryMap.get("Subtotal Sparepart")).toBe(400_000);
+  });
+  it("numbers each transaction once and separates transactions with two blank rows", () => {
+    const order = (id: string, spareparts: string[]) => ({
+      id,
+      tags: {
+        customerName: id,
+        serviceItems: [],
+        sparepartItems: spareparts.map((name) => ({ name, quantity: 1, unitPrice: 1000 })),
+      },
+    });
+    const rows = buildMektekServiceOrderExportRows([
+      order("Riky", ["EXTRAFAN 24V"]),
+      order("Pak Harno", ["FILTER AC", "ORING 3/8"]),
+    ]);
+
+    expect(Object.keys(rows[0])[0]).toBe("No");
+    expect(rows.map((row) => row.No ?? "")).toEqual([1, 2, ""]);
+
+    const spaced = insertTransactionSpacing(rows, "No");
+    const shape = spaced.map((row) =>
+      Object.keys(row).length === 0 ? "blank" : String((row as { No?: unknown }).No ?? "detail"),
+    );
+    expect(shape).toEqual(["1", "blank", "blank", "2", "detail"]);
   });
 });

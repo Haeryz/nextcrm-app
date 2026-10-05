@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 
 import { getMektekServiceOrderExportData } from "@/actions/mektek/service-order-export";
+import { insertTransactionSpacing } from "@/lib/mektek/logistics-export";
 import {
   buildMektekServiceOrderExportRows,
   buildMektekServiceOrderExportSummary,
@@ -19,11 +20,13 @@ export async function GET(request: Request) {
     });
     const rows = buildMektekServiceOrderExportRows(data.orders);
     const summaryRows = buildMektekServiceOrderExportSummary(rows, data.month);
-    const worksheet = XLSX.utils.json_to_sheet(rows, {
+    // Numbered transactions with two blank rows between them, matching the
+    // customer-service recap the team keeps by hand.
+    const worksheet = XLSX.utils.json_to_sheet(insertTransactionSpacing(rows, "No"), {
       header: [...MEKTEK_SERVICE_ORDER_EXPORT_HEADERS],
     });
     worksheet["!cols"] = MEKTEK_SERVICE_ORDER_EXPORT_HEADERS.map((header) => ({
-      wch: Math.max(14, Math.min(36, header.length + 6)),
+      wch: header === "No" ? 6 : Math.max(14, Math.min(36, header.length + 6)),
     }));
     const summaryWorksheet = XLSX.utils.json_to_sheet(summaryRows);
     summaryWorksheet["!cols"] = [{ wch: 28 }, { wch: 20 }];
