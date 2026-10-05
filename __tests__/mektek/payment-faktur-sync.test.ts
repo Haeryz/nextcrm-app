@@ -10,8 +10,8 @@ describe("Payment Faktur synchronisation", () => {
   const logisticsSource = read("actions/mektek/logistics.ts");
 
   it("creates the Payment Faktur row when an invoice is saved", () => {
-    expect(financeSource).toContain(
-      'import { syncInvoiceToPaymentFaktur } from "@/lib/mektek/payment-faktur-sync"',
+    expect(financeSource).toMatch(
+      /import \{[^}]*syncInvoiceToPaymentFaktur[^}]*\} from "@\/lib\/mektek\/payment-faktur-sync"/,
     );
     // Both the create and the update path mirror the invoice across.
     expect(
@@ -20,7 +20,7 @@ describe("Payment Faktur synchronisation", () => {
   });
 
   it("is idempotent on the customer and invoice number", () => {
-    expect(syncSource).toContain("const existing = await tx.paymentFakturEntry.findFirst");
+    expect(syncSource).toContain("let existing = await tx.paymentFakturEntry.findFirst");
     expect(syncSource).toContain(
       "invoiceNumber: { equals: invoiceNumber, mode: \"insensitive\" }",
     );
@@ -28,10 +28,12 @@ describe("Payment Faktur synchronisation", () => {
   });
 
   it("never overwrites recorded installments", () => {
-    expect(syncSource).not.toContain("installment1");
-    expect(syncSource).not.toContain("installment2");
-    expect(syncSource).not.toContain("installment3");
-    expect(syncSource).not.toContain("transferDate");
+    const mirrored = syncSource.slice(
+      syncSource.indexOf("const data = {"),
+      syncSource.indexOf("};", syncSource.indexOf("const data = {")),
+    );
+    expect(mirrored).not.toContain("installment");
+    expect(mirrored).not.toContain("transferDate");
   });
 
   it("registers a new company from an outbound Purchase Order", () => {

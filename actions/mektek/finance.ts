@@ -33,8 +33,12 @@ import {
   type FinancePurchaseOrderSuggestion,
 } from "@/lib/mektek/finance-po";
 import { isFinanceDestinationBank } from "@/lib/mektek/finance-bank-accounts";
+import { calculatePaymentFakturAmounts } from "@/lib/mektek/payment-faktur";
 import { parseSupplierPayableSnapshot } from "@/lib/mektek/supplier-payment";
-import { syncInvoiceToPaymentFaktur } from "@/lib/mektek/payment-faktur-sync";
+import {
+  removeInvoiceFromPaymentFaktur,
+  syncInvoiceToPaymentFaktur,
+} from "@/lib/mektek/payment-faktur-sync";
 import { prismadb } from "@/lib/prisma";
 import { getServerSession } from "@/lib/session";
 
@@ -1497,7 +1501,10 @@ export async function updateFinanceInvoiceEntry(
     const row = await prismadb.$transaction(async (tx) => {
       const existing = await tx.financeInvoice.findUnique({
         where: { id },
-        include: { lines: { orderBy: { position: "asc" }, take: 1 } },
+        include: {
+          lines: { orderBy: { position: "asc" }, take: 1 },
+          counterparty: { select: { normalizedName: true } },
+        },
       });
       if (!existing) throw new Error("NOT_FOUND");
       if (existing.status === "PAID" || existing.status === "VOID") {
@@ -1577,6 +1584,10 @@ export async function updateFinanceInvoiceEntry(
           taxInvoiceNumber: value.taxInvoiceNumber,
         },
         access.current.id,
+        {
+          invoiceNumber: existing.invoiceNumber,
+          customerNormalizedName: existing.counterparty.normalizedName,
+        },
       );
       await audit(tx, {
         entityType: "INVOICE",
@@ -1627,11 +1638,18 @@ export async function deleteFinanceInvoiceEntry(invoiceId: string) {
     await prismadb.$transaction(async (tx) => {
       const existing = await tx.financeInvoice.findUnique({
         where: { id },
-        include: { _count: { select: { allocations: true } } },
+        include: {
+          _count: { select: { allocations: true } },
+          counterparty: { select: { normalizedName: true } },
+        },
       });
       if (!existing) throw new Error("NOT_FOUND");
       if (existing._count.allocations > 0) throw new Error("HAS_PAYMENT");
       await syncInvoiceBillingSources(tx, id, []);
+      await removeInvoiceFromPaymentFaktur(tx, {
+        invoiceNumber: existing.invoiceNumber,
+        customerNormalizedName: existing.counterparty.normalizedName,
+      });
       await tx.financeApproval.deleteMany({
         where: { entityType: "INVOICE", entityId: id },
       });
@@ -2423,8 +2441,8 @@ export async function getFinanceOverview(input?: {
       ? { paidAt: { gte: dateFilter.gte, lt: dateFilter.lt } }
       : {};
 
-  const [invoices, bills, receipts, disbursements, contracts, billingSources, payableSources, sparepartInvoices] = await Promise.all([
-    prismadb.financeInvoice.findMany({ where: { status: { not: "VOID" }, ...invoiceDateWhere }, select: { netAmount: true, dueDate: true, status: true, allocations: { where: { receipt: { status: "POSTED" } }, select: { amount: true } } } }),
+  const [invoices, bills, receipts, disbursements, contracts, billingSources, payableSources, sparepartInvoices, paymentFakturRows, allocatedByInvoice] = await Promise.all([
+    prismadb.financeInvoice.findMany({ where: { status: { not: "VOID" }, ...invoiceDateWhere }, select: { invoiceNumber: true, netAmount: true, dueDate: true, status: true, allocations: { where: { receipt: { status: "POSTED" } }, select: { amount: true } } } }),
     prismadb.financeSupplierBill.findMany({ where: { status: { not: "VOID" }, ...invoiceDateWhere }, select: { totalAmount: true, dueDate: true, status: true, allocations: { where: { disbursement: { status: "POSTED" } }, select: { amount: true } } } }),
     prismadb.financeReceipt.aggregate({ where: { status: "POSTED", ...receiptDateWhere }, _sum: { amount: true } }),
     prismadb.financeDisbursement.aggregate({ where: { status: "POSTED", ...disbursementDateWhere }, _sum: { amount: true } }),
@@ -2439,16 +2457,62 @@ export async function getFinanceOverview(input?: {
         },
       },
     }),
+    // Customer payments are recorded on the Payment Faktur sheet (transfer
+    // date / installments), so the summary has to read them from there too.
+    prismadb.paymentFakturEntry.findMany({
+      select: {
+        invoiceNumber: true,
+        invoiceDate: true,
+        grandTotal: true,
+        transferDate: true,
+        installment1: true,
+        installment2: true,
+        installment3: true,
+      },
+    }),
+    prismadb.financeReceiptAllocation.findMany({
+      where: { receipt: { status: "POSTED" } },
+      select: { amount: true, invoice: { select: { invoiceNumber: true } } },
+    }),
   ]);
+  const invoiceKey = (value: string | null) => String(value ?? "").trim().toLowerCase();
+  const receiptPaidByInvoice = new Map<string, number>();
+  for (const row of allocatedByInvoice) {
+    const key = invoiceKey(row.invoice.invoiceNumber);
+    receiptPaidByInvoice.set(key, (receiptPaidByInvoice.get(key) ?? 0) + numberValue(row.amount));
+  }
+  const fakturPaidByInvoice = new Map<string, number>();
+  let fakturCashIn = 0;
+  for (const row of paymentFakturRows) {
+    const { paidAmount } = calculatePaymentFakturAmounts({
+      grandTotal: numberValue(row.grandTotal),
+      transferDate: row.transferDate,
+      installment1: numberValue(row.installment1),
+      installment2: numberValue(row.installment2),
+      installment3: numberValue(row.installment3),
+    });
+    if (paidAmount <= 0) continue;
+    const key = invoiceKey(row.invoiceNumber);
+    fakturPaidByInvoice.set(key, Math.max(fakturPaidByInvoice.get(key) ?? 0, paidAmount));
+    // Only the part not already posted as a receipt is new cash.
+    const uncounted = Math.max(0, paidAmount - (receiptPaidByInvoice.get(key) ?? 0));
+    const paidOn = row.transferDate ?? row.invoiceDate;
+    const inPeriod =
+      !dateFilter.gte ||
+      !dateFilter.lt ||
+      (paidOn !== null && paidOn >= dateFilter.gte && paidOn < dateFilter.lt);
+    if (inPeriod) fakturCashIn += uncounted;
+  }
   const receivable = invoices.reduce((sum, invoice) => {
-    const paid = invoice.allocations.reduce((value, row) => value + numberValue(row.amount), 0);
+    const receiptPaid = invoice.allocations.reduce((value, row) => value + numberValue(row.amount), 0);
+    const paid = Math.max(receiptPaid, fakturPaidByInvoice.get(invoiceKey(invoice.invoiceNumber)) ?? 0);
     return sum + Math.max(0, numberValue(invoice.netAmount) - paid);
   }, 0);
   const payable = bills.reduce((sum, bill) => {
     const paid = bill.allocations.reduce((value, row) => value + numberValue(row.amount), 0);
     return sum + Math.max(0, numberValue(bill.totalAmount) - paid);
   }, 0);
-  const cashIn = numberValue(receipts._sum.amount);
+  const cashIn = numberValue(receipts._sum.amount) + fakturCashIn;
   const cashOut = numberValue(disbursements._sum.amount);
 
   let sparepartSalesTotal = 0;
