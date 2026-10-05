@@ -3,7 +3,41 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 # Production
-https://mektek-bice.vercel.app
+**https://mektek.id**: a self-hosted VPS, **not** Vercel. Push to `main` →
+GitHub Actions builds the images → the VPS poller (`scripts/vps-dockerhub-poll.sh`,
+cron every 3 min) runs the prisma migrator and recreates the app container.
+The prod DB is the `nextcrm-supabase-1` Postgres container on the VPS.
+`https://mektek-bice.vercel.app` is the legacy Vercel deploy.
+
+## Client fix → proof workflow
+
+When the user pastes a client request (often in Indonesian, often with a
+screenshot) and asks for a fix plus proof, do the whole loop without asking:
+
+1. **Investigate on prod, read-only.** `python scripts/agent/vps.py sql <file|->`
+   (always wrapped in `BEGIN READ ONLY … ROLLBACK`) to find the real rows behind
+   the complaint. `python scripts/agent/vps.py sh "<cmd>"` for container and log checks.
+   Credentials come from `.env.agent.local` (gitignored; template in
+   `scripts/agent/env.example`). If that file is missing, ask the user to create it.
+   Never print or commit its values.
+2. **Fix in code** with tests; run `pnpm exec tsc --noEmit`, `pnpm lint`, and the
+   relevant `pnpm jest` files.
+3. **Fix bad data with a prisma migration**, never with ad-hoc `UPDATE`/`DELETE`
+   on prod. Dry-run the migration's `WHERE` as a read-only `SELECT` first and
+   confirm it matches only the intended rows. The migrator applies it on deploy.
+4. **Ship**: commit only your own files and push to `main` with plain `git`
+   (not the `gh` CLI). Then run `python scripts/agent/vps.py wait-deploy` in the
+   background and confirm the fix with a read-only query once it reports deployed.
+5. **Proof screenshots**: write a small spec JSON (see the header of
+   `scripts/agent/prod-shots.js`) and run `node scripts/agent/prod-shots.js spec.json`.
+   It logs in as the test admin (`PROD_TEST_EMAIL`) and only navigates and captures.
+   Never click save/submit on prod. Read every screenshot to check it really shows
+   the fix (e.g. the row is in frame, not below the fold; use `"element"` for tables).
+   Screenshots land in `PROOF_DIR/<date>-<slug>/` on the user's Desktop, **never in a
+   temp folder**. Report that folder path.
+6. **Reply** with: root cause (one or two lines), what changed, verification
+   numbers before/after, the proof folder, and a short ready-to-paste message for
+   the client **in Bahasa Indonesia**. Talk to the user in English.
 
 ## Commands
 

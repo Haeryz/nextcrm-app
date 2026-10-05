@@ -117,3 +117,6 @@ tutorial_awikwok.md
 /tmp/
 /output/
 /public/tmp/
+
+# client-fix proof screenshots (scripts/agent/prod-shots.js fallback dir)
+/proof/
