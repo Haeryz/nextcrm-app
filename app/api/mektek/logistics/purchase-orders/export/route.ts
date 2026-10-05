@@ -4,6 +4,7 @@ import {
   buildLogisticsDeliveryNoteExportRows,
   buildLogisticsPoMonthlyExportRows,
   getLogisticsPoExportRange,
+  insertTransactionSpacing,
   LOGISTICS_DELIVERY_NOTE_EXPORT_HEADERS,
   LOGISTICS_PO_MONTHLY_EXPORT_HEADERS,
   parseLogisticsPoExportType,
@@ -163,9 +164,9 @@ export async function GET(request: Request) {
     const worksheet = buildWorksheet(
       isDeliveryNote ? "SJ Bulanan" : "Recap PO Bulanan",
       headers,
-      rows,
+      insertTransactionSpacing(rows, "No") as ExportRow[],
       isDeliveryNote
-        ? [18, 18, 18, 12, 20, 24, 30, 26, 28, 22, 16, 12, 12, 12]
+        ? [8, 18, 18, 18, 12, 20, 24, 30, 26, 28, 22, 16, 12, 12, 12]
         : [8, 30, 20, 24, 26, 28, 22, 16, 12, 12, 12, 12],
     );
 

@@ -1,6 +1,7 @@
 import {
   buildLogisticsDeliveryNoteExportRows,
   buildLogisticsPoMonthlyExportRows,
+  insertTransactionSpacing,
   getLogisticsPoExportRange,
   LOGISTICS_DELIVERY_NOTE_EXPORT_HEADERS,
   LOGISTICS_PO_MONTHLY_EXPORT_HEADERS,
@@ -115,6 +116,7 @@ describe("Monitoring PO monthly export", () => {
 
   it("builds SJ Bulanan grouped by delivery-note number with historical remaining quantities", () => {
     expect(LOGISTICS_DELIVERY_NOTE_EXPORT_HEADERS).toEqual([
+      "No",
       "No SJ",
       "Tanggal",
       "Due Date",
@@ -136,6 +138,7 @@ describe("Monitoring PO monthly export", () => {
 
     expect(rows).toEqual([
       {
+        No: 1,
         "No SJ": "SJ-001",
         Tanggal: "22 Juli 2026",
         "Due Date": "24 Juli 2026",
@@ -152,6 +155,7 @@ describe("Monitoring PO monthly export", () => {
         "QTY Sisa": 1,
       },
       {
+        No: "",
         "No SJ": "",
         Tanggal: "",
         "Due Date": "",
@@ -168,6 +172,7 @@ describe("Monitoring PO monthly export", () => {
         "QTY Sisa": 0,
       },
       {
+        No: "",
         "No SJ": "",
         Tanggal: "",
         "Due Date": "",
@@ -184,6 +189,7 @@ describe("Monitoring PO monthly export", () => {
         "QTY Sisa": 0,
       },
       expect.objectContaining({
+        No: 2,
         "No SJ": "SJ-002",
         Status: "Open",
         PO: "PO-ALMK-007",
@@ -191,6 +197,7 @@ describe("Monitoring PO monthly export", () => {
         "QTY Sisa": 19,
       }),
       expect.objectContaining({
+        No: 3,
         "No SJ": "SJ-003",
         Status: "Closed",
         PO: "PO-ABC-123",
@@ -253,6 +260,23 @@ describe("Monitoring PO monthly export", () => {
         "QTY Sisa": 19,
         Status: "Open",
       }),
+    ]);
+  });
+});
+
+describe("insertTransactionSpacing", () => {
+  it("inserts two blank rows before each new transaction", () => {
+    const rows = [
+      { No: 1, Item: "a" },
+      { No: "", Item: "b" },
+      { No: 2, Item: "c" },
+    ];
+    expect(insertTransactionSpacing(rows, "No")).toEqual([
+      { No: 1, Item: "a" },
+      { No: "", Item: "b" },
+      {},
+      {},
+      { No: 2, Item: "c" },
     ]);
   });
 });

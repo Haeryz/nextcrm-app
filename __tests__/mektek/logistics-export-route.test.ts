@@ -84,6 +84,7 @@ describe("Monitoring PO Excel export route", () => {
     expect(workbook.SheetNames).toEqual(["SJ Bulanan", "Ringkasan"]);
     expect(rows[0]).toEqual(["SJ Bulanan"]);
     expect(rows[1]).toEqual([
+      "No",
       "No SJ",
       "Tanggal",
       "Due Date",
@@ -100,6 +101,7 @@ describe("Monitoring PO Excel export route", () => {
       "QTY Sisa",
     ]);
     expect(rows[2]).toEqual([
+      1,
       "SJ-100",
       "6 Juli 2026",
       "20 Juli 2026",
@@ -120,6 +122,7 @@ describe("Monitoring PO Excel export route", () => {
       "",
       "",
       "",
+      "",
       "PO-100",
       "1 batch Barang Keluar",
       "PT User",
@@ -132,12 +135,12 @@ describe("Monitoring PO Excel export route", () => {
       1,
     ]);
     expect(workbook.Sheets["SJ Bulanan"]["!merges"]).toEqual([
-      { s: { c: 0, r: 0 }, e: { c: 13, r: 0 } },
+      { s: { c: 0, r: 0 }, e: { c: 14, r: 0 } },
     ]);
     expect(workbook.Sheets["SJ Bulanan"].A3.s?.fgColor?.rgb).toContain(
       "FCE4D6",
     );
-    expect(workbook.Sheets["SJ Bulanan"].N4.s?.fgColor?.rgb).toContain(
+    expect(workbook.Sheets["SJ Bulanan"].O4.s?.fgColor?.rgb).toContain(
       "FCE4D6",
     );
   });

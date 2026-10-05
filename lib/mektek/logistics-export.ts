@@ -1,4 +1,5 @@
 export const LOGISTICS_DELIVERY_NOTE_EXPORT_HEADERS = [
+  "No",
   "No SJ",
   "Tanggal",
   "Due Date",
@@ -260,7 +261,28 @@ export function buildLogisticsDeliveryNoteExportRows(
         left.reference.localeCompare(right.reference) ||
         left.poNumber.localeCompare(right.poNumber),
     )
-    .flatMap((group) => group.rows);
+    .flatMap((group, groupIndex) =>
+      group.rows.map((row, rowIndex) => ({
+        No: rowIndex === 0 ? groupIndex + 1 : "",
+        ...row,
+      })),
+    );
+}
+
+/** Insert blank rows between transactions; a new transaction starts where `startKey` is filled. */
+export function insertTransactionSpacing<T extends Record<string, unknown>>(
+  rows: T[],
+  startKey: string,
+  gap = 2,
+): Array<T | Record<string, never>> {
+  const spaced: Array<T | Record<string, never>> = [];
+  rows.forEach((row, index) => {
+    if (index > 0 && row[startKey] !== "" && row[startKey] != null) {
+      for (let i = 0; i < gap; i += 1) spaced.push({});
+    }
+    spaced.push(row);
+  });
+  return spaced;
 }
 
 export function buildLogisticsPoMonthlyExportRows(
