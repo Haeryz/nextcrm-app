@@ -81,7 +81,13 @@ def main():
             time.sleep(30)
             now, _ = run(client, f"docker inspect {APP_CONTAINER} --format '{{{{.Created}}}}'")
             if now.strip() and now.strip() != before:
-                health, _ = run(client, f"curl -s -o /dev/null -w '%{{http_code}}' {env.get('PROD_URL', 'https://mektek.id')}/api/health")
+                # The container swap lands before the app answers; wait for 200.
+                health = ""
+                for _ in range(20):
+                    health, _ = run(client, f"curl -s -o /dev/null -w '%{{http_code}}' {env.get('PROD_URL', 'https://mektek.id')}/api/health")
+                    if health.strip() == "200":
+                        break
+                    time.sleep(15)
                 print(f"deployed: container created {now.strip()}, health {health}")
                 return
         sys.exit("timed out after 30 min waiting for a new container")
