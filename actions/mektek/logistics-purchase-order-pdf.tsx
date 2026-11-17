@@ -125,6 +125,13 @@ const styles = StyleSheet.create({
     marginTop: 46,
   },
   signature: { width: "30%", textAlign: "center" },
+  signatureName: {
+    marginTop: 34,
+    paddingBottom: 2,
+    fontFamily: "Helvetica-Bold",
+  },
+  signatureRule: { borderBottomWidth: 1, borderColor },
+  signatureRole: { paddingTop: 2, fontFamily: "Helvetica-Bold" },
   signatureLine: {
     marginTop: 34,
     borderBottomWidth: 1,
@@ -280,7 +287,9 @@ function PurchaseOrderDocument({ data }: { data: MektekPurchaseOrderPdfData }) {
           <View style={styles.signatureRow}>
             <View style={styles.signature}>
               <Text>SIGNED / NAME / DATE</Text>
-              <Text style={styles.signatureLine}>Dept. FA</Text>
+              <Text style={styles.signatureName}>Suyadi</Text>
+              <Text style={styles.signatureRule} />
+              <Text style={styles.signatureRole}>Manager Operasional</Text>
             </View>
             <View style={styles.signature}>
               <Text>APPROVED BY</Text>

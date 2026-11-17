@@ -90,7 +90,8 @@ describe("MekTek Logistics documents", () => {
     expect(purchaseOrderPdfRoute).toContain('flow: "RECEIVING"');
     expect(whatsappSource).toContain('documentType: "PO"');
     expect(whatsappSource).not.toContain('documentType: "PO" | "DO"');
-    expect(purchaseOrderPdf).toContain("Dept. FA");
+    expect(purchaseOrderPdf).toContain("Suyadi");
+    expect(purchaseOrderPdf).toContain("Manager Operasional");
     expect(purchaseOrderPdf).toContain("Dept. Purch");
     expect(purchaseOrderPdf).toContain("Purchasing Adm.");
   });
