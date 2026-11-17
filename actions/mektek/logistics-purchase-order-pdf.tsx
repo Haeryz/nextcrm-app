@@ -132,13 +132,6 @@ const styles = StyleSheet.create({
   },
   signatureRule: { borderBottomWidth: 1, borderColor },
   signatureRole: { paddingTop: 2, fontFamily: "Helvetica-Bold" },
-  signatureLine: {
-    marginTop: 34,
-    borderBottomWidth: 1,
-    borderColor,
-    paddingBottom: 2,
-    fontFamily: "Helvetica-Bold",
-  },
   footer: {
     position: "absolute",
     bottom: 10,
@@ -293,11 +286,15 @@ function PurchaseOrderDocument({ data }: { data: MektekPurchaseOrderPdfData }) {
             </View>
             <View style={styles.signature}>
               <Text>APPROVED BY</Text>
-              <Text style={styles.signatureLine}>Dept. Purch</Text>
+              <Text style={styles.signatureName}>{"\u00A0"}</Text>
+              <Text style={styles.signatureRule} />
+              <Text style={styles.signatureRole}>Dept. Purch</Text>
             </View>
             <View style={styles.signature}>
               <Text>AUTHORIZED PERSON</Text>
-              <Text style={styles.signatureLine}>Purchasing Adm.</Text>
+              <Text style={styles.signatureName}>{"\u00A0"}</Text>
+              <Text style={styles.signatureRule} />
+              <Text style={styles.signatureRole}>Adm. Logistic</Text>
             </View>
           </View>
         </View>

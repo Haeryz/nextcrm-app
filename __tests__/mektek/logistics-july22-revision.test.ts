@@ -128,7 +128,7 @@ describe("22 July Logistics revision contract", () => {
     expect(purchaseOrderPdf).toContain("Suyadi");
     expect(purchaseOrderPdf).toContain("Manager Operasional");
     expect(purchaseOrderPdf).toContain("Dept. Purch");
-    expect(purchaseOrderPdf).toContain("Purchasing Adm.");
+    expect(purchaseOrderPdf).toContain("Adm. Logistic");
   });
 
   it("restores Catalog item creation while retaining inventory mutation", () => {

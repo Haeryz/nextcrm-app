@@ -93,6 +93,6 @@ describe("MekTek Logistics documents", () => {
     expect(purchaseOrderPdf).toContain("Suyadi");
     expect(purchaseOrderPdf).toContain("Manager Operasional");
     expect(purchaseOrderPdf).toContain("Dept. Purch");
-    expect(purchaseOrderPdf).toContain("Purchasing Adm.");
+    expect(purchaseOrderPdf).toContain("Adm. Logistic");
   });
 });
