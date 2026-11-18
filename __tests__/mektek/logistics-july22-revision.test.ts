@@ -127,7 +127,8 @@ describe("22 July Logistics revision contract", () => {
   it("uses the requested three approval roles on Receiving purchase orders", () => {
     expect(purchaseOrderPdf).toContain("Suyadi");
     expect(purchaseOrderPdf).toContain("Manager Operasional");
-    expect(purchaseOrderPdf).toContain("Dept. Purch");
+    expect(purchaseOrderPdf).toContain("Suyatno");
+    expect(purchaseOrderPdf).toContain("Dept. Logistic");
     expect(purchaseOrderPdf).toContain("Adm. Logistic");
   });
 

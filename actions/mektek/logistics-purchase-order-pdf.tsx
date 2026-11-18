@@ -286,9 +286,9 @@ function PurchaseOrderDocument({ data }: { data: MektekPurchaseOrderPdfData }) {
             </View>
             <View style={styles.signature}>
               <Text>APPROVED BY</Text>
-              <Text style={styles.signatureName}>{"\u00A0"}</Text>
+              <Text style={styles.signatureName}>Suyatno</Text>
               <Text style={styles.signatureRule} />
-              <Text style={styles.signatureRole}>Dept. Purch</Text>
+              <Text style={styles.signatureRole}>Dept. Logistic</Text>
             </View>
             <View style={styles.signature}>
               <Text>AUTHORIZED PERSON</Text>
